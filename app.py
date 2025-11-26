@@ -260,6 +260,7 @@ pagina = st.sidebar.radio(
         "Manual V13.8 (resumo)",
         "Modo Normal (protótipo)",
         "Modo IDX (avançado)",
+        "Modo IPO (otimizado)",     # NOVA PÁGINA
         "Ajuste Dinâmico (protótipo)",
         "Previsões Finais (protótipo)",
     )
@@ -283,7 +284,7 @@ if pagina == "Painel Principal":
         "Bem-vindo ao painel web do **Predict Cars V13.8**.\n\n"
         "Use a barra lateral para:\n"
         "- Carregar o histórico (arquivo ou texto);\n"
-        "- Navegar entre Manual, Modo Normal, Modo IDX, Ajuste Dinâmico e Previsões."
+        "- Navegar entre Manual, Modo Normal, Modo IDX, Modo IPO, Ajuste Dinâmico e Previsões."
     )
 
     if historico_bruto:
@@ -448,6 +449,88 @@ else:
                     "IDX avançado implementado. Nas próximas etapas, será possível incluir ritmo, motoristas, "
                     "barômetro e construção direta do Núcleo Resiliente e das listas SA1/MAX."
                 )
+
+                # ---------------------------------------------------------
+                # 🔧 Seção interna IPO – Otimização do IDX (alfa)
+                # ---------------------------------------------------------
+                if df_similares is not None and not df_similares.empty:
+                    st.markdown("---")
+                    st.subheader("🔧 IPO – Otimização do IDX (versão alfa, interna)")
+
+                    df_ipo = df_similares.copy()
+                    max_coinc = df_ipo["coincidentes"].max() or 1
+                    df_ipo["score_suavizado"] = df_ipo["score_total"] * (
+                        0.8 + 0.2 * df_ipo["coincidentes"] / max_coinc
+                    )
+
+                    pesos_ipo = {}
+                    for _, row in df_ipo.iterrows():
+                        score_s = float(row["score_suavizado"])
+                        for n in row["passageiros"]:
+                            pesos_ipo[n] = pesos_ipo.get(n, 0.0) + score_s
+
+                    nucleo_ipo = [
+                        n for n, _ in sorted(pesos_ipo.items(), key=lambda x: x[1], reverse=True)[:6]
+                    ]
+
+                    st.markdown("**Núcleo IPO (suavizado, interno):**")
+                    st.write(nucleo_ipo)
+
+                    with st.expander("Ver tabela IPO interna"):
+                        st.dataframe(df_ipo, use_container_width=True)
+
+                    st.info(
+                        "Esta é a versão interna (alfa) do IPO, derivada diretamente do IDX avançado. "
+                        "Ela será refinada com dispersão, motorista secundário e clima nas próximas etapas."
+                    )
+
+        elif pagina == "Modo IPO (otimizado)":
+            st.title("🎯 Modo IPO — IDX Otimizado (Protótipo)")
+
+            st.markdown(
+                "O IPO é a evolução do IDX avançado, aplicando suavização, correção de ruído e "
+                "ajuste fino para gerar um Núcleo mais estável e coerente com o momento atual."
+            )
+
+            registros = parse_historico(historico_bruto)
+
+            if len(registros) < 2:
+                st.warning("Histórico insuficiente para gerar IPO.")
+            else:
+                df_similares, alvo, nucleo = encontrar_similares_idx_avancado(registros)
+
+                if df_similares is None or df_similares.empty:
+                    st.warning("Sem séries semelhantes para iniciar o IPO.")
+                else:
+                    st.subheader("📌 Série atual")
+                    st.code(alvo["texto"])
+
+                    df_ipo = df_similares.copy()
+                    max_coinc = df_ipo["coincidentes"].max() or 1
+                    df_ipo["score_suavizado"] = df_ipo["score_total"] * (
+                        0.8 + 0.2 * df_ipo["coincidentes"] / max_coinc
+                    )
+
+                    pesos_ipo = {}
+                    for _, row in df_ipo.iterrows():
+                        score_s = float(row["score_suavizado"])
+                        for n in row["passageiros"]:
+                            pesos_ipo[n] = pesos_ipo.get(n, 0.0) + score_s
+
+                    nucleo_ipo = [
+                        n for n, _ in sorted(pesos_ipo.items(), key=lambda x: x[1], reverse=True)[:6]
+                    ]
+
+                    st.subheader("🧩 Núcleo IPO")
+                    st.write(nucleo_ipo)
+
+                    st.subheader("📊 Tabela IPO (versão alfa)")
+                    st.dataframe(df_ipo, use_container_width=True)
+
+                    st.info(
+                        "Esta é a versão preliminar do IPO. A versão completa incluirá dispersão, "
+                        "motorista secundário, faixas ajustadas e pesos inteligentes."
+                    )
 
         elif pagina == "Ajuste Dinâmico (protótipo)":
             st.title("🔁 Ajuste Dinâmico — ICA / HLA (Protótipo)")
