@@ -21,6 +21,18 @@ def set_historico(conteudo: str):
 def get_historico():
     return st.session_state.get("historico_bruto", None)
 
+def faixa_num(n: int) -> int:
+    """Classifica número em faixas: 1-20, 21-40, 41-60, 61-80."""
+    if 1 <= n <= 20:
+        return 1
+    elif 21 <= n <= 40:
+        return 2
+    elif 41 <= n <= 60:
+        return 3
+    elif 61 <= n <= 80:
+        return 4
+    return 0
+
 def extrair_numeros(historico_bruto: str):
     """Extrai números das linhas do histórico (protótipo simples)."""
     numeros = []
@@ -113,58 +125,99 @@ def parse_historico(historico_bruto: str):
         )
     return registros
 
-def encontrar_similares_idx(registros, top_n=10):
+def similaridade_faixas(passageiros_alvo, passageiros_cand):
+    """Calcula similaridade de faixas entre alvo e candidato (0 a 1)."""
+    if not passageiros_alvo or not passageiros_cand:
+        return 0.0
+
+    faixas_alvo = [faixa_num(n) for n in passageiros_alvo]
+    faixas_cand = [faixa_num(n) for n in passageiros_cand]
+
+    sim = 0
+    for f in range(1, 5):
+        sim += min(faixas_alvo.count(f), faixas_cand.count(f))
+
+    return sim / max(len(passageiros_alvo), 1)
+
+def encontrar_similares_idx_avancado(registros, w_coinc=3.0, w_recencia=2.0, w_faixa=1.0):
     """
-    Encontra as linhas historicamente mais parecidas com a última linha,
-    usando como medida o número de passageiros em comum.
+    IDX avançado (versão intermediária):
+    - coincidência de passageiros
+    - recência (mais recente = mais peso)
+    - similaridade de faixas
+    - escolha adaptativa de quantidade de trechos
+    - núcleo ponderado pelos scores
     """
     if not registros or len(registros) < 2:
-        return [], None, None
+        return None, None, None
 
     alvo = registros[-1]  # última série
     alvo_set = set(alvo["passageiros"])
-
     if not alvo_set:
-        return [], alvo, None
+        return None, alvo, None
+
+    max_linha = max(r["linha"] for r in registros) or 1
 
     candidatos = []
     for r in registros[:-1]:
         conj = set(r["passageiros"])
         inter = alvo_set.intersection(conj)
-        score = len(inter)
-        if score > 0:
-            candidatos.append(
-                {
-                    "linha": r["linha"],
-                    "id": r["id"],
-                    "qtd_passageiros": len(r["passageiros"]),
-                    "coincidentes": score,
-                    "passageiros": r["passageiros"],
-                    "texto": r["texto"],
-                }
-            )
+        coincidencias = len(inter)
+        if coincidencias == 0:
+            continue
+
+        # Recência: linha mais próxima do alvo => valor maior
+        recencia_norm = r["linha"] / max_linha
+
+        # Similaridade de faixas
+        sim_fx = similaridade_faixas(alvo["passageiros"], r["passageiros"])
+
+        score_total = (
+            w_coinc * coincidencias
+            + w_recencia * recencia_norm
+            + w_faixa * sim_fx
+        )
+
+        candidatos.append(
+            {
+                "linha": r["linha"],
+                "id": r["id"],
+                "qtd_passageiros": len(r["passageiros"]),
+                "coincidentes": coincidencias,
+                "recencia_norm": recencia_norm,
+                "sim_faixas": sim_fx,
+                "score_total": score_total,
+                "passageiros": r["passageiros"],
+                "texto": r["texto"],
+            }
+        )
 
     if not candidatos:
-        return [], alvo, None
+        return None, alvo, None
 
     df = pd.DataFrame(candidatos)
-    df = df.sort_values(by=["coincidentes", "linha"], ascending=[False, False])
+    df = df.sort_values(by=["score_total", "coincidentes", "linha"], ascending=[False, False, False])
 
-    # Núcleo preliminar: números mais frequentes entre os top_n mais parecidos
-    top_df = df.head(top_n)
-    todos = []
-    for lst in top_df["passageiros"]:
-        todos.extend(lst)
+    # Escolha adaptativa da quantidade de trechos
+    num_cand = len(df)
+    top_k = int(np.ceil(num_cand * 0.2))  # ~20% dos melhores
+    top_k = max(5, min(25, top_k))        # entre 5 e 25
+    top_df = df.head(top_k)
 
-    if not todos:
+    # Núcleo ponderado pelos scores
+    pesos_por_numero = {}
+    for _, row in top_df.iterrows():
+        score = float(row["score_total"])
+        for n in row["passageiros"]:
+            pesos_por_numero[n] = pesos_por_numero.get(n, 0.0) + score
+
+    if not pesos_por_numero:
         nucleo = None
     else:
-        serie = pd.Series(todos)
-        freq = serie.value_counts().sort_values(ascending=False)
-        # Pega até 6 mais frequentes
-        nucleo = list(freq.index[:6])
+        ordenados = sorted(pesos_por_numero.items(), key=lambda x: x[1], reverse=True)
+        nucleo = [n for n, _ in ordenados[:6]]
 
-    return df.head(top_n), alvo, nucleo
+    return top_df, alvo, nucleo
 
 # -------------------------------------------------------------
 # SIDEBAR — Histórico + Navegação
@@ -206,7 +259,7 @@ pagina = st.sidebar.radio(
         "Painel Principal",
         "Manual V13.8 (resumo)",
         "Modo Normal (protótipo)",
-        "Modo IDX (protótipo)",
+        "Modo IDX (avançado)",
         "Ajuste Dinâmico (protótipo)",
         "Previsões Finais (protótipo)",
     )
@@ -317,16 +370,17 @@ else:
                 "Interface do Modo Normal pronta. A lógica interna do V13.8 poderá ser implantada aqui passo a passo."
             )
 
-        elif pagina == "Modo IDX (protótipo)":
-            st.title("🎯 Modo IDX — IPF / IPO (Protótipo Inicial)")
+        elif pagina == "Modo IDX (avançado)":
+            st.title("🎯 Modo IDX (Avançado) — IPF Intermediário")
 
             st.markdown(
-                "Esta página agora implementa um **protótipo funcional do IDX Puro Focado (IPF)**:\n"
+                "Esta página implementa um **IDX avançado (versão intermediária)** do V13.8:\n"
                 "- considera a **última série** do histórico como estado atual;\n"
-                "- procura, no passado, as séries mais parecidas em termos de passageiros;\n"
-                "- mostra uma tabela com as séries mais similares;\n"
-                "- monta um **núcleo preliminar IDX** a partir dos passageiros mais frequentes nos trechos parecidos.\n\n"
-                "Depois, poderemos enriquecer com ritmo, faixas, motoristas, entropia e outros critérios do V13.8."
+                "- procura, no passado, as séries mais parecidas;\n"
+                "- usa coincidência de passageiros, recência e similaridade de faixas;\n"
+                "- escolhe automaticamente quantos trechos usar (entre 5 e 25);\n"
+                "- monta um **núcleo IDX ponderado** pelos scores.\n\n"
+                "Este é o primeiro passo em direção ao IPF/IPO completos."
             )
 
             registros = parse_historico(historico_bruto)
@@ -334,7 +388,22 @@ else:
             if len(registros) < 2:
                 st.warning("Histórico com poucas linhas para análise IDX. Adicione mais séries.")
             else:
-                df_similares, alvo, nucleo = encontrar_similares_idx(registros, top_n=10)
+                # Modo técnico (avançado) opcional
+                with st.expander("🔧 Modo Técnico (avançado — opcional)", expanded=False):
+                    st.markdown(
+                        "Os pesos abaixo já estão configurados com valores recomendados.\n"
+                        "Alterar é opcional e serve apenas para experimentos avançados."
+                    )
+                    w_coinc = st.slider("Peso de coincidência de passageiros", 0.0, 5.0, 3.0, 0.5)
+                    w_rec = st.slider("Peso de recência", 0.0, 5.0, 2.0, 0.5)
+                    w_fx = st.slider("Peso de similaridade de faixas", 0.0, 5.0, 1.0, 0.5)
+
+                df_similares, alvo, nucleo = encontrar_similares_idx_avancado(
+                    registros,
+                    w_coinc=w_coinc,
+                    w_recencia=w_rec,
+                    w_faixa=w_fx,
+                )
 
                 st.subheader("📌 Série atual (alvo do IDX)")
                 st.write(f"Linha: **{alvo['linha']}**")
@@ -344,25 +413,40 @@ else:
                 st.code(alvo["texto"])
 
                 if df_similares is None or df_similares.empty:
-                    st.info("Nenhuma série semelhante encontrada (com passageiros coincidentes). Verifique o histórico.")
+                    st.info("Nenhuma série semelhante encontrada. Verifique o histórico e os formatos.")
                 else:
-                    st.subheader("🔍 Séries mais semelhantes encontradas (protótipo IDX)")
+                    st.subheader("🔍 Séries mais semelhantes (IDX avançado)")
+                    st.markdown(
+                        "A tabela abaixo mostra as séries mais parecidas com a atual, já considerando:\n"
+                        "- coincidência de passageiros;\n"
+                        "- recência (mais recente = maior peso);\n"
+                        "- similaridade de faixas numéricas;\n"
+                        "- score total ponderado."
+                    )
                     st.dataframe(
-                        df_similares[["linha", "id", "coincidentes", "qtd_passageiros", "passageiros", "texto"]],
+                        df_similares[[
+                            "linha", "id", "coincidentes", "recencia_norm",
+                            "sim_faixas", "score_total", "qtd_passageiros", "passageiros", "texto"
+                        ]],
                         use_container_width=True,
                     )
 
                 st.markdown("---")
-                st.subheader("🧩 Núcleo preliminar IDX (protótipo)")
+                st.subheader("🧩 Núcleo IDX ponderado (versão intermediária)")
                 if nucleo:
-                    st.write("Passageiros mais recorrentes entre as séries mais parecidas:")
-                    st.markdown(f"**Núcleo preliminar:** `{nucleo}`")
+                    st.markdown(
+                        "Passageiros com maior peso combinando trechos mais similares, recência e faixas:"
+                    )
+                    st.markdown(f"**Núcleo IDX (ponderado):** `{nucleo}`")
                 else:
-                    st.info("Ainda não foi possível montar um núcleo preliminar. Verifique a qualidade do histórico.")
+                    st.info(
+                        "Ainda não foi possível montar um núcleo ponderado. "
+                        "Verifique se o histórico possui formato e volume adequados."
+                    )
 
                 st.success(
-                    "Estrutura básica do IDX Puro implementada. Nas próximas etapas, poderemos integrar "
-                    "critérios avançados do manual (ritmo, faixas, motoristas, turbulência etc.)."
+                    "IDX avançado implementado. Nas próximas etapas, será possível incluir ritmo, motoristas, "
+                    "barômetro e construção direta do Núcleo Resiliente e das listas SA1/MAX."
                 )
 
         elif pagina == "Ajuste Dinâmico (protótipo)":
