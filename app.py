@@ -55,6 +55,117 @@ def extrair_numeros(historico_bruto: str):
 
     return numeros
 
+def parse_historico(historico_bruto: str):
+    """
+    Converte o histórico bruto em uma lista de dicionários:
+    {
+        'linha': índice (0, 1, 2, ...),
+        'id': 'Cxxxx' ou None,
+        'passageiros': [n1, n2, ...],
+        'k': rótulo final (ou None),
+        'texto': linha original
+    }
+    """
+    registros = []
+    if not historico_bruto:
+        return registros
+
+    for idx, line in enumerate(historico_bruto.splitlines()):
+        original = line.rstrip("\n")
+        line = line.strip()
+        if not line:
+            continue
+
+        partes = [p.strip() for p in line.split(";") if p.strip()]
+        if not partes:
+            continue
+
+        id_serie = None
+        resto = partes
+
+        if partes[0].upper().startswith("C"):
+            id_serie = partes[0]
+            resto = partes[1:]
+
+        k = None
+        if len(resto) >= 2:
+            passageiros_str = resto[:-1]
+            k = resto[-1]
+        else:
+            passageiros_str = resto
+
+        passageiros = []
+        for p in passageiros_str:
+            try:
+                n = int(p)
+                passageiros.append(n)
+            except ValueError:
+                pass
+
+        registros.append(
+            {
+                "linha": idx,
+                "id": id_serie,
+                "passageiros": passageiros,
+                "k": k,
+                "texto": original,
+            }
+        )
+    return registros
+
+def encontrar_similares_idx(registros, top_n=10):
+    """
+    Encontra as linhas historicamente mais parecidas com a última linha,
+    usando como medida o número de passageiros em comum.
+    """
+    if not registros or len(registros) < 2:
+        return [], None, None
+
+    alvo = registros[-1]  # última série
+    alvo_set = set(alvo["passageiros"])
+
+    if not alvo_set:
+        return [], alvo, None
+
+    candidatos = []
+    for r in registros[:-1]:
+        conj = set(r["passageiros"])
+        inter = alvo_set.intersection(conj)
+        score = len(inter)
+        if score > 0:
+            candidatos.append(
+                {
+                    "linha": r["linha"],
+                    "id": r["id"],
+                    "qtd_passageiros": len(r["passageiros"]),
+                    "coincidentes": score,
+                    "passageiros": r["passageiros"],
+                    "texto": r["texto"],
+                }
+            )
+
+    if not candidatos:
+        return [], alvo, None
+
+    df = pd.DataFrame(candidatos)
+    df = df.sort_values(by=["coincidentes", "linha"], ascending=[False, False])
+
+    # Núcleo preliminar: números mais frequentes entre os top_n mais parecidos
+    top_df = df.head(top_n)
+    todos = []
+    for lst in top_df["passageiros"]:
+        todos.extend(lst)
+
+    if not todos:
+        nucleo = None
+    else:
+        serie = pd.Series(todos)
+        freq = serie.value_counts().sort_values(ascending=False)
+        # Pega até 6 mais frequentes
+        nucleo = list(freq.index[:6])
+
+    return df.head(top_n), alvo, nucleo
+
 # -------------------------------------------------------------
 # SIDEBAR — Histórico + Navegação
 # -------------------------------------------------------------
@@ -207,19 +318,52 @@ else:
             )
 
         elif pagina == "Modo IDX (protótipo)":
-            st.title("🎯 Modo IDX — IPF / IPO (Protótipo)")
+            st.title("🎯 Modo IDX — IPF / IPO (Protótipo Inicial)")
 
             st.markdown(
-                "Esta página representa o **Modo IDX** do V13.8 (IPF e IPO).\n\n"
-                "No futuro, aqui será implantada a lógica de similaridade estrutural: identificação do trecho alvo, "
-                "busca de trechos historicamente semelhantes e construção do núcleo puro baseado em IDX."
+                "Esta página agora implementa um **protótipo funcional do IDX Puro Focado (IPF)**:\n"
+                "- considera a **última série** do histórico como estado atual;\n"
+                "- procura, no passado, as séries mais parecidas em termos de passageiros;\n"
+                "- mostra uma tabela com as séries mais similares;\n"
+                "- monta um **núcleo preliminar IDX** a partir dos passageiros mais frequentes nos trechos parecidos.\n\n"
+                "Depois, poderemos enriquecer com ritmo, faixas, motoristas, entropia e outros critérios do V13.8."
             )
 
-            lines = [l.strip() for l in historico_bruto.splitlines() if l.strip()]
-            st.subheader("📥 Resumo do Histórico")
-            st.write(f"Total de linhas disponíveis: **{len(lines)}**")
+            registros = parse_historico(historico_bruto)
 
-            st.info("Modo IDX pronto para receber a lógica detalhada do manual (IPF, IPO, seleção de trechos etc.).")
+            if len(registros) < 2:
+                st.warning("Histórico com poucas linhas para análise IDX. Adicione mais séries.")
+            else:
+                df_similares, alvo, nucleo = encontrar_similares_idx(registros, top_n=10)
+
+                st.subheader("📌 Série atual (alvo do IDX)")
+                st.write(f"Linha: **{alvo['linha']}**")
+                st.write(f"ID: **{alvo['id']}**")
+                st.write(f"Passageiros: **{alvo['passageiros']}**")
+                st.write(f"k: **{alvo['k']}**")
+                st.code(alvo["texto"])
+
+                if df_similares is None or df_similares.empty:
+                    st.info("Nenhuma série semelhante encontrada (com passageiros coincidentes). Verifique o histórico.")
+                else:
+                    st.subheader("🔍 Séries mais semelhantes encontradas (protótipo IDX)")
+                    st.dataframe(
+                        df_similares[["linha", "id", "coincidentes", "qtd_passageiros", "passageiros", "texto"]],
+                        use_container_width=True,
+                    )
+
+                st.markdown("---")
+                st.subheader("🧩 Núcleo preliminar IDX (protótipo)")
+                if nucleo:
+                    st.write("Passageiros mais recorrentes entre as séries mais parecidas:")
+                    st.markdown(f"**Núcleo preliminar:** `{nucleo}`")
+                else:
+                    st.info("Ainda não foi possível montar um núcleo preliminar. Verifique a qualidade do histórico.")
+
+                st.success(
+                    "Estrutura básica do IDX Puro implementada. Nas próximas etapas, poderemos integrar "
+                    "critérios avançados do manual (ritmo, faixas, motoristas, turbulência etc.)."
+                )
 
         elif pagina == "Ajuste Dinâmico (protótipo)":
             st.title("🔁 Ajuste Dinâmico — ICA / HLA (Protótipo)")
