@@ -293,7 +293,10 @@ def calcular_ipf_hibrido(top_df, alvo):
         )
 
     df_ipf = pd.DataFrame(linhas)
-    df_ipf = df_ipf.sort_values(by=["score_ipf", "coincidentes", "pares_fixos", "linha"], ascending=[False, False, False, False])
+    df_ipf = df_ipf.sort_values(
+        by=["score_ipf", "coincidentes", "pares_fixos", "linha"],
+        ascending=[False, False, False, False],
+    )
 
     # Núcleo IPF = números com maior soma de score_ipf
     pesos_por_numero = {}
@@ -309,6 +312,95 @@ def calcular_ipf_hibrido(top_df, alvo):
         nucleo_ipf = [n for n, _ in ordenados[:6]]
 
     return df_ipf, nucleo_ipf
+
+def calcular_ipo_profissional(df_ipf, alvo):
+    """
+    IPO Profissional (versão alinhada ao espírito V13.8):
+    - parte do IPF Híbrido (df_ipf)
+    - suaviza ruído
+    - penaliza desvios fortes de ritmo/disp
+    - reforça pares fixos
+    - gera um score_ipo e um Núcleo IPO
+    """
+    if df_ipf is None or df_ipf.empty:
+        return None, None
+
+    passageiros_alvo = alvo["passageiros"]
+    ritmo_alvo, disp_alvo = calcular_ritmo_dispersao(passageiros_alvo)
+
+    linhas = []
+    for _, row in df_ipf.iterrows():
+        coincid = int(row["coincidentes"])
+        pares = int(row["pares_fixos"])
+        ritmo_cand = float(row["ritmo"])
+        disp_cand = float(row["dispersao"])
+        score_ipf = float(row["score_ipf"])
+
+        # Desvios de ritmo/disp (menor é melhor)
+        desvio_ritmo = abs(ritmo_cand - ritmo_alvo)
+        desvio_disp = abs(disp_cand - disp_alvo)
+
+        # Penalização por desvio forte (quanto maior o desvio, maior a penalidade)
+        penal_ritmo = desvio_ritmo
+        penal_disp = desvio_disp
+
+        # Reforço por pares fixos (mais pares = melhor)
+        reforco_pares = np.log1p(max(pares, 0))
+
+        # Score IPO:
+        # - começa do score_ipf
+        # - reduz por desvios
+        # - aumenta por pares
+        score_ipo = (
+            score_ipf
+            + 0.5 * reforco_pares
+            - 0.7 * penal_ritmo
+            - 0.7 * penal_disp
+        )
+
+        # Filtro básico de ruído:
+        # descarta trechos com pouquíssima coincidência ou score muito baixo
+        if coincid < 2:
+            continue
+
+        linhas.append(
+            {
+                "linha": int(row["linha"]),
+                "id": row["id"],
+                "coincidentes": coincid,
+                "pares_fixos": pares,
+                "ritmo": ritmo_cand,
+                "dispersao": disp_cand,
+                "score_ipf": score_ipf,
+                "score_ipo": score_ipo,
+                "passageiros": row["passageiros"],
+                "texto": row["texto"],
+            }
+        )
+
+    if not linhas:
+        return None, None
+
+    df_ipo = pd.DataFrame(linhas)
+    df_ipo = df_ipo.sort_values(
+        by=["score_ipo", "coincidentes", "pares_fixos", "linha"],
+        ascending=[False, False, False, False],
+    )
+
+    # Núcleo IPO = números com maior soma de score_ipo
+    pesos_por_numero = {}
+    for _, row in df_ipo.iterrows():
+        s_ipo = float(row["score_ipo"])
+        for n in row["passageiros"]:
+            pesos_por_numero[n] = pesos_por_numero.get(n, 0.0) + s_ipo
+
+    if not pesos_por_numero:
+        nucleo_ipo = None
+    else:
+        ordenados = sorted(pesos_por_numero.items(), key=lambda x: x[1], reverse=True)
+        nucleo_ipo = [n for n, _ in ordenados[:6]]
+
+    return df_ipo, nucleo_ipo
 
 # -------------------------------------------------------------
 # SIDEBAR — Histórico + Navegação
@@ -350,7 +442,7 @@ pagina = st.sidebar.radio(
         "Painel Principal",
         "Manual V13.8 (resumo)",
         "Modo Normal (protótipo)",
-        "Modo IDX (avançado + IPF híbrido)",
+        "Modo IDX (avançado + IPF + IPO)",
         "Ajuste Dinâmico (protótipo)",
         "Previsões Finais (protótipo)",
     )
@@ -461,21 +553,21 @@ else:
                 "Interface do Modo Normal pronta. A lógica interna do V13.8 poderá ser implantada aqui passo a passo."
             )
 
-        elif pagina == "Modo IDX (avançado + IPF híbrido)":
-            st.title("🎯 Modo IDX — Avançado + IPF Híbrido")
+        elif pagina == "Modo IDX (avançado + IPF + IPO)":
+            st.title("🎯 Modo IDX — Avançado + IPF Híbrido + IPO Profissional")
 
             st.markdown(
-                "Esta página implementa um **IDX avançado** e, sobre ele, uma camada de **IPF Híbrido** inspirada no V13.8:\n"
-                "- IDX avançado encontra os trechos mais parecidos;\n"
-                "- IPF Híbrido adiciona ritmo, dispersão e pares fixos;\n"
-                "- a partir disso, surge um **Núcleo IDX** e um **Núcleo IPF Híbrido**.\n\n"
-                "É um primeiro passo importante em direção ao Núcleo Resiliente completo."
+                "Esta página implementa três camadas encadeadas do V13.8:\n"
+                "1. **IDX Avançado** → estrutura base de semelhança;\n"
+                "2. **IPF Híbrido** → adiciona ritmo, dispersão e pares fixos;\n"
+                "3. **IPO Profissional** → suaviza ruído, corrige microestrutura e prioriza trechos mais coerentes.\n\n"
+                "É um passo direto em direção ao Núcleo Resiliente e às listas SA1/MAX."
             )
 
             registros = parse_historico(historico_bruto)
 
             if len(registros) < 2:
-                st.warning("Histórico com poucas linhas para análise IDX/IPF. Adicione mais séries.")
+                st.warning("Histórico com poucas linhas para análise IDX/IPF/IPO. Adicione mais séries.")
             else:
                 # Parâmetros técnicos do IDX (opcional)
                 with st.expander("🔧 Parâmetros técnicos do IDX (opcional)", expanded=False):
@@ -494,7 +586,7 @@ else:
                     w_faixa=w_fx,
                 )
 
-                st.subheader("📌 Série atual (alvo do IDX/IPF)")
+                st.subheader("📌 Série atual (alvo do IDX/IPF/IPO)")
                 st.write(f"Linha: **{alvo['linha']}**")
                 st.write(f"ID: **{alvo['id']}**")
                 st.write(f"Passageiros: **{alvo['passageiros']}**")
@@ -524,17 +616,9 @@ else:
                     else:
                         st.info("Ainda não foi possível montar um Núcleo IDX consistente.")
 
-                    # BLOCO 2 — IPF Híbrido (nova camada)
+                    # BLOCO 2 — IPF Híbrido
                     st.markdown("---")
                     st.subheader("🎛 Camada IPF Híbrido (Ritmo + Dispersão + Pares Fixos)")
-
-                    st.markdown(
-                        "A seguir, o IDX avançado é refinado em um **IPF Híbrido**, que adiciona:\n"
-                        "- Ritmo médio dos passageiros;\n"
-                        "- Dispersão dos passageiros;\n"
-                        "- Pares fixos entre séries (interseções de 2 em 2);\n"
-                        "- Um novo score `score_ipf`, mais próximo do espírito do V13.8."
-                    )
 
                     df_ipf, nucleo_ipf = calcular_ipf_hibrido(df_similares, alvo)
 
@@ -563,10 +647,51 @@ else:
                                 "Verifique se o histórico possui formato e volume adequados."
                             )
 
-                    st.success(
-                        "Camada IDX + IPF Híbrido implementada. Este é um passo direto em direção ao "
-                        "Núcleo Resiliente e às listas SA1/MAX do V13.8."
-                    )
+                        # BLOCO 3 — IPO Profissional
+                        st.markdown("---")
+                        st.subheader("🚀 Camada IPO Otimizado (Profissional)")
+
+                        st.markdown(
+                            "Nesta etapa, o IPF Híbrido é refinado em um **IPO Profissional**, que:\n"
+                            "- suaviza ruídos e trechos pouco confiáveis;\n"
+                            "- penaliza desvios fortes de ritmo e dispersão;\n"
+                            "- reforça séries com pares fixos mais consistentes;\n"
+                            "- prioriza os trechos mais coerentes com o estado atual.\n\n"
+                            "O resultado é uma visão mais estável, próxima do que o manual V13.8 descreve para o IPO."
+                        )
+
+                        df_ipo, nucleo_ipo = calcular_ipo_profissional(df_ipf, alvo)
+
+                        if df_ipo is None or df_ipo.empty:
+                            st.info("IPO Profissional não pôde ser calculado a partir do IPF atual.")
+                        else:
+                            st.markdown("##### 📊 Tabela IPO (trechos suavizados e priorizados)")
+                            st.dataframe(
+                                df_ipo[[
+                                    "linha", "id", "coincidentes", "pares_fixos",
+                                    "ritmo", "dispersao", "score_ipf", "score_ipo",
+                                    "passageiros", "texto"
+                                ]],
+                                use_container_width=True,
+                            )
+
+                            st.markdown("#### 🧱 Núcleo IPO (Profissional)")
+                            if nucleo_ipo:
+                                st.markdown(
+                                    "Passageiros com maior peso após a suavização profissional (IPO):"
+                                )
+                                st.markdown(f"**Núcleo IPO (profissional):** `{nucleo_ipo}`")
+                            else:
+                                st.info(
+                                    "Ainda não foi possível montar um Núcleo IPO estável. "
+                                    "Verifique se o histórico possui formato e volume adequados."
+                                )
+
+                        st.success(
+                            "Camadas IDX + IPF Híbrido + IPO Profissional implementadas. "
+                            "Este bloco já se aproxima bastante do coração do V13.8 "
+                            "(Núcleo Resiliente, Cobertura e listas SA1/MAX)."
+                        )
 
         elif pagina == "Ajuste Dinâmico (protótipo)":
             st.title("🔁 Ajuste Dinâmico — ICA / HLA (Protótipo)")
