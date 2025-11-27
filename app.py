@@ -11,16 +11,22 @@ st.set_page_config(
     layout="wide",
 )
 
+
 # -------------------------------------------------------------
-# Funções auxiliares
+# Funções auxiliares de histórico
 # -------------------------------------------------------------
 def set_historico(conteudo: str):
     if conteudo is not None and conteudo.strip():
         st.session_state["historico_bruto"] = conteudo
 
+
 def get_historico():
     return st.session_state.get("historico_bruto", None)
 
+
+# -------------------------------------------------------------
+# Funções auxiliares de parsing e faixas
+# -------------------------------------------------------------
 def faixa_num(n: int) -> int:
     """Classifica número em faixas: 1-20, 21-40, 41-60, 61-80."""
     if 1 <= n <= 20:
@@ -32,6 +38,7 @@ def faixa_num(n: int) -> int:
     elif 61 <= n <= 80:
         return 4
     return 0
+
 
 def extrair_numeros(historico_bruto: str):
     """Extrai números das linhas do histórico (protótipo simples)."""
@@ -66,6 +73,7 @@ def extrair_numeros(historico_bruto: str):
                 pass
 
     return numeros
+
 
 def parse_historico(historico_bruto: str):
     """
@@ -125,6 +133,7 @@ def parse_historico(historico_bruto: str):
         )
     return registros
 
+
 def similaridade_faixas(passageiros_alvo, passageiros_cand):
     """Calcula similaridade de faixas entre alvo e candidato (0 a 1)."""
     if not passageiros_alvo or not passageiros_cand:
@@ -139,8 +148,9 @@ def similaridade_faixas(passageiros_alvo, passageiros_cand):
 
     return sim / max(len(passageiros_alvo), 1)
 
+
 # -------------------------------------------------------------
-# IDX Avançado + IPF + IPO
+# IDX Avançado
 # -------------------------------------------------------------
 def encontrar_similares_idx_avancado(registros, w_coinc=3.0, w_recencia=2.0, w_faixa=1.0):
     """Retorna tabela IDX, série alvo e núcleo IDX ponderado."""
@@ -213,19 +223,23 @@ def encontrar_similares_idx_avancado(registros, w_coinc=3.0, w_recencia=2.0, w_f
     return top_df, alvo, nucleo
 
 
+# -------------------------------------------------------------
+# IPF Híbrido (versão intermediária)
+# -------------------------------------------------------------
 def calcular_ipf_hibrido(df_top, alvo):
     """Implementa IPF híbrido simples: ritmo, dispersão e pares."""
     if df_top is None or df_top.empty:
         return None, None
 
-    # Ritmo = proximidade de posições
     df = df_top.copy()
+
+    # Ritmo = diferença de linhas entre séries vizinhas
     df["ritmo"] = df["linha"].diff().abs().fillna(0)
 
-    # Dispersão = variação interna da quantidade de passageiros
+    # Dispersão = variação da quantidade de passageiros
     df["dispersao"] = df["qtd_passageiros"].rolling(2).std().fillna(0)
 
-    # Pares fixos (contagem simples)
+    # Pares fixos com o alvo
     alvo_set = set(alvo["passageiros"])
     pares = []
     for row in df["passageiros"]:
@@ -256,7 +270,10 @@ def calcular_ipf_hibrido(df_top, alvo):
     return df_ipf, nucleo_ipf
 
 
-def calcular_ipo_profissional(df_top, alvo):
+# -------------------------------------------------------------
+# IPO Profissional
+# -------------------------------------------------------------
+def calcular_ipo_profissional(df_top):
     """Implementa IPO profissional com suavização e microcorreção."""
     if df_top is None or df_top.empty:
         return None, None
@@ -268,7 +285,7 @@ def calcular_ipo_profissional(df_top, alvo):
     if df.empty:
         df = df_top.copy()
 
-    # Correção microestrutural
+    # Correção microestrutural básica
     df["micro"] = df["sim_faixas"] * 0.5 + df["recencia_norm"] * 0.3
 
     df["score_ipo"] = (
@@ -282,7 +299,7 @@ def calcular_ipo_profissional(df_top, alvo):
     pesos = {}
     for _, r in df_ipo.iterrows():
         for n in r["passageiros"]:
-            pesos[n] = pesos.get(n, 0) + float(r["score_ipo"])
+            pesos[n] = pesos.get(n, 0.0) + float(r["score_ipo"])
 
     ordenados = sorted(pesos.items(), key=lambda x: x[1], reverse=True)
     nucleo_ipo = [n for n, _ in ordenados[:6]]
@@ -294,44 +311,124 @@ def calcular_ipo_profissional(df_top, alvo):
 # ANTI-SELFBIAS (ASB A + B)
 # -------------------------------------------------------------
 def aplicar_asb(nucleo_ipo, passageiros_alvo, modo):
-    """Aplica anticiclagem leve (A) ou média (B)."""
-
+    """
+    Aplica Anti-SelfBias:
+    - A (leve): troca 1 número em caso de autociclagem forte.
+    - B (médio): troca 1–2 números em comum com o alvo.
+    """
     if nucleo_ipo is None:
         return None
 
     alvo_set = set(passageiros_alvo)
-    nuc = nucleo_ipo.copy()
+    nuc = list(nucleo_ipo)
 
-    # Quantidade de números em comum
     comuns = len(alvo_set.intersection(nuc))
 
     # ASB A — Leve
     if modo == "A":
-        if comuns == 6:
-            # troca 1 número pela menor lacuna de faixa
+        if comuns == len(nuc):
+            # troca o último número por um da faixa menos representada
             faixas = [faixa_num(n) for n in nuc]
-            faltante_faixa = min(set([1,2,3,4]) - set(faixas))
-            # escolhe um substituto simples
-            candidato = faltante_faixa * 20 - 5
+            todas = {1, 2, 3, 4}
+            faltantes = list(todas - set(faixas))
+            if faltantes:
+                f = min(faltantes)
+                candidato = f * 20 - 5
+            else:
+                candidato = min(nuc) + 1
             nuc[-1] = candidato
-        return nuc
+        return sorted(nuc)
 
     # ASB B — Médio
     if modo == "B":
-        if comuns >= 5:
-            # remove 1 ou 2 números iguais ao alvo
-            for n in nuc:
+        if comuns >= len(nuc) - 1:
+            # remove 1 número do alvo
+            for n in list(nuc):
                 if n in alvo_set:
                     nuc.remove(n)
                     break
-            # adiciona um número estruturado
-            candidato = int(np.mean(nuc)) + 1
+            # adiciona um número estruturado próximo à média
+            media = int(np.mean(nuc))
+            candidato = media + 1
             if candidato in nuc:
-                    candidato += 2
+                candidato += 2
             nuc.append(candidato)
         return sorted(nuc[:6])
 
-    return nuc
+    return sorted(nuc)
+
+
+# -------------------------------------------------------------
+# Núcleo Resiliente (base IPO + ASB-B)
+# -------------------------------------------------------------
+def gerar_nucleo_resiliente(nucleo_ipo, nucleo_asb_b):
+    """
+    Núcleo Resiliente V13.8 — Combinação IPO + ASB-B
+    Dá mais peso ao ASB-B (anti-selfbias médio),
+    preservando coerência estrutural.
+    """
+    if not nucleo_ipo or not nucleo_asb_b:
+        return None
+
+    base = list(dict.fromkeys(nucleo_asb_b + nucleo_ipo))  # união preservando ordem
+
+    pesos = {}
+    for n in base:
+        pesos[n] = 0.0
+        if n in nucleo_asb_b:
+            pesos[n] += 2.0
+        if n in nucleo_ipo:
+            pesos[n] += 1.0
+        # pequeno ajuste por faixa (apenas para diversificar)
+        faixa = faixa_num(n)
+        pesos[n] += 0.1 * (5 - faixa)
+
+    ordenados = sorted(pesos.items(), key=lambda x: x[1], reverse=True)
+    resiliente = [n for n, _ in ordenados[:6]]
+    resiliente.sort()
+    return resiliente
+
+
+# -------------------------------------------------------------
+# Função de pipeline completo (IDX → IPF → IPO → ASB → Resiliente)
+# -------------------------------------------------------------
+def rodar_pipeline_completo(historico_bruto: str, modo_asb: str = "B"):
+    """
+    Executa todo o pipeline para uso nas páginas:
+    - retorna dicionário com todas as estruturas principais.
+    """
+    registros = parse_historico(historico_bruto)
+    if len(registros) < 2:
+        return None
+
+    df_idx, alvo, nuc_idx = encontrar_similares_idx_avancado(registros)
+    if df_idx is None or df_idx.empty:
+        return None
+
+    df_ipf, nuc_ipf = calcular_ipf_hibrido(df_idx, alvo)
+    df_ipo, nuc_ipo = calcular_ipo_profissional(df_idx)
+
+    if nuc_ipo is None:
+        nuc_asb_a = None
+        nuc_asb_b = None
+        nuc_res = None
+    else:
+        nuc_asb_a = aplicar_asb(nuc_ipo, alvo["passageiros"], "A")
+        nuc_asb_b = aplicar_asb(nuc_ipo, alvo["passageiros"], "B")
+        nuc_res = gerar_nucleo_resiliente(nuc_ipo, nuc_asb_b)
+
+    return {
+        "alvo": alvo,
+        "df_idx": df_idx,
+        "nucleo_idx": nuc_idx,
+        "df_ipf": df_ipf,
+        "nucleo_ipf": nuc_ipf,
+        "df_ipo": df_ipo,
+        "nucleo_ipo": nuc_ipo,
+        "nucleo_asb_a": nuc_asb_a,
+        "nucleo_asb_b": nuc_asb_b,
+        "nucleo_resiliente": nuc_res,
+    }
 
 
 # -------------------------------------------------------------
@@ -372,9 +469,9 @@ pagina = st.sidebar.radio(
         "Painel Principal",
         "Manual V13.8 (resumo)",
         "Modo Normal (protótipo)",
-        "Modo IDX (avançado + IPF + IPO + ASB)",
+        "Modo IDX / IPF / IPO / ASB",
+        "Previsões Finais (Núcleo Resiliente)",
         "Ajuste Dinâmico (protótipo)",
-        "Previsões Finais (protótipo)",
     )
 )
 
@@ -385,90 +482,145 @@ if historico_bruto:
 else:
     st.info("ℹ️ Nenhum histórico carregado ainda.")
 
+
 # -------------------------------------------------------------
-# CONTEÚDO DAS PÁGINAS
+# PÁGINAS
 # -------------------------------------------------------------
 if pagina == "Painel Principal":
     st.title("🚗 Predict Cars V13.8 — Painel Principal")
-    st.markdown("Use a barra lateral para navegar e carregar o histórico.")
+    st.markdown(
+        "Use a barra lateral para carregar o histórico e navegar entre as seções.\n\n"
+        "- **Modo IDX / IPF / IPO / ASB** mostra o pipeline analítico.\n"
+        "- **Previsões Finais** mostra o Núcleo Resiliente pronto para uso.\n"
+        "- **Modo Normal** traz frequências simples (protótipo)."
+    )
+
+    if historico_bruto:
+        with st.expander("Visualizar primeiras linhas do histórico"):
+            st.text("\n".join(historico_bruto.splitlines()[:40]))
+
 
 elif pagina == "Manual V13.8 (resumo)":
-    st.title("📘 Manual Técnico — Resumo")
-    st.markdown("Resumo das principais camadas (IDX, IPF, IPO, ASB, Núcleo Resiliente etc.).")
+    st.title("📘 Manual Técnico — Resumo V13.8")
+    st.markdown(
+        "- Camadas principais: IDX, IPF, IPO, Anti-SelfBias (ASB), Núcleo Resiliente.\n"
+        "- Núcleo Resiliente é a base para Núcleo + Cobertura + Listas SA1/MAX.\n"
+        "- Este painel web segue o espírito do Manual V13.8."
+    )
+
 
 elif pagina == "Modo Normal (protótipo)":
     st.title("⚙️ Modo Normal — Protótipo")
-    st.markdown("Frequência simples dos passageiros.")
-    nums = extrair_numeros(historico_bruto)
-    if nums:
-        st.bar_chart(pd.Series(nums).value_counts().sort_index())
+    if not historico_bruto:
+        st.warning("Carregue primeiro o histórico na barra lateral.")
+    else:
+        st.markdown("Distribuição simples de frequência dos passageiros (protótipo).")
+        nums = extrair_numeros(historico_bruto)
+        if nums:
+            st.bar_chart(pd.Series(nums).value_counts().sort_index())
+        else:
+            st.info("Não foi possível extrair números.")
 
-elif pagina == "Modo IDX (avançado + IPF + IPO + ASB)":
+
+elif pagina == "Modo IDX / IPF / IPO / ASB":
     st.title("🎯 IDX → IPF → IPO → ASB")
 
-    registros = parse_historico(historico_bruto)
-
-    if len(registros) < 2:
-        st.warning("Histórico insuficiente.")
+    if not historico_bruto:
+        st.warning("Carregue primeiro o histórico na barra lateral.")
     else:
-        # ===================================================
-        # 1. IDX Avançado
-        # ===================================================
-        df_similares, alvo, nucleo_idx = encontrar_similares_idx_avancado(registros)
+        resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
+        if resultado is None:
+            st.warning("Histórico insuficiente para o pipeline.")
+        else:
+            alvo = resultado["alvo"]
+            st.subheader("📌 Série atual (alvo)")
+            st.write(f"Linha: {alvo['linha']}")
+            st.write(f"ID: {alvo['id']}")
+            st.write(f"Passageiros: {alvo['passageiros']}")
+            st.code(alvo["texto"])
 
-        st.subheader("📌 Série atual (alvo)")
-        st.write(f"Linha: {alvo['linha']}")
-        st.write(f"ID: {alvo['id']}")
-        st.write(f"Passageiros: {alvo['passageiros']}")
-        st.code(alvo["texto"])
+            # IDX
+            st.markdown("---")
+            st.subheader("🔍 IDX Avançado")
+            st.dataframe(resultado["df_idx"], use_container_width=True)
+            st.write(f"**Núcleo IDX (ponderado):** {resultado['nucleo_idx']}")
 
-        st.subheader("🔍 IDX Avançado")
-        st.dataframe(df_similares, use_container_width=True)
-        st.write(f"**Núcleo IDX (ponderado):** {nucleo_idx}")
+            # IPF
+            st.markdown("---")
+            st.subheader("🧩 IPF Híbrido")
+            st.dataframe(resultado["df_ipf"], use_container_width=True)
+            st.write(f"**Núcleo IPF (híbrido):** {resultado['nucleo_ipf']}")
 
-        # ===================================================
-        # 2. IPF Híbrido
-        # ===================================================
-        st.markdown("---")
-        st.subheader("🧩 IPF Híbrido")
-        df_ipf, nucleo_ipf = calcular_ipf_hibrido(df_similares, alvo)
-        st.dataframe(df_ipf, use_container_width=True)
-        st.write(f"**Núcleo IPF (híbrido):** {nucleo_ipf}")
+            # IPO
+            st.markdown("---")
+            st.subheader("🚀 IPO Profissional")
+            st.dataframe(resultado["df_ipo"], use_container_width=True)
+            st.write(f"**Núcleo IPO (profissional):** {resultado['nucleo_ipo']}")
 
-        # ===================================================
-        # 3. IPO Profissional
-        # ===================================================
-        st.markdown("---")
-        st.subheader("🚀 IPO Profissional")
-        df_ipo, nucleo_ipo = calcular_ipo_profissional(df_similares, alvo)
-        st.dataframe(df_ipo, use_container_width=True)
-        st.write(f"**Núcleo IPO (profissional):** {nucleo_ipo}")
+            # ASB A/B
+            st.markdown("---")
+            st.subheader("🧹 Anti-SelfBias (A/B)")
 
-        # ===================================================
-        # 4. ANTI-SELFBIAS (A/B)
-        # ===================================================
-        st.markdown("---")
-        st.subheader("🧹 Anti-SelfBias (A/B)")
+            modo_asb_label = st.selectbox(
+                "Selecione o modo Anti-SelfBias para visualizar:",
+                ["A (leve)", "B (médio)"],
+                index=1,
+            )
+            if modo_asb_label.startswith("A"):
+                nuc_asb = resultado["nucleo_asb_a"]
+                modo_txt = "A (leve)"
+            else:
+                nuc_asb = resultado["nucleo_asb_b"]
+                modo_txt = "B (médio)"
 
-        modo_asb = st.selectbox(
-            "Selecione o modo Anti-SelfBias:",
-            ["A (leve)", "B (médio)"],
-            index=1,
-        )
+            st.write(f"**Núcleo IPO original:** {resultado['nucleo_ipo']}")
+            st.write(f"**Núcleo IPO Anti-SelfBias {modo_txt}:** {nuc_asb}")
 
-        modo = "A" if modo_asb.startswith("A") else "B"
+            st.success("Pipeline IDX → IPF → IPO → ASB executado com sucesso.")
 
-        nucleo_final = aplicar_asb(nucleo_ipo, alvo["passageiros"], modo)
 
-        st.write(f"**Núcleo IPO original:** {nucleo_ipo}")
-        st.write(f"**Núcleo IPO Anti-SelfBias ({modo}):** {nucleo_final}")
+elif pagina == "Previsões Finais (Núcleo Resiliente)":
+    st.title("📊 Previsões Finais — Núcleo Resiliente")
 
-        st.success("Pipeline IDX → IPF → IPO → ASB completo e funcional.")
+    if not historico_bruto:
+        st.warning("Carregue primeiro o histórico na barra lateral.")
+    else:
+        resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
+        if resultado is None:
+            st.warning("Histórico insuficiente para o pipeline.")
+        else:
+            alvo = resultado["alvo"]
+
+            st.subheader("📌 Série atual (alvo)")
+            st.write(f"ID: {alvo['id']}")
+            st.write(f"Passageiros: {alvo['passageiros']}")
+            st.code(alvo["texto"])
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("### Núcleos intermediários")
+                st.write(f"IDX: {resultado['nucleo_idx']}")
+                st.write(f"IPF: {resultado['nucleo_ipf']}")
+                st.write(f"IPO: {resultado['nucleo_ipo']}")
+
+            with col2:
+                st.markdown("### Núcleo Anti-SelfBias (B)")
+                st.write(f"ASB B: {resultado['nucleo_asb_b']}")
+
+            st.markdown("---")
+            st.markdown("## 🔰 Núcleo Resiliente V13.8 (base ASB Médio)")
+
+            nuc_res = resultado["nucleo_resiliente"]
+            if nuc_res:
+                st.success(f"Núcleo Resiliente: {nuc_res}")
+                st.info(
+                    "Este é o núcleo estrutural que servirá de base para Núcleo + Cobertura + "
+                    "listas SA1/MAX e modos avançados (6 acertos, Espremer etc.)."
+                )
+            else:
+                st.info("Não foi possível gerar o Núcleo Resiliente (verifique IPO e ASB).")
+
 
 elif pagina == "Ajuste Dinâmico (protótipo)":
     st.title("🔁 Ajuste Dinâmico — Protótipo")
-    st.info("Futuro módulo ICA/HLA.")
-
-elif pagina == "Previsões Finais (protótipo)":
-    st.title("📊 Previsões Finais — Protótipo")
-    st.info("Núcleo Resiliente e Listas SA1/MAX virão aqui após IPO + ASB.")
+    st.info("Futuro módulo ICA/HLA para ajustes sobre o Núcleo Resiliente e listas.")
