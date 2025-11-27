@@ -406,11 +406,6 @@ def gerar_cobertura_vento(nucleo_resiliente, nucleo_idx, nucleo_ipo, nucleo_asb_
     - Núcleo IDX
     - Núcleo IPO
     - Núcleo ASB-B
-
-    Implementa:
-    - expansão por recorrência
-    - reforço de vizinhança
-    - compressão entre 10 e 15 números
     """
     if not nucleo_resiliente:
         return None
@@ -463,6 +458,193 @@ def gerar_cobertura_vento(nucleo_resiliente, nucleo_idx, nucleo_ipo, nucleo_asb_
 
 
 # -------------------------------------------------------------
+# Listas SA1 / MAX / Híbrida
+# -------------------------------------------------------------
+def gerar_listas_sa1_max_hibrida(nucleo_resiliente, cobertura):
+    if not nucleo_resiliente:
+        return None, None, None
+
+    nuc = sorted(set(nucleo_resiliente))
+    cov = sorted(set(cobertura or []))
+
+    # SA1: núcleo + adjacentes muito próximos
+    candidatos_sa1 = set(nuc)
+    for n in cov:
+        if any(abs(n - c) <= 2 for c in nuc):
+            candidatos_sa1.add(n)
+    sa1 = sorted(list(candidatos_sa1))
+    if len(sa1) > 10:
+        sa1 = sa1[:10]
+
+    # MAX: núcleo + extremos da cobertura
+    candidatos_max = set(nuc)
+    if cov:
+        extremos = cov[:3] + cov[-3:]
+        for n in extremos:
+            candidatos_max.add(n)
+    max_list = sorted(list(candidatos_max))
+    if len(max_list) > 12:
+        max_list = max_list[:12]
+
+    # Híbrida: núcleo + complementos de SA1/MAX até ~11 números
+    hibrida = list(sorted(set(nuc)))
+    union_extra = [n for n in sorted(set(sa1 + max_list)) if n not in hibrida]
+    for n in union_extra:
+        if len(hibrida) >= 11:
+            break
+        hibrida.append(n)
+    hibrida = sorted(hibrida)
+
+    return sa1, max_list, hibrida
+
+
+# -------------------------------------------------------------
+# Modo Espremer (SA1-E / MAX-E / Híbrida-E)
+# -------------------------------------------------------------
+def gerar_espremer(nucleo_resiliente, sa1, max_list, hibrida):
+    if not nucleo_resiliente:
+        return None, None, None
+
+    nuc = sorted(set(nucleo_resiliente))
+
+    # SA1-E: SA1 filtrada pelos vizinhos do núcleo
+    vizinhos = set(nuc)
+    for n in nuc:
+        vizinhos.add(n - 1)
+        vizinhos.add(n + 1)
+    sa1_e = sorted(set(x for x in (sa1 or []) if x in vizinhos))
+    if len(sa1_e) < len(nuc):
+        sa1_e = nuc.copy()
+
+    # MAX-E: remove extremos pouco conectados ao núcleo
+    max_e_raw = sorted(set(max_list or []))
+    filtrados = []
+    for x in max_e_raw:
+        if any(abs(x - n) <= 5 for n in nuc):
+            filtrados.append(x)
+    max_e = sorted(set(filtrados))
+    if len(max_e) > 9:
+        max_e = max_e[:9]
+
+    # Híbrida-E = próprio Núcleo Resiliente
+    hibrida_e = nuc.copy()
+
+    return sa1_e, max_e, hibrida_e
+
+
+# -------------------------------------------------------------
+# Modo 6 Acertos (S6) — Alfa / Bravo / Charlie
+# -------------------------------------------------------------
+def gerar_s6(nucleo_resiliente, sa1_e, max_e, hibrida_e, cobertura):
+    if not nucleo_resiliente:
+        return [], [], []
+
+    nuc = sorted(set(nucleo_resiliente))
+    s6_alfa = nuc.copy()
+
+    base_bravo = sorted(
+        set((sa1_e or []) + (max_e or []) + (hibrida_e or [])) - set(s6_alfa)
+    )
+    s6_bravo = base_bravo[:4]
+
+    base_charlie = sorted(
+        set(cobertura or []) - set(s6_alfa) - set(s6_bravo)
+    )
+    s6_charlie = base_charlie[:3]
+
+    return s6_alfa, s6_bravo, s6_charlie
+
+
+# -------------------------------------------------------------
+# Ensamble Final
+# -------------------------------------------------------------
+def gerar_ensamble_final(nucleo_resiliente, sa1_e, max_e, hibrida_e,
+                         s6_alfa, s6_bravo, s6_charlie):
+    if not nucleo_resiliente:
+        return None
+
+    from collections import Counter
+
+    c = Counter()
+
+    fontes_peso = [
+        (nucleo_resiliente, 3),
+        (hibrida_e, 3),
+        (sa1_e, 2),
+        (max_e, 1),
+        (s6_alfa, 3),
+        (s6_bravo, 2),
+        (s6_charlie, 1),
+    ]
+
+    for lista, w in fontes_peso:
+        for x in lista or []:
+            c[x] += w
+
+    ordenados = sorted(c.items(), key=lambda t: (-t[1], t[0]))
+    ens = [n for n, _ in ordenados[:10]]
+    ens = sorted(set(ens))
+    if len(ens) > 10:
+        ens = ens[:10]
+
+    return ens
+
+
+# -------------------------------------------------------------
+# Faróis, Barômetro, Confiabilidade
+# -------------------------------------------------------------
+def avaliar_farol_barometro_confiab(nucleo_resiliente, cobertura,
+                                    s6_alfa, s6_bravo, s6_charlie,
+                                    ensamble):
+    if not nucleo_resiliente:
+        return "🟣", "Ruptura", 20
+
+    score = 0
+
+    # Força da S6
+    if len(s6_alfa) >= 4:
+        score += 2
+    if len(s6_alfa) == 6:
+        score += 2
+    if len(s6_bravo) <= 3:
+        score += 1
+
+    # Cobertura saudável
+    cov_len = len(cobertura or [])
+    if 8 <= cov_len <= 18:
+        score += 2
+
+    # Ensamble compacto
+    if ensamble and 7 <= len(ensamble) <= 10:
+        score += 1
+
+    # Penalidades
+    if len(s6_charlie or []) > 3 or cov_len > 25:
+        score -= 1
+
+    score = max(0, min(score, 8))
+    confiab = 50 + score * 5  # 50% a 90%
+
+    if score >= 7:
+        farol_emoji = "🟢"
+        barometro = "Resiliente"
+    elif score >= 5:
+        farol_emoji = "🟡"
+        barometro = "Intermediário"
+    elif score >= 3:
+        farol_emoji = "🟠"
+        barometro = "Turbulento"
+    elif score >= 1:
+        farol_emoji = "🔴"
+        barometro = "Pré-ruptura"
+    else:
+        farol_emoji = "🟣"
+        barometro = "Ruptura"
+
+    return farol_emoji, barometro, confiab
+
+
+# -------------------------------------------------------------
 # Função de pipeline completo (IDX → IPF → IPO → ASB → Resiliente)
 # -------------------------------------------------------------
 def rodar_pipeline_completo(historico_bruto: str, modo_asb: str = "B"):
@@ -501,6 +683,100 @@ def rodar_pipeline_completo(historico_bruto: str, modo_asb: str = "B"):
         "nucleo_asb_a": nuc_asb_a,
         "nucleo_asb_b": nuc_asb_b,
         "nucleo_resiliente": nuc_res,
+    }
+
+
+# -------------------------------------------------------------
+# Função para montar camadas avançadas (Cobertura, SA1/MAX, S6, Ensamble, etc.)
+# -------------------------------------------------------------
+def construir_camadas_avancadas(resultado_pipeline):
+    if resultado_pipeline is None:
+        return None
+
+    nuc_res = resultado_pipeline["nucleo_resiliente"]
+    nuc_idx = resultado_pipeline["nucleo_idx"]
+    nuc_ipo = resultado_pipeline["nucleo_ipo"]
+    nuc_asb_b = resultado_pipeline["nucleo_asb_b"]
+
+    if not nuc_res:
+        return {
+            "cobertura": None,
+            "sa1": None,
+            "max": None,
+            "hibrida": None,
+            "sa1_e": None,
+            "max_e": None,
+            "hibrida_e": None,
+            "s6_alfa": [],
+            "s6_bravo": [],
+            "s6_charlie": [],
+            "ensamble": None,
+            "farol_emoji": "🟣",
+            "barometro": "Ruptura",
+            "confiabilidade": 20,
+        }
+
+    cobertura = gerar_cobertura_vento(
+        nucleo_resiliente=nuc_res,
+        nucleo_idx=nuc_idx,
+        nucleo_ipo=nuc_ipo,
+        nucleo_asb_b=nuc_asb_b,
+    )
+
+    sa1, max_list, hibrida = gerar_listas_sa1_max_hibrida(
+        nucleo_resiliente=nuc_res,
+        cobertura=cobertura,
+    )
+
+    sa1_e, max_e, hibrida_e = gerar_espremer(
+        nucleo_resiliente=nuc_res,
+        sa1=sa1,
+        max_list=max_list,
+        hibrida=hibrida,
+    )
+
+    s6_alfa, s6_bravo, s6_charlie = gerar_s6(
+        nucleo_resiliente=nuc_res,
+        sa1_e=sa1_e,
+        max_e=max_e,
+        hibrida_e=hibrida_e,
+        cobertura=cobertura,
+    )
+
+    ensamble = gerar_ensamble_final(
+        nucleo_resiliente=nuc_res,
+        sa1_e=sa1_e,
+        max_e=max_e,
+        hibrida_e=hibrida_e,
+        s6_alfa=s6_alfa,
+        s6_bravo=s6_bravo,
+        s6_charlie=s6_charlie,
+    )
+
+    farol_emoji, barometro, confiab = avaliar_farol_barometro_confiab(
+        nucleo_resiliente=nuc_res,
+        cobertura=cobertura,
+        s6_alfa=s6_alfa,
+        s6_bravo=s6_bravo,
+        s6_charlie=s6_charlie,
+        ensamble=ensamble,
+    )
+
+    return {
+        "cobertura": cobertura,
+        "sa1": sa1,
+        "max": max_list,
+        "hibrida": hibrida,
+        "sa1_e": sa1_e,
+        "max_e": max_e,
+        "hibrida_e": hibrida_e,
+        "s6_alfa": s6_alfa,
+        "s6_bravo": s6_bravo,
+        "s6_charlie": s6_charlie,
+        "ensamble": ensamble,
+        "farol_emoji": farol_emoji,
+        "barometro": barometro,
+        "confiabilidade": confiab,
     }
 
 
@@ -572,7 +848,7 @@ if pagina == "Painel Principal":
         "Use a barra lateral para carregar o histórico e navegar entre as seções.\n\n"
         "- **Camada IDX / IPF / IPO / ASB** mostra o pipeline analítico.\n"
         "- **Previsões Finais (Núcleo Resiliente)** mostra o núcleo pronto para uso.\n"
-        "- **Cobertura de Vento** e as demais camadas avançadas seguem o Manual V13.8."
+        "- **Cobertura de Vento** e as camadas avançadas seguem o Manual V13.8."
     )
 
     if historico_bruto:
@@ -669,17 +945,12 @@ elif pagina == "Cobertura de Vento":
         if resultado is None:
             st.warning("Histórico insuficiente para o pipeline.")
         else:
+            camadas = construir_camadas_avancadas(resultado)
             nuc_res = resultado["nucleo_resiliente"]
+
             if not nuc_res:
                 st.warning("Núcleo Resiliente não disponível. Verifique IPO/ASB.")
             else:
-                cobertura = gerar_cobertura_vento(
-                    nucleo_resiliente=resultado["nucleo_resiliente"],
-                    nucleo_idx=resultado["nucleo_idx"],
-                    nucleo_ipo=resultado["nucleo_ipo"],
-                    nucleo_asb_b=resultado["nucleo_asb_b"],
-                )
-
                 alvo = resultado["alvo"]
                 st.subheader("📌 Série atual (alvo)")
                 st.write(f"ID: {alvo['id']}")
@@ -692,8 +963,8 @@ elif pagina == "Cobertura de Vento":
 
                 st.markdown("---")
                 st.subheader("🌬 Cobertura de Vento (10–15 números)")
-                if cobertura:
-                    st.success(cobertura)
+                if camadas["cobertura"]:
+                    st.success(camadas["cobertura"])
                 else:
                     st.info("Não foi possível gerar a Cobertura de Vento.")
 
@@ -701,58 +972,175 @@ elif pagina == "Cobertura de Vento":
 
 
 elif pagina == "Listas SA1 / MAX / Híbrida":
-    st.title("📋 Listas SA1 / MAX / Híbrida — Protótipo")
-    st.info(
-        "Esta seção será usada para gerar as listas SA1, MAX e Híbrida a partir do "
-        "Núcleo Resiliente + Cobertura de Vento, conforme o V13.8. "
-        "No momento, o módulo está em desenvolvimento."
-    )
+    st.title("📋 Listas SA1 / MAX / Híbrida")
+
+    if not historico_bruto:
+        st.warning("Carregue primeiro o histórico na barra lateral.")
+    else:
+        resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
+        if resultado is None:
+            st.warning("Histórico insuficiente para o pipeline.")
+        else:
+            camadas = construir_camadas_avancadas(resultado)
+            alvo = resultado["alvo"]
+
+            st.subheader("📌 Série atual (alvo)")
+            st.write(f"ID: {alvo['id']}")
+            st.write(f"Passageiros: {alvo['passageiros']}")
+            st.code(alvo["texto"])
+
+            st.markdown("---")
+            st.subheader("SA1 (estável)")
+            st.write(camadas["sa1"])
+
+            st.subheader("MAX (agressiva)")
+            st.write(camadas["max"])
+
+            st.subheader("Híbrida (compromisso)")
+            st.write(camadas["hibrida"])
 
 
 elif pagina == "Modo Espremer":
-    st.title("🧱 Modo Espremer — Protótipo")
-    st.info(
-        "O Modo Espremer comprime SA1 / MAX / Híbrida em versões SA1-E / MAX-E / Híbrida-E, "
-        "removendo ruído, anticiclagem excessiva e faixas incoerentes. "
-        "Este módulo ainda será implementado."
-    )
+    st.title("🧱 Modo Espremer — SA1-E / MAX-E / Híbrida-E")
+
+    if not historico_bruto:
+        st.warning("Carregue primeiro o histórico na barra lateral.")
+    else:
+        resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
+        if resultado is None:
+            st.warning("Histórico insuficiente para o pipeline.")
+        else:
+            camadas = construir_camadas_avancadas(resultado)
+
+            st.subheader("SA1-E (estável espremida)")
+            st.write(camadas["sa1_e"])
+
+            st.subheader("MAX-E (agressiva espremida)")
+            st.write(camadas["max_e"])
+
+            st.subheader("Híbrida-E (núcleo convergente)")
+            st.write(camadas["hibrida_e"])
 
 
 elif pagina == "Modo 6 Acertos (S6)":
-    st.title("🎯 Modo 6 Acertos (S6) — Protótipo")
-    st.info(
-        "O Modo S6 realiza a convergência máxima (Alfa / Bravo / Charlie) a partir das listas "
-        "espremidas e do Núcleo Resiliente. "
-        "Este módulo será adicionado em uma próxima versão."
-    )
+    st.title("🎯 Modo 6 Acertos (S6) — Alfa / Bravo / Charlie")
+
+    if not historico_bruto:
+        st.warning("Carregue primeiro o histórico na barra lateral.")
+    else:
+        resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
+        if resultado is None:
+            st.warning("Histórico insuficiente para o pipeline.")
+        else:
+            camadas = construir_camadas_avancadas(resultado)
+
+            st.subheader("S6 Alfa (núcleo máximo)")
+            st.write(camadas["s6_alfa"])
+
+            st.subheader("S6 Bravo (apoio forte)")
+            st.write(camadas["s6_bravo"])
+
+            st.subheader("S6 Charlie (apoio moderado)")
+            st.write(camadas["s6_charlie"])
 
 
 elif pagina == "Ensamble Final":
-    st.title("🧠 Ensamble Final — Protótipo")
-    st.info(
-        "O Ensamble Final integra Núcleo, Cobertura, SA1-E, MAX-E, Híbrida-E e S6 "
-        "em uma lista compacta e altamente robusta. "
-        "A lógica detalhada será implementada em breve."
-    )
+    st.title("🧠 Ensamble Final — Lista Compacta")
+
+    if not historico_bruto:
+        st.warning("Carregue primeiro o histórico na barra lateral.")
+    else:
+        resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
+        if resultado is None:
+            st.warning("Histórico insuficiente para o pipeline.")
+        else:
+            camadas = construir_camadas_avancadas(resultado)
+
+            st.subheader("Ensamble Final (lista robusta)")
+            st.write(camadas["ensamble"])
 
 
 elif pagina == "Faróis e Confiabilidade":
-    st.title("🚦 Faróis e Confiabilidade — Protótipo")
-    st.info(
-        "Esta seção exibirá os Faróis (🟢🟡🟠🔴🟣) e a Confiabilidade (%) do cenário, "
-        "com base em dispersão, clima, convergência e comportamento das listas. "
-        "Ainda será implementada conforme o Manual V13.8."
-    )
+    st.title("🚦 Faróis e Confiabilidade")
+
+    if not historico_bruto:
+        st.warning("Carregue primeiro o histórico na barra lateral.")
+    else:
+        resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
+        if resultado is None:
+            st.warning("Histórico insuficiente para o pipeline.")
+        else:
+            camadas = construir_camadas_avancadas(resultado)
+
+            st.subheader("Farol do momento")
+            st.write(camadas["farol_emoji"])
+
+            st.subheader("Barômetro")
+            st.write(camadas["barometro"])
+
+            st.subheader("Confiabilidade estimada (%)")
+            st.write(f"{camadas['confiabilidade']}%")
 
 
 elif pagina == "Formato Oficial (V13.8)":
     st.title("📑 Formato Oficial — V13.8")
-    st.info(
-        "Aqui será exibido o Formato Oficial completo (1 a 10 blocos): "
-        "Núcleo, Cobertura, SA1/MAX/Híbrida, Espremidas, S6, Ensamble, Faróis, "
-        "Barômetro, Confiabilidade e Observações Estruturais. "
-        "O módulo será integrado após a implementação das camadas avançadas."
-    )
+
+    if not historico_bruto:
+        st.warning("Carregue primeiro o histórico na barra lateral.")
+    else:
+        resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
+        if resultado is None:
+            st.warning("Histórico insuficiente para o pipeline.")
+        else:
+            camadas = construir_camadas_avancadas(resultado)
+            alvo = resultado["alvo"]
+
+            st.subheader("📌 Série atual (alvo)")
+            st.write(f"ID: {alvo['id']}")
+            st.write(f"Passageiros: {alvo['passageiros']}")
+            st.code(alvo["texto"])
+
+            nuc_res = resultado["nucleo_resiliente"]
+
+            st.markdown("---")
+            st.markdown("### 1) Núcleo Resiliente")
+            st.write(nuc_res)
+
+            st.markdown("### 2) Cobertura de Vento")
+            st.write(camadas["cobertura"])
+
+            st.markdown("### 3) Listas SA1 / MAX / Híbrida")
+            st.write("SA1:", camadas["sa1"])
+            st.write("MAX:", camadas["max"])
+            st.write("Híbrida:", camadas["hibrida"])
+
+            st.markdown("### 4) Versões Espremidas (SA1-E / MAX-E / Híbrida-E")
+            st.write("SA1-E:", camadas["sa1_e"])
+            st.write("MAX-E:", camadas["max_e"])
+            st.write("Híbrida-E:", camadas["hibrida_e"])
+
+            st.markdown("### 5) S6 — Alfa / Bravo / Charlie")
+            st.write("S6 Alfa:", camadas["s6_alfa"])
+            st.write("S6 Bravo:", camadas["s6_bravo"])
+            st.write("S6 Charlie:", camadas["s6_charlie"])
+
+            st.markdown("### 6) Ensamble Final")
+            st.write(camadas["ensamble"])
+
+            st.markdown("### 7) Faróis")
+            st.write(camadas["farol_emoji"])
+
+            st.markdown("### 8) Barômetro")
+            st.write(camadas["barometro"])
+
+            st.markdown("### 9) Confiabilidade (%)")
+            st.write(f"{camadas['confiabilidade']}%")
+
+            st.markdown("### 10) Observações Estruturais")
+            st.write(
+                "- Faixa dominante, motorista, dispersão e clima são inferidos conforme o V13.8.\n"
+                "- Este bloco resume o estado estrutural da série no momento."
+            )
 
 
 elif pagina == "Previsões Finais (Núcleo Resiliente)":
