@@ -298,7 +298,7 @@ def calcular_ipo_profissional(df_top):
     # Núcleo IPO
     pesos = {}
     for _, r in df_ipo.iterrows():
-        for n in r["passageiros"]:
+        for n in r["passageiros"]]:
             pesos[n] = pesos.get(n, 0.0) + float(r["score_ipo"])
 
     ordenados = sorted(pesos.items(), key=lambda x: x[1], reverse=True)
@@ -390,6 +390,73 @@ def gerar_nucleo_resiliente(nucleo_ipo, nucleo_asb_b):
 
 
 # -------------------------------------------------------------
+# Cobertura de Vento (V13.8)
+# -------------------------------------------------------------
+def gerar_cobertura_vento(nucleo_resiliente, nucleo_idx, nucleo_ipo, nucleo_asb_b):
+    """
+    Gera a Cobertura de Vento do V13.8 (10 a 15 números),
+    baseada na fusão estruturada das camadas:
+    - Núcleo Resiliente
+    - Núcleo IDX
+    - Núcleo IPO
+    - Núcleo ASB-B
+
+    Implementa:
+    - expansão por recorrência
+    - reforço de vizinhança
+    - compressão entre 10 e 15 números
+    """
+    if not nucleo_resiliente:
+        return None
+
+    cobertura = set(nucleo_resiliente)
+
+    # 1) Recorrências estruturais (IDX + IPO + ASB-B)
+    recorrencias = []
+    for bloco in (nucleo_idx, nucleo_ipo, nucleo_asb_b):
+        if bloco:
+            recorrencias.extend(bloco)
+
+    recorrencias = [n for n in recorrencias if isinstance(n, int) and 1 <= n <= 80]
+
+    for n in recorrencias:
+        cobertura.add(n)
+
+    # 2) Reforço de vizinhança em torno do Núcleo Resiliente
+    reforco = []
+    for n in nucleo_resiliente:
+        if n > 2:
+            reforco.append(n - 1)
+        if n < 79:
+            reforco.append(n + 1)
+
+    reforco = [n for n in reforco if 1 <= n <= 80]
+    for n in reforco:
+        cobertura.add(n)
+
+    cobertura = sorted(list(cobertura))
+
+    # 3) Alongamento mínimo (se menos de 10)
+    if len(cobertura) < 10:
+        extras = []
+        for n in nucleo_resiliente:
+            if n > 3:
+                extras.append(n - 2)
+            if n < 78:
+                extras.append(n + 2)
+        extras = [x for x in extras if 1 <= x <= 80]
+        for x in extras:
+            cobertura.append(x)
+        cobertura = sorted(list(set(cobertura)))
+
+    # 4) Compressão máxima (se mais de 15)
+    if len(cobertura) > 15:
+        cobertura = cobertura[:15]
+
+    return cobertura
+
+
+# -------------------------------------------------------------
 # Função de pipeline completo (IDX → IPF → IPO → ASB → Resiliente)
 # -------------------------------------------------------------
 def rodar_pipeline_completo(historico_bruto: str, modo_asb: str = "B"):
@@ -415,7 +482,7 @@ def rodar_pipeline_completo(historico_bruto: str, modo_asb: str = "B"):
     else:
         nuc_asb_a = aplicar_asb(nuc_ipo, alvo["passageiros"], "A")
         nuc_asb_b = aplicar_asb(nuc_ipo, alvo["passageiros"], "B")
-        nuc_res = gerar_nucleo_resiliente(nuc_ipo, nuc_asb_b)
+        nuc_res = gerar_nucleo_resiliente(nucleo_ipo=nuc_ipo, nucleo_asb_b=nuc_asb_b)
 
     return {
         "alvo": alvo,
@@ -468,8 +535,15 @@ pagina = st.sidebar.radio(
     (
         "Painel Principal",
         "Manual V13.8 (resumo)",
-        "Modo Normal (protótipo)",
-        "Modo IDX / IPF / IPO / ASB",
+        "Modo Normal",
+        "Camada IDX / IPF / IPO / ASB",
+        "Cobertura de Vento",
+        "Listas SA1 / MAX / Híbrida",
+        "Modo Espremer",
+        "Modo 6 Acertos (S6)",
+        "Ensamble Final",
+        "Faróis e Confiabilidade",
+        "Formato Oficial (V13.8)",
         "Previsões Finais (Núcleo Resiliente)",
         "Ajuste Dinâmico (protótipo)",
     )
@@ -490,9 +564,9 @@ if pagina == "Painel Principal":
     st.title("🚗 Predict Cars V13.8 — Painel Principal")
     st.markdown(
         "Use a barra lateral para carregar o histórico e navegar entre as seções.\n\n"
-        "- **Modo IDX / IPF / IPO / ASB** mostra o pipeline analítico.\n"
-        "- **Previsões Finais** mostra o Núcleo Resiliente pronto para uso.\n"
-        "- **Modo Normal** traz frequências simples (protótipo)."
+        "- **Camada IDX / IPF / IPO / ASB** mostra o pipeline analítico.\n"
+        "- **Previsões Finais (Núcleo Resiliente)** mostra o núcleo pronto para uso.\n"
+        "- **Cobertura de Vento** e as demais camadas avançadas seguem o Manual V13.8."
     )
 
     if historico_bruto:
@@ -503,13 +577,13 @@ if pagina == "Painel Principal":
 elif pagina == "Manual V13.8 (resumo)":
     st.title("📘 Manual Técnico — Resumo V13.8")
     st.markdown(
-        "- Camadas principais: IDX, IPF, IPO, Anti-SelfBias (ASB), Núcleo Resiliente.\n"
-        "- Núcleo Resiliente é a base para Núcleo + Cobertura + Listas SA1/MAX.\n"
-        "- Este painel web segue o espírito do Manual V13.8."
+        "- Camadas principais: Modo Normal, IDX, IPF, IPO, Anti-SelfBias (ASB), Núcleo Resiliente.\n"
+        "- Camadas avançadas: Cobertura de Vento, SA1/MAX/Híbrida, Espremer, S6, Ensamble, Faróis, Confiabilidade, Formato Oficial.\n"
+        "- Este painel web segue o espírito do Manual Técnico Ultra-Híbrido — Predict Cars V13.8."
     )
 
 
-elif pagina == "Modo Normal (protótipo)":
+elif pagina == "Modo Normal":
     st.title("⚙️ Modo Normal — Protótipo")
     if not historico_bruto:
         st.warning("Carregue primeiro o histórico na barra lateral.")
@@ -522,8 +596,8 @@ elif pagina == "Modo Normal (protótipo)":
             st.info("Não foi possível extrair números.")
 
 
-elif pagina == "Modo IDX / IPF / IPO / ASB":
-    st.title("🎯 IDX → IPF → IPO → ASB")
+elif pagina == "Camada IDX / IPF / IPO / ASB":
+    st.title("🎯 Camada IDX / IPF / IPO / ASB")
 
     if not historico_bruto:
         st.warning("Carregue primeiro o histórico na barra lateral.")
@@ -577,6 +651,102 @@ elif pagina == "Modo IDX / IPF / IPO / ASB":
             st.write(f"**Núcleo IPO Anti-SelfBias {modo_txt}:** {nuc_asb}")
 
             st.success("Pipeline IDX → IPF → IPO → ASB executado com sucesso.")
+
+
+elif pagina == "Cobertura de Vento":
+    st.title("🌬 Cobertura de Vento — V13.8")
+
+    if not historico_bruto:
+        st.warning("Carregue primeiro o histórico na barra lateral.")
+    else:
+        resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
+        if resultado is None:
+            st.warning("Histórico insuficiente para o pipeline.")
+        else:
+            nuc_res = resultado["nucleo_resiliente"]
+            if not nuc_res:
+                st.warning("Núcleo Resiliente não disponível. Verifique IPO/ASB.")
+            else:
+                cobertura = gerar_cobertura_vento(
+                    nucleo_resiliente=resultado["nucleo_resiliente"],
+                    nucleo_idx=resultado["nucleo_idx"],
+                    nucleo_ipo=resultado["nucleo_ipo"],
+                    nucleo_asb_b=resultado["nucleo_asb_b"],
+                )
+
+                alvo = resultado["alvo"]
+                st.subheader("📌 Série atual (alvo)")
+                st.write(f"ID: {alvo['id']}")
+                st.write(f"Passageiros: {alvo['passageiros']}")
+                st.code(alvo["texto"])
+
+                st.markdown("---")
+                st.subheader("🔰 Núcleo Resiliente")
+                st.write(nuc_res)
+
+                st.markdown("---")
+                st.subheader("🌬 Cobertura de Vento (10–15 números)")
+                if cobertura:
+                    st.success(cobertura)
+                else:
+                    st.info("Não foi possível gerar a Cobertura de Vento.")
+
+                st.caption("Geração conforme o Manual Técnico Ultra-Híbrido — Predict Cars V13.8.")
+
+
+elif pagina == "Listas SA1 / MAX / Híbrida":
+    st.title("📋 Listas SA1 / MAX / Híbrida — Protótipo")
+    st.info(
+        "Esta seção será usada para gerar as listas SA1, MAX e Híbrida a partir do "
+        "Núcleo Resiliente + Cobertura de Vento, conforme o V13.8. "
+        "No momento, o módulo está em desenvolvimento."
+    )
+
+
+elif pagina == "Modo Espremer":
+    st.title("🧱 Modo Espremer — Protótipo")
+    st.info(
+        "O Modo Espremer comprime SA1 / MAX / Híbrida em versões SA1-E / MAX-E / Híbrida-E, "
+        "removendo ruído, anticiclagem excessiva e faixas incoerentes. "
+        "Este módulo ainda será implementado."
+    )
+
+
+elif pagina == "Modo 6 Acertos (S6)":
+    st.title("🎯 Modo 6 Acertos (S6) — Protótipo")
+    st.info(
+        "O Modo S6 realiza a convergência máxima (Alfa / Bravo / Charlie) a partir das listas "
+        "espremidas e do Núcleo Resiliente. "
+        "Este módulo será adicionado em uma próxima versão."
+    )
+
+
+elif pagina == "Ensamble Final":
+    st.title("🧠 Ensamble Final — Protótipo")
+    st.info(
+        "O Ensamble Final integra Núcleo, Cobertura, SA1-E, MAX-E, Híbrida-E e S6 "
+        "em uma lista compacta e altamente robusta. "
+        "A lógica detalhada será implementada em breve."
+    )
+
+
+elif pagina == "Faróis e Confiabilidade":
+    st.title("🚦 Faróis e Confiabilidade — Protótipo")
+    st.info(
+        "Esta seção exibirá os Faróis (🟢🟡🟠🔴🟣) e a Confiabilidade (%) do cenário, "
+        "com base em dispersão, clima, convergência e comportamento das listas. "
+        "Ainda será implementada conforme o Manual V13.8."
+    )
+
+
+elif pagina == "Formato Oficial (V13.8)":
+    st.title("📑 Formato Oficial — V13.8")
+    st.info(
+        "Aqui será exibido o Formato Oficial completo (1 a 10 blocos): "
+        "Núcleo, Cobertura, SA1/MAX/Híbrida, Espremidas, S6, Ensamble, Faróis, "
+        "Barômetro, Confiabilidade e Observações Estruturais. "
+        "O módulo será integrado após a implementação das camadas avançadas."
+    )
 
 
 elif pagina == "Previsões Finais (Núcleo Resiliente)":
