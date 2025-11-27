@@ -347,7 +347,10 @@ def aplicar_asb(nucleo_ipo, passageiros_alvo, modo):
                     nuc.remove(n)
                     break
             # adiciona um número estruturado próximo à média
-            media = int(np.mean(nuc)) if nuc else 0
+            if nuc:
+                media = int(np.mean(nuc))
+            else:
+                media = 40
             candidato = media + 1
             if candidato in nuc:
                 candidato += 2
@@ -389,6 +392,70 @@ def gerar_nucleo_resiliente(nucleo_ipo, nucleo_asb_b):
     resiliente = [n for n, _ in ordenados[:6]]
     resiliente.sort()
     return resiliente
+
+
+# -------------------------------------------------------------
+# ICA — Iterative Core Adjustment (ajuste fino do núcleo)
+# -------------------------------------------------------------
+def aplicar_ica_nucleo(
+    nucleo_resiliente,
+    nucleo_idx,
+    nucleo_ipf,
+    nucleo_ipo,
+    passageiros_alvo,
+):
+    """
+    Ajuste fino do Núcleo Resiliente usando IDX / IPF / IPO.
+
+    Ideia:
+    - Se há boa concordância entre Núcleo, IDX e IPO → mantém núcleo.
+    - Se houver divergência forte → recalibra pesos combinando os três.
+    - Penaliza levemente autociclagem com o alvo.
+    """
+    if not nucleo_resiliente or not nucleo_ipo or not nucleo_idx or not nucleo_ipf:
+        return nucleo_resiliente
+
+    set_res = set(nucleo_resiliente)
+    set_idx = set(nucleo_idx)
+    set_ipf = set(nucleo_ipf)
+    set_ipo = set(nucleo_ipo)
+    set_alvo = set(passageiros_alvo or [])
+
+    overlap_idx_ipo = len(set_idx.intersection(set_ipo))
+    overlap_res_ipo = len(set_res.intersection(set_ipo))
+    overlap_res_idx = len(set_res.intersection(set_idx))
+
+    # Se o cenário é bem alinhado (alta convergência), não mexe em nada.
+    if overlap_idx_ipo >= 4 and overlap_res_ipo >= 4 and overlap_res_idx >= 4:
+        return nucleo_resiliente
+
+    # Caso contrário, recalcula pesos combinando as fontes
+    union_core = set()
+    for arr in (nucleo_resiliente, nucleo_idx, nucleo_ipf, nucleo_ipo):
+        for n in arr:
+            if 1 <= n <= 80:
+                union_core.add(n)
+
+    pesos = {}
+    for n in union_core:
+        pesos[n] = 0.0
+        if n in set_res:
+            pesos[n] += 2.0  # peso forte no núcleo atual
+        if n in set_ipo:
+            pesos[n] += 1.5
+        if n in set_ipf:
+            pesos[n] += 1.0
+        if n in set_idx:
+            pesos[n] += 1.0
+        if n in set_alvo:
+            pesos[n] -= 0.5  # leve penalização por autociclagem
+
+    ordenados = sorted(pesos.items(), key=lambda x: x[1], reverse=True)
+    ajustado = [n for n, _ in ordenados[:6]]
+    ajustado.sort()
+
+    # Se por acaso ficar idêntico ao núcleo original, apenas retorna
+    return ajustado
 
 
 # -------------------------------------------------------------
@@ -564,7 +631,7 @@ def avaliar_farol_e_confiabilidade(nucleo_resiliente, cobertura, ensamble):
 
 
 # -------------------------------------------------------------
-# Função de pipeline completo (IDX → IPF → IPO → ASB → Resiliente)
+# Função de pipeline completo (IDX → IPF → IPO → ASB → Resiliente → ICA)
 # -------------------------------------------------------------
 def rodar_pipeline_completo(historico_bruto: str, modo_asb: str = "B"):
     """
@@ -586,6 +653,7 @@ def rodar_pipeline_completo(historico_bruto: str, modo_asb: str = "B"):
         nuc_asb_a = None
         nuc_asb_b = None
         nuc_res = None
+        nuc_ica = None
     else:
         nuc_asb_a = aplicar_asb(
             nucleo_ipo=nuc_ipo, passageiros_alvo=alvo["passageiros"], modo="A"
@@ -594,6 +662,13 @@ def rodar_pipeline_completo(historico_bruto: str, modo_asb: str = "B"):
             nucleo_ipo=nuc_ipo, passageiros_alvo=alvo["passageiros"], modo="B"
         )
         nuc_res = gerar_nucleo_resiliente(nuc_ipo, nuc_asb_b)
+        nuc_ica = aplicar_ica_nucleo(
+            nucleo_resiliente=nuc_res,
+            nucleo_idx=nuc_idx,
+            nucleo_ipf=nuc_ipf,
+            nucleo_ipo=nuc_ipo,
+            passageiros_alvo=alvo["passageiros"],
+        )
 
     return {
         "alvo": alvo,
@@ -606,6 +681,7 @@ def rodar_pipeline_completo(historico_bruto: str, modo_asb: str = "B"):
         "nucleo_asb_a": nuc_asb_a,
         "nucleo_asb_b": nuc_asb_b,
         "nucleo_resiliente": nuc_res,
+        "nucleo_ica": nuc_ica,
     }
 
 
@@ -702,7 +778,7 @@ if subpagina == "Painel Principal":
     st.markdown(
         "Use a barra lateral para carregar o histórico e navegar entre as seções.\n\n"
         "- **Pipeline Analítico** mostra IDX / IPF / IPO / ASB e Núcleo.\n"
-        "- **Previsões** mostra Núcleo Resiliente e a Previsão Completa V13.8.\n"
+        "- **Previsões** mostra Núcleo Resiliente (com ICA) e a Previsão Completa V13.8.\n"
         "- **Documentação** traz o manual resumido e o Bloco de Ativação."
     )
 
@@ -717,12 +793,11 @@ if subpagina == "Painel Principal":
 elif subpagina == "Manual V13.8 (resumo)":
     st.title("📘 Manual Técnico — Resumo V13.8")
     st.markdown(
-        "- Camadas principais: Modo Normal, IDX, IPF, IPO, Anti-SelfBias (ASB), Núcleo Resiliente, Cobertura, "
-        "Listas SA1/MAX/Híbrida, Espremer, S6, Ensamble, Faróis e Confiabilidade.\n"
+        "- Camadas principais: Modo Normal, IDX, IPF, IPO, Anti-SelfBias (ASB), Núcleo Resiliente, ICA, "
+        "Cobertura, Listas SA1/MAX/Híbrida, Espremer, S6, Ensamble, Faróis e Confiabilidade.\n"
         "- O sistema busca trechos historicamente semelhantes à série atual e funde múltiplas evidências "
         "para formar um Núcleo Resiliente.\n"
-        "- As camadas seguintes ampliam (Cobertura), organizam (SA1/MAX/Híbrida), compactam (Espremer), "
-        "concentram (S6) e consolidam (Ensamble) o cenário."
+        "- O ICA faz o ajuste fino estrutural do núcleo antes das camadas finais."
     )
     st.info(
         "Para detalhes completos, utilize o Manual Técnico Ultra-Híbrido V13.8 (Partes 1 a 5) "
@@ -742,6 +817,7 @@ elif subpagina == "Bloco de Ativação V13.8":
         "- IDX + IPF + IPO\n"
         "- Anti-SelfBias (ASB)\n"
         "- Núcleo Resiliente\n"
+        "- ICA (Iterative Core Adjustment)\n"
         "- Cobertura de Vento\n"
         "- SA1 / MAX / Híbrida\n"
         "- Espremer\n"
@@ -841,7 +917,10 @@ elif subpagina == "Núcleo Resiliente (visão rápida)":
         st.warning("Carregue primeiro o histórico na barra lateral.")
     else:
         resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
-        if resultado is None or resultado["nucleo_resiliente"] is None:
+        nuc_res = resultado["nucleo_resiliente"] if resultado else None
+        nuc_ica = resultado["nucleo_ica"] if resultado else None
+
+        if resultado is None or nuc_res is None:
             st.warning("Não foi possível gerar o Núcleo Resiliente. Verifique o histórico.")
         else:
             alvo = resultado["alvo"]
@@ -862,8 +941,14 @@ elif subpagina == "Núcleo Resiliente (visão rápida)":
             st.write(f"ASB B: {resultado['nucleo_asb_b']}")
 
             st.markdown("---")
-            st.subheader("🔰 Núcleo Resiliente V13.8 (base ASB Médio)")
-            st.success(f"{resultado['nucleo_resiliente']}")
+            st.subheader("🔰 Núcleo Resiliente V13.8 (pré-ICA)")
+            st.write(nuc_res)
+
+            if nuc_ica:
+                st.subheader("🔧 Núcleo Resiliente (após ICA)")
+                st.success(nuc_ica)
+            else:
+                st.info("ICA não alterou o núcleo neste cenário (mantido o pré-ICA).")
 
 
 # -------------------------------------------------------------
@@ -898,13 +983,14 @@ elif subpagina == "Previsões Finais (Núcleo Resiliente)":
                 st.write(f"ASB B: {resultado['nucleo_asb_b']}")
 
             st.markdown("---")
-            st.markdown("## 🔰 Núcleo Resiliente V13.8 (base ASB Médio)")
+            st.markdown("## 🔰 Núcleo Resiliente V13.8 (pré-ICA)")
+            st.write(resultado["nucleo_resiliente"])
 
-            nuc_res = resultado["nucleo_resiliente"]
-            if nuc_res:
-                st.success(f"Núcleo Resiliente: {nuc_res}")
+            if resultado["nucleo_ica"]:
+                st.markdown("## 🔧 Núcleo Ajustado (ICA)")
+                st.success(f"{resultado['nucleo_ica']}")
             else:
-                st.info("Não foi possível gerar o Núcleo Resiliente (verifique IPO e ASB).")
+                st.info("ICA não alterou o núcleo neste cenário.")
 
 
 # -------------------------------------------------------------
@@ -917,33 +1003,42 @@ elif subpagina == "Previsão Completa (V13.8)":
         st.warning("Carregue primeiro o histórico na barra lateral.")
     else:
         resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
-        if resultado is None or resultado["nucleo_resiliente"] is None:
+        if (
+            resultado is None
+            or resultado["nucleo_resiliente"] is None
+        ):
             st.warning("Não foi possível gerar o Núcleo Resiliente. Verifique o histórico.")
         else:
             alvo = resultado["alvo"]
-            nuc_res = resultado["nucleo_resiliente"]
+            nuc_res_pre = resultado["nucleo_resiliente"]
+            nuc_ica = resultado["nucleo_ica"]
+            nuc_base = nuc_ica or nuc_res_pre
 
             st.subheader("📌 Série atual (alvo)")
             st.write(f"ID: {alvo['id']}")
             st.write(f"Passageiros: {alvo['passageiros']}")
             st.code(alvo["texto"])
 
-            # Construção das camadas finais
-            cobertura = gerar_cobertura_de_vento(nuc_res, alvo["passageiros"])
-            sa1, max_lista, hibrida = gerar_listas_sa1_max_hibrida(cobertura, nuc_res)
-            sa1_e, max_e, hibrida_e = espremer_listas(sa1, max_lista, hibrida, nuc_res)
+            # Construção das camadas finais usando o núcleo ajustado (ICA quando existir)
+            cobertura = gerar_cobertura_de_vento(nuc_base, alvo["passageiros"])
+            sa1, max_lista, hibrida = gerar_listas_sa1_max_hibrida(cobertura, nuc_base)
+            sa1_e, max_e, hibrida_e = espremer_listas(sa1, max_lista, hibrida, nuc_base)
             s6_alfa, s6_bravo, s6_charlie = gerar_s6(
-                nuc_res, sa1_e, max_e, cobertura
+                nuc_base, sa1_e, max_e, cobertura
             )
-            ensamble = gerar_ensamble_final(nuc_res, sa1_e, max_e)
+            ensamble = gerar_ensamble_final(nuc_base, sa1_e, max_e)
             farol, barometro, confiab = avaliar_farol_e_confiabilidade(
-                nuc_res, cobertura, ensamble
+                nuc_base, cobertura, ensamble
             )
 
             # Exibição no espírito do Formato Oficial
             st.markdown("---")
             st.markdown("### 1) Núcleo Resiliente")
-            st.write(nuc_res)
+            st.write(f"(pré-ICA): {nuc_res_pre}")
+            if nuc_ica:
+                st.write(f"(após ICA): {nuc_base}")
+            else:
+                st.write("(ICA não alterou o núcleo)")
 
             st.markdown("### 2) Cobertura de Vento (10–15 números)")
             st.write(cobertura)
@@ -986,7 +1081,7 @@ elif subpagina == "Previsão Completa (V13.8)":
 
             st.markdown("### 10) Observações Estruturais")
             st.markdown(
-                "- Faixas dominantes e comportamento geral seguem o Núcleo Resiliente e a Cobertura.\n"
+                "- Faixas dominantes e comportamento geral seguem o Núcleo Resiliente (após ICA) e a Cobertura.\n"
                 "- O farol e o barômetro refletem a estabilidade atual do cenário.\n"
                 "- Esta página implementa uma versão compacta do Formato Oficial do V13.8."
             )
@@ -1002,17 +1097,22 @@ elif subpagina == "Modo 6 Acertos (S6) - detalhado":
         st.warning("Carregue primeiro o histórico na barra lateral.")
     else:
         resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
-        if resultado is None or resultado["nucleo_resiliente"] is None:
+        if (
+            resultado is None
+            or resultado["nucleo_resiliente"] is None
+        ):
             st.warning("Não foi possível gerar o Núcleo Resiliente. Verifique o histórico.")
         else:
             alvo = resultado["alvo"]
-            nuc_res = resultado["nucleo_resiliente"]
+            nuc_res_pre = resultado["nucleo_resiliente"]
+            nuc_ica = resultado["nucleo_ica"]
+            nuc_base = nuc_ica or nuc_res_pre
 
-            cobertura = gerar_cobertura_de_vento(nuc_res, alvo["passageiros"])
-            sa1, max_lista, hibrida = gerar_listas_sa1_max_hibrida(cobertura, nuc_res)
-            sa1_e, max_e, hibrida_e = espremer_listas(sa1, max_lista, hibrida, nuc_res)
+            cobertura = gerar_cobertura_de_vento(nuc_base, alvo["passageiros"])
+            sa1, max_lista, hibrida = gerar_listas_sa1_max_hibrida(cobertura, nuc_base)
+            sa1_e, max_e, hibrida_e = espremer_listas(sa1, max_lista, hibrida, nuc_base)
             s6_alfa, s6_bravo, s6_charlie = gerar_s6(
-                nuc_res, sa1_e, max_e, cobertura
+                nuc_base, sa1_e, max_e, cobertura
             )
 
             st.subheader("📌 Série atual (alvo)")
@@ -1021,8 +1121,12 @@ elif subpagina == "Modo 6 Acertos (S6) - detalhado":
             st.code(alvo["texto"])
 
             st.markdown("---")
-            st.markdown("### Núcleo Resiliente (base do S6)")
-            st.write(nuc_res)
+            st.markdown("### Núcleo usado pelo S6")
+            st.write(f"(pré-ICA): {nuc_res_pre}")
+            if nuc_ica:
+                st.write(f"(após ICA): {nuc_base}")
+            else:
+                st.write("(ICA não alterou o núcleo)")
 
             st.markdown("### S6 Alfa (núcleo máximo)")
             st.write(s6_alfa)
@@ -1049,21 +1153,26 @@ elif subpagina == "Ensamble Final (detalhado)":
         st.warning("Carregue primeiro o histórico na barra lateral.")
     else:
         resultado = rodar_pipeline_completo(historico_bruto, modo_asb="B")
-        if resultado is None or resultado["nucleo_resiliente"] is None:
+        if (
+            resultado is None
+            or resultado["nucleo_resiliente"] is None
+        ):
             st.warning("Não foi possível gerar o Núcleo Resiliente. Verifique o histórico.")
         else:
             alvo = resultado["alvo"]
-            nuc_res = resultado["nucleo_resiliente"]
+            nuc_res_pre = resultado["nucleo_resiliente"]
+            nuc_ica = resultado["nucleo_ica"]
+            nuc_base = nuc_ica or nuc_res_pre
 
-            cobertura = gerar_cobertura_de_vento(nuc_res, alvo["passageiros"])
-            sa1, max_lista, hibrida = gerar_listas_sa1_max_hibrida(cobertura, nuc_res)
-            sa1_e, max_e, hibrida_e = espremer_listas(sa1, max_lista, hibrida, nuc_res)
+            cobertura = gerar_cobertura_de_vento(nuc_base, alvo["passageiros"])
+            sa1, max_lista, hibrida = gerar_listas_sa1_max_hibrida(cobertura, nuc_base)
+            sa1_e, max_e, hibrida_e = espremer_listas(sa1, max_lista, hibrida, nuc_base)
             s6_alfa, s6_bravo, s6_charlie = gerar_s6(
-                nuc_res, sa1_e, max_e, cobertura
+                nuc_base, sa1_e, max_e, cobertura
             )
-            ensamble = gerar_ensamble_final(nuc_res, sa1_e, max_e)
+            ensamble = gerar_ensamble_final(nuc_base, sa1_e, max_e)
             farol, barometro, confiab = avaliar_farol_e_confiabilidade(
-                nuc_res, cobertura, ensamble
+                nuc_base, cobertura, ensamble
             )
 
             st.subheader("📌 Série atual (alvo)")
@@ -1073,7 +1182,11 @@ elif subpagina == "Ensamble Final (detalhado)":
 
             st.markdown("---")
             st.markdown("### Componentes usados pelo Ensamble")
-            st.write(f"Núcleo Resiliente: {nuc_res}")
+            st.write(f"Núcleo (pré-ICA): {nuc_res_pre}")
+            if nuc_ica:
+                st.write(f"Núcleo (após ICA): {nuc_base}")
+            else:
+                st.write("Núcleo após ICA: (sem alteração)")
             st.write(f"SA1-E: {sa1_e}")
             st.write(f"MAX-E: {max_e}")
             st.write(f"S6 Alfa: {s6_alfa}")
@@ -1091,8 +1204,9 @@ elif subpagina == "Ensamble Final (detalhado)":
             st.write(f"Confiabilidade: {confiab}%")
 
             st.info(
-                "O Ensamble integra Núcleo, SA1-E, MAX-E e S6 em uma lista única, "
-                "ponderando estabilidade, cobertura e convergência."
+                "O Ensamble integra Núcleo (ajustado pelo ICA sempre que necessário), "
+                "SA1-E, MAX-E e S6 em uma lista única, ponderando estabilidade, "
+                "cobertura e convergência."
             )
 
 
@@ -1102,6 +1216,6 @@ elif subpagina == "Ensamble Final (detalhado)":
 elif subpagina == "Ajuste Dinâmico (protótipo)":
     st.title("🔁 Ajuste Dinâmico — Protótipo")
     st.info(
-        "Futuro módulo ICA/HLA para ajustes de pesos e microestruturas "
+        "Futuro módulo ICA/HLA ampliado para ajustes de pesos e microestruturas "
         "sobre o Núcleo Resiliente e as listas SA1/MAX/Híbrida."
     )
