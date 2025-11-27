@@ -199,7 +199,10 @@ def encontrar_similares_idx_avancado(registros, w_coinc=3.0, w_recencia=2.0, w_f
         return None, alvo, None
 
     df = pd.DataFrame(candidatos)
-    df = df.sort_values(by=["score_total", "coincidentes", "linha"], ascending=[False, False, False])
+    df = df.sort_values(
+        by=["score_total", "coincidentes", "linha"],
+        ascending=[False, False, False],
+    )
 
     # ~20% dos melhores (min 5, max 25)
     num_cand = len(df)
@@ -298,7 +301,7 @@ def calcular_ipo_profissional(df_top):
     # Núcleo IPO
     pesos = {}
     for _, r in df_ipo.iterrows():
-        for n in r["passageiros"]]:
+        for n in r["passageiros"]:
             pesos[n] = pesos.get(n, 0.0) + float(r["score_ipo"])
 
     ordenados = sorted(pesos.items(), key=lambda x: x[1], reverse=True)
@@ -348,7 +351,10 @@ def aplicar_asb(nucleo_ipo, passageiros_alvo, modo):
                     nuc.remove(n)
                     break
             # adiciona um número estruturado próximo à média
-            media = int(np.mean(nuc))
+            if nuc:
+                media = int(np.mean(nuc))
+            else:
+                media = 40
             candidato = media + 1
             if candidato in nuc:
                 candidato += 2
@@ -480,8 +486,8 @@ def rodar_pipeline_completo(historico_bruto: str, modo_asb: str = "B"):
         nuc_asb_b = None
         nuc_res = None
     else:
-        nuc_asb_a = aplicar_asb(nuc_ipo, alvo["passageiros"], "A")
-        nuc_asb_b = aplicar_asb(nuc_ipo, alvo["passageiros"], "B")
+        nuc_asb_a = aplicar_asb(nucleo_ipo=nuc_ipo, passageiros_alvo=alvo["passageiros"], modo="A")
+        nuc_asb_b = aplicar_asb(nucleo_ipo=nuc_ipo, passageiros_alvo=alvo["passageiros"], modo="B")
         nuc_res = gerar_nucleo_resiliente(nucleo_ipo=nuc_ipo, nucleo_asb_b=nuc_asb_b)
 
     return {
