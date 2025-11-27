@@ -1,5 +1,801 @@
 import streamlit as st
+import pandas aimport itertools
+from typing import List, Dict, Any, Tuple
+
+import numpy as np
 import pandas as pd
+import streamlit as st
+
+
+# ---------------------------------------------------------
+#  PREDICT CARS V13.8 — APP STREAMLIT (VERSÃO ORGANIZADA)
+# ---------------------------------------------------------
+#  Estrutura geral:
+#  - Entrada de dados
+#  - Estado atual + Barômetro
+#  - IDX Avançado (similaridade + recência) – versão leve
+#  - Núcleo Resiliente (IPF + IPO + Anti-SelfBias)
+#  - Séries Puras
+#  - Séries Avaliadas (ICA + HLA + Faróis + Confiabilidade)
+#  - Gerador Extra (por confiabilidade alvo)
+#  - S6 + Ensamble Final
+#
+#  Observação:
+#  A arquitetura está completa e funcional.
+#  As funções podem ser enriquecidas depois com a lógica
+#  completa do V13.8, mantendo esta mesma estrutura.
+# ---------------------------------------------------------
+
+
+# =========================
+#  FUNÇÕES UTILITÁRIAS
+# =========================
+def parse_series_text(text: str) -> List[int]:
+    """
+    Converte um texto de série em lista de inteiros.
+    Aceita formatos:
+    - "8 29 30 34 39 60"
+    - "8,29,30,34,39,60"
+    - "8;29;30;34;39;60"
+    """
+    if not text:
+        return []
+    separators = [",", ";", " "]
+    tmp = text
+    for sep in separators[1:]:
+        tmp = tmp.replace(sep, separators[0])
+    parts = [p.strip() for p in tmp.split(separators[0]) if p.strip()]
+    try:
+        return [int(p) for p in parts]
+    except ValueError:
+        return []
+
+
+def series_to_str(series: List[int]) -> str:
+    """Converte uma lista de inteiros em string 'n1 n2 n3 n4 n5 n6'."""
+    return " ".join(str(x) for x in series)
+
+
+def ensure_session_state():
+    """
+    Garante chaves básicas em st.session_state.
+    """
+    defaults = {
+        "data": None,
+        "current_index": None,
+        "current_series": [],
+        "nucleo_resiliente": [],
+        "idx_info": None,
+        "series_puras": [],
+        "series_avaliadas": pd.DataFrame(),
+        "series_extras": [],
+        "s6_ensamble": pd.DataFrame(),
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+
+# =========================
+#  CAMADA DE DADOS
+# =========================
+def carregar_arquivo(uploaded_file) -> pd.DataFrame:
+    """
+    Carrega arquivo de entrada.
+    Formatos aceitos:
+    - .csv
+    - .txt (separador ';' ou ',')
+    Suporta arquivos com 5 ou 6 passageiros + k.
+    """
+    if uploaded_file is None:
+        return pd.DataFrame()
+
+    name = uploaded_file.name.lower()
+    if name.endswith(".csv"):
+        df = pd.read_csv(uploaded_file, sep=";|,", engine="python")
+    else:
+        df = pd.read_csv(uploaded_file, sep=";|,", engine="python", header=None)
+
+    # Normalização básica de colunas
+    # Tentativa de mapear idx + n1..n6 + k
+    if df.shape[1] >= 8:
+        df.columns = ["idx", "n1", "n2", "n3", "n4", "n5", "n6", "k"] + [
+            f"extra_{i}" for i in range(8, df.shape[1])
+        ]
+    elif df.shape[1] == 7:
+        df.columns = ["n1", "n2", "n3", "n4", "n5", "n6", "k"]
+        df.insert(0, "idx", range(1, len(df) + 1))
+    elif df.shape[1] == 6:
+        # 5 passageiros + k
+        df.columns = ["n1", "n2", "n3", "n4", "n5", "k"]
+        df.insert(0, "idx", range(1, len(df) + 1))
+    else:
+        df.columns = [f"col_{i}" for i in range(df.shape[1])]
+
+    return df
+
+
+def extrair_passageiros_linha(linha: pd.Series) -> List[int]:
+    """
+    Extrai os passageiros n1..n6 (se existirem) de uma linha do DataFrame.
+    """
+    passageiros = []
+    for i in range(1, 7):
+        col = f"n{i}"
+        if col in linha.index:
+            try:
+                passageiros.append(int(linha[col]))
+            except Exception:
+                pass
+    return passageiros
+
+
+def selecionar_indice_alvo(df: pd.DataFrame) -> Tuple[Any, List[int]]:
+    """
+    Seleciona a série alvo (linha atual) com base em um seletor na UI.
+    Utiliza a última linha como padrão.
+    """
+    if df.empty:
+        return None, []
+
+    idx_col = "idx" if "idx" in df.columns else df.columns[0]
+    indices = df[idx_col].tolist()
+    default_idx = indices[-1]
+
+    alvo = st.selectbox(
+        "Série alvo (índice):",
+        options=indices,
+        index=indices.index(default_idx),
+        key="select_indice_alvo",
+    )
+
+    linha = df[df[idx_col] == alvo].iloc[0]
+    numeros = extrair_passageiros_linha(linha)
+
+    return alvo, numeros
+
+
+# =========================
+#  CAMADAS ANALÍTICAS BÁSICAS
+# =========================
+def calcular_medidas_basicas(series: List[int]) -> Dict[str, float]:
+    """
+    Calcula medidas básicas da série alvo.
+    Utilizado para compor indicadores simples de regime.
+    """
+    if not series:
+        return {"media": 0.0, "desvio": 0.0, "amplitude": 0.0}
+
+    arr = np.array(series)
+    return {
+        "media": float(arr.mean()),
+        "desvio": float(arr.std(ddof=0)),
+        "amplitude": float(arr.max() - arr.min()),
+    }
+
+
+def barometro_basico(series: List[int]) -> str:
+    """
+    Barômetro simples, placeholder.
+    Pode ser substituído pela lógica completa do V13.8.
+    """
+    if not series:
+        return "Indefinido"
+
+    medidas = calcular_medidas_basicas(series)
+    desvio = medidas["desvio"]
+    amplitude = medidas["amplitude"]
+
+    if desvio < 10 and amplitude < 20:
+        return "Resiliente"
+    if desvio < 15:
+        return "Intermediário"
+    if amplitude > 35:
+        return "Pré-Ruptura"
+    return "Turbulento"
+
+
+# =========================
+#  IDX AVANÇADO (VERSÃO LEVE)
+# =========================
+def idx_avancado(df: pd.DataFrame, target_series: List[int]) -> Dict[str, Any]:
+    """
+    IDX Avançado simplificado:
+    - percorre o histórico
+    - calcula similaridade por interseção de passageiros
+    - adiciona um peso de recência
+    - retorna trecho mais parecido e um "motorista dominante" simbólico
+    """
+    if df is None or df.empty or not target_series:
+        return {
+            "indice_referencia": None,
+            "trecho_referencia": None,
+            "similaridade": 0.0,
+            "motorista_dominante": None,
+        }
+
+    idx_col = "idx" if "idx" in df.columns else df.columns[0]
+    target_set = set(target_series)
+    n_linhas = len(df)
+
+    melhor_score = -1.0
+    melhor_idx = None
+    melhor_serie = None
+
+    for i, (_, row) in enumerate(df.iterrows()):
+        passageiros = extrair_passageiros_linha(row)
+        if not passageiros:
+            continue
+
+        intersec = len(target_set & set(passageiros))
+        base_sim = intersec / max(len(target_set), 1)
+
+        # Peso de recência: linhas mais ao fim recebem peso maior
+        recencia = (i + 1) / n_linhas
+        score_total = 0.7 * base_sim + 0.3 * recencia
+
+        if score_total > melhor_score:
+            melhor_score = score_total
+            melhor_idx = row[idx_col]
+            melhor_serie = passageiros
+
+    motorista = "Cluster_1" if melhor_score >= 0.7 else "Cluster_2"
+
+    return {
+        "indice_referencia": melhor_idx,
+        "trecho_referencia": melhor_serie,
+        "similaridade": float(round(melhor_score, 3)),
+        "motorista_dominante": motorista,
+    }
+
+
+# =========================
+#  IPF / IPO / ANTI-SELFBIAS / NÚCLEO
+# =========================
+def ipf_basico(target_series: List[int]) -> List[int]:
+    """
+    IPF básico:
+    Utiliza diretamente a série alvo como núcleo inicial.
+    """
+    return list(target_series)
+
+
+def ipo_basico(nucleo_ipf: List[int]) -> List[int]:
+    """
+    IPO básico:
+    Ordenação estabilizadora de passageiros.
+    """
+    return sorted(nucleo_ipf)
+
+
+def aplicar_anti_self_bias(nucleo: List[int], modo: str = "B") -> List[int]:
+    """
+    Anti-SelfBias versionado.
+    Modo B:
+    - rotaciona levemente a série para quebrar rigidez
+    - mantém estrutura geral
+    """
+    if not nucleo:
+        return []
+
+    base = list(nucleo)
+    if modo == "B":
+        rot = base[1:] + base[:1]
+        return sorted(rot)
+    if modo == "A":
+        return base
+    return base
+
+
+def construir_nucleo_resiliente(
+    target_series: List[int],
+    modo_asb: str = "B",
+) -> List[int]:
+    """
+    Constrói o Núcleo Resiliente a partir de:
+    - Série alvo
+    - IPF básico
+    - IPO básico
+    - Anti-SelfBias
+    Combinação simplificada:
+    - união dos núcleos
+    - ordenação
+    - corte em até 6 passageiros
+    """
+    if not target_series:
+        return []
+
+    nucleo_ipf = ipf_basico(target_series)
+    nucleo_ipo = ipo_basico(nucleo_ipf)
+    nucleo_asb = aplicar_anti_self_bias(nucleo_ipo, modo=modo_asb)
+
+    combinado = sorted(set(nucleo_ipo + nucleo_asb))
+    return combinado[:6]
+
+
+# =========================
+#  ICA / HLA (RANQUEAMENTO)
+# =========================
+def calcular_score_ica(serie: List[int], nucleo: List[int]) -> float:
+    """
+    Score ICA simplificado:
+    - baseado no tamanho da interseção com o Núcleo Resiliente.
+    """
+    if not serie or not nucleo:
+        return 0.0
+    intersec = len(set(serie) & set(nucleo))
+    return intersec / max(len(nucleo), 1)
+
+
+def calcular_score_hla(serie: List[int]) -> float:
+    """
+    Score HLA simplificado:
+    - baseado na amplitude da série (compactação).
+    """
+    if not serie:
+        return 0.0
+    arr = np.array(serie)
+    amplitude = arr.max() - arr.min()
+    return 1.0 - min(amplitude / 80.0, 1.0)
+
+
+def classificar_farol(confiabilidade: float) -> str:
+    """
+    Classifica farol com base na confiabilidade.
+    """
+    if confiabilidade >= 0.75:
+        return "Verde"
+    if confiabilidade >= 0.55:
+        return "Amarelo"
+    return "Vermelho"
+
+
+# =========================
+#  SÉRIES PURAS
+# =========================
+def gerar_series_puras(nucleo_resiliente: List[int]) -> List[List[int]]:
+    """
+    Gera séries puras a partir do Núcleo Resiliente.
+    Versão simplificada:
+    - Série base
+    - Rotação 1
+    - Rotação 2
+    - Ordenação crescente
+    Remove duplicatas.
+    """
+    if not nucleo_resiliente:
+        return []
+
+    base = list(nucleo_resiliente)
+    rot1 = base[1:] + base[:1]
+    rot2 = base[2:] + base[:2]
+    crescente = sorted(base)
+
+    series = [base, rot1, rot2, crescente]
+    series_unicas = []
+    seen = set()
+    for s in series:
+        key = tuple(s)
+        if key not in seen:
+            seen.add(key)
+            series_unicas.append(s)
+
+    return series_unicas
+
+
+# =========================
+#  SÉRIES AVALIADAS
+# =========================
+def avaliar_series(
+    series: List[List[int]],
+    nucleo_resiliente: List[int],
+) -> pd.DataFrame:
+    """
+    Avalia séries com ICA, HLA, confiabilidade e farol.
+    """
+    registros = []
+    for s in series:
+        score_ica = calcular_score_ica(s, nucleo_resiliente)
+        score_hla = calcular_score_hla(s)
+        confiab = 0.6 * score_ica + 0.4 * score_hla
+        farol = classificar_farol(confiab)
+        registros.append(
+            {
+                "serie": series_to_str(s),
+                "score_ica": round(score_ica, 3),
+                "score_hla": round(score_hla, 3),
+                "confiabilidade": round(confiab, 3),
+                "farol": farol,
+            }
+        )
+
+    df = pd.DataFrame(registros)
+    df = df.sort_values(by=["confiabilidade", "score_ica", "score_hla"], ascending=False)
+    df.reset_index(drop=True, inplace=True)
+    return df
+
+
+# =========================
+#  GERADOR EXTRA
+# =========================
+def gerar_series_extras(
+    nucleo_resiliente: List[int],
+    confiabilidade_alvo: float = 0.8,
+    max_series: int = 10,
+) -> List[List[int]]:
+    """
+    Gera séries extras a partir do Núcleo Resiliente,
+    perturbando levemente alguns elementos.
+    A confiabilidade_alvo é usada conceitualmente aqui;
+    a versão completa pode ajustar a lógica mais finamente.
+    """
+    if not nucleo_resiliente:
+        return []
+
+    base = list(nucleo_resiliente)
+    extras = []
+    seen = set()
+
+    for delta in [-2, -1, 1, 2]:
+        for i in range(len(base)):
+            serie = base.copy()
+            novo_valor = serie[i] + delta
+            if 1 <= novo_valor <= 80:
+                serie[i] = novo_valor
+                key = tuple(sorted(serie))
+                if key not in seen:
+                    seen.add(key)
+                    extras.append(sorted(serie))
+            if len(extras) >= max_series:
+                break
+        if len(extras) >= max_series:
+            break
+
+    return extras
+
+
+# =========================
+#  S6 + ENSAMBLE FINAL
+# =========================
+def construir_s6_ensamble(
+    df_avaliadas: pd.DataFrame,
+    extras: List[List[int]],
+    top_n: int = 5,
+) -> pd.DataFrame:
+    """
+    Constrói visão S6 + Ensamble a partir das melhores séries avaliadas
+    e das séries extras.
+    """
+    registros = []
+
+    # Top séries avaliadas
+    if not df_avaliadas.empty:
+        subset = df_avaliadas.head(top_n)
+        for _, row in subset.iterrows():
+            numeros = parse_series_text(row["serie"])
+            registros.append(
+                {
+                    "origem": "Avaliadas",
+                    "serie": row["serie"],
+                    "confiabilidade": row["confiabilidade"],
+                    "qtd_passageiros": len(numeros),
+                }
+            )
+
+    # Séries extras
+    for s in extras:
+        registros.append(
+            {
+                "origem": "Extras",
+                "serie": series_to_str(s),
+                "confiabilidade": np.nan,
+                "qtd_passageiros": len(s),
+            }
+        )
+
+    if not registros:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(registros)
+    return df
+
+
+# =========================
+#  INTERFACE STREAMLIT
+# =========================
+def mostrar_header_principal():
+    st.title("🔥 Predict Cars V13.8 — App Ultra-Híbrido")
+    st.caption("IDX / Núcleo Resiliente / Séries Puras / Séries Avaliadas / S6 / Ensamble")
+
+
+def painel_dados():
+    st.subheader("1. Entrada de Dados")
+
+    uploaded = st.file_uploader(
+        "Arquivo histórico (.csv ou .txt com separador ';' ou ',')",
+        type=["csv", "txt"],
+    )
+
+    if uploaded is not None:
+        df = carregar_arquivo(uploaded)
+        st.session_state["data"] = df
+        st.success("Arquivo carregado com sucesso.")
+        with st.expander("Visualizar primeiras linhas"):
+            st.dataframe(df.head(20))
+    else:
+        st.info("Carregar um arquivo para iniciar.")
+
+
+def painel_estado_atual():
+    st.subheader("2. Estado Atual da Série Alvo")
+
+    df = st.session_state.get("data")
+    if df is None or df.empty:
+        st.warning("Nenhum arquivo carregado.")
+        return
+
+    idx, numeros = selecionar_indice_alvo(df)
+    st.session_state["current_index"] = idx
+    st.session_state["current_series"] = numeros
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f"**Índice alvo:** `{idx}`")
+        st.markdown(f"**Passageiros alvo:** `{series_to_str(numeros)}`")
+
+    with col2:
+        medidas = calcular_medidas_basicas(numeros)
+        st.markdown("**Medidas básicas:**")
+        st.write(medidas)
+        st.markdown(f"**Barômetro (simplificado):** `{barometro_basico(numeros)}`")
+
+    # IDX Avançado (visão geral)
+    if st.button("Calcular IDX Avançado (similaridade + recência)"):
+        info_idx = idx_avancado(df, numeros)
+        st.session_state["idx_info"] = info_idx
+        st.success("IDX calculado.")
+        st.markdown("**Trecho mais parecido (IDX):**")
+        st.write(
+            {
+                "indice_referencia": info_idx["indice_referencia"],
+                "trecho_referencia": series_to_str(info_idx["trecho_referencia"])
+                if info_idx["trecho_referencia"]
+                else None,
+                "similaridade": info_idx["similaridade"],
+                "motorista_dominante": info_idx["motorista_dominante"],
+            }
+        )
+
+
+def painel_nucleo_resiliente():
+    st.subheader("3. Núcleo Resiliente")
+
+    series_atual = st.session_state.get("current_series", [])
+    if not series_atual:
+        st.warning("Nenhuma série alvo definida.")
+        return
+
+    modo_asb = st.selectbox(
+        "Modo Anti-SelfBias",
+        options=["A", "B"],
+        index=1,
+        help="Modo B recomendado para maior robustez estrutural.",
+    )
+
+    if st.button("Construir Núcleo Resiliente"):
+        nucleo = construir_nucleo_resiliente(series_atual, modo_asb=modo_asb)
+        st.session_state["nucleo_resiliente"] = nucleo
+        st.success("Núcleo Resiliente construído.")
+        st.markdown(f"**Núcleo Resiliente:** `{series_to_str(nucleo)}`")
+
+    nucleo_manual = st.text_input(
+        "Ajuste manual do Núcleo Resiliente (opcional)",
+        value=series_to_str(st.session_state.get("nucleo_resiliente", [])),
+        help="Formato: 8 29 30 34 39 60",
+    )
+
+    if st.button("Aplicar ajuste manual do Núcleo"):
+        lista = parse_series_text(nucleo_manual)
+        if len(lista) >= 5:
+            st.session_state["nucleo_resiliente"] = lista[:6]
+            st.success("Núcleo Resiliente atualizado manualmente.")
+        else:
+            st.error("Entrada inválida. Informar pelo menos 5 números.")
+
+
+def painel_series_puras():
+    st.subheader("4. Séries Puras (6 passageiros)")
+
+    nucleo = st.session_state.get("nucleo_resiliente", [])
+    if not nucleo:
+        st.warning("Núcleo Resiliente ainda não definido.")
+        return
+
+    if st.button("Gerar Séries Puras"):
+        series_puras = gerar_series_puras(nucleo)
+        st.session_state["series_puras"] = series_puras
+        st.success("Séries Puras geradas.")
+        texto = "\n".join(series_to_str(s) for s in series_puras)
+        st.code(texto, language="text")
+
+
+def painel_series_avaliadas():
+    st.subheader("5. Séries Avaliadas (ICA + HLA)")
+
+    nucleo = st.session_state.get("nucleo_resiliente", [])
+    series_puras = st.session_state.get("series_puras", [])
+
+    if not nucleo:
+        st.warning("Núcleo Resiliente ainda não definido.")
+        return
+
+    if not series_puras:
+        st.info("Nenhuma Série Pura encontrada. Gerar Séries Puras antes.")
+        return
+
+    if st.button("Avaliar Séries (ICA + HLA)"):
+        df_av = avaliar_series(series_puras, nucleo)
+        st.session_state["series_avaliadas"] = df_av
+        st.success("Avaliação concluída.")
+        st.dataframe(df_av)
+
+
+def painel_gerador_extra():
+    st.subheader("6. Gerador Extra (por confiabilidade alvo)")
+
+    nucleo = st.session_state.get("nucleo_resiliente", [])
+    if not nucleo:
+        st.warning("Núcleo Resiliente ainda não definido.")
+        return
+
+    conf_target = st.slider(
+        "Confiabilidade alvo (referência conceitual)",
+        min_value=0.70,
+        max_value=0.95,
+        value=0.80,
+        step=0.01,
+    )
+
+    max_series = st.slider(
+        "Quantidade máxima de séries extras",
+        min_value=3,
+        max_value=20,
+        value=10,
+        step=1,
+    )
+
+    if st.button("Gerar Séries Extras"):
+        extras = gerar_series_extras(
+            nucleo,
+            confiabilidade_alvo=conf_target,
+            max_series=max_series,
+        )
+        st.session_state["series_extras"] = extras
+        st.success("Séries Extras geradas.")
+        texto = "\n".join(series_to_str(s) for s in extras)
+        st.code(texto, language="text")
+
+
+def painel_s6_ensamble():
+    st.subheader("7. S6 + Ensamble Final")
+
+    df_av = st.session_state.get("series_avaliadas", pd.DataFrame())
+    extras = st.session_state.get("series_extras", [])
+
+    if df_av.empty and not extras:
+        st.info("Nenhuma série avaliada ou extra disponível.")
+        return
+
+    top_n = st.slider(
+        "Quantidade de séries avaliadas para o Ensamble",
+        min_value=1,
+        max_value=10,
+        value=5,
+        step=1,
+    )
+
+    df_ensamble = construir_s6_ensamble(df_av, extras, top_n=top_n)
+    st.session_state["s6_ensamble"] = df_ensamble
+
+    st.markdown("**Visão consolidada (S6 + Ensamble):**")
+    st.dataframe(df_ensamble)
+
+    # Visão de frequência de passageiros
+    todas_series = []
+    for _, row in df_ensamble.iterrows():
+        numeros = parse_series_text(row["serie"])
+        todas_series.append(numeros)
+
+    if todas_series:
+        flat = list(itertools.chain.from_iterable(todas_series))
+        freq = pd.Series(flat).value_counts().reset_index()
+        freq.columns = ["passageiro", "frequencia"]
+        st.markdown("**Frequência de passageiros nas séries selecionadas:**")
+        st.dataframe(freq)
+
+
+def painel_resumo():
+    st.subheader("Resumo Técnico do Estado Atual")
+
+    idx = st.session_state.get("current_index")
+    serie = st.session_state.get("current_series", [])
+    nucleo = st.session_state.get("nucleo_resiliente", [])
+    series_puras = st.session_state.get("series_puras", [])
+    df_av = st.session_state.get("series_avaliadas", pd.DataFrame())
+    extras = st.session_state.get("series_extras", [])
+    idx_info = st.session_state.get("idx_info", None)
+
+    st.markdown(f"**Índice alvo:** `{idx}`")
+    st.markdown(f"**Série alvo:** `{series_to_str(serie)}`")
+    st.markdown(f"**Núcleo Resiliente:** `{series_to_str(nucleo)}`")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Qtd. Séries Puras", len(series_puras))
+    with col2:
+        st.metric("Qtd. Séries Avaliadas", 0 if df_av.empty else len(df_av))
+    with col3:
+        st.metric("Qtd. Séries Extras", len(extras))
+
+    if idx_info is not None:
+        st.markdown("**Resumo IDX:**")
+        st.write(
+            {
+                "indice_referencia": idx_info["indice_referencia"],
+                "trecho_referencia": series_to_str(idx_info["trecho_referencia"])
+                if idx_info["trecho_referencia"]
+                else None,
+                "similaridade": idx_info["similaridade"],
+                "motorista_dominante": idx_info["motorista_dominante"],
+            }
+        )
+
+
+def main():
+    ensure_session_state()
+    st.set_page_config(
+        page_title="Predict Cars V13.8",
+        layout="wide",
+    )
+
+    mostrar_header_principal()
+
+    # Menu lateral
+    menu = st.sidebar.radio(
+        "Navegação",
+        options=[
+            "Entrada de Dados",
+            "Estado Atual",
+            "Núcleo Resiliente",
+            "Séries Puras",
+            "Séries Avaliadas",
+            "Gerador Extra",
+            "S6 + Ensamble",
+            "Resumo",
+        ],
+    )
+
+    if menu == "Entrada de Dados":
+        painel_dados()
+    elif menu == "Estado Atual":
+        painel_estado_atual()
+    elif menu == "Núcleo Resiliente":
+        painel_nucleo_resiliente()
+    elif menu == "Séries Puras":
+        painel_series_puras()
+    elif menu == "Séries Avaliadas":
+        painel_series_avaliadas()
+    elif menu == "Gerador Extra":
+        painel_gerador_extra()
+    elif menu == "S6 + Ensamble":
+        painel_s6_ensamble()
+    elif menu == "Resumo":
+        painel_resumo()
+
+
+if __name__ == "__main__":
+    main()
+s pd
 import numpy as np
 
 # -------------------------------------------------------------
