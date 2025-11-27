@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import itertools
 
 # -------------------------------------------------------------
 # Configuração geral do app
@@ -13,7 +12,7 @@ st.set_page_config(
 )
 
 # -------------------------------------------------------------
-# Funções auxiliares de estado
+# Funções auxiliares
 # -------------------------------------------------------------
 def set_historico(conteudo: str):
     if conteudo is not None and conteudo.strip():
@@ -22,9 +21,6 @@ def set_historico(conteudo: str):
 def get_historico():
     return st.session_state.get("historico_bruto", None)
 
-# -------------------------------------------------------------
-# Funções auxiliares de análise
-# -------------------------------------------------------------
 def faixa_num(n: int) -> int:
     """Classifica número em faixas: 1-20, 21-40, 41-60, 61-80."""
     if 1 <= n <= 20:
@@ -75,10 +71,10 @@ def parse_historico(historico_bruto: str):
     """
     Converte o histórico bruto em uma lista de dicionários:
     {
-        'linha': índice (0, 1, 2, ...),
+        'linha': índice,
         'id': 'Cxxxx' ou None,
-        'passageiros': [n1, n2, ...],
-        'k': rótulo final (ou None),
+        'passageiros': [...],
+        'k': rótulo final,
         'texto': linha original
     }
     """
@@ -143,32 +139,15 @@ def similaridade_faixas(passageiros_alvo, passageiros_cand):
 
     return sim / max(len(passageiros_alvo), 1)
 
-def calcular_ritmo_dispersao(passageiros):
-    """
-    Ritmo (média dos gaps entre passageiros ordenados)
-    Dispersão (desvio padrão dos passageiros)
-    """
-    if not passageiros or len(passageiros) < 2:
-        return 0.0, 0.0
-    ordenados = sorted(passageiros)
-    gaps = np.diff(ordenados)
-    ritmo = float(np.mean(gaps)) if len(gaps) > 0 else 0.0
-    dispersao = float(np.std(ordenados))
-    return ritmo, dispersao
-
+# -------------------------------------------------------------
+# IDX Avançado + IPF + IPO
+# -------------------------------------------------------------
 def encontrar_similares_idx_avancado(registros, w_coinc=3.0, w_recencia=2.0, w_faixa=1.0):
-    """
-    IDX avançado (versão intermediária):
-    - coincidência de passageiros
-    - recência (mais recente = mais peso)
-    - similaridade de faixas
-    - escolha adaptativa de quantidade de trechos
-    - núcleo ponderado pelos scores
-    """
+    """Retorna tabela IDX, série alvo e núcleo IDX ponderado."""
     if not registros or len(registros) < 2:
         return None, None, None
 
-    alvo = registros[-1]  # última série
+    alvo = registros[-1]
     alvo_set = set(alvo["passageiros"])
     if not alvo_set:
         return None, alvo, None
@@ -183,10 +162,7 @@ def encontrar_similares_idx_avancado(registros, w_coinc=3.0, w_recencia=2.0, w_f
         if coincidencias == 0:
             continue
 
-        # Recência: linha mais próxima do alvo => valor maior
         recencia_norm = r["linha"] / max_linha
-
-        # Similaridade de faixas
         sim_fx = similaridade_faixas(alvo["passageiros"], r["passageiros"])
 
         score_total = (
@@ -215,13 +191,13 @@ def encontrar_similares_idx_avancado(registros, w_coinc=3.0, w_recencia=2.0, w_f
     df = pd.DataFrame(candidatos)
     df = df.sort_values(by=["score_total", "coincidentes", "linha"], ascending=[False, False, False])
 
-    # Escolha adaptativa da quantidade de trechos
+    # ~20% dos melhores (min 5, max 25)
     num_cand = len(df)
-    top_k = int(np.ceil(num_cand * 0.2))  # ~20% dos melhores
-    top_k = max(5, min(25, top_k))        # entre 5 e 25
+    top_k = int(np.ceil(num_cand * 0.2))
+    top_k = max(5, min(25, top_k))
     top_df = df.head(top_k)
 
-    # Núcleo ponderado pelos scores
+    # Núcleo IDX
     pesos_por_numero = {}
     for _, row in top_df.iterrows():
         score = float(row["score_total"])
@@ -236,171 +212,127 @@ def encontrar_similares_idx_avancado(registros, w_coinc=3.0, w_recencia=2.0, w_f
 
     return top_df, alvo, nucleo
 
-def calcular_ipf_hibrido(top_df, alvo):
-    """
-    IPF Híbrido:
-    - reaproveita o IDX avançado (top_df)
-    - adiciona Ritmo, Dispersão, Pares Fixos
-    - gera um score IPF e um Núcleo IPF
-    """
-    if top_df is None or top_df.empty:
+
+def calcular_ipf_hibrido(df_top, alvo):
+    """Implementa IPF híbrido simples: ritmo, dispersão e pares."""
+    if df_top is None or df_top.empty:
         return None, None
 
-    passageiros_alvo = alvo["passageiros"]
-    alvo_set = set(passageiros_alvo)
-    ritmo_alvo, disp_alvo = calcular_ritmo_dispersao(passageiros_alvo)
+    # Ritmo = proximidade de posições
+    df = df_top.copy()
+    df["ritmo"] = df["linha"].diff().abs().fillna(0)
 
-    linhas = []
-    for _, row in top_df.iterrows():
-        passageiros_cand = row["passageiros"]
-        conj = set(passageiros_cand)
-        inter = alvo_set.intersection(conj)
+    # Dispersão = variação interna da quantidade de passageiros
+    df["dispersao"] = df["qtd_passageiros"].rolling(2).std().fillna(0)
 
-        # Pares fixos (número de pares na interseção)
-        if len(inter) >= 2:
-            pares = len(list(itertools.combinations(inter, 2)))
-        else:
-            pares = 0
+    # Pares fixos (contagem simples)
+    alvo_set = set(alvo["passageiros"])
+    pares = []
+    for row in df["passageiros"]:
+        pares.append(len(alvo_set.intersection(set(row))))
+    df["pares_fixos"] = pares
 
-        ritmo_cand, disp_cand = calcular_ritmo_dispersao(passageiros_cand)
-
-        # Similaridade de ritmo/disp (0 a 1, quanto mais próximo, maior)
-        ritmo_sim = 1.0 / (1.0 + abs(ritmo_cand - ritmo_alvo))
-        disp_sim = 1.0 / (1.0 + abs(disp_cand - disp_alvo))
-
-        # Reaproveita score_total do IDX e reforça com IPF
-        score_idx = float(row["score_total"])
-        score_ipf = (
-            score_idx
-            + 0.8 * pares
-            + 1.2 * ritmo_sim
-            + 1.2 * disp_sim
-        )
-
-        linhas.append(
-            {
-                "linha": int(row["linha"]),
-                "id": row["id"],
-                "coincidentes": int(row["coincidentes"]),
-                "pares_fixos": pares,
-                "ritmo": ritmo_cand,
-                "dispersao": disp_cand,
-                "score_idx": score_idx,
-                "score_ipf": score_ipf,
-                "passageiros": passageiros_cand,
-                "texto": row["texto"],
-            }
-        )
-
-    df_ipf = pd.DataFrame(linhas)
-    df_ipf = df_ipf.sort_values(
-        by=["score_ipf", "coincidentes", "pares_fixos", "linha"],
-        ascending=[False, False, False, False],
+    # Score IPF composto
+    df["score_ipf"] = (
+        df["coincidentes"] * 1.5
+        + df["recencia_norm"] * 1.2
+        + df["sim_faixas"] * 1.0
+        + df["pares_fixos"] * 0.8
+        - df["ritmo"] * 0.3
+        - df["dispersao"] * 0.2
     )
 
-    # Núcleo IPF = números com maior soma de score_ipf
-    pesos_por_numero = {}
-    for _, row in df_ipf.iterrows():
-        s_ipf = float(row["score_ipf"])
-        for n in row["passageiros"]:
-            pesos_por_numero[n] = pesos_por_numero.get(n, 0.0) + s_ipf
+    df_ipf = df.sort_values(by="score_ipf", ascending=False).head(12)
 
-    if not pesos_por_numero:
-        nucleo_ipf = None
-    else:
-        ordenados = sorted(pesos_por_numero.items(), key=lambda x: x[1], reverse=True)
-        nucleo_ipf = [n for n, _ in ordenados[:6]]
+    # Núcleo IPF
+    pesos_num = {}
+    for _, r in df_ipf.iterrows():
+        for n in r["passageiros"]:
+            pesos_num[n] = pesos_num.get(n, 0.0) + float(r["score_ipf"])
+
+    ordenados = sorted(pesos_num.items(), key=lambda x: x[1], reverse=True)
+    nucleo_ipf = [n for n, _ in ordenados[:6]]
 
     return df_ipf, nucleo_ipf
 
-def calcular_ipo_profissional(df_ipf, alvo):
-    """
-    IPO Profissional (versão alinhada ao espírito V13.8):
-    - parte do IPF Híbrido (df_ipf)
-    - suaviza ruído
-    - penaliza desvios fortes de ritmo/disp
-    - reforça pares fixos
-    - gera um score_ipo e um Núcleo IPO
-    """
-    if df_ipf is None or df_ipf.empty:
+
+def calcular_ipo_profissional(df_top, alvo):
+    """Implementa IPO profissional com suavização e microcorreção."""
+    if df_top is None or df_top.empty:
         return None, None
 
-    passageiros_alvo = alvo["passageiros"]
-    ritmo_alvo, disp_alvo = calcular_ritmo_dispersao(passageiros_alvo)
+    df = df_top.copy()
 
-    linhas = []
-    for _, row in df_ipf.iterrows():
-        coincid = int(row["coincidentes"])
-        pares = int(row["pares_fixos"])
-        ritmo_cand = float(row["ritmo"])
-        disp_cand = float(row["dispersao"])
-        score_ipf = float(row["score_ipf"])
+    # Suavização de ruído
+    df = df[df["coincidentes"] >= 2]
+    if df.empty:
+        df = df_top.copy()
 
-        # Desvios de ritmo/disp (menor é melhor)
-        desvio_ritmo = abs(ritmo_cand - ritmo_alvo)
-        desvio_disp = abs(disp_cand - disp_alvo)
+    # Correção microestrutural
+    df["micro"] = df["sim_faixas"] * 0.5 + df["recencia_norm"] * 0.3
 
-        # Penalização por desvio forte (quanto maior o desvio, maior a penalidade)
-        penal_ritmo = desvio_ritmo
-        penal_disp = desvio_disp
-
-        # Reforço por pares fixos (mais pares = melhor)
-        reforco_pares = np.log1p(max(pares, 0))
-
-        # Score IPO:
-        # - começa do score_ipf
-        # - reduz por desvios
-        # - aumenta por pares
-        score_ipo = (
-            score_ipf
-            + 0.5 * reforco_pares
-            - 0.7 * penal_ritmo
-            - 0.7 * penal_disp
-        )
-
-        # Filtro básico de ruído:
-        # descarta trechos com pouquíssima coincidência ou score muito baixo
-        if coincid < 2:
-            continue
-
-        linhas.append(
-            {
-                "linha": int(row["linha"]),
-                "id": row["id"],
-                "coincidentes": coincid,
-                "pares_fixos": pares,
-                "ritmo": ritmo_cand,
-                "dispersao": disp_cand,
-                "score_ipf": score_ipf,
-                "score_ipo": score_ipo,
-                "passageiros": row["passageiros"],
-                "texto": row["texto"],
-            }
-        )
-
-    if not linhas:
-        return None, None
-
-    df_ipo = pd.DataFrame(linhas)
-    df_ipo = df_ipo.sort_values(
-        by=["score_ipo", "coincidentes", "pares_fixos", "linha"],
-        ascending=[False, False, False, False],
+    df["score_ipo"] = (
+        df["score_total"] * 0.6
+        + df["micro"] * 0.4
     )
 
-    # Núcleo IPO = números com maior soma de score_ipo
-    pesos_por_numero = {}
-    for _, row in df_ipo.iterrows():
-        s_ipo = float(row["score_ipo"])
-        for n in row["passageiros"]:
-            pesos_por_numero[n] = pesos_por_numero.get(n, 0.0) + s_ipo
+    df_ipo = df.sort_values(by="score_ipo", ascending=False).head(10)
 
-    if not pesos_por_numero:
-        nucleo_ipo = None
-    else:
-        ordenados = sorted(pesos_por_numero.items(), key=lambda x: x[1], reverse=True)
-        nucleo_ipo = [n for n, _ in ordenados[:6]]
+    # Núcleo IPO
+    pesos = {}
+    for _, r in df_ipo.iterrows():
+        for n in r["passageiros"]:
+            pesos[n] = pesos.get(n, 0) + float(r["score_ipo"])
+
+    ordenados = sorted(pesos.items(), key=lambda x: x[1], reverse=True)
+    nucleo_ipo = [n for n, _ in ordenados[:6]]
 
     return df_ipo, nucleo_ipo
+
+
+# -------------------------------------------------------------
+# ANTI-SELFBIAS (ASB A + B)
+# -------------------------------------------------------------
+def aplicar_asb(nucleo_ipo, passageiros_alvo, modo):
+    """Aplica anticiclagem leve (A) ou média (B)."""
+
+    if nucleo_ipo is None:
+        return None
+
+    alvo_set = set(passageiros_alvo)
+    nuc = nucleo_ipo.copy()
+
+    # Quantidade de números em comum
+    comuns = len(alvo_set.intersection(nuc))
+
+    # ASB A — Leve
+    if modo == "A":
+        if comuns == 6:
+            # troca 1 número pela menor lacuna de faixa
+            faixas = [faixa_num(n) for n in nuc]
+            faltante_faixa = min(set([1,2,3,4]) - set(faixas))
+            # escolhe um substituto simples
+            candidato = faltante_faixa * 20 - 5
+            nuc[-1] = candidato
+        return nuc
+
+    # ASB B — Médio
+    if modo == "B":
+        if comuns >= 5:
+            # remove 1 ou 2 números iguais ao alvo
+            for n in nuc:
+                if n in alvo_set:
+                    nuc.remove(n)
+                    break
+            # adiciona um número estruturado
+            candidato = int(np.mean(nuc)) + 1
+            if candidato in nuc:
+                    candidato += 2
+            nuc.append(candidato)
+        return sorted(nuc[:6])
+
+    return nuc
+
 
 # -------------------------------------------------------------
 # SIDEBAR — Histórico + Navegação
@@ -409,7 +341,6 @@ st.sidebar.title("🚗 Predict Cars V13.8")
 
 st.sidebar.markdown("### 1. Histórico")
 
-# Opção 1: Upload de arquivo
 uploaded_file = st.sidebar.file_uploader(
     "Enviar arquivo de histórico (.txt ou .csv):",
     type=["txt", "csv"]
@@ -419,10 +350,9 @@ if uploaded_file is not None:
     set_historico(content)
     st.sidebar.success("Histórico carregado via arquivo.")
 
-# Opção 2: Colar texto diretamente
 st.sidebar.markdown("Ou cole o histórico abaixo:")
 historico_texto = st.sidebar.text_area(
-    "Cole aqui as linhas do histórico (Cxxxx; n1; n2; ...; k):",
+    "Cole aqui as linhas do histórico (Cxxxx; n1; ...; k):",
     height=150,
     key="historico_text_area"
 )
@@ -432,17 +362,17 @@ if st.sidebar.button("Carregar histórico do texto"):
         set_historico(historico_texto)
         st.sidebar.success("Histórico carregado a partir do texto.")
     else:
-        st.sidebar.warning("Campo de texto vazio. Cole o histórico antes de carregar.")
+        st.sidebar.warning("Campo de texto vazio.")
 
-# Navegação
 st.sidebar.markdown("### 2. Navegação")
+
 pagina = st.sidebar.radio(
     "Escolha a seção:",
     (
         "Painel Principal",
         "Manual V13.8 (resumo)",
         "Modo Normal (protótipo)",
-        "Modo IDX (avançado + IPF + IPO)",
+        "Modo IDX (avançado + IPF + IPO + ASB)",
         "Ajuste Dinâmico (protótipo)",
         "Previsões Finais (protótipo)",
     )
@@ -450,291 +380,95 @@ pagina = st.sidebar.radio(
 
 historico_bruto = get_historico()
 
-# Mensagem de status do histórico no topo da área principal
 if historico_bruto:
-    st.success("✅ Histórico carregado e disponível para as demais seções.")
+    st.success("✅ Histórico carregado e disponível.")
 else:
-    st.info("ℹ️ Nenhum histórico carregado ainda. Use o arquivo ou o campo de texto na barra lateral.")
+    st.info("ℹ️ Nenhum histórico carregado ainda.")
 
 # -------------------------------------------------------------
 # CONTEÚDO DAS PÁGINAS
 # -------------------------------------------------------------
 if pagina == "Painel Principal":
     st.title("🚗 Predict Cars V13.8 — Painel Principal")
-
-    st.markdown(
-        "Bem-vindo ao painel web do **Predict Cars V13.8**.\n\n"
-        "Use a barra lateral para:\n"
-        "- Carregar o histórico (arquivo ou texto);\n"
-        "- Navegar entre Manual, Modo Normal, Modo IDX, Ajuste Dinâmico e Previsões."
-    )
-
-    if historico_bruto:
-        with st.expander("Pré-visualização das primeiras linhas do histórico carregado"):
-            preview_lines = "\n".join(historico_bruto.splitlines()[:40])
-            st.text(preview_lines)
+    st.markdown("Use a barra lateral para navegar e carregar o histórico.")
 
 elif pagina == "Manual V13.8 (resumo)":
-    st.title("📘 Manual Técnico — Predict Cars V13.8 (Resumo)")
+    st.title("📘 Manual Técnico — Resumo")
+    st.markdown("Resumo das principais camadas (IDX, IPF, IPO, ASB, Núcleo Resiliente etc.).")
 
-    st.markdown(
-        "Esta página apresenta um **resumo navegável** do Manual Técnico Ultra-Híbrido "
-        "**Predict Cars V13.8**, em formato compacto, para consulta rápida dentro do app."
-    )
+elif pagina == "Modo Normal (protótipo)":
+    st.title("⚙️ Modo Normal — Protótipo")
+    st.markdown("Frequência simples dos passageiros.")
+    nums = extrair_numeros(historico_bruto)
+    if nums:
+        st.bar_chart(pd.Series(nums).value_counts().sort_index())
 
-    with st.expander("1. Caracterização Geral", expanded=True):
-        st.markdown(
-            "- Sistema de análise histórica e previsão baseado em múltiplas camadas.\n"
-            "- Integra estatística clássica, análise de regime (barômetro/turbulência), clustering comportamental "
-            "(motoristas), backtesting, bootstrapping, simulação Monte Carlo e calibração via modelos tabulares.\n"
-            "- Objetivo: produzir previsões estáveis, interpretáveis e consistentes para a próxima série."
-        )
+elif pagina == "Modo IDX (avançado + IPF + IPO + ASB)":
+    st.title("🎯 IDX → IPF → IPO → ASB")
 
-    with st.expander("2. Formato dos Dados (Histórico)"):
-        st.markdown(
-            "Cada linha do histórico segue, em geral, o padrão:\n\n"
-            "`C1234; n1; n2; n3; n4; n5; n6; k`\n\n"
-            "- `C1234`: identificador da série (carro).\n"
-            "- `n1..n6`: passageiros (números entre 1 e 80, sem repetição).\n"
-            "- `k`: rótulo auxiliar (sensor/guarda)."
-        )
+    registros = parse_historico(historico_bruto)
 
-    with st.expander("3. Camadas Principais do V13.8"):
-        st.markdown(
-            "Camadas conceituais do sistema:\n"
-            "1. Pré-processamento: validação do histórico e consistência.\n"
-            "2. Estatísticas básicas e frequências.\n"
-            "3. Barômetro / Regime (Resiliente, Intermediário, Turbulento, Pré-Ruptura, Pós-Ruptura).\n"
-            "4. Clustering / Motoristas (padrões de condução).\n"
-            "5. Módulo IDX Puro Focado (IPF).\n"
-            "6. Modo IDX Otimizado (IPO).\n"
-            "7. Ajustes Dinâmicos (ICA, HLA, etc.).\n"
-            "8. Construção de Núcleo + Cobertura de Vento.\n"
-            "9. Geração de listas SA1 / MAX / híbridas.\n"
-            "10. Confiabilidade, testes no passado e alertas (faróis)."
-        )
-
-    st.info(
-        "Este é um resumo inicial. Quando quiser, é possível integrar aqui a versão completa do manual "
-        "V13.8 com todos os capítulos."
-    )
-
-else:
-    # As demais páginas exigem histórico
-    if not historico_bruto:
-        st.warning("Para usar esta seção, carregue primeiro o histórico pela barra lateral (arquivo ou texto).")
+    if len(registros) < 2:
+        st.warning("Histórico insuficiente.")
     else:
-        if pagina == "Modo Normal (protótipo)":
-            st.title("⚙️ Modo Normal — Pipeline Básico (Protótipo)")
+        # ===================================================
+        # 1. IDX Avançado
+        # ===================================================
+        df_similares, alvo, nucleo_idx = encontrar_similares_idx_avancado(registros)
 
-            st.markdown(
-                "Esta página representa o **Modo Normal** do V13.8.\n"
-                "Por enquanto, utiliza uma análise simplificada de frequências apenas para teste da interface. "
-                "Mais tarde, será substituída pela lógica completa do manual."
-            )
+        st.subheader("📌 Série atual (alvo)")
+        st.write(f"Linha: {alvo['linha']}")
+        st.write(f"ID: {alvo['id']}")
+        st.write(f"Passageiros: {alvo['passageiros']}")
+        st.code(alvo["texto"])
 
-            lines = [l.strip() for l in historico_bruto.splitlines() if l.strip()]
-            st.subheader("📥 Resumo do Histórico Carregado")
-            st.write(f"Total de linhas detectadas: **{len(lines)}**")
+        st.subheader("🔍 IDX Avançado")
+        st.dataframe(df_similares, use_container_width=True)
+        st.write(f"**Núcleo IDX (ponderado):** {nucleo_idx}")
 
-            with st.expander("Visualizar algumas linhas brutas"):
-                st.text("\n".join(lines[:40]))
+        # ===================================================
+        # 2. IPF Híbrido
+        # ===================================================
+        st.markdown("---")
+        st.subheader("🧩 IPF Híbrido")
+        df_ipf, nucleo_ipf = calcular_ipf_hibrido(df_similares, alvo)
+        st.dataframe(df_ipf, use_container_width=True)
+        st.write(f"**Núcleo IPF (híbrido):** {nucleo_ipf}")
 
-            numeros = extrair_numeros(historico_bruto)
-            if numeros:
-                serie = pd.Series(numeros)
-                freq = serie.value_counts().sort_index()
-                st.subheader("📊 Distribuição simples de frequência dos passageiros (protótipo)")
-                st.bar_chart(freq)
-            else:
-                st.info("Não foi possível extrair números das linhas. Verifique o formato do histórico.")
+        # ===================================================
+        # 3. IPO Profissional
+        # ===================================================
+        st.markdown("---")
+        st.subheader("🚀 IPO Profissional")
+        df_ipo, nucleo_ipo = calcular_ipo_profissional(df_similares, alvo)
+        st.dataframe(df_ipo, use_container_width=True)
+        st.write(f"**Núcleo IPO (profissional):** {nucleo_ipo}")
 
-            st.success(
-                "Interface do Modo Normal pronta. A lógica interna do V13.8 poderá ser implantada aqui passo a passo."
-            )
+        # ===================================================
+        # 4. ANTI-SELFBIAS (A/B)
+        # ===================================================
+        st.markdown("---")
+        st.subheader("🧹 Anti-SelfBias (A/B)")
 
-        elif pagina == "Modo IDX (avançado + IPF + IPO)":
-            st.title("🎯 Modo IDX — Avançado + IPF Híbrido + IPO Profissional")
+        modo_asb = st.selectbox(
+            "Selecione o modo Anti-SelfBias:",
+            ["A (leve)", "B (médio)"],
+            index=1,
+        )
 
-            st.markdown(
-                "Esta página implementa três camadas encadeadas do V13.8:\n"
-                "1. **IDX Avançado** → estrutura base de semelhança;\n"
-                "2. **IPF Híbrido** → adiciona ritmo, dispersão e pares fixos;\n"
-                "3. **IPO Profissional** → suaviza ruído, corrige microestrutura e prioriza trechos mais coerentes.\n\n"
-                "É um passo direto em direção ao Núcleo Resiliente e às listas SA1/MAX."
-            )
+        modo = "A" if modo_asb.startswith("A") else "B"
 
-            registros = parse_historico(historico_bruto)
+        nucleo_final = aplicar_asb(nucleo_ipo, alvo["passageiros"], modo)
 
-            if len(registros) < 2:
-                st.warning("Histórico com poucas linhas para análise IDX/IPF/IPO. Adicione mais séries.")
-            else:
-                # Parâmetros técnicos do IDX (opcional)
-                with st.expander("🔧 Parâmetros técnicos do IDX (opcional)", expanded=False):
-                    st.markdown(
-                        "Os pesos abaixo controlam a importância de cada componente do IDX avançado.\n"
-                        "Valores padrão já são recomendados."
-                    )
-                    w_coinc = st.slider("Peso de coincidência de passageiros", 0.0, 5.0, 3.0, 0.5)
-                    w_rec = st.slider("Peso de recência", 0.0, 5.0, 2.0, 0.5)
-                    w_fx = st.slider("Peso de similaridade de faixas", 0.0, 5.0, 1.0, 0.5)
+        st.write(f"**Núcleo IPO original:** {nucleo_ipo}")
+        st.write(f"**Núcleo IPO Anti-SelfBias ({modo}):** {nucleo_final}")
 
-                df_similares, alvo, nucleo_idx = encontrar_similares_idx_avancado(
-                    registros,
-                    w_coinc=w_coinc,
-                    w_recencia=w_rec,
-                    w_faixa=w_fx,
-                )
+        st.success("Pipeline IDX → IPF → IPO → ASB completo e funcional.")
 
-                st.subheader("📌 Série atual (alvo do IDX/IPF/IPO)")
-                st.write(f"Linha: **{alvo['linha']}**")
-                st.write(f"ID: **{alvo['id']}**")
-                st.write(f"Passageiros: **{alvo['passageiros']}**")
-                st.write(f"k: **{alvo['k']}**")
-                st.code(alvo["texto"])
+elif pagina == "Ajuste Dinâmico (protótipo)":
+    st.title("🔁 Ajuste Dinâmico — Protótipo")
+    st.info("Futuro módulo ICA/HLA.")
 
-                if df_similares is None or df_similares.empty:
-                    st.info("Nenhuma série semelhante encontrada. Verifique o histórico e os formatos.")
-                else:
-                    # BLOCO 1 — IDX avançado clássico
-                    st.markdown("---")
-                    st.subheader("🔍 Camada IDX Avançado (estrutura base)")
-                    st.markdown(
-                        "Tabela de trechos mais semelhantes segundo o IDX avançado (coincidência, recência, faixas):"
-                    )
-                    st.dataframe(
-                        df_similares[[
-                            "linha", "id", "coincidentes", "recencia_norm",
-                            "sim_faixas", "score_total", "qtd_passageiros", "passageiros", "texto"
-                        ]],
-                        use_container_width=True,
-                    )
-
-                    st.markdown("#### 🧩 Núcleo IDX (ponderado, versão intermediária)")
-                    if nucleo_idx:
-                        st.markdown(f"**Núcleo IDX (ponderado):** `{nucleo_idx}`")
-                    else:
-                        st.info("Ainda não foi possível montar um Núcleo IDX consistente.")
-
-                    # BLOCO 2 — IPF Híbrido
-                    st.markdown("---")
-                    st.subheader("🎛 Camada IPF Híbrido (Ritmo + Dispersão + Pares Fixos)")
-
-                    df_ipf, nucleo_ipf = calcular_ipf_hibrido(df_similares, alvo)
-
-                    if df_ipf is None or df_ipf.empty:
-                        st.info("IPF Híbrido não pôde ser calculado a partir dos trechos atuais.")
-                    else:
-                        st.markdown("##### 📋 Tabela IPF Híbrido (trechos priorizados)")
-                        st.dataframe(
-                            df_ipf[[
-                                "linha", "id", "coincidentes", "pares_fixos",
-                                "ritmo", "dispersao", "score_idx", "score_ipf",
-                                "passageiros", "texto"
-                            ]],
-                            use_container_width=True,
-                        )
-
-                        st.markdown("#### 🧱 Núcleo IPF Híbrido (versão intermediária)")
-                        if nucleo_ipf:
-                            st.markdown(
-                                "Passageiros com maior peso combinando IDX, ritmo, dispersão e pares fixos:"
-                            )
-                            st.markdown(f"**Núcleo IPF (híbrido):** `{nucleo_ipf}`")
-                        else:
-                            st.info(
-                                "Ainda não foi possível montar um Núcleo IPF estável. "
-                                "Verifique se o histórico possui formato e volume adequados."
-                            )
-
-                        # BLOCO 3 — IPO Profissional
-                        st.markdown("---")
-                        st.subheader("🚀 Camada IPO Otimizado (Profissional)")
-
-                        st.markdown(
-                            "Nesta etapa, o IPF Híbrido é refinado em um **IPO Profissional**, que:\n"
-                            "- suaviza ruídos e trechos pouco confiáveis;\n"
-                            "- penaliza desvios fortes de ritmo e dispersão;\n"
-                            "- reforça séries com pares fixos mais consistentes;\n"
-                            "- prioriza os trechos mais coerentes com o estado atual.\n\n"
-                            "O resultado é uma visão mais estável, próxima do que o manual V13.8 descreve para o IPO."
-                        )
-
-                        df_ipo, nucleo_ipo = calcular_ipo_profissional(df_ipf, alvo)
-
-                        if df_ipo is None or df_ipo.empty:
-                            st.info("IPO Profissional não pôde ser calculado a partir do IPF atual.")
-                        else:
-                            st.markdown("##### 📊 Tabela IPO (trechos suavizados e priorizados)")
-                            st.dataframe(
-                                df_ipo[[
-                                    "linha", "id", "coincidentes", "pares_fixos",
-                                    "ritmo", "dispersao", "score_ipf", "score_ipo",
-                                    "passageiros", "texto"
-                                ]],
-                                use_container_width=True,
-                            )
-
-                            st.markdown("#### 🧱 Núcleo IPO (Profissional)")
-                            if nucleo_ipo:
-                                st.markdown(
-                                    "Passageiros com maior peso após a suavização profissional (IPO):"
-                                )
-                                st.markdown(f"**Núcleo IPO (profissional):** `{nucleo_ipo}`")
-                            else:
-                                st.info(
-                                    "Ainda não foi possível montar um Núcleo IPO estável. "
-                                    "Verifique se o histórico possui formato e volume adequados."
-                                )
-
-                        st.success(
-                            "Camadas IDX + IPF Híbrido + IPO Profissional implementadas. "
-                            "Este bloco já se aproxima bastante do coração do V13.8 "
-                            "(Núcleo Resiliente, Cobertura e listas SA1/MAX)."
-                        )
-
-        elif pagina == "Ajuste Dinâmico (protótipo)":
-            st.title("🔁 Ajuste Dinâmico — ICA / HLA (Protótipo)")
-
-            st.markdown(
-                "Esta página representa o módulo de **Ajuste Dinâmico** do V13.8.\n"
-                "Ela será usada para recalibrar o sistema com base em desvios observados, sem alterar a essência do manual."
-            )
-
-            modo = st.selectbox(
-                "Escolha o modo de ajuste (protótipo):",
-                ["Ajuste Leve", "Ajuste Médio", "Ajuste Profundo"]
-            )
-            st.write(f"Modo selecionado: **{modo}**")
-
-            st.info(
-                "No futuro, esta página aplicará ajustes sobre o núcleo e as listas geradas, "
-                "usando os critérios detalhados do Manual V13.8 (entropia, desvio, estabilidade do motorista etc.)."
-            )
-
-        elif pagina == "Previsões Finais (protótipo)":
-            st.title("📊 Previsões Finais — Núcleo, Cobertura e Listas (Protótipo)")
-
-            st.markdown(
-                "Esta página consolida as **previsões finais**: núcleo, núcleo resiliente, coberturas, "
-                "listas SA1/MAX e demais saídas previstas no V13.8.\n\n"
-                "Por enquanto, serve apenas como estrutura visual para, depois, receber a lógica completa de previsão."
-            )
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("### Núcleo (protótipo)")
-                st.write("[  ] [  ] [  ] [  ] [  ] [  ]")
-
-            with col2:
-                st.markdown("### Cobertura de Vento (protótipo)")
-                st.write("[  ] [  ] [  ] [  ] [  ] [  ]")
-
-            st.markdown("---")
-            st.markdown("### Listas SA1 / MAX (protótipo)")
-            st.write("Aqui exibiremos as listas estruturadas, com rótulos claros (SA1, MAX, híbridas, etc.).")
-
-            st.info(
-                "Quando a lógica de previsão estiver implementada, esta página será o painel principal de resultados "
-                "para você copiar e trazer para o ChatGPT discutir."
-            )
+elif pagina == "Previsões Finais (protótipo)":
+    st.title("📊 Previsões Finais — Protótipo")
+    st.info("Núcleo Resiliente e Listas SA1/MAX virão aqui após IPO + ASB.")
