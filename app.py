@@ -312,6 +312,7 @@ painel = st.sidebar.radio(
         "Backtest do Futuro",
         "Leque TURBO",
         "Saída Final Controlada",
+        "S1–S5 + Ajuste Fino",
         "Logs Técnicos",
         "Diagnóstico Profundo",
         "Exportar Resultados",
@@ -319,6 +320,7 @@ painel = st.sidebar.radio(
     ],
     index=0,
 )
+
 
 # A partir da PARTE 2/7, cada painel será implementado
 # com base na variável `painel` e no DataFrame `df`.
@@ -1476,5 +1478,567 @@ if painel == "Exportar Sessão Completa":
         file_name="predictcars_v13.8_turbo_session.zip",
         mime="application/zip",
     )
+
+    st.stop()
+# =========================================================
+# MÓDULO S — Protocolos S1–S5 + Ajuste Fino Global (AFG)
+# =========================================================
+# Objetivo:
+# - Detectar conflitos estruturais NG vs NL
+# - Aplicar correções macro (S1–S4)
+# - Aplicar ajuste fino (S5) em faixas críticas
+# - Permitir comparar:
+#   • Leque ORIGINAL (sem correção)
+#   • Leque CORRIGIDO (com S1–S5 + AFG)
+#   em um painel dedicado.
+# =========================================================
+
+
+# ---------------------------------------------------------
+# 1) Núcleos Global (NG) e Local (NL)
+# ---------------------------------------------------------
+
+def gerar_nucleo_global(df: pd.DataFrame, regime: RegimeState) -> List[int]:
+    """NG — Núcleo Global (usa todo o histórico via V13.8-TURBO)."""
+    return gerar_nucleo_resiliente(df, regime)
+
+
+def gerar_nucleo_local(df: pd.DataFrame, regime: RegimeState, janela: int = 40) -> List[int]:
+    """
+    NL — Núcleo Local:
+    - usa apenas as últimas N séries (`janela`)
+    - captura motorista de curto trecho / comportamento local
+    """
+    if df.empty:
+        return []
+    trecho = df.tail(min(janela, len(df)))
+    return gerar_nucleo_resiliente(trecho, regime)
+
+
+# ---------------------------------------------------------
+# 2) Métricas de Conflito: MUC, dispersão, zona final
+# ---------------------------------------------------------
+
+@dataclass
+class SMetricasConflito:
+    muc: float
+    d_faixas: float
+    d_clusters: float
+    d_mediana: float
+    d_disp: float
+    d_zona: float
+    aciona_s1: bool
+    aciona_s2: bool
+    aciona_s3: bool
+    aciona_s4: bool
+
+
+def _faixa_media(serie: List[int]) -> float:
+    if not serie:
+        return 0.0
+    return float(np.mean(serie))
+
+
+def _mediana_serie(serie: List[int]) -> float:
+    if not serie:
+        return 0.0
+    return float(np.median(serie))
+
+
+def _pseudo_cluster(serie: List[int]) -> float:
+    """
+    Proxy simples para clusters / motoristas:
+    - calcula média dos deltas entre vizinhos.
+    """
+    if len(serie) < 2:
+        return 0.0
+    arr = np.array(sorted(serie))
+    deltas = np.diff(arr)
+    return float(np.mean(deltas))
+
+
+def calcular_metricas_conflito_s(
+    df: pd.DataFrame,
+    regime: Optional[RegimeState],
+    janela_local: int = 40,
+) -> Optional[SMetricasConflito]:
+    """
+    Calcula:
+    - NG (núcleo global)
+    - NL (núcleo local)
+    - D_faixas, D_clusters, D_mediana
+    - D_disp (dispersão prevista vs real)
+    - D_zona (zona final prevista vs real)
+    - MUC = média das três primeiras
+    Define gatilhos para S1–S4 com limiares heurísticos.
+    """
+    if df.empty or regime is None:
+        return None
+
+    ng = gerar_nucleo_global(df, regime)
+    nl = gerar_nucleo_local(df, regime, janela_local)
+
+    if not ng or not nl:
+        return None
+
+    # faixas
+    d_faixas = abs(_faixa_media(ng) - _faixa_media(nl))
+
+    # clusters aproximados
+    d_clusters = abs(_pseudo_cluster(ng) - _pseudo_cluster(nl))
+
+    # mediana
+    d_mediana = abs(_mediana_serie(ng) - _mediana_serie(nl))
+
+    muc = (d_faixas + d_clusters + d_mediana) / 3.0
+
+    # Dispersão prevista x real (últimas séries)
+    nums = df[["n1", "n2", "n3", "n4", "n5", "n6"]].values
+    disp_real = float(np.mean(np.std(nums, axis=1)))
+    disp_prev = float(np.std(np.array(ng)))
+    d_disp = abs(disp_prev - disp_real)
+
+    # Zona final (último passageiro da série / núcleo)
+    ultimo_real = float(np.mean(nums[:, -1]))  # média dos últimos passageiros
+    ultimo_prev = float(sorted(ng)[-1])
+    d_zona = abs(ultimo_prev - ultimo_real)
+
+    # Limiar heurístico (podem ser recalibrados via backtest)
+    theta_global = 6.0   # conflito forte NG vs NL
+    theta_local = 4.0    # conflito local acentuado
+    theta_disp = 5.0     # dispersão atípica
+    theta_zf = 5.0       # zona final desalinhada
+
+    aciona_s1 = muc > theta_global
+    aciona_s2 = (muc > theta_local) and not aciona_s1
+    aciona_s3 = d_disp > theta_disp
+    aciona_s4 = d_zona > theta_zf
+
+    return SMetricasConflito(
+        muc=muc,
+        d_faixas=d_faixas,
+        d_clusters=d_clusters,
+        d_mediana=d_mediana,
+        d_disp=d_disp,
+        d_zona=d_zona,
+        aciona_s1=aciona_s1,
+        aciona_s2=aciona_s2,
+        aciona_s3=aciona_s3,
+        aciona_s4=aciona_s4,
+    )
+
+
+# ---------------------------------------------------------
+# 3) Macrocorreções S1–S4 sobre o núcleo / leque
+# ---------------------------------------------------------
+
+def aplicar_anti_s1(nucleo: List[int]) -> List[int]:
+    """
+    Anti-S1 — Núcleo supercomprimido:
+    - aumenta levemente dispersão
+    - reintroduz "segunda força" via deslocamento suave
+    """
+    if not nucleo:
+        return []
+    base = sorted(nucleo)
+    # empurra alguns elementos para abrir a faixa
+    ajustado = []
+    for i, x in enumerate(base):
+        if i == 0:
+            ajustado.append(x)
+        else:
+            if x - ajustado[-1] < 3:
+                ajustado.append(ajustado[-1] + 3)
+            else:
+                ajustado.append(x)
+    return sorted(set(min(80, max(1, v)) for v in ajustado))[:6]
+
+
+def aplicar_anti_s2(ng: List[int], nl: List[int]) -> List[int]:
+    """
+    Anti-S2 — Motorista de curto trecho:
+    - Núcleo final = interseção NG∩NL + 1–2 dominantes locais
+    """
+    if not ng or not nl:
+        return sorted(set(ng or nl))[:6]
+
+    inter = sorted(set(ng) & set(nl))
+    locais = [x for x in nl if x not in inter]
+
+    # garante interseção
+    resultado = inter.copy()
+
+    # adiciona até 2 dominantes locais
+    for x in locais:
+        if len(resultado) >= 6:
+            break
+        resultado.append(x)
+
+    # completa, se faltar, com NG
+    for x in ng:
+        if len(resultado) >= 6:
+            break
+        if x not in resultado:
+            resultado.append(x)
+
+    return sorted(set(resultado))[:6]
+
+
+def aplicar_anti_s3(nucleo: List[int], disp_alvo: float) -> List[int]:
+    """
+    Anti-S3 — Dispersão atípica:
+    - ajusta extremos para aproximar dispersão de disp_alvo.
+    """
+    if not nucleo:
+        return []
+
+    base = sorted(nucleo)
+    disp_atual = float(np.std(np.array(base)))
+    # heurística simples: se muito menor, abre extremos; se muito maior, puxa
+    if disp_atual < disp_alvo:
+        base[0] = max(1, base[0] - 1)
+        base[-1] = min(80, base[-1] + 1)
+    elif disp_atual > disp_alvo:
+        base[0] = min(base[-1], base[0] + 1)
+        base[-1] = max(base[0], base[-1] - 1)
+
+    return sorted(set(base))[:6]
+
+
+def aplicar_anti_s4(nucleo: List[int], ultimo_real: float) -> List[int]:
+    """
+    Anti-S4 — Zona final desalinhada:
+    - ajusta o último passageiro em direção à média real da cauda.
+    """
+    if not nucleo:
+        return []
+    base = sorted(nucleo)
+    alvo = int(round(ultimo_real))
+    # move só o último elemento
+    base[-1] = min(80, max(1, alvo))
+    return sorted(set(base))[:6]
+
+
+def aplicar_macro_s1_s4(
+    df: pd.DataFrame,
+    regime: RegimeState,
+    metricas: SMetricasConflito,
+) -> List[int]:
+    """
+    Aplica S1–S4 sobre o núcleo global, retornando núcleo macro-corrigido.
+    """
+    ng = gerar_nucleo_global(df, regime)
+    nl = gerar_nucleo_local(df, regime, janela_local=40)
+    if not ng:
+        return []
+
+    nuc = ng.copy()
+
+    # Dispersão real alvo
+    nums = df[["n1", "n2", "n3", "n4", "n5", "n6"]].values
+    disp_real = float(np.mean(np.std(nums, axis=1)))
+    ultimo_real = float(np.mean(nums[:, -1]))
+
+    if metricas.aciona_s1:
+        nuc = aplicar_anti_s1(nuc)
+
+    if metricas.aciona_s2:
+        nuc = aplicar_anti_s2(nuc, nl)
+
+    if metricas.aciona_s3:
+        nuc = aplicar_anti_s3(nuc, disp_real)
+
+    if metricas.aciona_s4:
+        nuc = aplicar_anti_s4(nuc, ultimo_real)
+
+    return sorted(set(nuc))[:6]
+
+
+# ---------------------------------------------------------
+# 4) Ajuste Fino Global (AFG) + S5 (permutações finas)
+# ---------------------------------------------------------
+
+def identificar_faixas_criticas(serie: List[int]) -> List[Tuple[int, int]]:
+    """
+    Identifica pares de valores muito próximos (candidatos equivalentes).
+    Ex.: (30, 32), (45, 47) etc.
+    """
+    if len(serie) < 2:
+        return []
+    arr = sorted(serie)
+    criticos = []
+    for i in range(len(arr) - 1):
+        if abs(arr[i+1] - arr[i]) <= 2:
+            criticos.append((arr[i], arr[i+1]))
+    return criticos
+
+
+def aplicar_s5_permuta_fina(serie: List[int]) -> List[List[int]]:
+    """
+    S5 — Permutações finas em faixas críticas:
+    - gera no máximo 1–2 variações por série forte.
+    """
+    base = sorted(serie)
+    criticos = identificar_faixas_criticas(base)
+    if not criticos:
+        return []
+
+    variacoes = []
+    # limite de 2 variações
+    for par in criticos[:2]:
+        s = base.copy()
+        # troca a posição dos dois membros do par (se existirem na série)
+        if par[0] in s and par[1] in s:
+            i = s.index(par[0])
+            j = s.index(par[1])
+            s[i], s[j] = s[j], s[i]
+            variacoes.append(sorted(set(s))[:6])
+
+    # remove duplicadas
+    limpas = []
+    for v in variacoes:
+        if v not in limpas:
+            limpas.append(v)
+    return limpas
+
+
+def aplicar_ajuste_fino_global(
+    flat_df: pd.DataFrame,
+    score_min: float = 0.70,
+) -> pd.DataFrame:
+    """
+    AFG:
+    - atua somente em séries com coherence >= score_min
+    - aplica S5 para gerar variações finas em faixas críticas
+    - não altera séries base, apenas adiciona variações derivadas
+    """
+    if flat_df.empty:
+        return flat_df
+
+    linhas = []
+    # Copia todas as séries originais
+    for _, row in flat_df.iterrows():
+        linhas.append(row.to_dict())
+
+    # Ajuste fino apenas nas séries mais fortes
+    foco = flat_df[flat_df["coherence"] >= score_min]
+
+    for _, row in foco.iterrows():
+        serie_base = row["series"]
+        variacoes = aplicar_s5_permuta_fina(serie_base)
+        for v in variacoes:
+            novo = row.to_dict()
+            novo["series"] = sorted(v)
+            # leve ajuste na coherence / expected_hits (refinamento)
+            novo["coherence"] = min(1.0, float(novo["coherence"]) + 0.02)
+            novo["expected_hits"] = min(6, int(novo["expected_hits"]) + 0)
+            novo["category"] = f"{row['category']}+S5"
+            linhas.append(novo)
+
+    df_out = pd.DataFrame(linhas).drop_duplicates(subset=["category", "series"])
+    df_out = df_out.sort_values("coherence", ascending=False).reset_index(drop=True)
+    return df_out
+
+
+# ---------------------------------------------------------
+# 5) Construção do Leque CORRIGIDO (S1–S5)
+# ---------------------------------------------------------
+
+def gerar_leque_corrigido(
+    df: pd.DataFrame,
+    regime: RegimeState,
+) -> Dict[str, Any]:
+    """
+    Gera um leque corrigido:
+    - núcleo passa por S1–S4
+    - séries derivadas passam por AFG + S5
+    """
+    metricas = calcular_metricas_conflito_s(df, regime)
+    if metricas is None:
+        # fallback: usa leque base
+        return gerar_series_base(df, regime)
+
+    # núcleo corrigido
+    nuc_corrigido = aplicar_macro_s1_s4(df, regime, metricas)
+
+    # constrói leque base a partir do núcleo corrigido
+    if not nuc_corrigido:
+        leque_base = gerar_series_base(df, regime)
+    else:
+        # reaproveita a lógica de gerar_series_base, mas com núcleo injetado
+        leque_base = gerar_series_base(df, regime)
+        leque_base["nucleo"] = nuc_corrigido
+
+    # flat base
+    flat_base = build_flat_series_table(leque_base)
+    # aplica ajuste fino (AFG + S5)
+    flat_corrigido = aplicar_ajuste_fino_global(flat_base, score_min=0.70)
+
+    # reconstrói dicionário de listas para o painel de comparação
+    leque_out = {
+        "nucleo": nuc_corrigido,
+        "premium": [],
+        "estruturais": [],
+        "cobertura": [],
+        "s6": [],
+    }
+
+    for _, row in flat_corrigido.iterrows():
+        cat = row["category"]
+        serie = row["series"]
+        if cat.startswith("NÚCLEO"):
+            leque_out["nucleo"] = serie
+        elif cat.startswith("Premium"):
+            leque_out["premium"].append(serie)
+        elif cat.startswith("Estrutural"):
+            leque_out["estruturais"].append(serie)
+        elif cat.startswith("Cobertura"):
+            leque_out["cobertura"].append(serie)
+        elif cat.startswith("S6"):
+            leque_out.setdefault("s6", []).append(serie)
+
+    return leque_out
+
+
+# ---------------------------------------------------------
+# 6) Painel S1–S5 + Ajuste Fino — Comparação Original vs Corrigido
+# ---------------------------------------------------------
+
+if painel == "S1–S5 + Ajuste Fino":
+    st.markdown("## 🌀 Protocolos S1–S5 + Ajuste Fino Global")
+
+    if df.empty or regime_state is None:
+        st.warning("Carregue o histórico para ativar os protocolos S1–S5.")
+        st.stop()
+
+    # Modo de visualização
+    modo_corr = st.radio(
+        "Modo de visualização:",
+        [
+            "Somente Leque Original (sem correção)",
+            "Somente Leque Corrigido (S1–S5 + AFG)",
+            "Comparar Lado a Lado",
+        ],
+        index=2,
+    )
+
+    # Métricas de conflito
+    metricas = calcular_metricas_conflito_s(df, regime_state)
+    if metricas is None:
+        st.info("Não foi possível calcular métricas de conflito. Usando apenas leque original.")
+        metricas = None
+
+    st.markdown("### 📊 Métrica Universal de Conflito (MUC) e derivados")
+
+    col_m1, col_m2, col_m3 = st.columns(3)
+    if metricas:
+        col_m1.metric("MUC", f"{metricas.muc:.2f}")
+        col_m2.metric("D_faixas", f"{metricas.d_faixas:.2f}")
+        col_m3.metric("D_clusters", f"{metricas.d_clusters:.2f}")
+
+        col_m4, col_m5, col_m6 = st.columns(3)
+        col_m4.metric("D_mediana", f"{metricas.d_mediana:.2f}")
+        col_m5.metric("D_disp", f"{metricas.d_disp:.2f}")
+        col_m6.metric("D_zona", f"{metricas.d_zona:.2f}")
+
+        st.markdown("#### 🔔 Gatilhos S1–S4")
+        gatilhos = {
+            "S1 — Núcleo supercomprimido": metricas.aciona_s1,
+            "S2 — Motorista de curto trecho": metricas.aciona_s2,
+            "S3 — Dispersão atípica": metricas.aciona_s3,
+            "S4 — Zona final desalinhada": metricas.aciona_s4,
+        }
+        for nome, flag in gatilhos.items():
+            if flag:
+                st.error(f"{nome} — ATIVADO")
+            else:
+                st.success(f"{nome} — Inativo")
+    else:
+        st.write("Métricas indisponíveis nesta configuração de histórico.")
+
+    st.markdown("---")
+
+    # Leque ORIGINAL
+    leque_original = gerar_series_base(df, regime_state)
+    flat_original = build_flat_series_table(leque_original)
+    flat_original = limit_by_mode(
+        flat_original,
+        regime_state,
+        output_mode,
+        n_series_fixed,
+        min_conf_pct,
+    )
+
+    # Leque CORRIGIDO
+    leque_corrigido = gerar_leque_corrigido(df, regime_state)
+    flat_corrigido = build_flat_series_table(leque_corrigido)
+    flat_corrigido = limit_by_mode(
+        flat_corrigido,
+        regime_state,
+        output_mode,
+        n_series_fixed,
+        min_conf_pct,
+    )
+
+    def montar_tabela(flat_df: pd.DataFrame) -> pd.DataFrame:
+        return pd.DataFrame([
+            {
+                "Rank": i + 1,
+                "Categoria": row["category"],
+                "Série": " ".join(str(x) for x in row["series"]),
+                "Confiabilidade (%)": int(round(row["coherence"] * 100)),
+                "Acertos Esperados": int(row["expected_hits"]),
+            }
+            for i, (_, row) in enumerate(flat_df.iterrows())
+        ])
+
+    if modo_corr.startswith("Somente Leque Original"):
+        st.markdown("### 🎯 Leque Original (sem correções S1–S5)")
+        st.dataframe(montar_tabela(flat_original), use_container_width=True)
+
+    elif modo_corr.startswith("Somente Leque Corrigido"):
+        st.markdown("### 🎯 Leque Corrigido (S1–S5 + AFG)")
+        st.dataframe(montar_tabela(flat_corrigido), use_container_width=True)
+
+    else:
+        st.markdown("### 🆚 Comparação Lado a Lado")
+        c1, c2 = st.columns(2)
+
+        with c1:
+            st.markdown("#### 🎯 Leque Original")
+            st.dataframe(montar_tabela(flat_original), use_container_width=True)
+
+        with c2:
+            st.markdown("#### 🎯 Leque Corrigido (S1–S5 + AFG)")
+            st.dataframe(montar_tabela(flat_corrigido), use_container_width=True)
+
+    # Listas puras (para copiar)
+    st.markdown("---")
+    st.markdown("### 📋 Listas Puras — Original vs Corrigido")
+
+    lista_orig = [
+        f"{i+1}) " + " ".join(str(x) for x in row["series"])
+        for i, (_, row) in enumerate(flat_original.iterrows())
+    ]
+    lista_corr = [
+        f"{i+1}) " + " ".join(str(x) for x in row["series"])
+        for i, (_, row) in enumerate(flat_corrigido.iterrows())
+    ]
+
+    col_o, col_c = st.columns(2)
+    with col_o:
+        st.markdown("#### Original")
+        st.text_area(
+            "Lista Pura Original",
+            value="\n".join(lista_orig),
+            height=200,
+        )
+    with col_c:
+        st.markdown("#### Corrigido (S1–S5)")
+        st.text_area(
+            "Lista Pura Corrigida",
+            value="\n".join(lista_corr),
+            height=200,
+        )
 
     st.stop()
