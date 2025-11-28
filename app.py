@@ -734,26 +734,18 @@ if not df.empty:
 # =========================================================
 # FIM DO BLOCO 3 — app.py TURBO
 # =========================================================# =========================================================
-# BLOCO 4 — app.py TURBO
+# =========================================================
+# BLOCO 4 — app.py TURBO (LIMPO)
 # IPF (Puro Focado) + IPO (Otimizado Profundo)
-# - construção do núcleo pré-bruto (IPF)
-# - otimização estrutural (IPO)
-# - integração com regime e IDX
-# - painel Streamlit do Núcleo Estrutural
 # =========================================================
 
 from collections import Counter
 
-
 # ---------------------------------------------------------
-# Funções auxiliares para IPF / IPO
+# Funções auxiliares — IPF / IPO
 # ---------------------------------------------------------
 
 def get_passengers_from_row(row: pd.Series) -> List[int]:
-    """
-    Extrai os passageiros de uma linha do DataFrame principal.
-    Considera colunas p1..pN, ignorando NaN.
-    """
     vals = []
     for col in row.index:
         if col.startswith("p"):
@@ -763,30 +755,17 @@ def get_passengers_from_row(row: pd.Series) -> List[int]:
     return vals
 
 
-def build_candidate_universe(
-    df: pd.DataFrame,
-    idx_df: pd.DataFrame,
-    top_k: int = 10
-) -> Tuple[List[int], Dict[int, float]]:
-    """
-    Constrói o universo de candidatos a partir dos trechos mais semelhantes
-    (IDX Avançado). Usa pesos proporcionais ao score IDX.
-
-    Retorna:
-    - lista de candidatos únicos ordenados por peso (maior -> menor)
-    - dicionário {numero: peso}
-    """
+def build_candidate_universe(df: pd.DataFrame, idx_df: pd.DataFrame, top_k: int = 10):
     if df.empty or idx_df.empty:
         return [], {}
 
-    # Garante limite de linhas
     sub = idx_df.head(top_k)
-    weights: Counter = Counter()
+    weights = Counter()
 
     for _, r in sub.iterrows():
         row_id = r["row_id"]
         score = float(r["score"])
-        base_weight = 1.0 + score  # peso mínimo 1.0
+        gain = 1.0 + score
 
         base_row = df[df["row_id"] == row_id]
         if base_row.empty:
@@ -794,34 +773,23 @@ def build_candidate_universe(
         passengers = get_passengers_from_row(base_row.iloc[0])
 
         for n in passengers:
-            weights[n] += base_weight
+            weights[n] += gain
 
     if not weights:
         return [], {}
 
-    # Ordena por peso (descendente), depois por número (ascendente)
     ordered = sorted(weights.items(), key=lambda kv: (-kv[1], kv[0]))
     candidates = [n for n, _ in ordered]
     weight_dict = {n: float(w) for n, w in ordered}
-
     return candidates, weight_dict
 
 
-def compute_strong_pairs_from_candidates(
-    df: pd.DataFrame,
-    idx_df: pd.DataFrame,
-    top_k: int = 10,
-    max_pairs: int = 10
-) -> List[Tuple[int, int]]:
-    """
-    Calcula pares fortes a partir dos trechos mais semelhantes do IDX.
-    Retorna até max_pairs pares ordenados por frequência (descendente).
-    """
+def compute_strong_pairs_from_candidates(df, idx_df, top_k=10, max_pairs=10):
     if df.empty or idx_df.empty:
         return []
 
+    pair_counter = Counter()
     sub = idx_df.head(top_k)
-    pair_counter: Counter = Counter()
 
     for _, r in sub.iterrows():
         row_id = r["row_id"]
@@ -829,6 +797,7 @@ def compute_strong_pairs_from_candidates(
         if base_row.empty:
             continue
         passengers = sorted(set(get_passengers_from_row(base_row.iloc[0])))
+
         for i in range(len(passengers)):
             for j in range(i + 1, len(passengers)):
                 pair_counter[(passengers[i], passengers[j])] += 1
@@ -841,73 +810,39 @@ def compute_strong_pairs_from_candidates(
 
 
 def infer_dominant_band(candidates: List[int]) -> str:
-    """
-    Determina a faixa dominante (L / M / H) entre os candidatos.
-    """
     if not candidates:
         return "Indefinida"
 
-    def band(x: int) -> str:
-        if x <= 26:
-            return "L"
-        if x <= 53:
-            return "M"
+    def band(x):
+        if x <= 26: return "L"
+        if x <= 53: return "M"
         return "H"
 
     c = Counter(band(x) for x in candidates)
-    if not c:
-        return "Indefinida"
-
-    band_code, _ = c.most_common(1)[0]
+    code, _ = c.most_common(1)[0]
     mapping = {"L": "Baixa (1–26)", "M": "Média (27–53)", "H": "Alta (54–80)"}
-    return mapping.get(band_code, "Indefinida")
+    return mapping.get(code, "Indefinida")
 
 
-def compute_core_energy(weight_dict: Dict[int, float]) -> float:
-    """
-    Energia estrutural do núcleo:
-    normaliza o peso médio dos candidatos principais para [0, 1].
-    """
+def compute_core_energy(weight_dict):
     if not weight_dict:
         return 0.0
-    weights = np.array(list(weight_dict.values()), dtype=float)
-    mean_w = float(weights.mean())
-    max_w = float(weights.max())
+    arr = np.array(list(weight_dict.values())).astype(float)
+    mean_w = float(arr.mean())
+    max_w = float(arr.max())
     if max_w <= 0:
         return 0.0
-    energy = mean_w / max_w
-    return float(max(0.0, min(1.0, energy)))
+    return float(max(0.0, min(1.0, mean_w / max_w)))
 
 
-def select_ipf_core(candidates: List[int], core_size: int = 6) -> List[int]:
-    """
-    Seleciona o núcleo pré-bruto do IPF a partir da lista de candidatos
-    já ordenada por relevância.
-    """
+def select_ipf_core(candidates, core_size=6):
     if not candidates:
         return []
-    core = candidates[:core_size]
-    core = sorted(set(core))[:core_size]
+    core = sorted(set(candidates[:core_size]))[:core_size]
     return core
 
 
-def quality_against_neighbors(
-    core: List[int],
-    df: pd.DataFrame,
-    idx_df: pd.DataFrame,
-    top_k: int = 10
-) -> float:
-    """
-    Mede a qualidade de um núcleo em relação aos trechos gêmeos do IDX.
-
-    Combinação de:
-    - similaridade estrutural
-    - similaridade por faixas
-    - similaridade por pares
-    - similaridade de ritmo
-
-    Retorna valor entre 0 e 1.
-    """
+def quality_against_neighbors(core, df, idx_df, top_k=10):
     if not core or df.empty or idx_df.empty:
         return 0.0
 
@@ -919,14 +854,14 @@ def quality_against_neighbors(
         base_row = df[df["row_id"] == row_id]
         if base_row.empty:
             continue
+
         passengers = get_passengers_from_row(base_row.iloc[0])
 
         s_struct = similarity_structural(core, passengers)
-        s_range = similarity_ranges(core, passengers)
-        s_pairs = similarity_pairs(core, passengers)
+        s_range  = similarity_ranges(core, passengers)
+        s_pairs  = similarity_pairs(core, passengers)
         s_rhythm = similarity_rhythm(core, passengers)
 
-        # Peso maior para estrutural, depois pares e ritmo
         score = (
             0.40 * s_struct +
             0.20 * s_range +
@@ -937,53 +872,185 @@ def quality_against_neighbors(
 
     if not scores:
         return 0.0
-
     return float(np.mean(scores))
 
 
-def enforce_regime_overlap(
-    core: List[int],
-    last_series: List[int],
-    regime: Optional[RegimeState],
-    desired_resilient_overlap: Tuple[int, int] = (3, 5),
-    max_turbulent_overlap: int = 2,
-) -> List[int]:
-    """
-    Ajusta o núcleo para respeitar o regime:
+def enforce_regime_overlap(core, last_series, regime,
+                           desired_resilient_overlap=(3, 5),
+                           max_turbulent_overlap=2):
 
-    - Resiliente:
-        busca manter uma sobreposição moderada/alta com a última série.
-    - Turbulento:
-        evita sobreposição excessiva, forçando renovação.
-    - Outros regimes:
-        ajustes brandos.
-    """
     if not core or not last_series or regime is None:
         return core
 
     core_set = set(core)
     last_set = set(last_series)
-    current_overlap = len(core_set.intersection(last_set))
 
-    # Cópia de trabalho
+    current_overlap = len(core_set & last_set)
     new_core = list(core)
-    all_pool = list(set(core) | set(last_series))
+    pool = sorted(set(core) | set(last_series))
 
     if regime.nome == "Resiliente":
         low, high = desired_resilient_overlap
-        # Se overlap estiver baixo, substitui elementos do núcleo por elementos da última série
+
         if current_overlap < low:
             missing = list(last_set - core_set)
             i = 0
             for m in missing:
-                # substitui o elemento menos alinhado (maior valor numérico)
                 new_core.sort(reverse=True)
                 if len(new_core) > i:
                     new_core[i] = m
                     i += 1
-                if le
+                if len(set(new_core) & last_set) >= low:
+                    break
+
+        if len(set(new_core) & last_set) > high:
+            excess = len(set(new_core) & last_set) - high
+            for _ in range(excess):
+                victim = None
+                for n in sorted(new_core, reverse=True):
+                    if n in last_set:
+                        victim = n
+                        break
+                if victim:
+                    new_core.remove(victim)
+                    for c in pool:
+                        if c not in new_core:
+                            new_core.append(c)
+                            break
+
+    elif regime.nome == "Turbulento":
+        if current_overlap > max_turbulent_overlap:
+            to_remove = current_overlap - max_turbulent_overlap
+            for _ in range(to_remove):
+                victim = None
+                for n in new_core:
+                    if n in last_set:
+                        victim = n
+                        break
+                if victim:
+                    new_core.remove(victim)
+                    for c in pool:
+                        if c not in new_core and c not in last_set:
+                            new_core.append(c)
+                            break
+
+    return sorted(set(new_core))[:len(core)]
 
 
+def run_IPF_IPO(df, idx_df, regime, core_size=6, neighbor_k=10, optimization_steps=80):
+    ipf = {}
+    ipo = {}
+
+    if df.empty or idx_df.empty:
+        return ipf, ipo
+
+    passenger_cols = [c for c in df.columns if c.startswith("p")]
+    values = df[passenger_cols].to_numpy(dtype=float)
+    last_series = [int(v) for v in values[-1] if not math.isnan(v)]
+
+    candidates, weight_dict = build_candidate_universe(df, idx_df, top_k=neighbor_k)
+    strong_pairs = compute_strong_pairs_from_candidates(df, idx_df, top_k=neighbor_k)
+    dominant_band = infer_dominant_band(candidates)
+    energy = compute_core_energy(weight_dict)
+
+    pre_core = select_ipf_core(candidates, core_size=core_size)
+
+    ipf = {
+        "pre_core": pre_core,
+        "candidates": candidates,
+        "weights": weight_dict,
+        "strong_pairs": strong_pairs,
+        "dominant_band": dominant_band,
+        "energy": energy,
+    }
+
+    if not pre_core:
+        return ipf, ipo
+
+    extra_pool = sorted(set(candidates[: core_size * 3]) | set(last_series))
+    current_core = enforce_regime_overlap(pre_core, last_series, regime)
+    current_score = quality_against_neighbors(current_core, df, idx_df, top_k=neighbor_k)
+
+    for _ in range(optimization_steps):
+        if not extra_pool:
+            break
+
+        pos = random.randrange(len(current_core))
+        old_val = current_core[pos]
+
+        choices = [x for x in extra_pool if x not in current_core]
+        if not choices:
+            continue
+
+        new_val = random.choice(choices)
+
+        trial = list(current_core)
+        trial[pos] = new_val
+        trial = sorted(set(trial))[:core_size]
+        trial = enforce_regime_overlap(trial, last_series, regime)
+
+        t_score = quality_against_neighbors(trial, df, idx_df, top_k=neighbor_k)
+
+        if t_score > current_score:
+            current_core = trial
+            current_score = t_score
+
+    overlap_last = len(set(current_core) & set(last_series))
+
+    ipo = {
+        "structural_core": sorted(current_core),
+        "quality": float(current_score),
+        "overlap_last": overlap_last,
+        "regime": regime.nome if regime else None,
+    }
+
+    return ipf, ipo
+
+
+# ---------------------------------------------------------
+# Painel Streamlit — IPF / IPO
+# ---------------------------------------------------------
+
+if not df.empty:
+    st.subheader("🧠 Núcleo Estrutural (IPF / IPO)")
+
+    idx_res = st.session_state.get("idx_result", pd.DataFrame())
+    regime_state = st.session_state.get("regime_state", None)
+
+    if idx_res.empty:
+        st.info("IDX ainda não calculado.")
+    else:
+        ipf_out, ipo_out = run_IPF_IPO(df, idx_res, regime_state)
+
+        st.session_state["ipf_core"] = ipf_out
+        st.session_state["ipo_core"] = ipo_out
+
+        if not ipf_out or not ipo_out:
+            st.warning("Não foi possível computar IPF/IPO.")
+        else:
+            c1, c2 = st.columns(2)
+
+            with c1:
+                st.markdown("### Núcleo Pré-Bruto (IPF)")
+                st.write(f"**IPF:** {ipf_out['pre_core']}")
+                st.write(f"**Energia estrutural:** {ipf_out['energy']:.3f}")
+                st.write(f"**Faixa dominante:** {ipf_out['dominant_band']}")
+                st.write("**Pares fortes:**")
+                st.write(ipf_out["strong_pairs"] or "Nenhum.")
+
+            with c2:
+                st.markdown("### Núcleo Otimizado (IPO)")
+                st.write(f"**IPO:** {ipo_out['structural_core']}")
+                st.write(f"**Qualidade vs IDX:** {ipo_out['quality']:.3f}")
+                st.write(f"**Overlap última série:** {ipo_out['overlap_last']}")
+                if ipo_out["regime"]:
+                    st.write(f"**Regime usado:** {ipo_out['regime']}")
+
+            st.divider()
+
+# =========================================================
+# FIM DO BLOCO 4 — LIMPO — app.py TURBO
+# =========================================================
 
 
 
