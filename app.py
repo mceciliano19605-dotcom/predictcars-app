@@ -2492,6 +2492,383 @@ if not df.empty:
 # =========================================================
 
 
+# =========================================================
+# BLOCO 9 — app.py TURBO
+# Sidebar + Controle de Saída + Acertos (esperados) integrados
+# =========================================================
+
+# ---------------------------------------------------------
+# Sidebar — Controle do Leque TURBO
+# ---------------------------------------------------------
+
+st.sidebar.markdown("---")
+st.sidebar.header("⚙️ Controle do Leque TURBO")
+
+output_mode = st.sidebar.radio(
+    "Modo de geração do Leque:",
+    options=["Automático (por regime)", "Quantidade fixa", "Confiabilidade mínima"],
+    index=0,
+    help=(
+        "Automático: quantidade de séries definida pelo regime.\n"
+        "Quantidade fixa: define o total de séries desejadas.\n"
+        "Confiabilidade mínima: filtra séries por coerência mínima."
+    ),
+)
+
+n_series_fixed = st.sidebar.slider(
+    "Quantidade total de séries (se modo for 'Quantidade fixa')",
+    min_value=5,
+    max_value=25,
+    value=12,
+)
+
+min_conf_pct = st.sidebar.slider(
+    "Confiabilidade mínima (%) (se modo for 'Confiabilidade mínima')",
+    min_value=30,
+    max_value=85,
+    value=55,
+)
+
+
+# ---------------------------------------------------------
+# Utilitários — cálculo de acertos (esperados) em inteiro
+# ---------------------------------------------------------
+
+def expected_hits_from_stats(
+    avg_hits: float,
+    max_hits: int,
+    freq_ge3: float,
+    freq_ge4: float,
+    category: str,
+) -> int:
+    """
+    Converte estatísticas de backtest em um número inteiro de
+    'Acertos (esperados)' entre 1 e 6.
+    """
+    # S6 sempre mira 6
+    if category.lower().startswith("s6"):
+        return 6
+
+    # Proteção
+    if avg_hits is None or np.isnan(avg_hits):
+        avg_hits = 0.0
+
+    # Faixas principais baseadas em média, moduladas por máximos
+    if avg_hits >= 5.4 or (avg_hits >= 5.0 and max_hits >= 6):
+        return 6
+    if avg_hits >= 4.5 or (avg_hits >= 4.0 and freq_ge4 > 0.25):
+        return 5
+    if avg_hits >= 3.5:
+        return 4
+    if avg_hits >= 2.5:
+        return 3
+    if avg_hits >= 1.5:
+        return 2
+    return 1
+
+
+def join_btf_stats_on_series(
+    df_cat: pd.DataFrame,
+    btf_df: pd.DataFrame,
+    category_name: str,
+) -> pd.DataFrame:
+    """
+    Associa as estatísticas de Backtest do Futuro (btf_df) às séries
+    de um DataFrame de categoria (df_cat), com base na lista de números
+    da série.
+
+    Adiciona colunas:
+    - avg_hits
+    - max_hits
+    - freq_ge3
+    - freq_ge4
+    - s_idx
+    - coherence
+    - expected_hits (inteiro)
+    - category_name (texto)
+    """
+    if df_cat is None or df_cat.empty or btf_df is None or btf_df.empty:
+        return pd.DataFrame()
+
+    # Mapa {tuple(sorted(series)): stats_row}
+    btf_map: Dict[Tuple[int, ...], Dict[str, Any]] = {}
+    for _, row in btf_df.iterrows():
+        s = row["series"]
+        key = tuple(sorted(set(s)))
+        btf_map[key] = {
+            "avg_hits": float(row["avg_hits"]),
+            "max_hits": int(row["max_hits"]),
+            "freq_ge3": float(row["freq_ge3"]),
+            "freq_ge4": float(row["freq_ge4"]),
+            "s_idx": float(row["s_idx"]),
+            "coherence": float(row["coherence"]),
+        }
+
+    rows_out = []
+    for _, row in df_cat.iterrows():
+        s = row["series"]
+        key = tuple(sorted(set(s)))
+        stats = btf_map.get(
+            key,
+            {
+                "avg_hits": 0.0,
+                "max_hits": 0,
+                "freq_ge3": 0.0,
+                "freq_ge4": 0.0,
+                "s_idx": 0.0,
+                "coherence": float(row.get("coherence", 0.0)),
+            },
+        )
+
+        avg_hits = stats["avg_hits"]
+        max_hits = stats["max_hits"]
+        freq_ge3 = stats["freq_ge3"]
+        freq_ge4 = stats["freq_ge4"]
+        coherence = stats["coherence"]
+
+        expected_int = expected_hits_from_stats(
+            avg_hits=avg_hits,
+            max_hits=max_hits,
+            freq_ge3=freq_ge3,
+            freq_ge4=freq_ge4,
+            category=category_name,
+        )
+
+        rows_out.append(
+            {
+                "series": s,
+                "category": category_name,
+                "avg_hits": avg_hits,
+                "max_hits": max_hits,
+                "freq_ge3": freq_ge3,
+                "freq_ge4": freq_ge4,
+                "coherence": coherence,
+                "expected_hits": expected_int,
+            }
+        )
+
+    return pd.DataFrame(rows_out)
+
+
+def build_flat_series_table(leque: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Constrói uma tabela plana com TODAS as séries (Núcleo, Premium,
+    Estruturais, Cobertura), já com:
+
+    - category
+    - coherence
+    - expected_hits (Acertos (esperados))
+    """
+    if not leque:
+        return pd.DataFrame()
+
+    btf_df = leque.get("btf_raw", pd.DataFrame())
+    nucleo_df = leque.get("nucleo", pd.DataFrame())
+    premium_df = leque.get("premium", pd.DataFrame())
+    estrutural_df = leque.get("estruturais", pd.DataFrame())
+    cobertura_df = leque.get("cobertura", pd.DataFrame())
+
+    parts = []
+
+    if nucleo_df is not None and not nucleo_df.empty:
+        parts.append(join_btf_stats_on_series(nucleo_df, btf_df, "Núcleo TURBO"))
+    if premium_df is not None and not premium_df.empty:
+        parts.append(join_btf_stats_on_series(premium_df, btf_df, "Premium"))
+    if estrutural_df is not None and not estrutural_df.empty:
+        parts.append(join_btf_stats_on_series(estrutural_df, btf_df, "Estrutural"))
+    if cobertura_df is not None and not cobertura_df.empty:
+        parts.append(join_btf_stats_on_series(cobertura_df, btf_df, "Cobertura"))
+
+    if not parts:
+        return pd.DataFrame()
+
+    flat = pd.concat(parts, ignore_index=True)
+
+    # Remove duplicadas por série + categoria (se houver)
+    flat["series_key"] = flat["series"].apply(lambda s: tuple(sorted(set(s))))
+    flat = (
+        flat.sort_values(
+            ["category", "coherence", "avg_hits"],
+            ascending=[True, False, False],
+        )
+        .drop_duplicates(subset=["series_key", "category"])
+        .reset_index(drop=True)
+    )
+    return flat
+
+
+def limit_by_mode(
+    flat_df: pd.DataFrame,
+    regime: Optional[RegimeState],
+    mode: str,
+    n_series_fixed: int,
+    min_conf_pct: int,
+) -> pd.DataFrame:
+    """
+    Aplica o modo de controle:
+
+    - Automático (por regime)
+    - Quantidade fixa
+    - Confiabilidade mínima
+    """
+    if flat_df.empty:
+        return flat_df
+
+    # Ordenação base: Núcleo > Premium > Estrutural > Cobertura
+    cat_order = {"Núcleo TURBO": 0, "Premium": 1, "Estrutural": 2, "Cobertura": 3}
+    flat_df = flat_df.copy()
+    flat_df["cat_rank"] = flat_df["category"].map(cat_order).fillna(99).astype(int)
+
+    flat_df = flat_df.sort_values(
+        ["cat_rank", "coherence", "avg_hits"],
+        ascending=[True, False, False],
+    ).reset_index(drop=True)
+
+    if mode.startswith("Automático"):
+        # Define alvo total pela estrada
+        if regime is None:
+            target_total = 10
+        else:
+            if regime.nome == "Resiliente":
+                target_total = 8
+            elif regime.nome == "Intermediário":
+                target_total = 12
+            elif regime.nome == "Turbulento":
+                target_total = 15
+            else:
+                target_total = 10
+
+        return flat_df.head(target_total).reset_index(drop=True)
+
+    if mode.startswith("Quantidade"):
+        return flat_df.head(n_series_fixed).reset_index(drop=True)
+
+    if mode.startswith("Confiabilidade"):
+        thr = float(min_conf_pct) / 100.0
+        df_f = flat_df[flat_df["coherence"] >= thr].copy()
+        if df_f.empty:
+            # fallback: nenhuma bate o threshold, retorna tudo (mas sinaliza)
+            return flat_df
+        return df_f.reset_index(drop=True)
+
+    return flat_df
+
+
+def evaluate_ensamble_series(
+    ensamble: List[int],
+    df: pd.DataFrame,
+    idx_df: pd.DataFrame,
+) -> Dict[str, Any]:
+    """
+    Calcula coerência e acertos (esperados) para a série Ensamble.
+    """
+    if not ensamble:
+        return {}
+
+    # Usa Backtest do Futuro da própria série
+    res = backtest_do_futuro_serie(
+        ensamble,
+        df,
+        idx_df,
+        window=600,
+        neighbor_k=10,
+    )
+    expected_int = expected_hits_from_stats(
+        avg_hits=res["avg_hits"],
+        max_hits=res["max_hits"],
+        freq_ge3=res["freq_ge3"],
+        freq_ge4=res["freq_ge4"],
+        category="Ensamble",
+    )
+    res["expected_hits"] = expected_int
+    return res
+
+
+# ---------------------------------------------------------
+# Painel — Saída Final Controlada (com Acertos (esperados))
+# ---------------------------------------------------------
+
+if not df.empty:
+    st.subheader("📦 Saída Final Controlada — V13.8-TURBO")
+
+    leque = st.session_state.get("leque_turbo", {})
+    regime_state = st.session_state.get("regime_state", None)
+    idx_res = st.session_state.get("idx_result", pd.DataFrame())
+
+    if not leque:
+        st.info("O Leque TURBO ainda não foi construído (ver painel anterior).")
+    else:
+        flat_df = build_flat_series_table(leque)
+
+        if flat_df.empty:
+            st.warning("Não há séries suficientes para montar a saída controlada.")
+        else:
+            # Aplica modo de controle
+            controlled_df = limit_by_mode(
+                flat_df,
+                regime_state,
+                output_mode,
+                n_series_fixed,
+                min_conf_pct,
+            )
+
+            if controlled_df.empty:
+                st.warning("Nenhuma série qualificada após aplicar o modo de controle.")
+            else:
+                # Monta uma tabela legível com os campos principais
+                display_rows = []
+                for i, row in controlled_df.iterrows():
+                    display_rows.append(
+                        {
+                            "Rank": i + 1,
+                            "Categoria": row["category"],
+                            "Série": " ".join(str(x) for x in row["series"]),
+                            "Confiabilidade": f"{row['coherence']*100:.1f}%",
+                            "Acertos (esperados)": int(row["expected_hits"]),
+                        }
+                    )
+
+                df_display = pd.DataFrame(display_rows)
+                st.dataframe(df_display, use_container_width=True)
+
+                st.caption(
+                    "Todas as séries acima já passaram por: IPF, IPO, ASB, ADN, ICA, "
+                    "HLA, S6 (quando aplicável), Monte Carlo, Backtest Interno e Backtest do Futuro."
+                )
+
+            st.markdown("---")
+
+            # Ensamble TURBO com Acertos (esperados)
+            ensamble_series = leque.get("ensamble", [])
+            if ensamble_series:
+                st.markdown("### 🔁 Ensamble TURBO — com Acertos (esperados)")
+
+                ensamble_stats = evaluate_ensamble_series(
+                    ensamble_series,
+                    df,
+                    idx_res,
+                )
+
+                if ensamble_stats:
+                    st.write(f"**Série Ensamble:** {' '.join(str(x) for x in ensamble_series)}")
+                    st.write(
+                        f"**Confiabilidade (coerência retroativa):** "
+                        f"{ensamble_stats['coherence']*100:.1f}%"
+                    )
+                    st.write(
+                        f"**Acertos (esperados):** {ensamble_stats['expected_hits']}"
+                    )
+                else:
+                    st.write("Não foi possível calcular estatísticas para o Ensamble.")
+            else:
+                st.markdown("### 🔁 Ensamble TURBO")
+                st.write("Nenhum ensamble disponível.")
+
+        st.divider()
+
+# =========================================================
+# FIM DO BLOCO 9 — app.py TURBO
+# =========================================================
 
 
 
