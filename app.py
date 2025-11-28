@@ -1051,6 +1051,272 @@ if not df.empty:
 # =========================================================
 # FIM DO BLOCO 4 — LIMPO — app.py TURBO
 # =========================================================
+# =========================================================
+# BLOCO 5 — app.py TURBO
+# ASB (Anti-SelfBias)
+# ADN (Ajuste Dinâmico: leve / médio / profundo)
+# ICA (Iterative Core Adjustment Profundo)
+# HLA (High-Level Adjustment)
+# =========================================================
+
+# ---------------------------------------------------------
+# ASB — Anti-SelfBias
+# ---------------------------------------------------------
+
+def apply_ASB(core: List[int], last_series: List[int], regime: Optional[RegimeState]) -> List[int]:
+    """
+    Política Anti-SelfBias:
+    - Em regime Resiliente: repetição permitida, mas limitada.
+    - Em regime Intermediário: controle moderado de repetição.
+    - Em regime Turbulento: repetição mínima.
+    """
+    if not core or not last_series or regime is None:
+        return core
+
+    core_set = set(core)
+    last_set = set(last_series)
+    overlap = len(core_set & last_set)
+    new_core = list(core)
+
+    if regime.nome == "Resiliente":
+        # Permite algum overlap, mas não total
+        if overlap > 4:
+            # substitui excedentes
+            for n in core:
+                if n in last_set:
+                    new_core.remove(n)
+                    break
+
+    elif regime.nome == "Intermediário":
+        # overlap moderado
+        if overlap > 3:
+            for n in core:
+                if n in last_set:
+                    new_core.remove(n)
+                    break
+
+    elif regime.nome == "Turbulento":
+        # proteger contra repetição excessiva
+        if overlap > 2:
+            for n in core:
+                if n in last_set:
+                    new_core.remove(n)
+                    break
+
+    # Repreenche com números próximos ao universo original (de forma neutra)
+    pool = list(range(1, 81))
+    for p in pool:
+        if len(new_core) >= len(core):
+            break
+        if p not in new_core:
+            new_core.append(p)
+
+    return sorted(new_core)[:len(core)]
+
+
+# ---------------------------------------------------------
+# ADN — Ajuste Dinâmico
+# ---------------------------------------------------------
+
+def apply_ADN(core: List[int], energy: float, mode: str = "leve") -> List[int]:
+    """
+    Ajuste Dinâmico:
+    - leve: pequenas trocas baseadas em energia
+    - medio: substitui pontos fracos + reforça vizinhanças
+    - profundo: reestrutura o núcleo mantendo identidade
+    """
+    if not core:
+        return core
+
+    new_core = list(core)
+
+    if mode == "leve":
+        # pequenas variações
+        if energy < 0.45:
+            # tenta reforçar com números vizinhos
+            for i in range(len(new_core)):
+                v = new_core[i]
+                if v + 1 <= 80:
+                    new_core[i] = v + 1
+
+    elif mode == "medio":
+        # substitui ponto de menor densidade
+        weakest = min(new_core)
+        new_core.remove(weakest)
+        # reforço estrutural na média
+        avg = int(sum(new_core) / len(new_core))
+        if avg not in new_core:
+            new_core.append(avg)
+        else:
+            new_core.append((avg % 80) + 1)
+
+    elif mode == "profundo":
+        # reorganiza totalmente com redução / expansão suave
+        for i in range(len(new_core)):
+            v = new_core[i]
+            shift = (-3 + i) if energy < 0.5 else (2 - i)
+            nv = v + shift
+            if 1 <= nv <= 80:
+                new_core[i] = nv
+
+    return sorted(set(new_core))[:len(core)]
+
+
+# ---------------------------------------------------------
+# ICA — Iterative Core Adjustment (Profundo)
+# ---------------------------------------------------------
+
+def run_ICA(core: List[int], df: pd.DataFrame, idx_df: pd.DataFrame,
+            iterations: int = 60, neighbor_k: int = 10) -> List[int]:
+
+    if not core or df.empty or idx_df.empty:
+        return core
+
+    current_core = list(core)
+    current_score = quality_against_neighbors(core, df, idx_df, top_k=neighbor_k)
+
+    for _ in range(iterations):
+        pos = random.randrange(len(current_core))
+        old = current_core[pos]
+
+        # Nova tentativa aleatória
+        new_val = random.randint(1, 80)
+        if new_val in current_core:
+            continue
+
+        trial = list(current_core)
+        trial[pos] = new_val
+        trial = sorted(set(trial))[:len(core)]
+
+        t_score = quality_against_neighbors(trial, df, idx_df, top_k=neighbor_k)
+
+        # critério de aceitação estritamente superior
+        if t_score > current_score:
+            current_core = trial
+            current_score = t_score
+
+    return current_core
+
+
+# ---------------------------------------------------------
+# HLA — High-Level Adjustment
+# ---------------------------------------------------------
+
+def run_HLA(core: List[int], candidates: List[int],
+            strong_pairs: List[Tuple[int,int]],
+            desired_size: int = 6) -> List[int]:
+
+    if not core:
+        return core
+
+    new_core = list(core)
+
+    # 1. Reforça pares fortes
+    for (a, b) in strong_pairs:
+        if a in new_core and b not in new_core:
+            # adiciona b substituindo o maior elemento
+            victim = max(new_core)
+            if b not in new_core:
+                new_core.remove(victim)
+                new_core.append(b)
+
+    # 2. Se houver muita divergência estrutural, aproxima do universo candidato
+    if len(set(new_core) & set(candidates[:10])) <= 2:
+        new_core = sorted(set(new_core + candidates[:4]))[:desired_size]
+
+    return sorted(set(new_core))[:desired_size]
+
+
+# ---------------------------------------------------------
+# Pipeline completo do BLOCO 5 (ASB + ADN + ICA + HLA)
+# ---------------------------------------------------------
+
+def run_block5_adjustments(df: pd.DataFrame,
+                           idx_df: pd.DataFrame,
+                           ipf_out: Dict[str,Any],
+                           ipo_out: Dict[str,Any],
+                           regime: Optional[RegimeState]) -> Dict[str, Any]:
+
+    if not ipf_out or not ipo_out:
+        return {}
+
+    structural_core = list(ipo_out["structural_core"])
+    energy = ipf_out["energy"]
+    candidates = ipf_out["candidates"]
+    strong_pairs = ipf_out["strong_pairs"]
+
+    passenger_cols = [c for c in df.columns if c.startswith("p")]
+    last_series = [int(v) for v in df[passenger_cols].to_numpy(dtype=float)[-1]
+                   if not math.isnan(v)]
+
+    # 1) ASB
+    core_asb = apply_ASB(structural_core, last_series, regime)
+
+    # 2) ADN
+    if energy > 0.6:
+        core_adn = apply_ADN(core_asb, energy, mode="leve")
+    elif energy > 0.4:
+        core_adn = apply_ADN(core_asb, energy, mode="medio")
+    else:
+        core_adn = apply_ADN(core_asb, energy, mode="profundo")
+
+    # 3) ICA
+    core_ica = run_ICA(core_adn, df, idx_df)
+
+    # 4) HLA
+    core_hla = run_HLA(core_ica, candidates, strong_pairs)
+
+    return {
+        "after_asb": core_asb,
+        "after_adn": core_adn,
+        "after_ica": core_ica,
+        "after_hla": core_hla,
+    }
+
+
+# ---------------------------------------------------------
+# Painel Streamlit — Ajustes Profundos
+# ---------------------------------------------------------
+
+if not df.empty:
+    st.subheader("⚙️ Ajustes Profundos (ASB + ADN + ICA + HLA)")
+
+    idx_res = st.session_state.get("idx_result", pd.DataFrame())
+    ipf_out = st.session_state.get("ipf_core", {})
+    ipo_out = st.session_state.get("ipo_core", {})
+    regime_state = st.session_state.get("regime_state", None)
+
+    if idx_res.empty or not ipf_out or not ipo_out:
+        st.info("IPF/IPO ainda não disponíveis para ajustes profundos.")
+    else:
+        adj = run_block5_adjustments(df, idx_res, ipf_out, ipo_out, regime_state)
+        st.session_state["adjusted_core"] = adj
+
+        c1, c2, c3, c4 = st.columns(4)
+
+        with c1:
+            st.markdown("### Após ASB")
+            st.write(adj["after_asb"])
+
+        with c2:
+            st.markdown("### Após ADN")
+            st.write(adj["after_adn"])
+
+        with c3:
+            st.markdown("### Após ICA")
+            st.write(adj["after_ica"])
+
+        with c4:
+            st.markdown("### Núcleo Final (HLA)")
+            st.write(adj["after_hla"])
+
+        st.success("Núcleo pós-ajustes concluído (antes de Monte Carlo).")
+        st.divider()
+
+# =========================================================
+# FIM DO BLOCO 5 — app.py TURBO
+# =========================================================
+
 
 
 
