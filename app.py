@@ -2870,5 +2870,298 @@ if not df.empty:
 # FIM DO BLOCO 9 — app.py TURBO
 # =========================================================
 
+# =========================================================
+# BLOCO 10 — app.py TURBO
+# NAVEGAÇÃO MODULAR + LISTA PURA NUMERADA (Somente Séries Controladas)
+# =========================================================
+
+# ---------------------------------------------------------
+# MENU DE NAVEGAÇÃO — PAINÉIS DO V13.8-TURBO
+# ---------------------------------------------------------
+
+st.sidebar.markdown("## 📂 Navegação")
+painel = st.sidebar.radio(
+    "Escolha o painel:",
+    [
+        "Histórico",
+        "Estado Atual",
+        "IDX Avançado",
+        "Núcleo IPF / IPO",
+        "Ajustes (ASB / ADN / ICA / HLA)",
+        "Dependências Ocultas",
+        "S6 Profundo",
+        "Monte Carlo Profundo",
+        "Backtest Interno",
+        "Backtest do Futuro",
+        "Leque TURBO",
+        "Saída Final Controlada",   # 🔥 onde estará a lista pura
+    ],
+    index=0,
+)
+
+# =========================================================
+# A partir daqui, mostramos APENAS o painel selecionado
+# =========================================================
+
+# ---------------------------------------------------------
+# PAINEL — Histórico
+# ---------------------------------------------------------
+if painel == "Histórico":
+    st.subheader("📘 Histórico Carregado")
+    if df.empty:
+        st.warning("Nenhum histórico foi carregado.")
+    else:
+        st.write("Quantidade de séries:", len(df))
+        st.dataframe(df.tail(20), use_container_width=True)
+    st.stop()
+
+# ---------------------------------------------------------
+# PAINEL — Estado Atual
+# ---------------------------------------------------------
+if painel == "Estado Atual":
+    st.subheader("🌡️ Estado Atual da Estrada")
+    regime_state = st.session_state.get("regime_state", None)
+
+    if regime_state is None:
+        st.info("O estado ainda não foi calculado.")
+    else:
+        st.write("**Regime:**", regime_state.nome)
+        st.write("**Dispersão:**", regime_state.dispersao)
+        st.write("**Amplitude:**", regime_state.amplitude)
+        st.write("**Vibração:**", regime_state.vibracao)
+        st.write("**Pares Ativos:**", regime_state.pares)
+    st.stop()
+
+# ---------------------------------------------------------
+# PAINEL — IDX Avançado
+# ---------------------------------------------------------
+if painel == "IDX Avançado":
+    st.subheader("🔎 IDX Avançado — Trechos Semelhantes")
+    idx_df = st.session_state.get("idx_result", pd.DataFrame())
+
+    if idx_df.empty:
+        st.info("IDX ainda não foi calculado.")
+    else:
+        st.dataframe(idx_df, use_container_width=True)
+    st.stop()
+
+# ---------------------------------------------------------
+# PAINEL — IPF / IPO
+# ---------------------------------------------------------
+if painel == "Núcleo IPF / IPO":
+    st.subheader("🧱 Núcleo Estrutural — IPF / IPO")
+    nucleo_ipf = st.session_state.get("nucleo_ipf", None)
+    nucleo_ipo = st.session_state.get("nucleo_ipo", None)
+
+    if nucleo_ipf:
+        st.markdown("### IPF (Núcleo Pré-Bruto)")
+        st.write(nucleo_ipf)
+
+    if nucleo_ipo:
+        st.markdown("### IPO (Núcleo Otimizado)")
+        st.write(nucleo_ipo)
+
+    if not nucleo_ipf and not nucleo_ipo:
+        st.info("IPF/IPO ainda não foi calculado.")
+    st.stop()
+
+# ---------------------------------------------------------
+# PAINEL — Ajustes Profundos
+# ---------------------------------------------------------
+if painel == "Ajustes (ASB / ADN / ICA / HLA)":
+    st.subheader("🛠️ Ajustes Profundos — ASB / ADN / ICA / HLA")
+    ajustes_log = st.session_state.get("ajustes_log", [])
+
+    if ajustes_log:
+        for bloco in ajustes_log:
+            st.markdown(f"### {bloco['nome']}")
+            st.write(bloco["dados"])
+    else:
+        st.info("Ainda não foram registrados ajustes.")
+    st.stop()
+
+# ---------------------------------------------------------
+# PAINEL — Dependências Ocultas
+# ---------------------------------------------------------
+if painel == "Dependências Ocultas":
+    st.subheader("🧬 Dependências Ocultas")
+    deps = st.session_state.get("dependencias", None)
+
+    if deps:
+        st.write(deps)
+    else:
+        st.info("Nenhuma dependência encontrada.")
+    st.stop()
+
+# ---------------------------------------------------------
+# PAINEL — S6 Profundo
+# ---------------------------------------------------------
+if painel == "S6 Profundo":
+    st.subheader("🎯 S6 Profundo — Séries com Convergência Máxima")
+    s6_df = st.session_state.get("s6_df", pd.DataFrame())
+
+    if s6_df.empty:
+        st.info("Nenhuma série S6 encontrada.")
+    else:
+        st.dataframe(s6_df, use_container_width=True)
+    st.stop()
+
+# ---------------------------------------------------------
+# PAINEL — Monte Carlo Profundo
+# ---------------------------------------------------------
+if painel == "Monte Carlo Profundo":
+    st.subheader("🌪️ Monte Carlo Profundo — Perturbações Válidas")
+    mc_df = st.session_state.get("mc_df", pd.DataFrame())
+
+    if mc_df.empty:
+        st.info("Monte Carlo ainda não foi executado.")
+    else:
+        st.dataframe(mc_df, use_container_width=True)
+    st.stop()
+
+# ---------------------------------------------------------
+# PAINEL — Backtest Interno
+# ---------------------------------------------------------
+if painel == "Backtest Interno":
+    st.subheader("📉 Backtest Interno")
+    bti = st.session_state.get("backtest_interno", pd.DataFrame())
+
+    if bti.empty:
+        st.info("Backtest Interno não disponível.")
+    else:
+        st.dataframe(bti, use_container_width=True)
+    st.stop()
+
+# ---------------------------------------------------------
+# PAINEL — Backtest do Futuro
+# ---------------------------------------------------------
+if painel == "Backtest do Futuro":
+    st.subheader("🔮 Backtest do Futuro — Coerência Retroativa")
+    btf = st.session_state.get("btf_raw", pd.DataFrame())
+
+    if btf.empty:
+        st.info("Backtest do Futuro ainda não foi realizado.")
+    else:
+        st.dataframe(btf, use_container_width=True)
+    st.stop()
+
+# ---------------------------------------------------------
+# PAINEL — Leque TURBO
+# ---------------------------------------------------------
+if painel == "Leque TURBO":
+    st.subheader("🚀 LEQUE TURBO — Séries Preditivas Completas")
+
+    leque = st.session_state.get("leque_turbo", {})
+
+    if not leque:
+        st.info("O Leque TURBO ainda não foi construído.")
+    else:
+        st.write("### Núcleo TURBO")
+        st.dataframe(leque.get("nucleo", pd.DataFrame()), use_container_width=True)
+
+        st.write("### Premium")
+        st.dataframe(leque.get("premium", pd.DataFrame()), use_container_width=True)
+
+        st.write("### Estruturais")
+        st.dataframe(leque.get("estruturais", pd.DataFrame()), use_container_width=True)
+
+        st.write("### Cobertura")
+        st.dataframe(leque.get("cobertura", pd.DataFrame()), use_container_width=True)
+
+        st.write("### S6 Profundo")
+        st.dataframe(leque.get("s6", pd.DataFrame()), use_container_width=True)
+
+        st.write("### Ensamble TURBO")
+        st.write(leque.get("ensamble", []))
+
+    st.stop()
+
+# ---------------------------------------------------------
+# PAINEL — Saída Final Controlada
+# (Tabela + Ensamble + Lista Pura numerada)
+# ---------------------------------------------------------
+if painel == "Saída Final Controlada":
+
+    st.subheader("🎯 SAÍDA FINAL CONTROLADA — V13.8-TURBO")
+
+    # Usa a tabela do BLOCO 9
+    leque = st.session_state.get("leque_turbo", {})
+    regime_state = st.session_state.get("regime_state", None)
+    idx_df = st.session_state.get("idx_result", pd.DataFrame())
+
+    if not leque:
+        st.info("O Leque TURBO ainda não foi construído.")
+        st.stop()
+
+    # Reconstrói tabela plana com acertos esperados
+    flat_df = build_flat_series_table(leque)
+
+    if flat_df.empty:
+        st.warning("Não há séries suficientes para montar a saída final.")
+        st.stop()
+
+    # Aplica modo de controle (do BLOCO 9)
+    controlled_df = limit_by_mode(
+        flat_df,
+        regime_state,
+        output_mode,
+        n_series_fixed,
+        min_conf_pct,
+    )
+
+    if controlled_df.empty:
+        st.warning("Nenhuma série passou pelo filtro escolhido.")
+        st.stop()
+
+    # -----------------------------------------------------
+    # 1) Tabela organizada
+    # -----------------------------------------------------
+    display_rows = []
+    for i, row in controlled_df.iterrows():
+        display_rows.append(
+            {
+                "Rank": i + 1,
+                "Categoria": row["category"],
+                "Série": " ".join(str(x) for x in row["series"]),
+                "Confiabilidade": f"{row['coherence']*100:.1f}%",
+                "Acertos (esperados)": int(row["expected_hits"]),
+            }
+        )
+    df_display = pd.DataFrame(display_rows)
+    st.write("### 📊 Séries Selecionadas")
+    st.dataframe(df_display, use_container_width=True)
+
+    # -----------------------------------------------------
+    # 2) Ensamble TURBO
+    # -----------------------------------------------------
+    st.write("---")
+    st.write("### 🔁 Ensamble TURBO")
+
+    ens_series = leque.get("ensamble", [])
+    ens_stats = evaluate_ensamble_series(ens_series, df, idx_df)
+
+    if ens_stats:
+        st.write("**Série Ensamble:**", " ".join(str(x) for x in ens_series))
+        st.write(f"**Confiabilidade:** {ens_stats['coherence']*100:.1f}%")
+        st.write(f"**Acertos (esperados):** {ens_stats['expected_hits']}")
+    else:
+        st.write("Nenhum ensamble disponível.")
+
+    # -----------------------------------------------------
+    # 3) LISTA PURA NUMERADA — Somente Séries Controladas
+    # -----------------------------------------------------
+    st.write("---")
+    st.markdown("### 📄 Lista Pura — Séries Filtradas (Para Copiar)")
+
+    for i, row in controlled_df.iterrows():
+        s = " ".join(str(x) for x in row["series"])
+        st.write(f"{i+1}) {s}")
+
+    st.stop()
+
+
+# =========================================================
+# FIM DO BLOCO 10
+# =========================================================
 
 
