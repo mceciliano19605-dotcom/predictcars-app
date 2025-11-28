@@ -3248,3 +3248,206 @@ if painel == "Logs Técnicos":
 
     st.stop()
 
+# =========================================================
+# BLOCO 12 — Diagnóstico Profundo (Gráficos e Análises Estruturais)
+# =========================================================
+
+# Este bloco adiciona um painel completo de diagnóstico:
+# - curva de dispersão
+# - curva de amplitude
+# - vibração
+# - heatmap de similaridade IDX
+# - distribuição de acertos do Backtest Interno
+# - distribuição de coerência do Backtest do Futuro
+# - convergência S6
+# - estabilidade da estrada (índice composto)
+#
+# Tudo opcionalmente exibido via navegação modular.
+
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+# ---------------------------------------------------------
+# Funções auxiliares de diagnóstico
+# ---------------------------------------------------------
+
+def plot_line(data, title, ylabel):
+    """Gera gráfico de linha simples."""
+    fig, ax = plt.subplots(figsize=(8, 3))
+    ax.plot(data, linewidth=2)
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel("Índice")
+    ax.grid(True, linestyle="--", alpha=0.4)
+    st.pyplot(fig)
+
+
+def plot_hist(data, title, xlabel):
+    """Histograma simples."""
+    fig, ax = plt.subplots(figsize=(8, 3))
+    ax.hist(data, bins=20, edgecolor='black', alpha=0.7)
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Frequência")
+    ax.grid(True, linestyle="--", alpha=0.4)
+    st.pyplot(fig)
+
+
+def plot_heatmap(df_matrix, title):
+    """Heatmap de matriz (ex: similaridade IDX)."""
+    fig, ax = plt.subplots(figsize=(6, 5))
+    sns.heatmap(df_matrix, cmap="viridis", linewidths=.5, ax=ax)
+    ax.set_title(title)
+    st.pyplot(fig)
+
+
+def calcular_indice_estabilidade(regime_state):
+    """
+    Índice composto de estabilidade da estrada:
+    Combina dispersão, amplitude, vibração e pares.
+    Valores aproximados:
+    >0.75 → Estável
+    0.5–0.75 → Intermediário
+    <0.5 → Instável / Turbulento
+    """
+    if not regime_state:
+        return None
+
+    score = 0.0
+
+    # pesos heurísticos derivados do comportamento da estrada
+    disp_peso = max(0, 1 - regime_state.dispersao / 40)
+    amp_peso = max(0, 1 - regime_state.amplitude / 60)
+    vib_peso = max(0, 1 - regime_state.vibracao / 30)
+    par_peso = min(1.0, len(regime_state.pares) / 10)
+
+    score = (disp_peso + amp_peso + vib_peso + par_peso) / 4
+    return score
+
+
+# ---------------------------------------------------------
+# Adicionar item de navegação: BLOCO 12
+# (Adicionar ao menu do BLOCO 10)
+# ---------------------------------------------------------
+
+# Em BLOCO 10, adicionar "Diagnóstico Profundo" à lista:
+#
+#     "Leque TURBO",
+#     "Saída Final Controlada",
+#     "Logs Técnicos",
+#     "Diagnóstico Profundo",  # <-- ADICIONAR
+#
+
+
+# ---------------------------------------------------------
+# PAINEL — Diagnóstico Profundo
+# ---------------------------------------------------------
+if painel == "Diagnóstico Profundo":
+
+    st.subheader("🧭 Diagnóstico Profundo — V13.8-TURBO")
+
+    if df.empty:
+        st.warning("Carregue um histórico para visualizar o diagnóstico.")
+        st.stop()
+
+    # =====================================================
+    # Seção 1 — Curvas Históricas Básicas
+    # =====================================================
+    st.markdown("### 📈 Curvas Estruturais da Estrada")
+
+    dispersoes = df.apply(lambda row: np.std(list(row[:-1])), axis=1)
+    amplitudes = df.apply(lambda row: max(row[:-1]) - min(row[:-1]), axis=1)
+
+    plot_line(dispersoes, "Dispersão ao longo da Estrada", "Dispersão")
+    plot_line(amplitudes, "Amplitude ao longo da Estrada", "Amplitude")
+
+    # =====================================================
+    # Seção 2 — Vibração
+    # =====================================================
+    st.markdown("### 🌐 Vibração Estrutural")
+    vib = np.abs(dispersoes.diff().fillna(0))
+    plot_line(vib, "Vibração Estrutural", "Vibração")
+
+    # =====================================================
+    # Seção 3 — Similaridade IDX (Heatmap)
+    # =====================================================
+    st.markdown("### 🔎 Heatmap de Similaridade (IDX)")
+    idx_df = st.session_state.get("idx_result", pd.DataFrame())
+
+    if not idx_df.empty and "similarity_vector" in idx_df.columns:
+        # Construir matriz de similaridade
+        sim_vectors = np.array(idx_df["similarity_vector"].tolist())
+        if sim_vectors.ndim == 2:
+            df_sim = pd.DataFrame(sim_vectors)
+            plot_heatmap(df_sim, "Mapa de Similaridade IDX")
+    else:
+        st.info("Nenhum dado IDX detalhado disponível.")
+
+    # =====================================================
+    # Seção 4 — Distribuição de acertos (Backtest Interno)
+    # =====================================================
+    st.markdown("### 🎯 Distribuição de Acertos — Backtest Interno")
+    bti = st.session_state.get("backtest_interno", pd.DataFrame())
+
+    if not bti.empty and "max_hits" in bti.columns:
+        plot_hist(bti["max_hits"], "Distribuição do Máximo de Acertos", "Acertos")
+    else:
+        st.info("Backtest Interno não disponível para análise.")
+
+    # =====================================================
+    # Seção 5 — Coerência Retroativa (Backtest do Futuro)
+    # =====================================================
+    st.markdown("### 🔮 Coerência Retroativa — Backtest do Futuro")
+    btf = st.session_state.get("btf_raw", pd.DataFrame())
+
+    if not btf.empty and "coherence" in btf.columns:
+        plot_hist(
+            btf["coherence"],
+            "Distribuição da Coerência Retroativa",
+            "Coerência",
+        )
+    else:
+        st.info("Backtest do Futuro ainda não foi realizado.")
+
+    # =====================================================
+    # Seção 6 — Convergência S6
+    # =====================================================
+    st.markdown("### ⭐ Convergência S6 — Intensidade")
+    s6_df = st.session_state.get("s6_df", pd.DataFrame())
+
+    if not s6_df.empty and "score" in s6_df.columns:
+        plot_hist(s6_df["score"], "Distribuição de Convergência S6", "Score")
+    else:
+        st.info("Nenhum dado S6 disponível.")
+
+    # =====================================================
+    # Seção 7 — Índice de Estabilidade da Estrada
+    # =====================================================
+    st.markdown("### 🧩 Índice de Estabilidade da Estrada")
+
+    regime_state = st.session_state.get("regime_state", None)
+    estabilidade = calcular_indice_estabilidade(regime_state)
+
+    if estabilidade is None:
+        st.info("Estado da estrada ainda não foi calculado.")
+    else:
+        st.metric(
+            label="Estabilidade Estrutural",
+            value=f"{estabilidade*100:.1f}%"
+        )
+
+        if estabilidade >= 0.75:
+            st.success("A estrada está ESTÁVEL (cenário Resiliente).")
+        elif estabilidade >= 0.50:
+            st.warning("A estrada está MODERADA (Intermediária).")
+        else:
+            st.error("A estrada está INSTÁVEL / Turbulenta.")
+
+    st.stop()
+
+
+# =========================================================
+# FIM DO BLOCO 12 — Diagnóstico Profundo
+# =========================================================
