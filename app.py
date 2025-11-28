@@ -3641,3 +3641,238 @@ if painel == "Exportar Resultados":
 # =========================================================
 # FIM DO BLOCO 13 — Exportação
 # =========================================================
+# =========================================================
+# BLOCO 14 — Exportar Sessão Completa (ZIP)
+# =========================================================
+
+import zipfile
+import json
+from datetime import datetime
+
+
+def build_session_zip():
+    """
+    Cria um ZIP com todos os dados disponíveis da sessão do app TURBO.
+    Inclui:
+    - histórico
+    - IDX
+    - IPF / IPO
+    - ajustes
+    - dependências
+    - S6
+    - Monte Carlo
+    - backtests
+    - leque TURBO
+    - séries controladas
+    - lista pura numerada
+    - diagnóstico básico
+    - logs técnicos
+    - relatório técnico completo
+    - estado da sessão (JSON)
+    """
+
+    buffer = io.BytesIO()
+
+    with zipfile.ZipFile(buffer, "w") as z:
+
+        # ----------------------------------------------
+        # 1) Histórico
+        # ----------------------------------------------
+        if not df.empty:
+            z.writestr("historico.csv", df.to_csv(index=False))
+
+        # ----------------------------------------------
+        # 2) IDX
+        # ----------------------------------------------
+        idx_df = st.session_state.get("idx_result", pd.DataFrame())
+        if not idx_df.empty:
+            z.writestr("idx.csv", idx_df.to_csv(index=False))
+
+        # ----------------------------------------------
+        # 3) IPF / IPO
+        # ----------------------------------------------
+        ipf = st.session_state.get("nucleo_ipf", None)
+        ipo = st.session_state.get("nucleo_ipo", None)
+
+        if ipf:
+            z.writestr("ipf.txt", str(ipf))
+        if ipo:
+            z.writestr("ipo.txt", str(ipo))
+
+        # ----------------------------------------------
+        # 4) Ajustes profundos
+        # ----------------------------------------------
+        ajustes = st.session_state.get("ajustes_log", [])
+        if ajustes:
+            txt = ""
+            for bloco in ajustes:
+                txt += f"[{bloco['nome']}]\n{bloco['dados']}\n\n"
+            z.writestr("ajustes.txt", txt)
+
+        # ----------------------------------------------
+        # 5) Dependências ocultas
+        # ----------------------------------------------
+        deps = st.session_state.get("dependencias", None)
+        if deps:
+            z.writestr("dependencias.txt", str(deps))
+
+        # ----------------------------------------------
+        # 6) S6 Profundo
+        # ----------------------------------------------
+        s6_df = st.session_state.get("s6_df", pd.DataFrame())
+        if not s6_df.empty:
+            z.writestr("s6.csv", s6_df.to_csv(index=False))
+
+        # ----------------------------------------------
+        # 7) Monte Carlo Profundo
+        # ----------------------------------------------
+        mc_df = st.session_state.get("mc_df", pd.DataFrame())
+        if not mc_df.empty:
+            z.writestr("montecarlo.csv", mc_df.to_csv(index=False))
+
+        # ----------------------------------------------
+        # 8) Backtest Interno
+        # ----------------------------------------------
+        bti = st.session_state.get("backtest_interno", pd.DataFrame())
+        if not bti.empty:
+            z.writestr("backtest_interno.csv", bti.to_csv(index=False))
+
+        # ----------------------------------------------
+        # 9) Backtest do Futuro
+        # ----------------------------------------------
+        btf = st.session_state.get("btf_raw", pd.DataFrame())
+        if not btf.empty:
+            z.writestr("backtest_futuro.csv", btf.to_csv(index=False))
+
+        # ----------------------------------------------
+        # 10) Leque TURBO completo
+        # ----------------------------------------------
+        leque = st.session_state.get("leque_turbo", {})
+        if leque:
+            z.writestr("leque_turbo.csv", export_leque_csv(leque))
+
+        # ----------------------------------------------
+        # 11) Séries controladas (CSV)
+        # ----------------------------------------------
+        flat_df = build_flat_series_table(leque)
+        regime_state = st.session_state.get("regime_state", None)
+
+        ctrl_df = limit_by_mode(
+            flat_df,
+            regime_state,
+            output_mode,
+            n_series_fixed,
+            min_conf_pct
+        )
+        if not ctrl_df.empty:
+            df_ctrl = pd.DataFrame([
+                {
+                    "rank": i + 1,
+                    "categoria": row["category"],
+                    "series": " ".join(str(x) for x in row["series"]),
+                    "confiabilidade": row["coherence"],
+                    "acertos_esperados": int(row["expected_hits"])
+                }
+                for i, row in ctrl_df.iterrows()
+            ])
+            z.writestr("series_controladas.csv", df_ctrl.to_csv(index=False))
+
+        # ----------------------------------------------
+        # 12) Lista pura numerada
+        # ----------------------------------------------
+        lista_pura = []
+        for i, row in ctrl_df.iterrows():
+            ss = " ".join(str(x) for x in row["series"])
+            lista_pura.append(f"{i + 1}) {ss}")
+
+        if lista_pura:
+            z.writestr(
+                "lista_pura.txt",
+                export_txt_list(lista_pura)
+            )
+
+        # ----------------------------------------------
+        # 13) Diagnóstico básico
+        # ----------------------------------------------
+        diag_df = pd.DataFrame({
+            "dispersao": df.apply(lambda row: np.std(list(row[:-1])), axis=1),
+            "amplitude": df.apply(lambda row: max(row[:-1]) - min(row[:-1]), axis=1),
+        })
+
+        z.writestr("diagnostico_basico.csv", diag_df.to_csv(index=False))
+
+        # ----------------------------------------------
+        # 14) Logs técnicos (TXT)
+        # ----------------------------------------------
+        logs = st.session_state.get("logs_tecnicos", [])
+        if logs:
+            z.writestr("logs_tecnicos.txt", export_logs_txt(logs))
+
+        # ----------------------------------------------
+        # 15) Relatório técnico completo
+        # ----------------------------------------------
+        rel = io.StringIO()
+        rel.write("=== RELATÓRIO TÉCNICO — Predict Cars V13.8-TURBO ===\n\n")
+
+        if regime_state:
+            rel.write(f"Regime: {regime_state.nome}\n")
+            rel.write(f"Dispersão: {regime_state.dispersao}\n")
+            rel.write(f"Amplitude: {regime_state.amplitude}\n")
+            rel.write(f"Vibração: {regime_state.vibracao}\n")
+            rel.write(f"Pares: {regime_state.pares}\n\n")
+
+        rel.write("=== Parâmetros ===\n")
+        rel.write(f"Modo de saída: {output_mode}\n")
+        rel.write(f"N séries fixas: {n_series_fixed}\n")
+        rel.write(f"Confiabilidade mínima: {min_conf_pct}\n\n")
+
+        z.writestr("relatorio_completo.txt", rel.getvalue())
+
+        # ----------------------------------------------
+        # 16) Estado completo da sessão (JSON)
+        # ----------------------------------------------
+        state_json = json.dumps(
+            {k: str(v) for k, v in st.session_state.items()},
+            indent=2
+        )
+        z.writestr("estado_sessao.json", state_json)
+
+    buffer.seek(0)
+    return buffer
+
+
+# ---------------------------------------------------------
+# Painel de Navegação (incluir no menu)
+# ---------------------------------------------------------
+# Adicionar ao menu no BLOCO 10:
+#
+#   "Exportar Sessão Completa",
+#
+
+
+# ---------------------------------------------------------
+# PAINEL — Exportar Sessão Completa (ZIP)
+# ---------------------------------------------------------
+if painel == "Exportar Sessão Completa":
+
+    st.subheader("📦 Exportar Sessão Completa — V13.8-TURBO")
+
+    if df.empty:
+        st.warning("Carregue um histórico antes de exportar.")
+        st.stop()
+
+    if st.button("⬇️ Gerar e Baixar ZIP da Sessão Completa"):
+        zip_file = build_session_zip()
+        st.download_button(
+            label="⬇️ Baixar Sessão Completa (ZIP)",
+            data=zip_file,
+            file_name=f"sessao_predictcars_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+            mime="application/zip"
+        )
+
+    st.stop()
+
+
+# =========================================================
+# FIM DO BLOCO 14 — Exportar Sessão Completa
+# =========================================================
