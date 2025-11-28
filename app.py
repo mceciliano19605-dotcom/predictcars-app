@@ -1983,6 +1983,513 @@ if not df.empty:
 # FIM DO BLOCO 7 — app.py TURBO
 # =========================================================
 
+# =========================================================
+# BLOCO 8 — app.py TURBO
+# Backtest do Futuro + Leque Final TURBO
+# =========================================================
+
+# ---------------------------------------------------------
+# Backtest do Futuro — Coerência Retroativa
+# ---------------------------------------------------------
+
+def backtest_do_futuro_serie(
+    series: List[int],
+    df: pd.DataFrame,
+    idx_df: pd.DataFrame,
+    window: int = 600,
+    neighbor_k: int = 10,
+) -> Dict[str, Any]:
+    """
+    Backtest do Futuro (coerência retroativa) para UMA série.
+
+    Ideia:
+    - verifica se a série "cabe" no passado:
+      • não é completamente alienígena em relação às séries reais
+      • apresenta algum nível de acertos em janelas históricas
+    - verifica consistência estrutural com trechos gêmeos (IDX)
+    - gera uma nota de coerência retroativa entre 0 e 1
+
+    Não depende do futuro real, apenas da consistência
+    da série quando colocada em contexto histórico.
+    """
+    base_stats = evaluate_series_against_history(series, df, window=window)
+
+    # 1) estrutura mínima de acertos
+    avg_hits = base_stats["media_hits"]
+    max_hits = base_stats["max_hits"]
+    freq_ge3 = base_stats["freq_ge3"]
+    freq_ge4 = base_stats["freq_ge4"]
+
+    # 2) similaridade média com trechos gêmeos
+    s_idx = 0.0
+    if not df.empty and not idx_df.empty:
+        passenger_cols = [c for c in df.columns if c.startswith("p")]
+        arr = df[passenger_cols].to_numpy(dtype=float)
+
+        sub = idx_df.head(neighbor_k)
+        scores = []
+        for _, r in sub.iterrows():
+            row_id = r["row_id"]
+            base_row = df[df["row_id"] == row_id]
+            if base_row.empty:
+                continue
+            passengers = get_passengers_from_row(base_row.iloc[0])
+            scores.append(similarity_structural(series, passengers))
+        if scores:
+            s_idx = float(np.mean(scores))
+
+    # Combinação de coerência
+    # (pesos calibrados de forma simples, mas estáveis)
+    coherence_raw = (
+        0.35 * s_idx +
+        0.25 * (avg_hits / 6.0) +
+        0.20 * freq_ge3 +
+        0.20 * freq_ge4
+    )
+    coherence = float(max(0.0, min(1.0, coherence_raw)))
+
+    # Critério de validade:
+    # • coerência mínima
+    # • pelo menos alguma ocorrência razoável (>=3 acertos)
+    is_valid = (coherence >= 0.25) and (freq_ge3 > 0.0 or max_hits >= 3)
+
+    return {
+        "series": sorted(set(series)),
+        "avg_hits": avg_hits,
+        "max_hits": max_hits,
+        "freq_ge3": freq_ge3,
+        "freq_ge4": freq_ge4,
+        "s_idx": s_idx,
+        "coherence": coherence,
+        "valid": is_valid,
+    }
+
+
+def backtest_do_futuro_conjunto(
+    candidate_series: List[List[int]],
+    df: pd.DataFrame,
+    idx_df: pd.DataFrame,
+    window: int = 600,
+    neighbor_k: int = 10,
+) -> pd.DataFrame:
+    """
+    Aplica o Backtest do Futuro a um conjunto de séries
+    retornando DataFrame com métricas e flag de validade.
+    """
+    if df.empty or not candidate_series:
+        return pd.DataFrame()
+
+    rows = []
+    for i, s in enumerate(candidate_series, start=1):
+        result = backtest_do_futuro_serie(
+            s, df, idx_df, window=window, neighbor_k=neighbor_k
+        )
+        row = {
+            "id": i,
+            "series": result["series"],
+            "avg_hits": result["avg_hits"],
+            "max_hits": result["max_hits"],
+            "freq_ge3": result["freq_ge3"],
+            "freq_ge4": result["freq_ge4"],
+            "s_idx": result["s_idx"],
+            "coherence": result["coherence"],
+            "valid": result["valid"],
+        }
+        rows.append(row)
+
+    out = pd.DataFrame(rows)
+    if not out.empty:
+        out = out.sort_values(
+            ["valid", "coherence", "max_hits", "avg_hits"],
+            ascending=[False, False, False, False],
+        ).reset_index(drop=True)
+    return out
+
+
+# ---------------------------------------------------------
+# Construção do Leque Final TURBO
+# ---------------------------------------------------------
+
+def build_final_leque_turbo(
+    df: pd.DataFrame,
+    idx_df: pd.DataFrame,
+    adjusted_core: Dict[str, Any],
+    s6_df: pd.DataFrame,
+    mc_df: pd.DataFrame,
+    internal_bt_df: pd.DataFrame,
+    max_premium: int = 10,
+    max_estruturais: int = 12,
+    max_cobertura: int = 16,
+) -> Dict[str, Any]:
+    """
+    Constrói o Leque Final TURBO:
+
+    - Núcleo TURBO
+    - Séries Premium
+    - Séries Estruturais
+    - Séries de Cobertura
+    - Séries S6 (já geradas no BLOCO 6)
+    - Ensamble final
+
+    Todas as séries passam pelo Backtest do Futuro.
+    """
+
+    if df.empty or adjusted_core is None:
+        return {}
+
+    # 1) Núcleo base (ponto de partida)
+    base_core = adjusted_core.get("after_hla") or adjusted_core.get("after_ica") or []
+    base_core = sorted(set(base_core))
+
+    # Se ainda assim estiver vazio, tenta IPO
+    if not base_core:
+        ipo_out = st.session_state.get("ipo_core", {})
+        base_core = ipo_out.get("structural_core", []) if ipo_out else []
+        base_core = sorted(set(base_core))
+
+    if not base_core:
+        return {}
+
+    # 2) Núcleo "melhor no backtest interno", se disponível
+    best_bt_core = None
+    if internal_bt_df is not None and not internal_bt_df.empty:
+        best_row = internal_bt_df.iloc[0]
+        temp_core = []
+        for col in sorted([c for c in internal_bt_df.columns if c.startswith("p")]):
+            v = best_row[col]
+            if not (isinstance(v, float) and math.isnan(v)):
+                temp_core.append(int(v))
+        temp_core = sorted(set(temp_core))
+        if temp_core:
+            best_bt_core = temp_core
+
+    # 3) Séries S6 profundas
+    s6_candidates: List[List[int]] = []
+    if s6_df is not None and not s6_df.empty:
+        for _, row in s6_df.iterrows():
+            s = []
+            for col in sorted([c for c in s6_df.columns if c.startswith("p")]):
+                v = row[col]
+                if not (isinstance(v, float) and math.isnan(v)):
+                    s.append(int(v))
+            s = sorted(set(s))
+            if len(s) >= 3:
+                s6_candidates.append(s)
+
+    # 4) Núcleos Monte Carlo principais
+    mc_candidates: List[List[int]] = []
+    if mc_df is not None and not mc_df.empty:
+        mc_top = mc_df.head(15)
+        for _, row in mc_top.iterrows():
+            s = []
+            for col in sorted([c for c in mc_df.columns if c.startswith("p")]):
+                v = row[col]
+                if not (isinstance(v, float) and math.isnan(v)):
+                    s.append(int(v))
+            s = sorted(set(s))
+            if len(s) >= 3:
+                mc_candidates.append(s)
+
+    # 5) Conjunto bruto de candidatos
+    candidate_series: List[List[int]] = []
+
+    if base_core:
+        candidate_series.append(base_core)
+    if best_bt_core and best_bt_core != base_core:
+        candidate_series.append(best_bt_core)
+
+    # adiciona S6
+    for s in s6_candidates:
+        if s not in candidate_series:
+            candidate_series.append(s)
+
+    # adiciona MC
+    for s in mc_candidates:
+        if s not in candidate_series:
+            candidate_series.append(s)
+
+    # normaliza tudo para exatamente 6 passageiros
+    normalized_candidates: List[List[int]] = []
+    for s in candidate_series:
+        s = sorted(set(s))
+        if len(s) < 6:
+            # completa com números próximos à média
+            mean_val = int(sum(s) / len(s))
+            pool = list(range(max(1, mean_val - 10), min(80, mean_val + 10) + 1))
+            rng = np.random.default_rng()
+            while len(s) < 6 and pool:
+                cand = int(rng.choice(pool))
+                if cand not in s:
+                    s.append(cand)
+        s = sorted(s)[:6]
+        if s not in normalized_candidates:
+            normalized_candidates.append(s)
+
+    if not normalized_candidates:
+        return {}
+
+    # 6) Backtest do Futuro em todas as séries candidatas
+    btf_df = backtest_do_futuro_conjunto(
+        normalized_candidates,
+        df,
+        idx_df,
+        window=600,
+        neighbor_k=10,
+    )
+
+    if btf_df.empty:
+        return {}
+
+    # Apenas séries válidas
+    valid_df = btf_df[btf_df["valid"] == True].copy()
+    if valid_df.empty:
+        # Em último caso, mantém tudo como alerta, mesmo sem validade forte
+        valid_df = btf_df.copy()
+
+    # 7) Classificação em categorias
+
+    # Identifica Núcleo TURBO:
+    # • prioridade: série igual ao best_bt_core
+    # • senão: série com maior coerência
+    nucleo_series = None
+
+    def series_equal(a: List[int], b: List[int]) -> bool:
+        return sorted(set(a)) == sorted(set(b))
+
+    if best_bt_core:
+        for _, row in valid_df.iterrows():
+            s = row["series"]
+            if series_equal(s, best_bt_core):
+                nucleo_series = s
+                break
+
+    if nucleo_series is None:
+        nucleo_series = valid_df.iloc[0]["series"]
+
+    # Marca Núcleo TURBO
+    valid_df["category"] = "Cobertura"  # default
+
+    # Semelhantes ao núcleo (premium/estruturais) por similaridade estrutural
+    sim_values = []
+    for i, row in valid_df.iterrows():
+        s = row["series"]
+        sim = similarity_structural(nucleo_series, s)
+        sim_values.append(sim)
+    valid_df["sim_nucleo"] = sim_values
+
+    # ordena por coerência + similaridade
+    valid_df = valid_df.sort_values(
+        ["coherence", "sim_nucleo", "max_hits", "avg_hits"],
+        ascending=[False, False, False, False],
+    ).reset_index(drop=True)
+
+    # Define categorias:
+    # • Núcleo TURBO: a série principal
+    # • Premium: alta coerência e alta similaridade
+    # • Estruturais: coerência boa e similaridade média
+    # • Cobertura: o restante
+
+    categorias = []
+    for i, row in valid_df.iterrows():
+        s = row["series"]
+        if series_equal(s, nucleo_series):
+            categorias.append("Núcleo TURBO")
+        else:
+            coh = row["coherence"]
+            sim = row["sim_nucleo"]
+            if coh >= 0.55 and sim >= 0.65:
+                categorias.append("Premium")
+            elif coh >= 0.40 and sim >= 0.40:
+                categorias.append("Estrutural")
+            else:
+                categorias.append("Cobertura")
+    valid_df["category"] = categorias
+
+    # Limites de quantidade por categoria
+    def limit_category(df_cat: pd.DataFrame, max_n: int) -> pd.DataFrame:
+        return df_cat.head(max_n).reset_index(drop=True)
+
+    nucleo_df = valid_df[valid_df["category"] == "Núcleo TURBO"].copy()
+    premium_df = limit_category(valid_df[valid_df["category"] == "Premium"], max_premium)
+    estrutural_df = limit_category(
+        valid_df[valid_df["category"] == "Estrutural"], max_estruturais
+    )
+    cobertura_df = limit_category(
+        valid_df[valid_df["category"] == "Cobertura"], max_cobertura
+    )
+
+    # Ajusta ranks internos
+    for df_cat in (nucleo_df, premium_df, estrutural_df, cobertura_df):
+        if not df_cat.empty:
+            df_cat["rank_cat"] = np.arange(1, len(df_cat) + 1)
+
+    # 8) Ensamble final:
+    # média ponderada das séries Premium + Núcleo TURBO,
+    # ponderando pela coerência retroativa.
+
+    ensamble_series: List[int] = []
+    if not nucleo_df.empty:
+        base = nucleo_df.iloc[0]
+        nucleo = base["series"]
+        weight_nucleo = base["coherence"]
+    else:
+        nucleo = nucleo_series
+        weight_nucleo = 0.8
+
+    # agrega Premium
+    weighted_counts = Counter()
+    total_weight = 0.0
+
+    # Núcleo com peso extra
+    for n in nucleo:
+        weighted_counts[n] += weight_nucleo
+    total_weight += weight_nucleo
+
+    for _, row in premium_df.iterrows():
+        s = row["series"]
+        w = float(row["coherence"])
+        for n in s:
+            weighted_counts[n] += w
+        total_weight += w
+
+    if weighted_counts and total_weight > 0:
+        scoring = [
+            (n, float(w) / total_weight) for n, w in weighted_counts.items()
+        ]
+        scoring_sorted = sorted(scoring, key=lambda kv: (-kv[1], kv[0]))
+        ensamble_series = [n for n, _ in scoring_sorted[:6]]
+        ensamble_series = sorted(set(ensamble_series))[:6]
+    else:
+        ensamble_series = nucleo
+
+    # 9) Expectativa de acertos por série (usa média de hits do Backtest do Futuro)
+    def attach_expectation(df_cat: pd.DataFrame) -> pd.DataFrame:
+        if df_cat.empty:
+            return df_cat
+        df_cat = df_cat.copy()
+        df_cat["expect_acertos"] = df_cat["avg_hits"]
+        return df_cat
+
+    nucleo_df = attach_expectation(nucleo_df)
+    premium_df = attach_expectation(premium_df)
+    estrutural_df = attach_expectation(estrutural_df)
+    cobertura_df = attach_expectation(cobertura_df)
+
+    return {
+        "nucleo": nucleo_df,
+        "premium": premium_df,
+        "estruturais": estrutural_df,
+        "cobertura": cobertura_df,
+        "s6": s6_df,
+        "ensamble": ensamble_series,
+        "btf_raw": valid_df,
+    }
+
+
+# ---------------------------------------------------------
+# Painel Streamlit — Leque Final TURBO
+# ---------------------------------------------------------
+
+if not df.empty:
+    st.subheader("🚀 Leque Final V13.8-TURBO")
+
+    idx_res = st.session_state.get("idx_result", pd.DataFrame())
+    adjusted_core = st.session_state.get("adjusted_core", {})
+    s6_df = st.session_state.get("s6_series", pd.DataFrame())
+    mc_df = st.session_state.get("mc_core_scenarios", pd.DataFrame())
+    internal_bt_df = st.session_state.get("internal_backtest", pd.DataFrame())
+
+    if idx_res.empty or not adjusted_core:
+        st.info("É necessário ter IDX, Núcleo Ajustado, S6 e Monte Carlo para montar o Leque TURBO.")
+    else:
+        leque = build_final_leque_turbo(
+            df,
+            idx_res,
+            adjusted_core,
+            s6_df,
+            mc_df,
+            internal_bt_df,
+        )
+        st.session_state["leque_turbo"] = leque
+
+        if not leque:
+            st.warning("Não foi possível construir o Leque TURBO com os dados atuais.")
+        else:
+            nucleo_df = leque["nucleo"]
+            premium_df = leque["premium"]
+            estrutural_df = leque["estruturais"]
+            cobertura_df = leque["cobertura"]
+            s6_final = leque["s6"]
+            ensamble_series = leque["ensamble"]
+
+            # Núcleo TURBO
+            st.markdown("### ⭐ Núcleo TURBO")
+            if nucleo_df is None or nucleo_df.empty:
+                st.warning("Núcleo TURBO não identificado com alta confiança. Usando núcleo ajustado como referência.")
+                st.write(sorted(st.session_state.get("adjusted_core", {}).get("after_hla", [])))
+            else:
+                row = nucleo_df.iloc[0]
+                st.write(f"**Série Núcleo:** {row['series']}")
+                st.write(f"**Expectativa de acertos:** {row['expect_acertos']:.2f}")
+                st.write(f"**Coerência retroativa:** {row['coherence']:.3f}")
+
+            st.markdown("---")
+
+            # Ensamble
+            st.markdown("### 🔁 Ensamble TURBO (fusão Núcleo + Premium)")
+            st.write(f"**Série Ensamble:** {ensamble_series}")
+
+            st.markdown("---")
+
+            # Premium
+            st.markdown("### 💎 Séries Premium")
+            if premium_df is None or premium_df.empty:
+                st.write("Nenhuma série Premium qualificada.")
+            else:
+                df_show = premium_df[["rank_cat", "series", "expect_acertos", "coherence"]]
+                st.dataframe(
+                    df_show.style.format({"expect_acertos": "{:.2f}", "coherence": "{:.3f}"}),
+                    use_container_width=True,
+                )
+
+            # Estruturais
+            st.markdown("### 🧱 Séries Estruturais")
+            if estrutural_df is None or estrutural_df.empty:
+                st.write("Nenhuma série Estrutural qualificada.")
+            else:
+                df_show = estrutural_df[["rank_cat", "series", "expect_acertos", "coherence"]]
+                st.dataframe(
+                    df_show.style.format({"expect_acertos": "{:.2f}", "coherence": "{:.3f}"}),
+                    use_container_width=True,
+                )
+
+            # Cobertura
+            st.markdown("### 🌐 Séries de Cobertura")
+            if cobertura_df is None or cobertura_df.empty:
+                st.write("Nenhuma série de Cobertura selecionada.")
+            else:
+                df_show = cobertura_df[["rank_cat", "series", "expect_acertos", "coherence"]]
+                st.dataframe(
+                    df_show.style.format({"expect_acertos": "{:.2f}", "coherence": "{:.3f}"}),
+                    use_container_width=True,
+                )
+
+            # S6 (como bloco explícito, pois já é parte do TURBO)
+            st.markdown("### 🎯 Séries S6 Profundas (referência)")
+            if s6_final is None or s6_final.empty:
+                st.write("Nenhuma série S6 disponível.")
+            else:
+                st.dataframe(
+                    s6_final.style.format({"score": "{:.3f}"}),
+                    use_container_width=True,
+                )
+
+            st.success("Leque Final TURBO construído e validado com Backtest do Futuro.")
+            st.divider()
+
+# =========================================================
+# FIM DO BLOCO 8 — app.py TURBO
+# =========================================================
 
 
 
