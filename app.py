@@ -383,4 +383,161 @@ def init_session_state() -> None:
 # =========================================================
 # FIM DO BLOCO 1 — app.py TURBO
 # (Copiar exatamente como está para o início do arquivo)
+# =========================================================# =========================================================
+# BLOCO 2 — app.py TURBO
+# Interface inicial Streamlit + carregamento do histórico +
+# exibição + leitura de estado + métricas e regime
 # =========================================================
+
+# ---------------------------------------------------------
+# Inicialização e layout inicial
+# ---------------------------------------------------------
+
+init_session_state()
+
+st.title("🚗 Predict Cars V13.8 — Modo TURBO")
+
+st.markdown("""
+Sistema completo de previsão **Ultra-Híbrido TURBO**  
+com todas as camadas profundas do motor V13.8:
+
+- IDX Avançado  
+- IPF / IPO Profundo  
+- ASB Anti-SelfBias  
+- ICA / HLA Profundo  
+- ADN (leve / médio / profundo)  
+- Dependências Ocultas  
+- Trechos Espelhados  
+- S6 Avançado  
+- Monte Carlo Profundo  
+- Backtest Interno + Backtest do Futuro  
+- Núcleo Resiliente Final  
+""")
+
+st.divider()
+
+
+# ---------------------------------------------------------
+# Painel lateral — Entrada do histórico
+# ---------------------------------------------------------
+
+st.sidebar.header("📥 Entrada do Histórico")
+
+uploaded_file = st.sidebar.file_uploader(
+    "Enviar arquivo (.txt ou .csv)",
+    type=["txt", "csv"],
+    accept_multiple_files=False,
+)
+
+pasted_text = st.sidebar.text_area(
+    "Ou colar o histórico aqui",
+    height=200,
+    placeholder="Exemplo:\nC2943; 8; 29; 30; 36; 39; 60\n8; 29; 30; 36; 39; 60\n..."
+)
+
+btn_load = st.sidebar.button("Carregar Histórico")
+
+
+# ---------------------------------------------------------
+# Carregamento do histórico
+# ---------------------------------------------------------
+
+if btn_load:
+    records, df, origin = load_history(uploaded_file, pasted_text)
+
+    st.session_state["history_records"] = records
+    st.session_state["history_df"] = df
+    st.session_state["history_origin"] = origin
+
+    # computa métricas
+    metrics = compute_basic_metrics(df)
+    st.session_state["basic_metrics"] = metrics
+
+    # inferir regime
+    regime = infer_regime(metrics)
+    st.session_state["regime_state"] = regime
+
+    st.success("Histórico carregado com sucesso.")
+
+
+# ---------------------------------------------------------
+# Exibição do histórico
+# ---------------------------------------------------------
+
+df = st.session_state["history_df"]
+
+if df.empty:
+    st.warning("Nenhum histórico carregado ainda.")
+else:
+    st.subheader("📊 Histórico Carregado")
+    st.dataframe(df, use_container_width=True)
+
+    metrics = st.session_state["basic_metrics"]
+    regime = st.session_state["regime_state"]
+
+    st.divider()
+
+    # -----------------------------------------------------
+    # Painel de métricas gerais
+    # -----------------------------------------------------
+    st.subheader("📡 Métricas da Estrada")
+
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+
+    c1.metric("Séries", metrics.get("n_series", 0))
+    c2.metric("Passageiros médios", f"{metrics.get('n_passengers', 0):.2f}")
+    c3.metric("Amplitude", f"{metrics.get('amplitude', 0):.1f}")
+    c4.metric("Dispersão", f"{metrics.get('dispersion', 0):.2f}")
+    c5.metric("Vibração", f"{metrics.get('vibration', 0):.2f}")
+    c6.metric("Atividade de pares", f"{metrics.get('pairs_activity', 0):.2f}")
+
+    st.divider()
+
+    # -----------------------------------------------------
+    # Painel do regime
+    # -----------------------------------------------------
+    st.subheader("🌡️ Estado da Estrada (Regime)")
+
+    regime_box = st.container()
+    with regime_box:
+        if regime:
+            if regime.nome == "Resiliente":
+                color = "#4caf50"
+            elif regime.nome == "Intermediário":
+                color = "#ff9800"
+            elif regime.nome == "Turbulento":
+                color = "#f44336"
+            else:
+                color = "#9c27b0"  # Pré-Ruptura
+
+            st.markdown(
+                f"""
+                <div style="
+                    padding: 15px;
+                    border-radius: 10px;
+                    background-color: {color}22;
+                    border-left: 4px solid {color};
+                ">
+                    <h4 style="margin:0;">{regime.nome}</h4>
+                    <p style="margin:0;">
+                        {regime.comentario_curto}
+                    </p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            st.write(f"**Resiliência:** {regime.score_resiliencia:.2f}")
+            st.write(f"**Turbulência:** {regime.score_turbulencia:.2f}")
+
+    st.divider()
+
+    # (Os demais blocos — IDX, IPF, IPO, ICA, HLA, ASB, etc. —
+    #  serão adicionados nos BLOCO 3, 4, 5... até a finalização.)
+    
+
+# =========================================================
+# FIM DO BLOCO 2 — app.py TURBO
+# =========================================================
+
+
