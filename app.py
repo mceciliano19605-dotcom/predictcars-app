@@ -1316,6 +1316,365 @@ if not df.empty:
 # =========================================================
 # FIM DO BLOCO 5 — app.py TURBO
 # =========================================================
+# =========================================================
+# BLOCO 6 — app.py TURBO
+# Dependências Ocultas + Modo S6 Profundo
+# =========================================================
+
+# ---------------------------------------------------------
+# Dependências Ocultas
+# ---------------------------------------------------------
+
+def compute_hidden_dependencies(
+    df: pd.DataFrame,
+    max_window: int = 200,
+    max_number: int = 80,
+) -> Dict[str, Any]:
+    """
+    Analisa o trecho mais recente do histórico para extrair:
+    - força individual dos números (freq + contexto)
+    - pares naturais (muito frequentes)
+    - pares ocultos (lift alto)
+    """
+    if df.empty:
+        return {
+            "number_scores": {},
+            "top_numbers": [],
+            "natural_pairs": [],
+            "hidden_pairs": [],
+        }
+
+    passenger_cols = [c for c in df.columns if c.startswith("p")]
+    if not passenger_cols:
+        return {
+            "number_scores": {},
+            "top_numbers": [],
+            "natural_pairs": [],
+            "hidden_pairs": [],
+        }
+
+    # janela recente
+    recent = df.tail(max_window)
+    arr = recent[passenger_cols].to_numpy(dtype=float)
+
+    num_counter = Counter()
+    pair_counter = Counter()
+
+    for row in arr:
+        vals = sorted({int(v) for v in row if not math.isnan(v) and 1 <= v <= max_number})
+        for v in vals:
+            num_counter[v] += 1
+        for i in range(len(vals)):
+            for j in range(i + 1, len(vals)):
+                pair_counter[(vals[i], vals[j])] += 1
+
+    if not num_counter:
+        return {
+            "number_scores": {},
+            "top_numbers": [],
+            "natural_pairs": [],
+            "hidden_pairs": [],
+        }
+
+    # Frequências individuais
+    max_freq = max(num_counter.values())
+    number_scores: Dict[int, float] = {}
+    for n in range(1, max_number + 1):
+        freq = num_counter.get(n, 0)
+        score = freq / max_freq if max_freq > 0 else 0.0
+        number_scores[n] = float(score)
+
+    # Pares naturais (frequência absoluta)
+    natural_pairs = []
+    if pair_counter:
+        nat_sorted = sorted(
+            pair_counter.items(),
+            key=lambda kv: (-kv[1], kv[0][0], kv[0][1])
+        )
+        natural_pairs = [p for p, _ in nat_sorted[:20]]
+
+    # Pares ocultos (lift aproximado)
+    hidden_pairs = []
+    if pair_counter:
+        pair_lift: List[Tuple[Tuple[int, int], float]] = []
+        total_series = len(recent)
+        for (a, b), c_ab in pair_counter.items():
+            p_ab = c_ab / total_series
+            p_a = num_counter[a] / total_series
+            p_b = num_counter[b] / total_series
+            denom = p_a * p_b if p_a * p_b > 0 else 1e-9
+            lift = p_ab / denom
+            pair_lift.append(((a, b), lift))
+
+        lift_sorted = sorted(
+            pair_lift,
+            key=lambda kv: (-kv[1], kv[0][0], kv[0][1])
+        )
+        # evita duplicar os "naturais" mais óbvios
+        hidden_pairs = [p for p, _ in lift_sorted[:20]]
+
+    # Top números por score
+    top_numbers = [
+        n for n, s in sorted(number_scores.items(), key=lambda kv: (-kv[1], kv[0]))
+        if s > 0
+    ][:25]
+
+    return {
+        "number_scores": number_scores,
+        "top_numbers": top_numbers,
+        "natural_pairs": natural_pairs,
+        "hidden_pairs": hidden_pairs,
+    }
+
+
+# ---------------------------------------------------------
+# Modo S6 Profundo — geração de séries com alto potencial
+# ---------------------------------------------------------
+
+def score_s6_candidate(
+    series: List[int],
+    base_core: List[int],
+    idx_df: pd.DataFrame,
+    df: pd.DataFrame,
+    hidden_info: Dict[str, Any],
+    neighbor_k: int = 10,
+) -> float:
+    """
+    Avalia uma série candidata S6 combinando:
+    - alinhamento com o núcleo ajustado (base_core)
+    - alinhamento com trechos IDX
+    - reforço de dependências ocultas
+    - uso de pares naturais/ocultos
+    """
+    if not series:
+        return 0.0
+
+    series = sorted(set(series))
+    if len(series) < 3:
+        return 0.0
+
+    # 1) similaridade com o núcleo final ajustado
+    s_core = similarity_structural(series, base_core)
+
+    # 2) alinhamento com trechos gêmeos
+    s_idx = 0.0
+    if not idx_df.empty and not df.empty:
+        passenger_cols = [c for c in df.columns if c.startswith("p")]
+        sub = idx_df.head(neighbor_k)
+        scores = []
+        for _, r in sub.iterrows():
+            row_id = r["row_id"]
+            base_row = df[df["row_id"] == row_id]
+            if base_row.empty:
+                continue
+            passengers = get_passengers_from_row(base_row.iloc[0])
+            scores.append(similarity_structural(series, passengers))
+        if scores:
+            s_idx = float(np.mean(scores))
+
+    # 3) reforço de números com alta dependência oculta
+    num_scores = hidden_info.get("number_scores", {}) if hidden_info else {}
+    if num_scores:
+        vals = [num_scores.get(n, 0.0) for n in series]
+        hidden_boost = float(np.mean(vals))
+    else:
+        hidden_boost = 0.0
+
+    # 4) presença de pares naturais/ocultos
+    nat_pairs = set(hidden_info.get("natural_pairs", [])) if hidden_info else set()
+    hid_pairs = set(hidden_info.get("hidden_pairs", [])) if hidden_info else set()
+
+    def make_pairs(lst):
+        lst = sorted(set(lst))
+        return {(lst[i], lst[j]) for i in range(len(lst)) for j in range(i + 1, len(lst))}
+
+    pairs = make_pairs(series)
+    if pairs:
+        nat_share = len(pairs & nat_pairs) / len(pairs)
+        hid_share = len(pairs & hid_pairs) / len(pairs)
+    else:
+        nat_share = 0.0
+        hid_share = 0.0
+
+    # combinação final
+    score = (
+        0.35 * s_core +
+        0.25 * s_idx +
+        0.20 * hidden_boost +
+        0.10 * nat_share +
+        0.10 * hid_share
+    )
+    return float(score)
+
+
+def generate_s6_series(
+    df: pd.DataFrame,
+    idx_df: pd.DataFrame,
+    adjusted_core: Dict[str, Any],
+    hidden_info: Dict[str, Any],
+    n_series: int = 12,
+) -> pd.DataFrame:
+    """
+    Gera um conjunto de séries S6 com maior potencial de acertos,
+    variando o núcleo final ajustado + reforço de dependências ocultas.
+    """
+    if not adjusted_core:
+        return pd.DataFrame()
+
+    base_core = adjusted_core.get("after_hla") or adjusted_core.get("after_ica") or []
+    base_core = sorted(set(base_core))
+    if not base_core:
+        return pd.DataFrame()
+
+    num_scores = hidden_info.get("number_scores", {}) if hidden_info else {}
+    top_numbers = hidden_info.get("top_numbers", []) if hidden_info else []
+
+    # pool de reforço: top numbers + núcleo + vizinhos numéricos
+    pool = set(base_core) | set(top_numbers[:30])
+    for n in list(pool):
+        if n - 1 >= 1:
+            pool.add(n - 1)
+        if n + 1 <= 80:
+            pool.add(n + 1)
+    pool = sorted(pool)
+
+    # geração de candidatos por variação controlada
+    candidates_set = set()
+    max_attempts = n_series * 40
+    rng = np.random.default_rng()
+
+    while len(candidates_set) < n_series * 6 and max_attempts > 0:
+        max_attempts -= 1
+        series = list(base_core)
+
+        # decide quantos elementos trocar
+        k_change = rng.integers(1, min(3, len(series)) + 1)
+
+        indices_to_change = rng.choice(len(series), size=k_change, replace=False)
+        for idx_pos in indices_to_change:
+            # novo número vindo do pool + ruído suave
+            candidate_pool = pool.copy()
+            for _ in range(5):
+                cand = int(rng.integers(1, 81))
+                candidate_pool.append(cand)
+            replacement = rng.choice(candidate_pool)
+            series[idx_pos] = int(replacement)
+
+        series = sorted(set(series))
+        if len(series) != 6:
+            # completa / ajusta para ter 6 elementos
+            while len(series) < 6:
+                candidate = int(rng.integers(1, 81))
+                if candidate not in series:
+                    series.append(candidate)
+            series = sorted(series)[:6]
+
+        key = tuple(series)
+        candidates_set.add(key)
+
+    # Avaliação dos candidatos
+    scored = []
+    for s in candidates_set:
+        s_list = list(s)
+        score = score_s6_candidate(s_list, base_core, idx_df, df, hidden_info)
+        scored.append({"series": s_list, "score": score})
+
+    if not scored:
+        return pd.DataFrame()
+
+    scored_sorted = sorted(scored, key=lambda x: -x["score"])[:n_series]
+
+    data = []
+    for i, item in enumerate(scored_sorted, start=1):
+        row = {
+            "rank": i,
+            "score": float(item["score"]),
+        }
+        for j, n in enumerate(item["series"], start=1):
+            row[f"p{j}"] = n
+        data.append(row)
+
+    return pd.DataFrame(data)
+
+
+# ---------------------------------------------------------
+# Painel Streamlit — Dependências Ocultas + S6 Profundo
+# ---------------------------------------------------------
+
+if not df.empty:
+    st.subheader("🔗 Dependências Ocultas & Modo S6 Profundo")
+
+    idx_res = st.session_state.get("idx_result", pd.DataFrame())
+    adjusted_core = st.session_state.get("adjusted_core", {})
+    ipf_out = st.session_state.get("ipf_core", {})
+
+    if idx_res.empty or not adjusted_core or not ipf_out:
+        st.info("É necessário ter IDX + IPF/IPO + Ajustes Profundos para ativar o Modo S6 Profundo.")
+    else:
+        # Dependências ocultas
+        hidden_info = compute_hidden_dependencies(df)
+        st.session_state["hidden_dependencies"] = hidden_info
+
+        c1, c2 = st.columns(2)
+
+        with c1:
+            st.markdown("### Números com maior dependência oculta")
+            top_nums = hidden_info["top_numbers"]
+            if top_nums:
+                df_top = pd.DataFrame(
+                    {
+                        "número": top_nums,
+                        "score": [hidden_info["number_scores"].get(n, 0.0) for n in top_nums],
+                    }
+                )
+                st.dataframe(df_top, use_container_width=True)
+            else:
+                st.write("Nenhum padrão relevante identificado.")
+
+        with c2:
+            st.markdown("### Pares naturais e ocultos (principais)")
+            nat_pairs = hidden_info["natural_pairs"]
+            hid_pairs = hidden_info["hidden_pairs"]
+
+            df_nat = pd.DataFrame(
+                [{"a": a, "b": b} for (a, b) in nat_pairs[:15]]
+            )
+            df_hid = pd.DataFrame(
+                [{"a": a, "b": b} for (a, b) in hid_pairs[:15]]
+            )
+
+            st.write("**Pares naturais:**")
+            if not df_nat.empty:
+                st.table(df_nat)
+            else:
+                st.write("—")
+
+            st.write("**Pares ocultos:**")
+            if not df_hid.empty:
+                st.table(df_hid)
+            else:
+                st.write("—")
+
+        st.markdown("---")
+        st.markdown("### 🎯 Séries S6 Profundas (alto potencial)")
+
+        s6_df = generate_s6_series(df, idx_res, adjusted_core, hidden_info, n_series=12)
+        st.session_state["s6_series"] = s6_df
+
+        if s6_df.empty:
+            st.warning("Não foi possível gerar séries S6 profundas com os dados atuais.")
+        else:
+            st.dataframe(
+                s6_df.style.format({"score": "{:.3f}"}),
+                use_container_width=True,
+            )
+
+        st.divider()
+
+# =========================================================
+# FIM DO BLOCO 6 — app.py TURBO
+# =========================================================
+
 
 
 
