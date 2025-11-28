@@ -1674,6 +1674,315 @@ if not df.empty:
 # =========================================================
 # FIM DO BLOCO 6 — app.py TURBO
 # =========================================================
+# =========================================================
+# BLOCO 7 — app.py TURBO
+# Monte Carlo Profundo + Simulação Retroativa (Backtest Interno)
+# =========================================================
+
+# ---------------------------------------------------------
+# Utilitários de avaliação de séries contra o histórico
+# ---------------------------------------------------------
+
+def count_hits(series: List[int], row: pd.Series) -> int:
+    """
+    Conta quantos números de 'series' aparecem em uma linha do DataFrame.
+    """
+    vals = get_passengers_from_row(row)
+    return len(set(series) & set(vals))
+
+
+def evaluate_series_against_history(
+    series: List[int],
+    df: pd.DataFrame,
+    window: int = 300,
+) -> Dict[str, Any]:
+    """
+    Avalia uma série fixa contra as últimas 'window' séries do histórico.
+
+    Retorna:
+    - hits_por_posicao: lista com número de acertos em cada série
+    - max_hits: máximo de acertos obtidos
+    - media_hits: média de acertos
+    - freq_ge3: frequência de ocorrências com 3+ acertos
+    - freq_ge4: frequência de ocorrências com 4+ acertos
+    """
+    if df.empty or not series:
+        return {
+            "hits_por_posicao": [],
+            "max_hits": 0,
+            "media_hits": 0.0,
+            "freq_ge3": 0.0,
+            "freq_ge4": 0.0,
+        }
+
+    series = sorted(set(series))
+    if len(series) == 0:
+        return {
+            "hits_por_posicao": [],
+            "max_hits": 0,
+            "media_hits": 0.0,
+            "freq_ge3": 0.0,
+            "freq_ge4": 0.0,
+        }
+
+    sub = df.tail(window).reset_index(drop=True)
+    hits_list: List[int] = []
+    for _, row in sub.iterrows():
+        hits_list.append(count_hits(series, row))
+
+    if not hits_list:
+        return {
+            "hits_por_posicao": [],
+            "max_hits": 0,
+            "media_hits": 0.0,
+            "freq_ge3": 0.0,
+            "freq_ge4": 0.0,
+        }
+
+    arr = np.array(hits_list, dtype=int)
+    max_hits = int(arr.max())
+    media_hits = float(arr.mean())
+    freq_ge3 = float(np.mean(arr >= 3))
+    freq_ge4 = float(np.mean(arr >= 4))
+
+    return {
+        "hits_por_posicao": hits_list,
+        "max_hits": max_hits,
+        "media_hits": media_hits,
+        "freq_ge3": freq_ge3,
+        "freq_ge4": freq_ge4,
+    }
+
+
+# ---------------------------------------------------------
+# Monte Carlo Profundo — variações suaves do núcleo
+# ---------------------------------------------------------
+
+def monte_carlo_core_scenarios(
+    df: pd.DataFrame,
+    idx_df: pd.DataFrame,
+    base_core: List[int],
+    n_scenarios: int = 200,
+    max_shift: int = 4,
+    neighbor_k: int = 10,
+) -> pd.DataFrame:
+    """
+    Gera cenários Monte Carlo em torno de um núcleo base:
+
+    - aplica ruído suave (shifts pequenos e substituições leves)
+    - avalia qualidade contra trechos gêmeos (IDX)
+    - retorna DataFrame com núcleos simulados e seus scores
+    """
+    if df.empty or idx_df.empty or not base_core:
+        return pd.DataFrame()
+
+    base_core = sorted(set(base_core))
+    rng = np.random.default_rng()
+    scenarios: List[Dict[str, Any]] = []
+
+    for i in range(n_scenarios):
+        # Trabalha com cópia
+        core = list(base_core)
+
+        # Número de posições perturbadas
+        k_change = rng.integers(1, min(3, len(core)) + 1)
+        idx_positions = rng.choice(len(core), size=k_change, replace=False)
+
+        for pos in idx_positions:
+            v = core[pos]
+            shift = int(rng.integers(-max_shift, max_shift + 1))
+            nv = v + shift
+            if nv < 1 or nv > 80:
+                nv = v  # mantém se sair fora da faixa
+            core[pos] = nv
+
+        core = sorted(set(core))
+        # garante exatamente o mesmo tamanho
+        while len(core) < len(base_core):
+            candidate = int(rng.integers(1, 81))
+            if candidate not in core:
+                core.append(candidate)
+        core = sorted(core)[: len(base_core)]
+
+        score_q = quality_against_neighbors(core, df, idx_df, top_k=neighbor_k)
+
+        scenario = {
+            "scenario_id": i + 1,
+            "score_quality": float(score_q),
+        }
+        for j, n in enumerate(core, start=1):
+            scenario[f"p{j}"] = n
+
+        scenarios.append(scenario)
+
+    if not scenarios:
+        return pd.DataFrame()
+
+    mc_df = pd.DataFrame(scenarios)
+    mc_df = mc_df.sort_values("score_quality", ascending=False).reset_index(drop=True)
+    return mc_df
+
+
+# ---------------------------------------------------------
+# Simulação Retroativa (Backtest Interno)
+# ---------------------------------------------------------
+
+def backtest_internal_for_cores(
+    df: pd.DataFrame,
+    cores: List[List[int]],
+    window: int = 300,
+) -> pd.DataFrame:
+    """
+    Executa simulação retroativa simples para um conjunto de núcleos:
+
+    - calcula desempenho em termos de acertos contra o histórico recente
+    - retorna DataFrame com estatísticas agregadas por núcleo
+    """
+    if df.empty or not cores:
+        return pd.DataFrame()
+
+    results = []
+    for i, core in enumerate(cores, start=1):
+        stats = evaluate_series_against_history(core, df, window=window)
+        row = {
+            "core_id": i,
+            "max_hits": stats["max_hits"],
+            "media_hits": stats["media_hits"],
+            "freq_ge3": stats["freq_ge3"],
+            "freq_ge4": stats["freq_ge4"],
+        }
+        for j, n in enumerate(sorted(set(core)), start=1):
+            row[f"p{j}"] = n
+        results.append(row)
+
+    bt_df = pd.DataFrame(results)
+    if not bt_df.empty:
+        bt_df = bt_df.sort_values(
+            ["max_hits", "media_hits", "freq_ge4", "freq_ge3"],
+            ascending=[False, False, False, False],
+        ).reset_index(drop=True)
+    return bt_df
+
+
+# ---------------------------------------------------------
+# Painel Streamlit — Monte Carlo Profundo + Backtest Interno
+# ---------------------------------------------------------
+
+if not df.empty:
+    st.subheader("🎲 Monte Carlo Profundo & Backtest Interno")
+
+    idx_res = st.session_state.get("idx_result", pd.DataFrame())
+    adjusted_core = st.session_state.get("adjusted_core", {})
+    s6_df = st.session_state.get("s6_series", pd.DataFrame())
+
+    if idx_res.empty or not adjusted_core:
+        st.info("É necessário ter IDX e Núcleo Ajustado para rodar Monte Carlo e Backtest Interno.")
+    else:
+        base_core = adjusted_core.get("after_hla") or adjusted_core.get("after_ica") or []
+        base_core = sorted(set(base_core))
+
+        if not base_core:
+            st.warning("Núcleo ajustado indisponível para Monte Carlo.")
+        else:
+            # Parâmetros simples (podem ser ajustados no futuro via sidebar se desejar)
+            n_scenarios = 200
+            max_shift = 4
+
+            mc_df = monte_carlo_core_scenarios(
+                df,
+                idx_res,
+                base_core,
+                n_scenarios=n_scenarios,
+                max_shift=max_shift,
+            )
+            st.session_state["mc_core_scenarios"] = mc_df
+
+            if mc_df.empty:
+                st.warning("Não foi possível gerar cenários Monte Carlo.")
+            else:
+                st.markdown("### Distribuição de Cenários Monte Carlo (Núcleo)")
+
+                st.dataframe(
+                    mc_df.head(30).style.format({"score_quality": "{:.3f}"}),
+                    use_container_width=True,
+                )
+
+                # Pequeno resumo estatístico dos scores
+                score_series = mc_df["score_quality"]
+                st.write("**Resumo de scores (Monte Carlo):**")
+                st.write(
+                    f"Média: {score_series.mean():.3f} | "
+                    f"Mediana: {score_series.median():.3f} | "
+                    f"Máximo: {score_series.max():.3f}"
+                )
+
+            st.markdown("---")
+            st.markdown("### 🧪 Backtest Interno — Núcleos Selecionados")
+
+            # Núcleo base + alguns melhores cenários MC + eventualmente top S6
+            candidate_cores: List[List[int]] = []
+            if base_core:
+                candidate_cores.append(list(base_core))
+
+            if "mc_core_scenarios" in st.session_state:
+                mc_top = st.session_state["mc_core_scenarios"].head(5)
+                for _, row in mc_top.iterrows():
+                    core_vals = []
+                    for col in sorted([c for c in row.index if c.startswith("p")]):
+                        v = row[col]
+                        if not (isinstance(v, float) and math.isnan(v)):
+                            core_vals.append(int(v))
+                    core_vals = sorted(set(core_vals))
+                    if core_vals and core_vals not in candidate_cores:
+                        candidate_cores.append(core_vals)
+
+            # Também testa o 1º S6 como referência estrutural
+            if s6_df is not None and not s6_df.empty:
+                first_s6 = s6_df.iloc[0]
+                s6_core = []
+                for col in sorted([c for c in s6_df.columns if c.startswith("p")]):
+                    v = first_s6[col]
+                    if not (isinstance(v, float) and math.isnan(v)):
+                        s6_core.append(int(v))
+                s6_core = sorted(set(s6_core))
+                if s6_core and s6_core not in candidate_cores:
+                    candidate_cores.append(s6_core)
+
+            bt_df = backtest_internal_for_cores(df, candidate_cores, window=300)
+            st.session_state["internal_backtest"] = bt_df
+
+            if bt_df.empty:
+                st.warning("Backtest interno não pôde ser executado com os núcleos atuais.")
+            else:
+                st.dataframe(
+                    bt_df.style.format(
+                        {
+                            "media_hits": "{:.2f}",
+                            "freq_ge3": "{:.2%}",
+                            "freq_ge4": "{:.2%}",
+                        }
+                    ),
+                    use_container_width=True,
+                )
+
+                # Breve destaque do melhor núcleo no backtest
+                best_row = bt_df.iloc[0]
+                best_core = [
+                    int(best_row[c])
+                    for c in sorted([c for c in bt_df.columns if c.startswith("p")])
+                    if not (isinstance(best_row[c], float) and math.isnan(best_row[c]))
+                ]
+                st.success(
+                    f"Melhor núcleo no backtest interno: {best_core} "
+                    f"(máx {best_row['max_hits']} acertos, média {best_row['media_hits']:.2f})"
+                )
+
+            st.divider()
+
+# =========================================================
+# FIM DO BLOCO 7 — app.py TURBO
+# =========================================================
+
 
 
 
