@@ -1,648 +1,386 @@
-import itertools
-from typing import List, Dict, Any, Tuple
+# =========================================================
+# BLOCO 1 — app.py TURBO
+# Imports, configuração e funções básicas de parsing/métricas
+# =========================================================
+
+from __future__ import annotations
+
+import math
+import random
+from dataclasses import dataclass
+from io import StringIO
+from pathlib import Path
+from typing import List, Optional, Tuple, Dict, Any
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 
 
-# ============================================
-#  UTILITÁRIOS BÁSICOS
-# ============================================
+# ---------------------------------------------------------
+# Configuração geral do app
+# ---------------------------------------------------------
 
-def parse_series_text(text: str) -> List[int]:
-    """Converte texto colado em lista de números."""
-    if not text:
-        return []
-    txt = text.replace(",", " ").replace(";", " ")
-    parts = [p.strip() for p in txt.split() if p.strip().isdigit()]
-    return [int(p) for p in parts]
+st.set_page_config(
+    page_title="Predict Cars V13.8-TURBO",
+    page_icon="🚗",
+    layout="wide",
+)
 
 
-def series_to_str(series: List[int]) -> str:
-    """Transforma lista em formato '1 2 3 4 5 6'."""
-    return " ".join(str(x) for x in series)
+# ---------------------------------------------------------
+# Modelos básicos de dados
+# ---------------------------------------------------------
+
+@dataclass
+class SeriesRecord:
+    """
+    Representa uma série individual no histórico.
+
+    Atributos
+    ---------
+    idx : Optional[str]
+        Identificador da série, por exemplo 'C2943'. Pode ser None.
+    passengers : List[int]
+        Lista de passageiros (números principais da série).
+    k_label : Optional[int]
+        Rótulo numérico adicional opcional (k).
+    """
+    idx: Optional[str]
+    passengers: List[int]
+    k_label: Optional[int] = None
 
 
-def ensure_session_state():
-    """Garante variáveis internas do app."""
-    defaults = {
-        "data": None,
-        "data_text": "",
-        "current_index": None,
-        "current_series": [],
-        "idx_info": None,
-        "nucleo_resiliente": [],
-        "series_puras": [],
-        "series_avaliadas": pd.DataFrame(),
-        "series_extras": [],
-        "s6_ensamble": pd.DataFrame(),
-    }
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
+@dataclass
+class RegimeState:
+    """
+    Descreve o estado da estrada (regime) para o trecho mais recente.
+    """
+    nome: str
+    score_resiliencia: float
+    score_turbulencia: float
+    comentario_curto: str
 
 
-# ============================================
-#  ENTRADA DE DADOS — (A) ARQUIVO
-# ============================================
+# ---------------------------------------------------------
+# Funções utilitárias gerais
+# ---------------------------------------------------------
 
-def carregar_arquivo(uploaded_file) -> pd.DataFrame:
-    """Carrega arquivo .txt ou .csv com 6 passageiros + k."""
+def _safe_int(x: str) -> Optional[int]:
+    """
+    Converte string em inteiro de forma segura.
+    Retorna None em caso de erro.
+    """
+    x = x.strip()
+    if not x:
+        return None
     try:
-        df = pd.read_csv(uploaded_file, sep=";|,|\s+", engine="python", header=None)
+        return int(x)
+    except ValueError:
+        return None
 
-        if df.shape[1] == 7:
-            df.columns = ["n1", "n2", "n3", "n4", "n5", "n6", "k"]
-            df.insert(0, "idx", range(1, len(df) + 1))
 
-        elif df.shape[1] == 8:
-            df.columns = ["idx", "n1", "n2", "n3", "n4", "n5", "n6", "k"]
+def parse_history_text(text: str, max_passengers: int = 6) -> List[SeriesRecord]:
+    """
+    Lê o histórico em formato texto e converte em uma lista de SeriesRecord.
 
+    Formatos aceitos (por linha):
+    - C2943;8;29;30;36;39;60
+    - 8;29;30;36;39;60
+    - C2943;8;29;30;36;39;60;7
+    - 8;29;30;36;39;60;7
+
+    Regras:
+    - Ignora linhas vazias.
+    - Aceita tanto ponto e vírgula ';' quanto vírgula ',' como separador.
+    - Remove espaços em excesso.
+    """
+    records: List[SeriesRecord] = []
+
+    # Normaliza quebras de linha
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        # Normaliza separadores
+        if ";" in line:
+            parts = [p.strip() for p in line.split(";")]
         else:
-            df.columns = [f"col_{i}" for i in range(df.shape[1])]
+            parts = [p.strip() for p in line.split(",")]
 
-        return df
+        if not parts:
+            continue
 
-    except Exception:
-        return pd.DataFrame()
+        idx: Optional[str] = None
+        nums: List[int] = []
+        k_label: Optional[int] = None
+
+        # Detecta se o primeiro elemento é um identificador do tipo Cxxxx
+        first = parts[0]
+        if first.upper().startswith("C") and len(parts) > 1:
+            idx = first.strip()
+            num_parts = parts[1:]
+        else:
+            num_parts = parts
+
+        # Converte tudo para int, ignorando vazios
+        temp_nums: List[int] = []
+        for p in num_parts:
+            val = _safe_int(p)
+            if val is not None:
+                temp_nums.append(val)
+
+        if not temp_nums:
+            continue
+
+        # Se houver mais que max_passengers, o último é tratado como k_label
+        if len(temp_nums) > max_passengers:
+            passengers = temp_nums[:max_passengers]
+            k_label = temp_nums[max_passengers]
+        else:
+            passengers = temp_nums
+
+        # Garante unicidade básica dos passageiros
+        passengers = list(dict.fromkeys(passengers))[:max_passengers]
+
+        if len(passengers) == 0:
+            continue
+
+        record = SeriesRecord(idx=idx, passengers=passengers, k_label=k_label)
+        records.append(record)
+
+    return records
 
 
-# ============================================
-#  ENTRADA DE DADOS — (B) TEXTO COLADO
-# ============================================
+def records_to_dataframe(records: List[SeriesRecord]) -> pd.DataFrame:
+    """
+    Converte a lista de SeriesRecord em DataFrame tabular.
 
-def carregar_texto_colado(texto: str) -> pd.DataFrame:
-    """Interpreta séries coladas manualmente no campo de texto."""
-    linhas = [l.strip() for l in texto.split("\n") if l.strip()]
-    registros = []
+    Colunas:
+    - idx: identificador textual opcional
+    - p1..pN: passageiros
+    - k: rótulo opcional
+    """
+    if not records:
+        return pd.DataFrame(columns=["idx", "k"])
 
-    for i, linha in enumerate(linhas, start=1):
-        nums = parse_series_text(linha)
-        if len(nums) >= 6:
-            passageiros = nums[:6]
-            k = nums[6] if len(nums) > 6 else 0
-            registros.append([i] + passageiros + [k])
+    max_len = max(len(r.passengers) for r in records)
+    data = []
+    for r in records:
+        row: Dict[str, Any] = {
+            "idx": r.idx,
+            "k": r.k_label,
+        }
+        for i in range(max_len):
+            col = f"p{i + 1}"
+            row[col] = r.passengers[i] if i < len(r.passengers) else np.nan
+        data.append(row)
 
-    if not registros:
-        return pd.DataFrame()
-
-    df = pd.DataFrame(registros, columns=["idx", "n1", "n2", "n3", "n4", "n5", "n6", "k"])
+    df = pd.DataFrame(data)
+    # Cria um índice numérico contínuo, mesmo que idx textual exista
+    df["row_id"] = np.arange(1, len(df) + 1)
     return df
 
 
-# ============================================
-#  EXTRAIR PASSAGEIROS
-# ============================================
+def load_history(
+    uploaded_file, pasted_text: str
+) -> Tuple[List[SeriesRecord], pd.DataFrame, str]:
+    """
+    Carrega o histórico a partir de:
+    - arquivo enviado, se existir
+    - caso contrário, texto colado
 
-def extrair_passageiros_linha(linha: pd.Series) -> List[int]:
-    """Extrai n1..n6 de uma linha."""
-    return [int(linha[f"n{i}"]) for i in range(1, 7) if f"n{i}" in linha]
+    Retorna:
+    - lista de SeriesRecord
+    - DataFrame correspondente
+    - origem ('file', 'text' ou 'empty')
+    """
+    if uploaded_file is not None:
+        raw_bytes = uploaded_file.read()
+        # Tenta detectar encoding simples
+        try:
+            text = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                text = raw_bytes.decode("latin-1")
+            except UnicodeDecodeError:
+                text = raw_bytes.decode(errors="ignore")
+        origin = "file"
+    else:
+        text = pasted_text or ""
+        origin = "text" if text.strip() else "empty"
+
+    if not text.strip():
+        return [], pd.DataFrame(columns=["idx", "k", "row_id"]), origin
+
+    records = parse_history_text(text)
+    df = records_to_dataframe(records)
+    return records, df, origin
 
 
-# ============================================
-#  SELEÇÃO DA SÉRIE ALVO
-# ============================================
+# ---------------------------------------------------------
+# Métricas básicas e leitura do estado da estrada
+# ---------------------------------------------------------
 
-def selecionar_indice_alvo(df: pd.DataFrame):
-    """Seleciona índice alvo e extrai passageiros."""
+def compute_basic_metrics(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Calcula métricas agregadas da estrada a partir do DataFrame.
+
+    Saída:
+    - n_series: quantidade de linhas
+    - n_passengers: quantidade média de passageiros por série
+    - amplitude: max(n) - min(n)
+    - dispersion: desvio padrão dos passageiros
+    - vibration: média do módulo da variação entre séries consecutivas
+    - pairs_activity: densidade de pares recorrentes
+    """
+    metrics: Dict[str, Any] = {
+        "n_series": 0,
+        "n_passengers": 0.0,
+        "amplitude": 0.0,
+        "dispersion": 0.0,
+        "vibration": 0.0,
+        "pairs_activity": 0.0,
+    }
+
     if df.empty:
-        return None, []
-
-    indices = df["idx"].tolist()
-    alvo = st.selectbox("Série alvo:", indices, index=len(indices) - 1)
-    linha = df[df["idx"] == alvo].iloc[0]
-
-    return alvo, extrair_passageiros_linha(linha)
-
-
-# ============================================
-#  BARÔMETRO — versão leve
-# ============================================
-
-def calcular_medidas_basicas(series):
-    if not series:
-        return {"media": 0, "desvio": 0, "amplitude": 0}
-
-    arr = np.array(series)
-    return {
-        "media": float(arr.mean()),
-        "desvio": float(arr.std()),
-        "amplitude": float(arr.max() - arr.min()),
-    }
-
-
-def barometro_basico(series):
-    m = calcular_medidas_basicas(series)
-    if m["desvio"] < 10 and m["amplitude"] < 20:
-        return "Resiliente"
-    if m["desvio"] < 15:
-        return "Intermediário"
-    if m["amplitude"] > 35:
-        return "Pré-Ruptura"
-    return "Turbulento"
-
-
-# ============================================
-#  IDX AVANÇADO (versão leve garantida)
-# ============================================
-
-def idx_avancado(df: pd.DataFrame, alvo: List[int]):
-    if df.empty or not alvo:
-        return {"indice_referencia": None, "trecho_referencia": None, "similaridade": 0}
-
-    alvo_set = set(alvo)
-    idx_col = "idx"
-
-    best_score = -1
-    best_idx = None
-    best_serie = None
-
-    total = len(df)
-
-    for pos, (_, row) in enumerate(df.iterrows()):
-        serie = extrair_passageiros_linha(row)
-        if not serie:
-            continue
-
-        intersec = len(alvo_set & set(serie)) / len(alvo_set)
-        recencia = (pos + 1) / total
-
-        score = 0.7 * intersec + 0.3 * recencia
-
-        if score > best_score:
-            best_score = score
-            best_idx = row[idx_col]
-            best_serie = serie
-
-    return {
-        "indice_referencia": best_idx,
-        "trecho_referencia": best_serie,
-        "similaridade": round(best_score, 3),
-        "motorista_dominante": "Cluster_1" if best_score >= 0.6 else "Cluster_2",
-    }
-
-
-# ============================================
-#  NÚCLEO RESILIENTE (IPF + IPO + ASB)
-# ============================================
-
-def ipf_basico(series: List[int]) -> List[int]:
-    return series.copy()
-
-
-def ipo_basico(series: List[int]) -> List[int]:
-    return sorted(series)
-
-
-def aplicar_anti_self_bias(series: List[int], modo="B") -> List[int]:
-    if modo == "B":
-        rot = series[1:] + series[:1]
-        return sorted(rot)
-    return series
-
-
-def construir_nucleo_resiliente(series: List[int], modo_asb="B") -> List[int]:
-    ipf = ipf_basico(series)
-    ipo = ipo_basico(ipf)
-    asb = aplicar_anti_self_bias(ipo, modo_asb)
-    uni = sorted(set(ipo + asb))
-    return uni[:6]
-
-
-# ============================================
-#  SÉRIES PURAS
-# ============================================
-
-def gerar_series_puras(nucleo: List[int]) -> List[List[int]]:
-    if not nucleo:
-        return []
-    base = nucleo
-    rot1 = base[1:] + base[:1]
-    rot2 = base[2:] + base[:2]
-    cres = sorted(base)
-
-    uniq = []
-    seen = set()
-
-    for s in [base, rot1, rot2, cres]:
-        t = tuple(s)
-        if t not in seen:
-            uniq.append(s)
-            seen.add(t)
-
-    return uniq
-
-
-# ============================================
-#  AVALIAÇÃO (ICA + HLA)
-# ============================================
-
-def score_ica(serie: List[int], nucleo: List[int]) -> float:
-    return len(set(serie) & set(nucleo)) / len(nucleo)
-
-
-def score_hla(serie: List[int]) -> float:
-    arr = np.array(serie)
-    return 1 - ((arr.max() - arr.min()) / 80)
-
-
-def avaliar_series(series: List[List[int]], nucleo: List[int]) -> pd.DataFrame:
-    registros = []
-
-    for s in series:
-        ica = score_ica(s, nucleo)
-        hla = score_hla(s)
-        conf = 0.6 * ica + 0.4 * hla
-
-        farol = (
-            "Verde" if conf >= 0.75
-            else "Amarelo" if conf >= 0.55
-            else "Vermelho"
-        )
-
-        registros.append({
-            "serie": series_to_str(s),
-            "ICA": round(ica, 3),
-            "HLA": round(hla, 3),
-            "Confiabilidade": round(conf, 3),
-            "Farol": farol,
-        })
-
-    df = pd.DataFrame(registros)
-    return df.sort_values(by="Confiabilidade", ascending=False)
-
-
-# ============================================
-#  GERADOR EXTRA
-# ============================================
-
-def gerar_series_extras(nucleo: List[int], max_series: int = 12) -> List[List[int]]:
-    extras = []
-    seen = set()
-
-    for delta in [-2, -1, 1, 2]:
-        for i in range(len(nucleo)):
-            s = nucleo.copy()
-            nv = s[i] + delta
-            if 1 <= nv <= 80:
-                s[i] = nv
-                key = tuple(sorted(s))
-                if key not in seen:
-                    seen.add(key)
-                    extras.append(sorted(s))
-                if len(extras) >= max_series:
-                    return extras
-
-    return extras
-
-
-# ============================================
-#  ENSAMBLE FINAL (S6)
-# ============================================
-
-def construir_s6_ensamble(df_av: pd.DataFrame, extras: List[List[int]], top_n: int = 5) -> pd.DataFrame:
-    registros = []
-
-    if not df_av.empty:
-        for _, row in df_av.head(top_n).iterrows():
-            registros.append({
-                "Origem": "Avaliada",
-                "Série": row["serie"],
-                "Confiabilidade": row["Confiabilidade"],
-            })
-
-    for s in extras:
-        registros.append({
-            "Origem": "Extra",
-            "Série": series_to_str(s),
-            "Confiabilidade": None,
-        })
-
-    return pd.DataFrame(registros)
-# ============================================
-#  INTERFACE STREAMLIT
-# ============================================
-
-def painel_entrada_dados():
-    st.subheader("1. Entrada de Dados")
-
-    col1, col2 = st.columns(2)
-
-    # (A) Upload de arquivo
-    with col1:
-        st.markdown("**A) Carregar arquivo (.txt / .csv)**")
-        uploaded = st.file_uploader(
-            "Selecione o arquivo histórico",
-            type=["txt", "csv"],
-            key="uploader_arquivo",
-        )
-        if uploaded is not None:
-            df = carregar_arquivo(uploaded)
-            if df.empty:
-                st.error("Falha ao interpretar o arquivo.")
-            else:
-                st.session_state["data"] = df
-                st.success("Arquivo carregado com sucesso.")
-                with st.expander("Visualizar primeiras linhas"):
-                    st.dataframe(df.head(30))
-
-    # (B) Texto colado
-    with col2:
-        st.markdown("**B) Colar séries manualmente**")
-        texto = st.text_area(
-            "Cole aqui as linhas de séries (cada linha = 6 passageiros + k opcional):",
-            value=st.session_state.get("data_text", ""),
-            height=220,
-        )
-
-        colb1, colb2 = st.columns([1, 1])
-        with colb1:
-            if st.button("Carregar do texto colado"):
-                df_txt = carregar_texto_colado(texto)
-                if df_txt.empty:
-                    st.error("Não foi possível interpretar nenhuma linha válida.")
-                else:
-                    st.session_state["data"] = df_txt
-                    st.session_state["data_text"] = texto
-                    st.success("Texto carregado como base de dados.")
-        with colb2:
-            if st.button("Limpar texto colado"):
-                st.session_state["data_text"] = ""
-                st.experimental_rerun()
-
-    df_atual = st.session_state.get("data")
-    if df_atual is not None and not df_atual.empty:
-        st.markdown("---")
-        st.markdown("**Status dos dados atuais:**")
-        st.write(f"Linhas: {len(df_atual)} | Colunas: {list(df_atual.columns)}")
-
-
-def painel_estado_atual():
-    st.subheader("2. Estado Atual da Série Alvo")
-
-    df = st.session_state.get("data")
-    if df is None or df.empty:
-        st.warning("Nenhum dado carregado. Use a aba 'Entrada de Dados'.")
-        return
-
-    idx, serie = selecionar_indice_alvo(df)
-    st.session_state["current_index"] = idx
-    st.session_state["current_series"] = serie
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"**Índice alvo:** `{idx}`")
-        st.markdown(f"**Passageiros (série alvo):** `{series_to_str(serie)}`")
-
-    with col2:
-        medidas = calcular_medidas_basicas(serie)
-        st.markdown("**Medidas básicas:**")
-        st.json(medidas)
-        st.markdown(f"**Barômetro (versão leve):** `{barometro_basico(serie)}`")
-
-
-def painel_idx():
-    st.subheader("3. IDX Avançado (versão leve)")
-
-    df = st.session_state.get("data")
-    serie = st.session_state.get("current_series")
-
-    if df is None or df.empty:
-        st.warning("Nenhum dado carregado.")
-        return
-    if not serie:
-        st.warning("Nenhuma série alvo selecionada (ver aba Estado Atual).")
-        return
-
-    if st.button("Calcular IDX para a série alvo"):
-        info = idx_avancado(df, serie)
-        st.session_state["idx_info"] = info
-        st.success("IDX calculado.")
-        st.markdown("**Trecho mais parecido (IDX):**")
-        st.json(
-            {
-                "indice_referencia": info["indice_referencia"],
-                "trecho_referencia": series_to_str(info["trecho_referencia"])
-                if info["trecho_referencia"]
-                else None,
-                "similaridade": info["similaridade"],
-                "motorista_dominante": info["motorista_dominante"],
-            }
-        )
-
-
-def painel_nucleo():
-    st.subheader("4. Núcleo Resiliente (IPF + IPO + ASB)")
-
-    serie = st.session_state.get("current_series")
-    if not serie:
-        st.warning("Nenhuma série alvo selecionada.")
-        return
-
-    modo = st.selectbox(
-        "Modo Anti-SelfBias (ASB)",
-        ["A", "B"],
-        index=1,
-        help="Modo B é mais recomendado para robustez.",
+        return metrics
+
+    passenger_cols = [c for c in df.columns if c.startswith("p")]
+    if not passenger_cols:
+        return metrics
+
+    # Matriz de passageiros
+    values = df[passenger_cols].to_numpy(dtype=float)
+    mask = ~np.isnan(values)
+
+    # Número de séries e passageiros médios
+    metrics["n_series"] = len(df)
+    metrics["n_passengers"] = float(mask.sum(axis=1).mean())
+
+    # Flatten de todos os passageiros válidos
+    all_vals = values[mask]
+    if all_vals.size > 0:
+        metrics["amplitude"] = float(all_vals.max() - all_vals.min())
+        metrics["dispersion"] = float(all_vals.std(ddof=1) if all_vals.size > 1 else 0.0)
+
+    # Vibração: variação média entre séries consecutivas (média dos mínimos deslocamentos)
+    if len(df) > 1:
+        diffs = []
+        for i in range(1, len(df)):
+            prev = set(v for v in values[i - 1] if not math.isnan(v))
+            cur = set(v for v in values[i] if not math.isnan(v))
+            if prev and cur:
+                # distância média de cada número atual ao mais próximo da série anterior
+                d_list = []
+                for v in cur:
+                    d_list.append(min(abs(v - u) for u in prev))
+                diffs.append(np.mean(d_list))
+        metrics["vibration"] = float(np.mean(diffs)) if diffs else 0.0
+
+    # Atividade de pares (pares recorrentes ao longo do histórico)
+    from collections import Counter
+
+    pair_counter: Counter[Tuple[int, int]] = Counter()
+    for row in values:
+        row_vals = [int(v) for v in row if not math.isnan(v)]
+        row_vals = sorted(set(row_vals))
+        for i in range(len(row_vals)):
+            for j in range(i + 1, len(row_vals)):
+                pair_counter[(row_vals[i], row_vals[j])] += 1
+
+    if pair_counter:
+        total_pairs = sum(pair_counter.values())
+        distinct_pairs = len(pair_counter)
+        metrics["pairs_activity"] = float(total_pairs / max(distinct_pairs, 1))
+    else:
+        metrics["pairs_activity"] = 0.0
+
+    return metrics
+
+
+def infer_regime(metrics: Dict[str, Any]) -> RegimeState:
+    """
+    Infere o regime da estrada a partir de métricas básicas.
+
+    Lógica heurística:
+    - baixa vibração + baixa dispersão -> Resiliente
+    - vibração moderada + dispersão moderada -> Intermediário
+    - vibração alta + dispersão alta -> Turbulento
+    - vibração muito alta com aumento recente -> Pré-Ruptura / Ruptura
+    """
+    vib = float(metrics.get("vibration", 0.0) or 0.0)
+    disp = float(metrics.get("dispersion", 0.0) or 0.0)
+
+    # Normalização simples para faixas de decisão
+    vib_level = "low"
+    if vib > 6.0:
+        vib_level = "high"
+    elif vib > 3.0:
+        vib_level = "mid"
+
+    disp_level = "low"
+    if disp > 20.0:
+        disp_level = "high"
+    elif disp > 10.0:
+        disp_level = "mid"
+
+    # Combinação de níveis para regime
+    if vib_level == "low" and disp_level == "low":
+        nome = "Resiliente"
+        score_res = 0.9
+        score_turb = 0.1
+        comment = "Estrada estável, núcleo tende a se manter coerente."
+    elif vib_level == "mid" and disp_level in ("low", "mid"):
+        nome = "Intermediário"
+        score_res = 0.5
+        score_turb = 0.5
+        comment = "Estrada em transição, equilíbrio entre repetição e renovação."
+    elif vib_level == "high" and disp_level == "high":
+        nome = "Turbulento"
+        score_res = 0.2
+        score_turb = 0.9
+        comment = "Estrada agitada, movimentos amplos e menos previsíveis."
+    else:
+        # Zona cinza interpretada como estado pré-ruptura / pós-ruptura leve
+        nome = "Pré-Ruptura"
+        score_res = 0.3
+        score_turb = 0.7
+        comment = "Estrada em fase sensível, núcleo exige proteção extra."
+
+    return RegimeState(
+        nome=nome,
+        score_resiliencia=score_res,
+        score_turbulencia=score_turb,
+        comentario_curto=comment,
     )
 
-    if st.button("Construir Núcleo Resiliente"):
-        nucleo = construir_nucleo_resiliente(serie, modo)
-        st.session_state["nucleo_resiliente"] = nucleo
-        st.success("Núcleo Resiliente construído.")
-        st.markdown(f"**Núcleo Resiliente:** `{series_to_str(nucleo)}`")
 
-    nucleo_atual = st.session_state.get("nucleo_resiliente", [])
-    if nucleo_atual:
-        texto = st.text_input(
-            "Ajuste manual do núcleo (opcional):",
-            value=series_to_str(nucleo_atual),
-            help="Formato: 8 29 30 34 39 60",
-        )
-        if st.button("Aplicar ajuste manual do núcleo"):
-            lista = parse_series_text(texto)
-            if len(lista) >= 5:
-                st.session_state["nucleo_resiliente"] = lista[:6]
-                st.success("Núcleo atualizado manualmente.")
-            else:
-                st.error("Informe ao menos 5 números para o núcleo.")
+# ---------------------------------------------------------
+# Inicialização de session_state (para uso nos próximos blocos)
+# ---------------------------------------------------------
 
-
-def painel_series_puras():
-    st.subheader("5. Séries Puras (6 passageiros)")
-
-    nucleo = st.session_state.get("nucleo_resiliente", [])
-    if not nucleo:
-        st.warning("Núcleo Resiliente ainda não definido.")
-        return
-
-    if st.button("Gerar Séries Puras a partir do Núcleo"):
-        sp = gerar_series_puras(nucleo)
-        st.session_state["series_puras"] = sp
-        st.success("Séries Puras geradas.")
-        st.code("\n".join(series_to_str(s) for s in sp))
+def init_session_state() -> None:
+    """
+    Garante que chaves essenciais estejam presentes em st.session_state.
+    """
+    defaults = {
+        "history_records": [],
+        "history_df": pd.DataFrame(),
+        "history_origin": "empty",
+        "basic_metrics": {},
+        "regime_state": None,
+        "turbo_output": {},
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
 
-def painel_series_avaliadas():
-    st.subheader("6. Séries Avaliadas (ICA + HLA + Confiabilidade)")
-
-    nucleo = st.session_state.get("nucleo_resiliente", [])
-    series_puras = st.session_state.get("series_puras", [])
-
-    if not nucleo:
-        st.warning("Núcleo Resiliente não definido.")
-        return
-    if not series_puras:
-        st.warning("Nenhuma Série Pura gerada.")
-        return
-
-    if st.button("Avaliar Séries Puras"):
-        df_av = avaliar_series(series_puras, nucleo)
-        st.session_state["series_avaliadas"] = df_av
-        st.success("Séries avaliadas com sucesso.")
-        st.dataframe(df_av, use_container_width=True)
-
-
-def painel_gerador_extra():
-    st.subheader("7. Gerador Extra (abrindo faixas)")
-
-    nucleo = st.session_state.get("nucleo_resiliente", [])
-    if not nucleo:
-        st.warning("Núcleo Resiliente não definido.")
-        return
-
-    max_s = st.slider("Quantidade máxima de séries extras", 3, 30, 12)
-    if st.button("Gerar Séries Extras"):
-        extras = gerar_series_extras(nucleo, max_s)
-        st.session_state["series_extras"] = extras
-        st.success("Séries Extras geradas.")
-        st.code("\n".join(series_to_str(s) for s in extras))
-
-
-def painel_s6_ensamble():
-    st.subheader("8. S6 + Ensamble (visão consolidada)")
-
-    df_av = st.session_state.get("series_avaliadas", pd.DataFrame())
-    extras = st.session_state.get("series_extras", [])
-
-    if (df_av is None or df_av.empty) and not extras:
-        st.warning("Nenhuma série avaliada ou extra disponível.")
-        return
-
-    top_n = st.slider("Top N Séries Avaliadas para o Ensamble", 1, 15, 5)
-
-    df_ens = construir_s6_ensamble(df_av if df_av is not None else pd.DataFrame(),
-                                   extras or [],
-                                   top_n)
-    st.session_state["s6_ensamble"] = df_ens
-
-    st.markdown("**Pacote consolidado (S6 + Ensamble):**")
-    st.dataframe(df_ens, use_container_width=True)
-
-    if not df_ens.empty:
-        todas = []
-        for _, row in df_ens.iterrows():
-            s = parse_series_text(row["Série"])
-            todas.append(s)
-        flat = list(itertools.chain.from_iterable(todas))
-        freq = pd.Series(flat).value_counts().reset_index()
-        freq.columns = ["passageiro", "frequencia"]
-        st.markdown("**Frequência de passageiros no pacote consolidado:**")
-        st.dataframe(freq, use_container_width=True)
-
-
-def painel_resumo():
-    st.subheader("9. Resumo Técnico do Estado Atual")
-
-    idx = st.session_state.get("current_index")
-    serie = st.session_state.get("current_series", [])
-    nucleo = st.session_state.get("nucleo_resiliente", [])
-    idx_info = st.session_state.get("idx_info", None)
-    sp = st.session_state.get("series_puras", [])
-    df_av = st.session_state.get("series_avaliadas", pd.DataFrame())
-    extras = st.session_state.get("series_extras", [])
-    ens = st.session_state.get("s6_ensamble", pd.DataFrame())
-
-    st.markdown(f"**Índice alvo:** `{idx}`")
-    st.markdown(f"**Série alvo:** `{series_to_str(serie)}`")
-    st.markdown(f"**Núcleo Resiliente:** `{series_to_str(nucleo)}`")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Qtd Séries Puras", len(sp))
-    with col2:
-        st.metric("Qtd Séries Avaliadas", 0 if df_av is None or df_av.empty else len(df_av))
-    with col3:
-        st.metric("Qtd Séries Extras", len(extras))
-
-    st.markdown("---")
-    st.markdown("**Resumo IDX (versão leve):**")
-    if idx_info is None:
-        st.info("IDX ainda não foi calculado.")
-    else:
-        st.json(
-            {
-                "indice_referencia": idx_info["indice_referencia"],
-                "trecho_referencia": series_to_str(idx_info["trecho_referencia"])
-                if idx_info["trecho_referencia"]
-                else None,
-                "similaridade": idx_info["similaridade"],
-                "motorista_dominante": idx_info["motorista_dominante"],
-            }
-        )
-
-    st.markdown("---")
-    st.markdown("**Pacote S6 + Ensamble (visão geral):**")
-    if ens is None or ens.empty:
-        st.info("Nenhum pacote consolidado ainda.")
-    else:
-        st.dataframe(ens, use_container_width=True)
-
-
-# ============================================
-#  MAIN
-# ============================================
-
-def main():
-    ensure_session_state()
-    st.set_page_config(page_title="Predict Cars V13.8", layout="wide")
-    st.title("🔥 Predict Cars V13.8 — App Ultra-Híbrido (Versão Estrutural)")
-
-    menu = st.sidebar.radio(
-        "Navegação",
-        [
-            "Entrada de Dados",
-            "Estado Atual",
-            "IDX Avançado",
-            "Núcleo Resiliente",
-            "Séries Puras",
-            "Séries Avaliadas",
-            "Gerador Extra",
-            "S6 + Ensamble",
-            "Resumo",
-        ],
-    )
-
-    if menu == "Entrada de Dados":
-        painel_entrada_dados()
-    elif menu == "Estado Atual":
-        painel_estado_atual()
-    elif menu == "IDX Avançado":
-        painel_idx()
-    elif menu == "Núcleo Resiliente":
-        painel_nucleo()
-    elif menu == "Séries Puras":
-        painel_series_puras()
-    elif menu == "Séries Avaliadas":
-        painel_series_avaliadas()
-    elif menu == "Gerador Extra":
-        painel_gerador_extra()
-    elif menu == "S6 + Ensamble":
-        painel_s6_ensamble()
-    elif menu == "Resumo":
-        painel_resumo()
-
-
-if __name__ == "__main__":
-    main()
+# =========================================================
+# FIM DO BLOCO 1 — app.py TURBO
+# (Copiar exatamente como está para o início do arquivo)
+# =========================================================
