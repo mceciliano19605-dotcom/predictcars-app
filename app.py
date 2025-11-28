@@ -1728,7 +1728,7 @@ def aplicar_macro_s1_s4(
     Aplica S1–S4 sobre o núcleo global, retornando núcleo macro-corrigido.
     """
     ng = gerar_nucleo_global(df, regime)
-    nl = gerar_nucleo_local(df, regime, janela_local=40)
+    nl = gerar_nucleo_local(df, regime, janela=40)
     if not ng:
         return []
 
