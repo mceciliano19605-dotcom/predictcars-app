@@ -3451,3 +3451,193 @@ if painel == "Diagnóstico Profundo":
 # =========================================================
 # FIM DO BLOCO 12 — Diagnóstico Profundo
 # =========================================================
+# =========================================================
+# BLOCO 13 — Exportação TXT / CSV
+# =========================================================
+
+# Este bloco adiciona um painel extra na navegação:
+# "Exportar Resultados"
+#
+# Ele permite baixar:
+# - Lista Pura (TXT)
+# - Séries Controladas com metadados (CSV)
+# - Leque TURBO completo (CSV)
+# - Logs Técnicos (TXT)
+# - Diagnóstico profundo (CSV quando aplicável)
+#
+# Todos os arquivos são produzidos dinamicamente.
+
+
+import io
+
+
+# ---------------------------------------------------------
+# Funções de Exportação
+# ---------------------------------------------------------
+
+def export_txt_list(lista_pura):
+    """Gera TXT da lista pura numerada."""
+    buffer = io.StringIO()
+    for item in lista_pura:
+        buffer.write(item + "\n")
+    return buffer.getvalue().encode("utf-8")
+
+
+def export_csv_df(df):
+    """Exporta qualquer DataFrame para CSV."""
+    return df.to_csv(index=False).encode("utf-8")
+
+
+def export_logs_txt(logs):
+    """Exporta logs técnicos em TXT estruturado."""
+    buffer = io.StringIO()
+    for registro in logs:
+        buffer.write(f"Etapa: {registro['etapa']}\n")
+        buffer.write(str(registro["dados"]) + "\n")
+        buffer.write("\n" + "-"*50 + "\n\n")
+    return buffer.getvalue().encode("utf-8")
+
+
+def export_leque_csv(leque):
+    """Exporta o Leque TURBO inteiro em múltiplas seções."""
+    buffer = io.StringIO()
+    for nome_secao, df_secao in leque.items():
+        buffer.write(f"=== {nome_secao.upper()} ===\n")
+        if isinstance(df_secao, list):  # ensamble
+            buffer.write("Ensamble: " + " ".join(str(x) for x in df_secao) + "\n\n")
+        else:
+            buffer.write(df_secao.to_csv(index=False))
+            buffer.write("\n")
+    return buffer.getvalue().encode("utf-8")
+
+
+# ---------------------------------------------------------
+# Adicionar item de navegação (após BLOCO 12)
+# ---------------------------------------------------------
+# Adicionar ao menu do BLOCO 10:
+#
+# "Diagnóstico Profundo",
+# "Exportar Resultados",      # <-- ADICIONAR AQUI
+#
+
+
+# ---------------------------------------------------------
+# PAINEL — Exportar Resultados
+# ---------------------------------------------------------
+if painel == "Exportar Resultados":
+
+    st.subheader("📤 Exportação — V13.8-TURBO")
+
+    leque = st.session_state.get("leque_turbo", {})
+    regime_state = st.session_state.get("regime_state", None)
+    logs = st.session_state.get("logs_tecnicos", [])
+    idx_df = st.session_state.get("idx_result", pd.DataFrame())
+
+    # Reconstruir flat_df
+    flat_df = build_flat_series_table(leque)
+    if flat_df.empty:
+        st.warning("Nenhum dado disponível para exportação.")
+        st.stop()
+
+    # Reconstruir séries controladas (mesmo algoritmo da Saída Final)
+    controlled_df = limit_by_mode(
+        flat_df,
+        regime_state,
+        output_mode,
+        n_series_fixed,
+        min_conf_pct
+    )
+
+    # Criar a lista pura numerada
+    lista_pura = []
+    for i, row in controlled_df.iterrows():
+        ss = " ".join(str(x) for x in row["series"])
+        lista_pura.append(f"{i+1}) {ss}")
+
+    st.markdown("### 📄 1) Lista Pura (somente séries filtradas)")
+    st.write("Séries numeradas, prontas para cópia ou exportação.")
+
+    txt_data = export_txt_list(lista_pura)
+    st.download_button(
+        label="⬇️ Baixar Lista Pura (TXT)",
+        data=txt_data,
+        file_name="lista_pura.txt",
+        mime="text/plain"
+    )
+
+    # -----------------------------------------------------
+    st.markdown("---")
+    st.markdown("### 📊 2) Séries Controladas com Metadados (CSV)")
+
+    df_ctrl = pd.DataFrame([
+        {
+            "rank": i+1,
+            "categoria": row["category"],
+            "series": " ".join(str(x) for x in row["series"]),
+            "confiabilidade": row["coherence"],
+            "acertos_esperados": int(row["expected_hits"])
+        }
+        for i, row in controlled_df.iterrows()
+    ])
+
+    st.dataframe(df_ctrl, use_container_width=True)
+
+    csv_ctrl = export_csv_df(df_ctrl)
+    st.download_button(
+        label="⬇️ Baixar Séries Filtradas (CSV)",
+        data=csv_ctrl,
+        file_name="series_controladas.csv",
+        mime="text/csv"
+    )
+
+    # -----------------------------------------------------
+    st.markdown("---")
+    st.markdown("### 🚀 3) Leque TURBO completo (CSV/TXT)")
+
+    csv_leque = export_leque_csv(leque)
+    st.download_button(
+        label="⬇️ Baixar Leque TURBO Completo",
+        data=csv_leque,
+        file_name="leque_turbo_completo.csv",
+        mime="text/csv"
+    )
+
+    # -----------------------------------------------------
+    st.markdown("---")
+    st.markdown("### 🧪 4) Logs Técnicos do Pipeline (TXT)")
+
+    if logs:
+        logs_txt = export_logs_txt(logs)
+        st.download_button(
+            label="⬇️ Baixar Logs Técnicos (TXT)",
+            data=logs_txt,
+            file_name="logs_tecnicos.txt",
+            mime="text/plain"
+        )
+    else:
+        st.info("Nenhum log técnico disponível.")
+
+    # -----------------------------------------------------
+    st.markdown("---")
+    st.markdown("### 🔍 5) Diagnóstico (quando aplicável)")
+
+    # Exporta dados básicos de diagnóstico
+    diag_df = pd.DataFrame({
+        "dispersao": df.apply(lambda row: np.std(list(row[:-1])), axis=1),
+        "amplitude": df.apply(lambda row: max(row[:-1]) - min(row[:-1]), axis=1),
+    })
+
+    diag_csv = export_csv_df(diag_df)
+    st.download_button(
+        label="⬇️ Baixar Diagnóstico Estrutural (CSV)",
+        data=diag_csv,
+        file_name="diagnostico_basico.csv",
+        mime="text/csv"
+    )
+
+    st.stop()
+
+
+# =========================================================
+# FIM DO BLOCO 13 — Exportação
+# =========================================================
