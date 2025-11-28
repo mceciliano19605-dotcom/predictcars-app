@@ -3164,4 +3164,87 @@ if painel == "Saída Final Controlada":
 # FIM DO BLOCO 10
 # =========================================================
 
+# =========================================================
+# BLOCO 11 — Painel de Logs Técnicos Internos
+# =========================================================
+
+# ---------------------------------------------------------
+# Função auxiliar para registrar logs internos de qualquer etapa
+# ---------------------------------------------------------
+
+def add_log(etapa: str, dados: Any):
+    """
+    Armazena logs técnicos do pipeline TURBO.
+    Cada log contém:
+    - etapa: nome da etapa (IDX, IPF, IPO, ICA, S6 etc.)
+    - dados: conteúdo técnico estruturado
+    """
+    if "logs_tecnicos" not in st.session_state:
+        st.session_state["logs_tecnicos"] = []
+
+    st.session_state["logs_tecnicos"].append({
+        "etapa": etapa,
+        "dados": dados
+    })
+
+
+# ---------------------------------------------------------
+# PAINEL DE NAVEGAÇÃO (adicionar item)
+# ---------------------------------------------------------
+
+# Adiciona o painel "Logs Técnicos" ao menu, APÓS BLOCO 10
+# (Somente adicionar o nome à lista de opções)
+
+# NO BLOCO 10, SUBSTITUIR:
+# 
+# painel = st.sidebar.radio(
+#     "Escolha o painel:",
+#     [
+#         ...
+#         "Saída Final Controlada",
+#     ],
+# )
+
+# POR:
+#
+# painel = st.sidebar.radio(
+#     "Escolha o painel:",
+#     [
+#         "Histórico",
+#         "Estado Atual",
+#         "IDX Avançado",
+#         "Núcleo IPF / IPO",
+#         "Ajustes (ASB / ADN / ICA / HLA)",
+#         "Dependências Ocultas",
+#         "S6 Profundo",
+#         "Monte Carlo Profundo",
+#         "Backtest Interno",
+#         "Backtest do Futuro",
+#         "Leque TURBO",
+#         "Saída Final Controlada",
+#         "Logs Técnicos",  # <-- ADICIONADO AQUI
+#     ],
+#     index=0,
+# )
+
+
+# ---------------------------------------------------------
+# PAINEL — Logs Técnicos
+# ---------------------------------------------------------
+if painel == "Logs Técnicos":
+    
+    st.subheader("🧰 Logs Técnicos — V13.8-TURBO")
+
+    logs = st.session_state.get("logs_tecnicos", [])
+
+    if not logs:
+        st.info("Nenhum log técnico registrado ainda.")
+        st.stop()
+
+    # Exibe cada log como um bloco collapsible
+    for registro in logs:
+        with st.expander(f"Etapa: {registro['etapa']}"):
+            st.write(registro["dados"])
+
+    st.stop()
 
