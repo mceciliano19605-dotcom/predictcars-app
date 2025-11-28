@@ -539,5 +539,201 @@ else:
 # =========================================================
 # FIM DO BLOCO 2 — app.py TURBO
 # =========================================================
+# =========================================================
+# BLOCO 3 — app.py TURBO
+# Implementação do IDX Avançado:
+# - similaridade estrutural
+# - similaridade de faixas
+# - similaridade de pares
+# - similaridade de ritmo
+# - ranking de trechos gêmeos
+# - painel Streamlit
+# =========================================================
+
+# ---------------------------------------------------------
+# Funções internas de similaridade para o IDX Avançado
+# ---------------------------------------------------------
+
+def similarity_structural(a: List[int], b: List[int]) -> float:
+    """
+    Similaridade estrutural: mede alinhamento bruto entre conjuntos.
+    Retorna valor entre 0 e 1.
+    """
+    if not a or not b:
+        return 0.0
+    sa, sb = set(a), set(b)
+    inter = len(sa.intersection(sb))
+    union = len(sa.union(sb))
+    return inter / union if union > 0 else 0.0
+
+
+def similarity_ranges(a: List[int], b: List[int]) -> float:
+    """
+    Similaridade por faixas (low/mid/high).
+    Agrupa passageiros em: 1-26 (low), 27-53 (mid), 54-80 (high).
+    """
+    def band(x):
+        if x <= 26: return "L"
+        if x <= 53: return "M"
+        return "H"
+
+    bands_a = [band(x) for x in a]
+    bands_b = [band(x) for x in b]
+
+    sa, sb = set(bands_a), set(bands_b)
+    inter = len(sa.intersection(sb))
+    union = len(sa.union(sb))
+    return inter / union if union > 0 else 0.0
+
+
+def similarity_pairs(a: List[int], b: List[int]) -> float:
+    """
+    Similaridade de pares (pares recorrentes).
+    Quanto mais pares coincidem, maior a similaridade.
+    """
+    if len(a) < 2 or len(b) < 2:
+        return 0.0
+
+    def make_pairs(lst):
+        lst = sorted(set(lst))
+        return {(lst[i], lst[j]) for i in range(len(lst)) for j in range(i + 1, len(lst))}
+
+    pa = make_pairs(a)
+    pb = make_pairs(b)
+
+    if not pa and not pb:
+        return 0.0
+
+    inter = len(pa.intersection(pb))
+    union = len(pa.union(pb))
+    return inter / union if union > 0 else 0.0
+
+
+def similarity_rhythm(a: List[int], b: List[int]) -> float:
+    """
+    Similaridade de ritmo:
+    compara a forma dos deslocamentos internos (diferenças ordenadas).
+    Quanto mais parecida a estrutura de variações, maior a similaridade.
+    """
+    if len(a) < 2 or len(b) < 2:
+        return 0.0
+
+    da = sorted(a)
+    db = sorted(b)
+
+    diffa = [da[i + 1] - da[i] for i in range(len(da) - 1)]
+    diffb = [db[i + 1] - db[i] for i in range(len(db) - 1)]
+
+    # Ajuste para tamanhos diferentes
+    m = min(len(diffa), len(diffb))
+    if m == 0:
+        return 0.0
+
+    da2 = np.array(diffa[:m], dtype=float)
+    db2 = np.array(diffb[:m], dtype=float)
+
+    # Similaridade inversa da distância normalizada
+    dist = np.linalg.norm(da2 - db2)
+    maxdist = np.linalg.norm(np.maximum(da2, db2))
+
+    if maxdist == 0:
+        return 1.0
+    score = 1.0 - (dist / maxdist)
+    return float(max(0.0, min(1.0, score)))
+
+
+# ---------------------------------------------------------
+# IDX Avançado completo (unifica todas as similaridades)
+# ---------------------------------------------------------
+
+def run_IDX_advanced(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Executa o IDX Avançado:
+
+    - extrai a última série
+    - compara com todas as anteriores
+    - computa 4 similaridades:
+        estrutural
+        faixas
+        pares
+        ritmo
+    - unifica tudo em um ranking final
+    """
+
+    if df.empty:
+        return pd.DataFrame()
+
+    passenger_cols = [c for c in df.columns if c.startswith("p")]
+    values = df[passenger_cols].to_numpy(dtype=float)
+
+    # Última série
+    last = [int(v) for v in values[-1] if not math.isnan(v)]
+
+    rows = []
+    for i in range(len(df) - 1):  # compara com todas menos a última
+        cur = [int(v) for v in values[i] if not math.isnan(v)]
+
+        s_struct = similarity_structural(last, cur)
+        s_range = similarity_ranges(last, cur)
+        s_pairs = similarity_pairs(last, cur)
+        s_rhythm = similarity_rhythm(last, cur)
+
+        # Combinação oficial do IDX Avançado
+        score = (
+            0.40 * s_struct +
+            0.20 * s_range +
+            0.20 * s_pairs +
+            0.20 * s_rhythm
+        )
+
+        rows.append({
+            "row_id": df.iloc[i]["row_id"],
+            "idx": df.iloc[i]["idx"],
+            "structural": s_struct,
+            "ranges": s_range,
+            "pairs": s_pairs,
+            "rhythm": s_rhythm,
+            "score": score,
+        })
+
+    out = pd.DataFrame(rows)
+    if not out.empty:
+        out = out.sort_values("score", ascending=False).reset_index(drop=True)
+    return out
+
+
+# ---------------------------------------------------------
+# Painel Streamlit do IDX Avançado
+# ---------------------------------------------------------
+
+if not df.empty:
+    st.subheader("🔍 IDX Avançado — Trechos Gêmeos")
+
+    idx_df = run_IDX_advanced(df)
+
+    st.session_state["idx_result"] = idx_df
+
+    if idx_df.empty:
+        st.warning("Não foi possível calcular o IDX.")
+    else:
+        st.dataframe(idx_df.style.format({
+            "structural": "{:.3f}",
+            "ranges": "{:.3f}",
+            "pairs": "{:.3f}",
+            "rhythm": "{:.3f}",
+            "score": "{:.3f}",
+        }), use_container_width=True)
+
+        # Destaque do Top 3
+        st.markdown("### 🏆 Top 3 Trechos Mais Semelhantes")
+        top3 = idx_df.head(3)
+        st.table(top3[["row_id", "idx", "score"]])
+
+    st.divider()
+
+# =========================================================
+# FIM DO BLOCO 3 — app.py TURBO
+# =========================================================
+
 
 
