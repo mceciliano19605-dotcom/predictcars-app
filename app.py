@@ -2008,17 +2008,38 @@ if painel == "S1–S5 + Ajuste Fino":
         n_series_fixed,
         min_conf_pct,
     )
-
     # Leque CORRIGIDO
     leque_corrigido = gerar_leque_corrigido(df, regime_state)
     flat_corrigido = build_flat_series_table(leque_corrigido).copy()
 
-    # normalizar séries ANTES de exibir (evita listas de 12 números)
-    flat_corrigido["series"] = flat_corrigido["series"].apply(
-        lambda s: " ".join(str(int(x)) for x in s)
-        if isinstance(s, (list, tuple))
-        else str(s)
-    )
+    # normalizar séries ANTES de exibir (evita listas ruins)
+    def normalizar_serie(s):
+        # Caso 1: lista/tupla → normalizar
+        if isinstance(s, (list, tuple)):
+            return " ".join(str(int(x)) for x in s)
+
+        # Caso 2: já é string normal (ex: "12 22 30 35 40 54")
+        if isinstance(s, str):
+            # Se for string com números separados por espaço, já está ok
+            if all(ch.isdigit() or ch.isspace() for ch in s):
+                return s.strip()
+            # Se for string representando lista → converter
+            try:
+                lst = eval(s)
+                if isinstance(lst, (list, tuple)):
+                    return " ".join(str(int(x)) for x in lst)
+            except Exception:
+                pass
+            # fallback
+            return s
+
+        # Caso 3: número isolado → transformar em string
+        try:
+            return str(int(s))
+        except:
+            return str(s)
+
+    flat_corrigido["series"] = flat_corrigido["series"].apply(normalizar_serie)
 
     flat_corrigido = limit_by_mode(
         flat_corrigido,
@@ -2030,12 +2051,14 @@ if painel == "S1–S5 + Ajuste Fino":
 
 
 
+
+
     def montar_tabela(flat_df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame([
             {
                 "Rank": i + 1,
                 "Categoria": row["category"],
-                "Série": " ".join(str(x) for x in row["series"]),
+                "Série": row["series"],
                 "Confiabilidade (%)": int(round(row["coherence"] * 100)),
                 "Acertos Esperados": int(row["expected_hits"]),
             }
