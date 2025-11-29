@@ -1280,6 +1280,23 @@ if painel == "Saída Final Controlada":
 
     except Exception as e:
         st.error(f"Erro ao gerar listas auxiliares: {e}")
+    # Lista Pura Final TURBO
+    try:
+        st.markdown("### 📋 Lista Pura Final (Numerada)")
+
+        lista_final = []
+        for i, (_, row) in enumerate(controlled_df.iterrows()):
+            ss = " ".join(str(x) for x in row["series"])
+            lista_final.append(f"{i + 1}) {ss}")
+
+        st.text_area(
+            "Lista Pura Final",
+            value="\n".join(lista_final),
+            height=220,
+        )
+
+    except Exception as e:
+        st.error(f"Erro ao gerar Lista Pura Final: {e}")
 
     # Monta tabela para exibição
     st.markdown("### 📦 Leque Final — TURBO")
