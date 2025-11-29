@@ -39,6 +39,12 @@ class RegimeState:
     vibracao: float
     pares: List[Tuple[int, int]]
 
+def formatar_serie_para_texto(s):
+    if isinstance(s, str):
+        return s.strip()
+    if isinstance(s, (list, tuple)):
+        return " ".join(str(int(x)) for x in s)
+    return str(s)
 
 # =========================================================
 # FUNÇÕES BÁSICAS — PARSING DO HISTÓRICO
