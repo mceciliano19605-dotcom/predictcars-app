@@ -1212,6 +1212,23 @@ if painel == "Saída Final Controlada":
             }
             for i, (_, row) in enumerate(df_in.iterrows())
         ])
+    # Núcleo Resiliente Final (NRF)
+    try:
+        nucleo_resiliente = None
+
+        # pega a melhor série do controlled_df (rank 1)
+        if not controlled_df.empty:
+            melhor = controlled_df.iloc[0]
+            nucleo_resiliente = melhor["series"]
+
+        st.markdown("### ⭐ Núcleo Resiliente Final (NRF)")
+        if nucleo_resiliente:
+            st.code(" ".join(str(x) for x in nucleo_resiliente), language="text")
+        else:
+            st.write("Núcleo não disponível.")
+
+    except Exception as e:
+        st.error(f"Erro ao gerar Núcleo Resiliente Final: {e}")
 
 
     # Monta tabela para exibição
