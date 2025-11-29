@@ -2090,17 +2090,17 @@ if painel == "S1–S5 + Ajuste Fino":
         with c2:
             st.markdown("#### 🎯 Leque Corrigido (S1–S5 + AFG)")
             st.dataframe(montar_tabela(flat_corrigido), use_container_width=True)
-
     # Listas puras (para copiar)
     st.markdown("---")
     st.markdown("### 📋 Listas Puras — Original vs Corrigido")
 
     lista_orig = [
-        f"{i+1}) " + " ".join(str(x) for x in row["series"])
+        f"{i+1}) " + formatar_serie_para_texto(row["series"])
         for i, (_, row) in enumerate(flat_original.iterrows())
     ]
+
     lista_corr = [
-        f"{i+1}) " + " ".join(str(x) for x in row["series"])
+        f"{i+1}) " + formatar_serie_para_texto(row["series"])
         for i, (_, row) in enumerate(flat_corrigido.iterrows())
     ]
 
@@ -2110,14 +2110,17 @@ if painel == "S1–S5 + Ajuste Fino":
         st.text_area(
             "Lista Pura Original",
             value="\n".join(lista_orig),
-            height=200,
+            height=300,
         )
+
     with col_c:
         st.markdown("#### Corrigido (S1–S5)")
         st.text_area(
             "Lista Pura Corrigida",
             value="\n".join(lista_corr),
-            height=200,
+            height=300,
         )
+
+      
 
     st.stop()
