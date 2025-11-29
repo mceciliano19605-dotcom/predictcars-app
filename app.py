@@ -2109,7 +2109,7 @@ if painel == "Saída Final Controlada":
     # Monta tabela para exibição
     st.markdown("### 📦 Leque Final — TURBO")
     st.dataframe(
-        montar_tabela_final(flat_df),
+        montar_tabela_final(controlled_df),
         use_container_width=True
     )
 # ---------------------------------------------------------
