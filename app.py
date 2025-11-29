@@ -1962,7 +1962,7 @@ if painel == "Saída Final Controlada":
 
     # Aplica modo de saída
     controlled_df = limit_by_mode(
-        flat_df,
+        flat_corr,
         regime_state,
         output_mode,
         n_series_fixed,
