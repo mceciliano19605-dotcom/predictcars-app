@@ -40,11 +40,34 @@ class RegimeState:
     pares: List[Tuple[int, int]]
 
 def formatar_serie_para_texto(s):
+    # Caso 1 — já é string
     if isinstance(s, str):
-        return s.strip()
+        # Tenta dividir em números se for algo como "8 15 23"
+        partes = [p.strip() for p in s.replace(",", " ").split() if p.strip()]
+        numeros = []
+        for p in partes:
+            try:
+                numeros.append(str(int(p)))
+            except:
+                continue
+        return " ".join(numeros)
+
+    # Caso 2 — lista ou tupla
     if isinstance(s, (list, tuple)):
-        return " ".join(str(int(x)) for x in s)
-    return str(s)
+        numeros = []
+        for x in s:
+            try:
+                numeros.append(str(int(x)))
+            except:
+                continue
+        return " ".join(numeros)
+
+    # Caso 3 — qualquer outra coisa
+    try:
+        return str(int(s))
+    except:
+        return ""
+
 
 # =========================================================
 # FUNÇÕES BÁSICAS — PARSING DO HISTÓRICO
@@ -2019,10 +2042,6 @@ if painel == "S1–S5 + Ajuste Fino":
     flat_corrigido = build_flat_series_table(leque_corrigido).copy()
 
     # normalizar séries ANTES de exibir (evita listas ruins)
-    def normalizar_serie(s):
-        # Caso 1: lista/tupla → normalizar
-        if isinstance(s, (list, tuple)):
-            return " ".join(str(int(x)) for x in s)
 
         # Caso 2: já é string normal (ex: "12 22 30 35 40 54")
         if isinstance(s, str):
