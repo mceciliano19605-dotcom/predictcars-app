@@ -2070,10 +2070,9 @@ if painel == "Saída Final Controlada":
     # Monta tabela para exibição
     st.markdown("### 📦 Leque Final — TURBO")
     st.dataframe(
-        montar_tabela_final(controlled_df),
+        montar_tabela_final(flat_df),
         use_container_width=True
     )
-
 # ---------------------------------------------------------
 # BOTÃO — EXPORTAR PREVISÃO TURBO
 # ---------------------------------------------------------
@@ -2095,10 +2094,8 @@ if not controlled_df.empty:
 
     except Exception as e:
         st.error(f"Erro ao exportar arquivo TURBO: {e}")
-
-    
+   
 st.stop()
-
 
 # ---------------------------------------------------------
 # 6) Painel S1–S5 + Ajuste Fino — Comparação Original vs Corrigido
