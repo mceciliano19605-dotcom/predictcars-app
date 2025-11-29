@@ -1174,6 +1174,17 @@ if painel == "Saída Final Controlada":
     # Gera/Regera o leque base
     leque = gerar_series_base(df, regime_state)
     st.session_state["leque_turbo"] = leque
+    # Leque corrigido S1–S5
+    leque_corrigido = gerar_leque_corrigido(df, regime_state)
+    flat_corr = build_flat_series_table(leque_corrigido).copy()
+
+    flat_corr = limit_by_mode(
+        flat_corr,
+        regime_state,
+        output_mode,
+        n_series_fixed,
+        min_conf_pct,
+    )
 
     flat_df = build_flat_series_table(leque)
     if flat_df.empty:
