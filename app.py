@@ -1160,152 +1160,6 @@ def limit_by_mode(
     return df_sorted
 
 
-# =========================================================
-# PAINEL — SAÍDA FINAL CONTROLADA
-# =========================================================
-
-if painel == "Saída Final Controlada":
-    st.markdown("## 🎯 Saída Final Controlada — Leque TURBO")
-
-    if df.empty:
-        st.warning("Carregue um histórico para gerar o leque.")
-        st.stop()
-
-    # Gera/Regera o leque base
-    leque = gerar_series_base(df, regime_state)
-    st.session_state["leque_turbo"] = leque
-    # Leque corrigido S1–S5
-    leque_corrigido = gerar_leque_corrigido(df, regime_state)
-    flat_corr = build_flat_series_table(leque_corrigido).copy()
-
-    flat_corr = limit_by_mode(
-        flat_corr,
-        regime_state,
-        output_mode,
-        n_series_fixed,
-        min_conf_pct,
-    )
-
-    flat_df = build_flat_series_table(leque)
-    if flat_df.empty:
-        st.warning("Não foi possível gerar séries a partir do histórico atual.")
-        st.stop()
-
-    # Aplica modo de saída
-    controlled_df = limit_by_mode(
-        flat_df,
-        regime_state,
-        output_mode,
-        n_series_fixed,
-        min_conf_pct,
-    )
-
-    # Monta tabela final
-    def montar_tabela_final(df_in: pd.DataFrame) -> pd.DataFrame:
-        return pd.DataFrame([
-            {
-                "Rank": i + 1,
-                "Categoria": row["category"],
-                "Série": row["series"],
-                "Confiabilidade (%)": int(round(row["coherence"] * 100)),
-                "Acertos Esperados": int(row["expected_hits"]),
-            }
-            for i, (_, row) in enumerate(df_in.iterrows())
-        ])
-    # Núcleo Resiliente Final (NRF)
-    try:
-        nucleo_resiliente = None
-
-        # pega a melhor série do controlled_df (rank 1)
-        if not controlled_df.empty:
-            melhor = controlled_df.iloc[0]
-            nucleo_resiliente = melhor["series"]
-
-        st.markdown("### ⭐ Núcleo Resiliente Final (NRF)")
-        if nucleo_resiliente:
-            st.code(" ".join(str(x) for x in nucleo_resiliente), language="text")
-        else:
-            st.write("Núcleo não disponível.")
-
-    except Exception as e:
-        st.error(f"Erro ao gerar Núcleo Resiliente Final: {e}")
-    # Previsão Final TURBO
-    try:
-        previsao_final = None
-        if not controlled_df.empty:
-            melhor = controlled_df.iloc[0]
-            previsao_final = melhor["series"]
-
-        st.markdown("### 🎯 Previsão Final TURBO")
-        if previsao_final:
-            st.code(" ".join(str(x) for x in previsao_final), language="text")
-        else:
-            st.write("Previsão não disponível.")
-
-    except Exception as e:
-        st.error(f"Erro ao gerar Previsão Final TURBO: {e}")
-
-    # Listas Auxiliares TURBO
-    try:
-        st.markdown("### 🧩 Listas Auxiliares (Premium / Estruturais / Cobertura)")
-
-        lista_premium = []
-        lista_estruturais = []
-        lista_cobertura = []
-
-        for _, row in controlled_df.iterrows():
-            cat = row["category"]
-            ss = " ".join(str(x) for x in row["series"])
-
-            if cat.startswith("Premium"):
-                lista_premium.append(ss)
-            elif cat.startswith("Estrutural"):
-                lista_estruturais.append(ss)
-            elif cat.startswith("Cobertura"):
-                lista_cobertura.append(ss)
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.markdown("#### ⭐ Premium")
-            st.text_area("Premium", value="\n".join(lista_premium), height=200)
-
-        with col2:
-            st.markdown("#### 🧱 Estruturais")
-            st.text_area("Estruturais", value="\n".join(lista_estruturais), height=200)
-
-        with col3:
-            st.markdown("#### 🌐 Cobertura")
-            st.text_area("Cobertura", value="\n".join(lista_cobertura), height=200)
-
-    except Exception as e:
-        st.error(f"Erro ao gerar listas auxiliares: {e}")
-    # Lista Pura Final TURBO
-    try:
-        st.markdown("### 📋 Lista Pura Final (Numerada)")
-
-        lista_final = []
-        for i, (_, row) in enumerate(controlled_df.iterrows()):
-            ss = " ".join(str(x) for x in row["series"])
-            lista_final.append(f"{i + 1}) {ss}")
-
-        st.text_area(
-            "Lista Pura Final",
-            value="\n".join(lista_final),
-            height=220,
-        )
-
-    except Exception as e:
-        st.error(f"Erro ao gerar Lista Pura Final: {e}")
-
-    # Monta tabela para exibição
-    st.markdown("### 📦 Leque Final — TURBO")
-    st.dataframe(
-        montar_tabela_final(controlled_df),
-        use_container_width=True
-    )
-    st.stop()
-
 
 # =========================================================
 # LOGS TÉCNICOS — REGISTRO E PAINEL
@@ -2075,6 +1929,151 @@ def gerar_leque_corrigido(
             leque_out.setdefault("s6", []).append(serie)
 
     return leque_out
+# =========================================================
+# PAINEL — SAÍDA FINAL CONTROLADA
+# =========================================================
+
+if painel == "Saída Final Controlada":
+    st.markdown("## 🎯 Saída Final Controlada — Leque TURBO")
+
+    if df.empty:
+        st.warning("Carregue um histórico para gerar o leque.")
+        st.stop()
+
+    # Gera/Regera o leque base
+    leque = gerar_series_base(df, regime_state)
+    st.session_state["leque_turbo"] = leque
+    # Leque corrigido S1–S5
+    leque_corrigido = gerar_leque_corrigido(df, regime_state)
+    flat_corr = build_flat_series_table(leque_corrigido).copy()
+
+    flat_corr = limit_by_mode(
+        flat_corr,
+        regime_state,
+        output_mode,
+        n_series_fixed,
+        min_conf_pct,
+    )
+
+    flat_df = build_flat_series_table(leque)
+    if flat_df.empty:
+        st.warning("Não foi possível gerar séries a partir do histórico atual.")
+        st.stop()
+
+    # Aplica modo de saída
+    controlled_df = limit_by_mode(
+        flat_df,
+        regime_state,
+        output_mode,
+        n_series_fixed,
+        min_conf_pct,
+    )
+
+    # Monta tabela final
+    def montar_tabela_final(df_in: pd.DataFrame) -> pd.DataFrame:
+        return pd.DataFrame([
+            {
+                "Rank": i + 1,
+                "Categoria": row["category"],
+                "Série": row["series"],
+                "Confiabilidade (%)": int(round(row["coherence"] * 100)),
+                "Acertos Esperados": int(row["expected_hits"]),
+            }
+            for i, (_, row) in enumerate(df_in.iterrows())
+        ])
+    # Núcleo Resiliente Final (NRF)
+    try:
+        nucleo_resiliente = None
+
+        # pega a melhor série do controlled_df (rank 1)
+        if not controlled_df.empty:
+            melhor = controlled_df.iloc[0]
+            nucleo_resiliente = melhor["series"]
+
+        st.markdown("### ⭐ Núcleo Resiliente Final (NRF)")
+        if nucleo_resiliente:
+            st.code(" ".join(str(x) for x in nucleo_resiliente), language="text")
+        else:
+            st.write("Núcleo não disponível.")
+
+    except Exception as e:
+        st.error(f"Erro ao gerar Núcleo Resiliente Final: {e}")
+    # Previsão Final TURBO
+    try:
+        previsao_final = None
+        if not controlled_df.empty:
+            melhor = controlled_df.iloc[0]
+            previsao_final = melhor["series"]
+
+        st.markdown("### 🎯 Previsão Final TURBO")
+        if previsao_final:
+            st.code(" ".join(str(x) for x in previsao_final), language="text")
+        else:
+            st.write("Previsão não disponível.")
+
+    except Exception as e:
+        st.error(f"Erro ao gerar Previsão Final TURBO: {e}")
+
+    # Listas Auxiliares TURBO
+    try:
+        st.markdown("### 🧩 Listas Auxiliares (Premium / Estruturais / Cobertura)")
+
+        lista_premium = []
+        lista_estruturais = []
+        lista_cobertura = []
+
+        for _, row in controlled_df.iterrows():
+            cat = row["category"]
+            ss = " ".join(str(x) for x in row["series"])
+
+            if cat.startswith("Premium"):
+                lista_premium.append(ss)
+            elif cat.startswith("Estrutural"):
+                lista_estruturais.append(ss)
+            elif cat.startswith("Cobertura"):
+                lista_cobertura.append(ss)
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.markdown("#### ⭐ Premium")
+            st.text_area("Premium", value="\n".join(lista_premium), height=200)
+
+        with col2:
+            st.markdown("#### 🧱 Estruturais")
+            st.text_area("Estruturais", value="\n".join(lista_estruturais), height=200)
+
+        with col3:
+            st.markdown("#### 🌐 Cobertura")
+            st.text_area("Cobertura", value="\n".join(lista_cobertura), height=200)
+
+    except Exception as e:
+        st.error(f"Erro ao gerar listas auxiliares: {e}")
+    # Lista Pura Final TURBO
+    try:
+        st.markdown("### 📋 Lista Pura Final (Numerada)")
+
+        lista_final = []
+        for i, (_, row) in enumerate(controlled_df.iterrows()):
+            ss = " ".join(str(x) for x in row["series"])
+            lista_final.append(f"{i + 1}) {ss}")
+
+        st.text_area(
+            "Lista Pura Final",
+            value="\n".join(lista_final),
+            height=220,
+        )
+
+    except Exception as e:
+        st.error(f"Erro ao gerar Lista Pura Final: {e}")
+
+    # Monta tabela para exibição
+    st.markdown("### 📦 Leque Final — TURBO")
+    st.dataframe(
+        montar_tabela_final(controlled_df),
+        use_container_width=True
+    )
+    st.stop()
 
 
 # ---------------------------------------------------------
