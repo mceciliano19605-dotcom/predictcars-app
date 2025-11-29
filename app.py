@@ -2039,7 +2039,7 @@ if painel == "S1–S5 + Ajuste Fino":
         except:
             return str(s)
 
-    flat_corrigido["series"] = flat_corrigido["series"].apply(normalizar_serie)
+
 
     flat_corrigido = limit_by_mode(
         flat_corrigido,
