@@ -1955,7 +1955,7 @@ if painel == "Saída Final Controlada":
         min_conf_pct,
     )
 
-    flat_df = build_flat_series_table(leque)
+    flat_df = flat_corr.copy()
     if flat_df.empty:
         st.warning("Não foi possível gerar séries a partir do histórico atual.")
         st.stop()
