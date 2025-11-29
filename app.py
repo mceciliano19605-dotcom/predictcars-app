@@ -2113,7 +2113,7 @@ if painel == "Saída Final Controlada":
         use_container_width=True
     )
 # ---------------------------------------------------------
-# BOTÃO — EXPORTAR PREVISÃO TURBO
+# BOTÃO — EXPORTAR PREVISÃO TURBO++
 # ---------------------------------------------------------
 
 if not controlled_df.empty:
@@ -2123,18 +2123,19 @@ if not controlled_df.empty:
             for _, row in controlled_df.iterrows()
         )
 
-        st.markdown("### 📤 Exportar Previsão TURBO")
+        st.markdown("### 📤 Exportar Previsão TURBO++")
         st.download_button(
-            label="📥 Baixar arquivo .txt com as séries",
+            label="📥 Baixar arquivo .txt com as séries (TURBO++)",
             data=texto_exportar,
-            file_name="previsao_turbo.txt",
+            file_name="previsao_turbo_plus.txt",
             mime="text/plain",
         )
 
     except Exception as e:
-        st.error(f"Erro ao exportar arquivo TURBO: {e}")
-   
+        st.error(f"Erro ao exportar arquivo TURBO++: {e}")
+
 st.stop()
+
 
 # ---------------------------------------------------------
 # 6) Painel S1–S5 + Ajuste Fino — Comparação Original vs Corrigido
