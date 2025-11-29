@@ -2073,7 +2073,31 @@ if painel == "Saída Final Controlada":
         montar_tabela_final(controlled_df),
         use_container_width=True
     )
-    st.stop()
+
+# ---------------------------------------------------------
+# BOTÃO — EXPORTAR PREVISÃO TURBO
+# ---------------------------------------------------------
+
+if not controlled_df.empty:
+    try:
+        texto_exportar = "\n".join(
+            " ".join(str(x) for x in row["series"])
+            for _, row in controlled_df.iterrows()
+        )
+
+        st.markdown("### 📤 Exportar Previsão TURBO")
+        st.download_button(
+            label="📥 Baixar arquivo .txt com as séries",
+            data=texto_exportar,
+            file_name="previsao_turbo.txt",
+            mime="text/plain",
+        )
+
+    except Exception as e:
+        st.error(f"Erro ao exportar arquivo TURBO: {e}")
+
+    
+st.stop()
 
 
 # ---------------------------------------------------------
