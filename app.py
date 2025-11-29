@@ -1951,10 +1951,32 @@ def gerar_leque_corrigido(
         "cobertura": [],
         "s6": [],
     }
+    # Função auxiliar para garantir séries com exatamente 6 números
+    def _converter_serie(s):
+        # caso 1 — se vier como string: "12 22 30 35 40 54"
+        if isinstance(s, str):
+            try:
+                nums = [int(x) for x in s.split() if x.isdigit()]
+                if len(nums) >= 6:
+                    return sorted(nums[:6])
+            except:
+                pass
+
+        # caso 2 — se vier como lista/tupla
+        if isinstance(s, (list, tuple)):
+            try:
+                nums = [int(x) for x in s]
+                if len(nums) >= 6:
+                    return sorted(nums[:6])
+            except:
+                pass
+
+        # fallback — inválido
+        return []
 
     for _, row in flat_corrigido.iterrows():
         cat = row["category"]
-        serie = row["series"]
+        serie = _converter_serie(row["series"])
         if cat.startswith("NÚCLEO"):
             leque_out["nucleo"] = serie
         elif cat.startswith("Premium"):
