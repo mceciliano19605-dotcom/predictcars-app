@@ -1776,30 +1776,42 @@ def identificar_faixas_criticas(serie: List[int]) -> List[Tuple[int, int]]:
 def aplicar_s5_permuta_fina(serie: List[int]) -> List[List[int]]:
     """
     S5 — Permutações finas em faixas críticas:
-    - gera no máximo 1–2 variações por série forte.
+    - troca apenas dois elementos em faixas críticas
+    - mantém sempre 6 passageiros
+    - NÃO usa set(), NÃO redefine, NÃO corta lista
     """
     base = sorted(serie)
     criticos = identificar_faixas_criticas(base)
+
     if not criticos:
         return []
 
     variacoes = []
-    # limite de 2 variações
-    for par in criticos[:2]:
-        s = base.copy()
-        # troca a posição dos dois membros do par (se existirem na série)
-        if par[0] in s and par[1] in s:
-            i = s.index(par[0])
-            j = s.index(par[1])
-            s[i], s[j] = s[j], s[i]
-            variacoes.append(sorted(set(s))[:6])
 
-    # remove duplicadas
+    # limite de no máximo 2 variações
+    for par in criticos[:2]:
+        a, b = par
+
+        # só cria permutação se ambos estão na série
+        if a in base and b in base:
+            s = base.copy()
+            i = s.index(a)
+            j = s.index(b)
+
+            # troca simples (permuta controlada)
+            s[i], s[j] = s[j], s[i]
+
+            # garantir que continua com 6 números ordenados
+            variacoes.append(sorted(s))
+
+    # remover duplicações
     limpas = []
     for v in variacoes:
         if v not in limpas:
             limpas.append(v)
+
     return limpas
+
 
 
 def aplicar_ajuste_fino_global(
