@@ -1229,6 +1229,21 @@ if painel == "Saída Final Controlada":
 
     except Exception as e:
         st.error(f"Erro ao gerar Núcleo Resiliente Final: {e}")
+    # Previsão Final TURBO
+    try:
+        previsao_final = None
+        if not controlled_df.empty:
+            melhor = controlled_df.iloc[0]
+            previsao_final = melhor["series"]
+
+        st.markdown("### 🎯 Previsão Final TURBO")
+        if previsao_final:
+            st.code(" ".join(str(x) for x in previsao_final), language="text")
+        else:
+            st.write("Previsão não disponível.")
+
+    except Exception as e:
+        st.error(f"Erro ao gerar Previsão Final TURBO: {e}")
 
 
     # Monta tabela para exibição
