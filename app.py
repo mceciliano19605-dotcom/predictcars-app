@@ -2310,3 +2310,44 @@ if painel == "Saída Turbo V13.8":
         st.stop()
 
     st.info("Painel Turbo instalado. Falta ativar o motor interno (Passo 4).")
+
+# ---------------------------------------------------------
+# Função auxiliar — Normalizar Série
+# ---------------------------------------------------------
+
+import pandas as pd
+from collections.abc import Iterable
+
+def normalizar_serie(serie):
+    if serie is None or (isinstance(serie, float) and pd.isna(serie)):
+        return ""
+
+    nums = []
+
+    if isinstance(serie, str):
+        cleaned = (serie.replace("["," ").replace("]"," ")
+                         .replace("(" , " ").replace(")" , " ")
+                         .replace(",", " ").replace(";", " "))
+        for t in cleaned.split():
+            try: nums.append(int(t))
+            except: pass
+
+    elif isinstance(serie, (list, tuple, set)):
+        try: nums = [int(x) for x in serie]
+        except: return str(serie)
+
+    else:
+        try:
+            if isinstance(serie, Iterable):
+                nums = [int(x) for x in serie]
+            else:
+                return str(serie)
+        except:
+            return str(serie)
+
+    if not nums:
+        return str(serie)
+
+    nums = sorted(dict.fromkeys(nums))
+    return " ".join(str(n) for n in nums)
+
