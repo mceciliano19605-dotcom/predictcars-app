@@ -1200,6 +1200,20 @@ if painel == "Saída Final Controlada":
         min_conf_pct,
     )
 
+    # Monta tabela final
+    def montar_tabela_final(df_in: pd.DataFrame) -> pd.DataFrame:
+        return pd.DataFrame([
+            {
+                "Rank": i + 1,
+                "Categoria": row["category"],
+                "Série": row["series"],
+                "Confiabilidade (%)": int(round(row["coherence"] * 100)),
+                "Acertos Esperados": int(row["expected_hits"]),
+            }
+            for i, (_, row) in enumerate(df_in.iterrows())
+        ])
+
+
     # Monta tabela para exibição
     tabela = pd.DataFrame([
         {
