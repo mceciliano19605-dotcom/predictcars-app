@@ -2137,3 +2137,15 @@ if painel == "S1–S5 + Ajuste Fino":
       
 
     st.stop()
+# ---------------------------------------------------------
+# 7) Painel TURBO — Saída Final V13.8
+# ---------------------------------------------------------
+
+if painel == "Saída Turbo V13.8":
+    st.markdown("## 🚀 Predict Cars V13.8 — Saída Turbo Final")
+
+    if df.empty or regime_state is None:
+        st.warning("Carregue o histórico para ativar a Saída Turbo.")
+        st.stop()
+
+    st.info("Painel Turbo instalado. Falta ativar o motor interno (Passo 4).")
