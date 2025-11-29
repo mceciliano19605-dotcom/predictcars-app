@@ -1929,6 +1929,43 @@ def gerar_leque_corrigido(
             leque_out.setdefault("s6", []).append(serie)
 
     return leque_out
+# ---------------------------------------------------------
+# FUNÇÃO — UNIR LEQUES ORIGINAL + CORRIGIDO (TURBO++)
+# ---------------------------------------------------------
+
+def unir_leques(flat_original: pd.DataFrame, flat_corr: pd.DataFrame) -> pd.DataFrame:
+    """
+    Junta os dois leques:
+    - mantém categoria original
+    - remove duplicatas
+    - reordena por coherence (maior primeiro)
+    """
+    if flat_original is None or flat_original.empty:
+        return flat_corr.copy()
+
+    if flat_corr is None or flat_corr.empty:
+        return flat_original.copy()
+
+    df_mix = pd.concat([flat_original, flat_corr], ignore_index=True)
+
+    # remover duplicatas por série (string ou lista coerente)
+    def _key(s):
+        if isinstance(s, (list, tuple)):
+            return " ".join(str(int(x)) for x in s)
+        if isinstance(s, str):
+            return s.strip()
+        return str(s)
+
+    df_mix["serie_key"] = df_mix["series"].apply(_key)
+
+    df_mix = df_mix.drop_duplicates(subset=["serie_key"])
+    df_mix = df_mix.sort_values("coherence", ascending=False).reset_index(drop=True)
+    df_mix = df_mix.drop(columns=["serie_key"])
+
+    return df_mix
+
+
+
 # =========================================================
 # PAINEL — SAÍDA FINAL CONTROLADA
 # =========================================================
