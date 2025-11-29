@@ -1834,18 +1834,19 @@ def aplicar_ajuste_fino_global(
             novo["expected_hits"] = min(6, int(novo["expected_hits"]) + 0)
             novo["category"] = f"{row['category']}+S5"
             linhas.append(novo)
+ 
+        # Padronizar para string antes de remover duplicatas
+        df_temp = pd.DataFrame(linhas)
 
-    # Padronizar para string antes de remover duplicatas
-df_temp = pd.DataFrame(linhas)
+        df_temp["series"] = df_temp["series"].apply(
+            lambda s: " ".join(map(str, s)) if isinstance(s, (list, tuple)) else str(s)
+        )
 
-df_temp["series"] = df_temp["series"].apply(
-    lambda s: " ".join(map(str, s)) if isinstance(s, (list, tuple)) else str(s)
-)
+        df_out = df_temp.drop_duplicates(subset=["category", "series"])
 
-df_out = df_temp.drop_duplicates(subset=["category", "series"])
+        df_out = df_out.sort_values("coherence", ascending=False).reset_index(drop=True)
+        return df_out
 
-    df_out = df_out.sort_values("coherence", ascending=False).reset_index(drop=True)
-    return df_out
 
 
 # ---------------------------------------------------------
