@@ -2011,7 +2011,15 @@ if painel == "S1–S5 + Ajuste Fino":
 
     # Leque CORRIGIDO
     leque_corrigido = gerar_leque_corrigido(df, regime_state)
-    flat_corrigido = build_flat_series_table(leque_corrigido)
+    flat_corrigido = build_flat_series_table(leque_corrigido).copy()
+
+    # normalizar séries ANTES de exibir (evita listas de 12 números)
+    flat_corrigido["series"] = flat_corrigido["series"].apply(
+        lambda s: " ".join(str(int(x)) for x in s)
+        if isinstance(s, (list, tuple))
+        else str(s)
+    )
+
     flat_corrigido = limit_by_mode(
         flat_corrigido,
         regime_state,
@@ -2019,6 +2027,8 @@ if painel == "S1–S5 + Ajuste Fino":
         n_series_fixed,
         min_conf_pct,
     )
+
+
 
     def montar_tabela(flat_df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame([
