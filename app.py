@@ -1835,17 +1835,36 @@ def aplicar_ajuste_fino_global(
             novo["category"] = f"{row['category']}+S5"
             linhas.append(novo)
  
-        # Padronizar para string antes de remover duplicatas
-        df_temp = pd.DataFrame(linhas)
+    # Padronizar e filtrar séries válidas antes de remover duplicatas
+    df_temp = pd.DataFrame(linhas)
 
-        df_temp["series"] = df_temp["series"].apply(
-            lambda s: " ".join(map(str, s)) if isinstance(s, (list, tuple)) else str(s)
-        )
+    # 1) manter apenas séries "de verdade":
+    #    - listas/tuplas
+    #    - com exatamente 6 números
+    #    (descarta vetores estranhos tipo 0 1 1 1 2 3 3 3 3 3 4 6)
+    def _serie_valida(s):
+        if isinstance(s, (list, tuple)):
+            if len(s) != 6:
+                return False
+            # opcional: garantir que são inteiros entre 1 e 80
+            try:
+                return all(isinstance(x, (int, float)) and 1 <= int(x) <= 80 for x in s)
+            except Exception:
+                return False
+        return False
 
-        df_out = df_temp.drop_duplicates(subset=["category", "series"])
+    df_temp = df_temp[df_temp["series"].apply(_serie_valida)].copy()
 
-        df_out = df_out.sort_values("coherence", ascending=False).reset_index(drop=True)
-        return df_out
+    # 2) converter a lista em string para poder usar drop_duplicates
+    df_temp["series"] = df_temp["series"].apply(
+        lambda s: " ".join(str(int(x)) for x in s)  # garante "n1 n2 n3 n4 n5 n6"
+    )
+
+    # 3) remover duplicatas e ordenar por coherence
+    df_out = df_temp.drop_duplicates(subset=["category", "series"])
+    df_out = df_out.sort_values("coherence", ascending=False).reset_index(drop=True)
+    return df_out
+
 
 
 
