@@ -1245,6 +1245,41 @@ if painel == "Saída Final Controlada":
     except Exception as e:
         st.error(f"Erro ao gerar Previsão Final TURBO: {e}")
 
+    # Listas Auxiliares TURBO
+    try:
+        st.markdown("### 🧩 Listas Auxiliares (Premium / Estruturais / Cobertura)")
+
+        lista_premium = []
+        lista_estruturais = []
+        lista_cobertura = []
+
+        for _, row in controlled_df.iterrows():
+            cat = row["category"]
+            ss = " ".join(str(x) for x in row["series"])
+
+            if cat.startswith("Premium"):
+                lista_premium.append(ss)
+            elif cat.startswith("Estrutural"):
+                lista_estruturais.append(ss)
+            elif cat.startswith("Cobertura"):
+                lista_cobertura.append(ss)
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.markdown("#### ⭐ Premium")
+            st.text_area("Premium", value="\n".join(lista_premium), height=200)
+
+        with col2:
+            st.markdown("#### 🧱 Estruturais")
+            st.text_area("Estruturais", value="\n".join(lista_estruturais), height=200)
+
+        with col3:
+            st.markdown("#### 🌐 Cobertura")
+            st.text_area("Cobertura", value="\n".join(lista_cobertura), height=200)
+
+    except Exception as e:
+        st.error(f"Erro ao gerar listas auxiliares: {e}")
 
     # Monta tabela para exibição
     st.markdown("### 📦 Leque Final — TURBO")
