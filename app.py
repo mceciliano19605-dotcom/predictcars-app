@@ -1996,10 +1996,12 @@ if painel == "Saída Final Controlada":
     if flat_df.empty:
         st.warning("Não foi possível gerar séries a partir do histórico atual.")
         st.stop()
-
+    # Criar Leque MISTO TURBO++
+    flat_mix = unir_leques(flat_df, flat_corr)
+    
     # Aplica modo de saída
     controlled_df = limit_by_mode(
-        flat_corr,
+        flat_mix,
         regime_state,
         output_mode,
         n_series_fixed,
