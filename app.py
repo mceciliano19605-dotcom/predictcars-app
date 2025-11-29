@@ -1220,35 +1220,6 @@ if painel == "Saída Final Controlada":
         montar_tabela_final(controlled_df),
         use_container_width=True
     )
-
-    tabela = pd.DataFrame([
-        {
-            "Rank": i + 1,
-            "Categoria": row["category"],
-            "Série": " ".join(str(x) for x in row["series"]),
-            "Confiabilidade (%)": int(round(row["coherence"] * 100)),
-            "Acertos Esperados": int(row["expected_hits"]),
-        }
-        for i, (_, row) in enumerate(controlled_df.iterrows())
-    ])
-
-    st.markdown("### 🔹 Séries Selecionadas")
-    st.dataframe(tabela, use_container_width=True)
-
-    # Lista pura numerada
-    st.markdown("### 📋 Lista Pura (somente séries, numeradas)")
-    lista_pura = []
-    for i, (_, row) in enumerate(controlled_df.iterrows()):
-        ss = " ".join(str(x) for x in row["series"])
-        lista_pura.append(f"{i + 1}) {ss}")
-
-    texto_puro = "\n".join(lista_pura)
-    st.text_area(
-        "Copiar séries (Lista Pura):",
-        value=texto_puro,
-        height=200,
-    )
-
     st.stop()
 
 
