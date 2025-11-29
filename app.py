@@ -1984,13 +1984,21 @@ if painel == "Saída Final Controlada":
     leque_corrigido = gerar_leque_corrigido(df, regime_state)
     flat_corr = build_flat_series_table(leque_corrigido).copy()
 
-    flat_corr = limit_by_mode(
-        flat_corr,
+    # Criar Leque MISTO (ORIGINAL + CORRIGIDO)
+    leque_original = gerar_series_base(df, regime_state)
+    flat_original = build_flat_series_table(leque_original)
+
+    flat_mix = unir_leques(flat_original, flat_corr)
+
+    # Aplicar modo de saída sobre o MIX
+    flat_df = limit_by_mode(
+        flat_mix,
         regime_state,
         output_mode,
         n_series_fixed,
         min_conf_pct,
     )
+
 
     flat_df = flat_corr.copy()
     if flat_df.empty:
@@ -2205,17 +2213,24 @@ if painel == "S1–S5 + Ajuste Fino":
         n_series_fixed,
         min_conf_pct,
     )
+
     # Leque CORRIGIDO
     leque_corrigido = gerar_leque_corrigido(df, regime_state)
-    flat_corrigido = build_flat_series_table(leque_corrigido).copy()
-   
+    flat_corr = build_flat_series_table(leque_corrigido).copy()
+
+    # Leque MISTO (ORIGINAL + CORRIGIDO)
+    flat_mix = unir_leques(flat_original, flat_corr)
+
+    # Aplicar modo de saída no MIX
     flat_corrigido = limit_by_mode(
-        flat_corrigido,
+        flat_mix,
         regime_state,
         output_mode,
         n_series_fixed,
         min_conf_pct,
     )
+
+
 
 
     def montar_tabela(flat_df: pd.DataFrame) -> pd.DataFrame:
