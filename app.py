@@ -2045,6 +2045,53 @@ if painel == "Saída Final Controlada":
 
     except Exception as e:
         st.error(f"Erro ao gerar Núcleo Resiliente Final: {e}")
+
+    # =========================================================
+    # SENSOR AMBIENTAL k* — MODO SIMPLES (Compatível com V13.8)
+    # =========================================================
+    try:
+        # Histórico completo
+        df_hist = df.copy()
+
+        # Garante existência da coluna k (último campo no formato Cxxxx;n1;n2;...;k)
+        if df_hist.shape[1] >= 7:
+            df_hist.columns = ["id", "n1", "n2", "n3", "n4", "n5", "k"]
+        else:
+            df_hist["k"] = 0  # caso o histórico não tenha k
+
+        # Últimos valores de k
+        ultimos_k = df_hist["k"].tail(5).tolist()
+
+        # Detecta ruptura recente (C2945)
+        ruptura_recente = (
+            len(df_hist) >= 1 and df_hist.iloc[-1]["k"] != 0
+        )
+
+        # Lógica do sensor
+        if ruptura_recente:
+            k_estado = "critico"    # ruptura recente → vermelho
+        else:
+            if any(k != 0 for k in ultimos_k):
+                k_estado = "atencao"   # oscilação → amarelo
+            else:
+                k_estado = "estavel"   # limpo → verde
+
+        # Exibir badge ambiental
+        st.markdown("### 🌡️ Estado Ambiental da Estrada (k*)")
+
+        if k_estado == "estavel":
+            st.markdown("🟢 **Ambiente Estável (k*)**")
+        elif k_estado == "atencao":
+            st.markdown("🟡 **Pré-Ruptura Residual (k*) — Atenção**")
+        else:
+            st.markdown("🔴 **Ambiente Crítico (k*) — Rastro de Ruptura**")
+
+    except Exception as e:
+        st.error(f"Erro no sensor k* simples: {e}")
+
+    
+
+    
     # Previsão Final TURBO
     try:
         previsao_final = None
