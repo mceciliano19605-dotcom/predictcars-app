@@ -377,6 +377,49 @@ if painel == "Estado Atual":
         st.warning("Regime não pôde ser calculado — carregue histórico válido.")
         st.stop()
 
+    # =========================================================
+    # SENSOR AMBIENTAL k* — ESTADO ATUAL (MODO SIMPLES)
+    # =========================================================
+    try:
+        # Histórico completo
+        df_hist = df.copy()
+
+        # Função para renomear colunas corretamente
+        if df_hist.shape[1] >= 8:
+            df_hist.columns = ["id", "n1", "n2", "n3", "n4", "n5", "n6", "k"]
+        else:
+            # fallback: se vier sem ID
+            if df_hist.shape[1] == 7:
+                df_hist.columns = ["n1", "n2", "n3", "n4", "n5", "n6", "k"]
+                df_hist["id"] = None
+            else:
+                df_hist["k"] = 0  # pior caso
+
+        # Últimos valores de k
+        ultimos_k = df_hist["k"].tail(5).tolist()
+
+        # Detecta ruptura recente (k != 0)
+        ruptura_recente = (df_hist["k"].iloc[-1] != 0)
+
+        # Lógica do sensor
+        if ruptura_recente:
+            k_estado = "critico"
+        else:
+            if any(k != 0 for k in ultimos_k):
+                k_estado = "atencao"
+            else:
+                k_estado = "estavel"
+
+        # Exibir badge ambiental no Estado Atual
+        st.markdown("### 🌡️ Estado Ambiental da Estrada (k*) — Estado Atual")
+        if k_estado == "estavel":
+            st.markdown("🟢 **Ambiente Estável (k*)**")
+        elif k_estado == "atencao":
+            st.markdown("🟡 **Pré-Ruptura Residual (k*) — Atenção**")
+        else:
+            st.markdown("🔴 **Ambiente Crítico (k*) — Rastro de Ruptura**")
+    except Exception as e:
+        st.error(f"Erro no sensor k* (Estado Atual): {e}")
     st.subheader("Resumo do Regime Atual")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Regime", regime_state.nome)
