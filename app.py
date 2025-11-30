@@ -2053,28 +2053,31 @@ if painel == "Saída Final Controlada":
         # Histórico completo
         df_hist = df.copy()
 
-        # Garante existência da coluna k (último campo no formato Cxxxx;n1;n2;...;k)
-        if df_hist.shape[1] >= 7:
-            df_hist.columns = ["id", "n1", "n2", "n3", "n4", "n5", "k"]
+        # Função para renomear colunas corretamente
+        if df_hist.shape[1] >= 8:
+            df_hist.columns = ["id", "n1", "n2", "n3", "n4", "n5", "n6", "k"]
         else:
-            df_hist["k"] = 0  # caso o histórico não tenha k
+            # fallback: se vier sem ID
+            if df_hist.shape[1] == 7:
+                df_hist.columns = ["n1", "n2", "n3", "n4", "n5", "n6", "k"]
+                df_hist["id"] = None
+            else:
+                df_hist["k"] = 0  # pior caso
 
         # Últimos valores de k
         ultimos_k = df_hist["k"].tail(5).tolist()
 
-        # Detecta ruptura recente (C2945)
-        ruptura_recente = (
-            len(df_hist) >= 1 and df_hist.iloc[-1]["k"] != 0
-        )
+        # Detecta ruptura recente (k != 0)
+        ruptura_recente = (df_hist["k"].iloc[-1] != 0)
 
         # Lógica do sensor
         if ruptura_recente:
-            k_estado = "critico"    # ruptura recente → vermelho
+            k_estado = "critico"
         else:
             if any(k != 0 for k in ultimos_k):
-                k_estado = "atencao"   # oscilação → amarelo
+                k_estado = "atencao"
             else:
-                k_estado = "estavel"   # limpo → verde
+                k_estado = "estavel"
 
         # Exibir badge ambiental
         st.markdown("### 🌡️ Estado Ambiental da Estrada (k*)")
@@ -2088,6 +2091,7 @@ if painel == "Saída Final Controlada":
 
     except Exception as e:
         st.error(f"Erro no sensor k* simples: {e}")
+
 
     
 
