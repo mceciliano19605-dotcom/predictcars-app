@@ -2178,10 +2178,6 @@ if painel == "Saída Final Controlada":
 
     except Exception as e:
         st.error(f"Erro no sensor k* simples: {e}")
-
-
-    
-
     
     # Previsão Final TURBO
     try:
@@ -2190,9 +2186,19 @@ if painel == "Saída Final Controlada":
             melhor = controlled_df.iloc[0]
             previsao_final = melhor["series"]
 
+        # Integração simples com k*
+        contexto_k = ""
+        if k_estado == "estavel":
+            contexto_k = "🟢 k*: Ambiente estável — previsão em regime normal."
+        elif k_estado == "atencao":
+            contexto_k = "🟡 k*: Pré-ruptura residual — usar previsão com atenção."
+        else:
+            contexto_k = "🔴 k*: Ambiente crítico — usar previsão com cautela máxima."
+
         st.markdown("### 🎯 Previsão Final TURBO")
         if previsao_final:
             st.code(" ".join(str(x) for x in previsao_final), language="text")
+            st.info(contexto_k)
         else:
             st.write("Previsão não disponível.")
 
@@ -2234,6 +2240,7 @@ if painel == "Saída Final Controlada":
 
     except Exception as e:
         st.error(f"Erro ao gerar listas auxiliares: {e}")
+
     # Lista Pura Final TURBO
     try:
         st.markdown("### 📋 Lista Pura Final (Numerada)")
@@ -2258,9 +2265,11 @@ if painel == "Saída Final Controlada":
         montar_tabela_final(controlled_df),
         use_container_width=True
     )
-# ---------------------------------------------------------
-# BOTÃO — EXPORTAR PREVISÃO TURBO++
-# ---------------------------------------------------------
+
+    # ---------------------------------------------------------
+    # BOTÃO — EXPORTAR PREVISÃO TURBO++
+    # ---------------------------------------------------------
+
 
 if not controlled_df.empty:
     try:
