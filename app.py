@@ -409,15 +409,16 @@ if painel == "Estado Atual":
                 k_estado = "atencao"
             else:
                 k_estado = "estavel"
+        k_pred = calcular_k_pred(k_estado, df)
 
+        texto_k_atual = contexto_k_texto(k_estado, prefixo="k*")
+        texto_k_pred  = contexto_k_texto(k_pred,    prefixo="k̂")
+        
         # Exibir badge ambiental no Estado Atual
         st.markdown("### 🌡️ Estado Ambiental da Estrada (k*) — Estado Atual")
-        if k_estado == "estavel":
-            st.markdown("🟢 **Ambiente Estável (k*)**")
-        elif k_estado == "atencao":
-            st.markdown("🟡 **Pré-Ruptura Residual (k*) — Atenção**")
-        else:
-            st.markdown("🔴 **Ambiente Crítico (k*) — Rastro de Ruptura**")
+        st.markdown(contexto_k_texto(k_estado, prefixo="k*"))
+        st.markdown(texto_k_pred)
+
     except Exception as e:
         st.error(f"Erro no sensor k* (Estado Atual): {e}")
     st.subheader("Resumo do Regime Atual")
@@ -571,14 +572,9 @@ if painel == "IDX Avançado":
 
         # Exibir badge no IDX
         st.markdown("### 🌡️ Estado Ambiental da Estrada (k*) — IDX Avançado")
-
-        if k_estado == "estavel":
-            st.markdown("🟢 **Ambiente Estável (k*)**")
-        elif k_estado == "atencao":
-            st.markdown("🟡 **Pré-Ruptura Residual (k*) — Atenção**")
-        else:
-            st.markdown("🔴 **Ambiente Crítico (k*) — Rastro de Ruptura**")
-
+        st.markdown(contexto_k_texto(k_estado, prefixo="k*"))
+        st.markdown(texto_k_pred)
+    
     except Exception as e:
         st.error(f"Erro no sensor k* (IDX Avançado): {e}")
 
@@ -2168,110 +2164,118 @@ if painel == "Saída Final Controlada":
 
         # Exibir badge ambiental
         st.markdown("### 🌡️ Estado Ambiental da Estrada (k*)")
-
-        if k_estado == "estavel":
-            st.markdown("🟢 **Ambiente Estável (k*)**")
-        elif k_estado == "atencao":
-            st.markdown("🟡 **Pré-Ruptura Residual (k*) — Atenção**")
-        else:
-            st.markdown("🔴 **Ambiente Crítico (k*) — Rastro de Ruptura**")
+        st.markdown(contexto_k_texto(k_estado, prefixo="k*"))
 
     except Exception as e:
         st.error(f"Erro no sensor k* simples: {e}")
-    
-    # Previsão Final TURBO
+
+def contexto_k_texto(k_estado: str, prefixo: str = "k*") -> str:
+    """
+    Gera o texto padrão para o estado k* ou k̂.
+    k_estado: "estavel", "atencao" ou "critico"
+    prefixo: rótulo exibido (ex.: "k*", "k̂", "k efetivo")
+    """
+    if k_estado == "estavel":
+        return f"🟢 {prefixo}: Ambiente estável — previsão em regime normal."
+    elif k_estado == "atencao":
+        return f"🟡 {prefixo}: Pré-ruptura residual — usar previsão com atenção."
+    else:
+        return f"🔴 {prefixo}: Ambiente crítico — usar previsão com cautela máxima."
+
+def calcular_k_pred(k_estado_atual: str, df):
+    """
+    k preditivo básico (k̂) — versão inicial.
+    Nesta fase, apenas retorna o próprio k_estado_atual.
+    Depois, iremos substituir pela versão real com SDM, T_norm, entropia e tendência.
+    """
     try:
-        previsao_final = None
-        if not controlled_df.empty:
-            melhor = controlled_df.iloc[0]
-            previsao_final = melhor["series"]
+        # Versão placeholder: retorna o estado atual
+        return k_estado_atual
+    except:
+        return k_estado_atual
 
-        # Integração simples com k*
-        contexto_k = ""
-        if k_estado == "estavel":
-            contexto_k = "🟢 k*: Ambiente estável — previsão em regime normal."
-        elif k_estado == "atencao":
-            contexto_k = "🟡 k*: Pré-ruptura residual — usar previsão com atenção."
-        else:
-            contexto_k = "🔴 k*: Ambiente crítico — usar previsão com cautela máxima."
+# Previsão Final TURBO
+try:
+    previsao_final = None
+    if not controlled_df.empty:
+        melhor = controlled_df.iloc[0]
+        previsao_final = melhor["series"]
+    contexto_k = contexto_k_texto(k_estado, prefixo="k*")
+    st.markdown("### 🎯 Previsão Final TURBO")
+    if previsao_final:
+        st.code(" ".join(str(x) for x in previsao_final), language="text")
+        st.info(contexto_k)
+    else:
+        st.write("Previsão não disponível.")
 
-        st.markdown("### 🎯 Previsão Final TURBO")
-        if previsao_final:
-            st.code(" ".join(str(x) for x in previsao_final), language="text")
-            st.info(contexto_k)
-        else:
-            st.write("Previsão não disponível.")
+except Exception as e:
+    st.error(f"Erro ao gerar Previsão Final TURBO: {e}")
 
-    except Exception as e:
-        st.error(f"Erro ao gerar Previsão Final TURBO: {e}")
+# Listas Auxiliares TURBO
+try:
+    st.markdown("### 🧩 Listas Auxiliares (Premium / Estruturais / Cobertura)")
 
-    # Listas Auxiliares TURBO
-    try:
-        st.markdown("### 🧩 Listas Auxiliares (Premium / Estruturais / Cobertura)")
+    lista_premium = []
+    lista_estruturais = []
+    lista_cobertura = []
 
-        lista_premium = []
-        lista_estruturais = []
-        lista_cobertura = []
+    for _, row in controlled_df.iterrows():
+        cat = row["category"]
+        ss = " ".join(str(x) for x in row["series"])
 
-        for _, row in controlled_df.iterrows():
-            cat = row["category"]
-            ss = " ".join(str(x) for x in row["series"])
+        if cat.startswith("Premium"):
+            lista_premium.append(ss)
+        elif cat.startswith("Estrutural"):
+            lista_estruturais.append(ss)
+        elif cat.startswith("Cobertura"):
+            lista_cobertura.append(ss)
 
-            if cat.startswith("Premium"):
-                lista_premium.append(ss)
-            elif cat.startswith("Estrutural"):
-                lista_estruturais.append(ss)
-            elif cat.startswith("Cobertura"):
-                lista_cobertura.append(ss)
+    col1, col2, col3 = st.columns(3)
 
-        col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("#### ⭐ Premium")
+        st.text_area("Premium", value="\n".join(lista_premium), height=200)
 
-        with col1:
-            st.markdown("#### ⭐ Premium")
-            st.text_area("Premium", value="\n".join(lista_premium), height=200)
+    with col2:
+        st.markdown("#### 🧱 Estruturais")
+        st.text_area("Estruturais", value="\n".join(lista_estruturais), height=200)
 
-        with col2:
-            st.markdown("#### 🧱 Estruturais")
-            st.text_area("Estruturais", value="\n".join(lista_estruturais), height=200)
+    with col3:
+        st.markdown("#### 🌐 Cobertura")
+        st.text_area("Cobertura", value="\n".join(lista_cobertura), height=200)
 
-        with col3:
-            st.markdown("#### 🌐 Cobertura")
-            st.text_area("Cobertura", value="\n".join(lista_cobertura), height=200)
+except Exception as e:
+    st.error(f"Erro ao gerar listas auxiliares: {e}")
 
-    except Exception as e:
-        st.error(f"Erro ao gerar listas auxiliares: {e}")
+# Lista Pura Final TURBO
+try:
+    st.markdown("### 📋 Lista Pura Final (Numerada)")
 
-    # Lista Pura Final TURBO
-    try:
-        st.markdown("### 📋 Lista Pura Final (Numerada)")
+    lista_final = []
+    for i, (_, row) in enumerate(controlled_df.iterrows()):
+        ss = " ".join(str(x) for x in row["series"])
+        lista_final.append(f"{i + 1}) {ss}")
 
-        lista_final = []
-        for i, (_, row) in enumerate(controlled_df.iterrows()):
-            ss = " ".join(str(x) for x in row["series"])
-            lista_final.append(f"{i + 1}) {ss}")
-
-        st.text_area(
-            "Lista Pura Final",
-            value="\n".join(lista_final),
-            height=220,
-        )
-
-    except Exception as e:
-        st.error(f"Erro ao gerar Lista Pura Final: {e}")
-
-    # Monta tabela para exibição
-    st.markdown("### 📦 Leque Final — TURBO")
-    st.dataframe(
-        montar_tabela_final(controlled_df),
-        use_container_width=True
+    st.text_area(
+        "Lista Pura Final",
+        value="\n".join(lista_final),
+        height=220,
     )
 
-    # ---------------------------------------------------------
-    # BOTÃO — EXPORTAR PREVISÃO TURBO++
-    # ---------------------------------------------------------
+except Exception as e:
+    st.error(f"Erro ao gerar Lista Pura Final: {e}")
 
+# Monta tabela para exibição
+st.markdown("### 📦 Leque Final — TURBO")
+st.dataframe(
+    montar_tabela_final(controlled_df),
+    use_container_width=True
+)
 
+# BOTÃO — EXPORTAR PREVISÃO TURBO++
 if not controlled_df.empty:
+    pass
+
     try:
         texto_exportar = "\n".join(
             " ".join(str(x) for x in row["series"])
