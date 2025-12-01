@@ -2210,7 +2210,8 @@ try:
     if not controlled_df.empty:
         melhor = controlled_df.iloc[0]
         previsao_final = melhor["series"]
-    contexto_k = contexto_k_texto(k_estado, prefixo="k*")
+    prefixo_k = "k*" if k_ativo == k_estado else "k̂"
+    contexto_k = contexto_k_texto(k_ativo, prefixo=prefixo_k)
     st.markdown("### 🎯 Previsão Final TURBO")
     if previsao_final:
         st.code(" ".join(str(x) for x in previsao_final), language="text")
