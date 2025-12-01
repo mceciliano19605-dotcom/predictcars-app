@@ -320,6 +320,16 @@ min_conf_pct = st.sidebar.slider(
     value=55,
 )
 
+modo_k = st.sidebar.radio(
+    "Modo k:",
+    ["Usar k atual (k*)", "Usar k preditivo (k̂)"],
+    index=0,
+)
+if modo_k == "Usar k atual (k*)":
+    k_ativo = k_estado
+else:
+    k_ativo = k_pred
+
 # =========================================================
 # MENU DE NAVEGAÇÃO (PAINÉIS PRINCIPAIS)
 # =========================================================
