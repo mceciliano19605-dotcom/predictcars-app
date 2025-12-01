@@ -356,6 +356,7 @@ painel = st.sidebar.radio(
         "Diagnóstico Profundo",
         "Exportar Resultados",
         "Exportar Sessão Completa",
+        "Comparação k* vs k̂",
     ],
     index=0,
 )
@@ -2472,6 +2473,40 @@ if painel == "Saída Turbo V13.8":
         st.stop()
 
     st.info("Painel Turbo instalado. Falta ativar o motor interno (Passo 4).")
+
+# =========================================================
+# PAINEL: COMPARAÇÃO k* vs k̂
+# =========================================================
+
+if painel == "Comparação k* vs k̂":
+    st.markdown("## ⚖️ Comparação entre k* (atual) e k̂ (preditivo)")
+
+    if df.empty:
+        st.warning("Histórico vazio — carregue um arquivo para comparar.")
+        st.stop()
+
+    # --- Contexto com k atual (k*) ---
+    prefixo_kA = "k*"
+    contextoA = contexto_k_texto(k_estado, prefixo=prefixo_kA)
+
+    # --- Contexto com k preditivo (k̂) ---
+    prefixo_kB = "k̂"
+    contextoB = contexto_k_texto(k_pred, prefixo=prefixo_kB)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### 🔵 Previsão com k atual (k*)")
+        st.markdown(contextoA)
+
+    with col2:
+        st.markdown("### 🟣 Previsão com k preditivo (k̂)")
+        st.markdown(contextoB)
+
+    st.info("Este painel compara exclusivamente o estado ambiental. "
+            "A previsão numérica permanece igual por enquanto.")
+
+    st.stop()
 
 # ---------------------------------------------------------
 # Função auxiliar — Normalizar Série
