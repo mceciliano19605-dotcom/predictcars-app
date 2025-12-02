@@ -114,16 +114,22 @@ if painel == "📥 Histórico — Entrada":
             except Exception as e:
                 st.error(f"Erro ao processar histórico colado: {e}")
 
-    # Salvar no session_state para os painéis seguintes
+    # ============================================================
+    # SALVAR NO SESSION_STATE (VERSÃO CORRIGIDA E SEGURA)
+    # ============================================================
+
+    # Se carregou um histórico novo, salva
     if df is not None:
         st.session_state["df"] = df
-    else:
-        df = st.session_state.get("df", None)
+
+    # Sempre recarrega do session_state caso já exista
+    df = st.session_state.get("df", None)
 
     st.markdown("---")
 
     # 🔴 ENCERRA AQUI ESTE PAINEL
     st.stop()
+
 
 # ============================================================
 # PAINEL 2 — Pipeline V14 (Simples)
