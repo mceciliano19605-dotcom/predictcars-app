@@ -27,21 +27,17 @@ def _detectar_sep(linha: str) -> str:
 def preparar_historico_V14(df_raw: pd.DataFrame) -> pd.DataFrame:
     """
     Normaliza o histórico para o formato padrão V14:
-    colunas: ['serie', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'k', 'idx'].
+    colunas: ['serie', 'p1'..'p6', 'k', 'idx'].
     """
     df = df_raw.copy()
-
-    # Remove colunas vazias típicas de CSV
     df = df.loc[:, ~df.columns.astype(str).str.contains(r"^Unnamed")]
 
-    # Caso mais comum: 7 ou 8 colunas
     if df.shape[1] in (7, 8):
         cols_novas = ["serie", "p1", "p2", "p3", "p4", "p5", "p6"]
         if df.shape[1] == 8:
             cols_novas.append("k")
         df.columns = cols_novas
     else:
-        # Tenta mapear por nomes aproximados
         colunas = [c.lower() for c in df.columns]
         mapa = {}
         for i, c in enumerate(colunas):
@@ -50,7 +46,6 @@ def preparar_historico_V14(df_raw: pd.DataFrame) -> pd.DataFrame:
             elif any(x in c for x in ["k", "risco"]):
                 mapa["k"] = df.columns[i]
 
-        # passageiros: pega os 6 primeiros que não forem 'serie' nem 'k'
         restantes = [c for c in df.columns if c not in mapa.values()]
         while len(restantes) < 6:
             restantes.append(restantes[-1])
@@ -66,7 +61,6 @@ def preparar_historico_V14(df_raw: pd.DataFrame) -> pd.DataFrame:
             ordem.append("k")
         df = df.rename(columns={v: k for k, v in mapa.items()})[ordem]
 
-    # Tipos
     df["serie"] = df["serie"].astype(str)
     for c in ["p1", "p2", "p3", "p4", "p5", "p6"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
@@ -76,10 +70,8 @@ def preparar_historico_V14(df_raw: pd.DataFrame) -> pd.DataFrame:
     else:
         df["k"] = pd.to_numeric(df["k"], errors="coerce").fillna(0).astype(int)
 
-    # Índice sequencial (estrada)
     df["idx"] = np.arange(1, len(df) + 1)
     df = df.sort_values("idx").reset_index(drop=True)
-
     return df
 
 
@@ -87,7 +79,6 @@ def parse_historico_texto(conteudo: str) -> pd.DataFrame:
     """
     Converte texto colado no formato:
     C1;41;5;4;52;30;33;0
-    C2;9;39;37;49;43;41;1
     ...
     em DataFrame preparado.
     """
@@ -124,16 +115,10 @@ def parse_historico_texto(conteudo: str) -> pd.DataFrame:
 
 
 # ============================================================
-# k HISTÓRICO — SENTINELA REATIVO
+# k HISTÓRICO — SENTINELA REATIVO (NÃO INFLUENCIA PREVISÃO)
 # ============================================================
 
 def classificar_k_valor(k_val: int) -> str:
-    """
-    Converte o valor de k em estado de risco:
-    0 -> estavel
-    1 -> atencao
-    >=2 -> critico
-    """
     if k_val <= 0:
         return "estavel"
     if k_val == 1:
@@ -142,9 +127,6 @@ def classificar_k_valor(k_val: int) -> str:
 
 
 def estado_k_global(df: pd.DataFrame) -> dict:
-    """
-    Resumo global do k histórico (reativo).
-    """
     if df.empty or "k" not in df.columns:
         return {
             "estado": "indefinido",
@@ -156,7 +138,6 @@ def estado_k_global(df: pd.DataFrame) -> dict:
     for chave in ["estavel", "atencao", "critico"]:
         contagens.setdefault(chave, 0)
 
-    # Puxa o pior estado que aparece
     if contagens["critico"] > 0:
         estado = "critico"
     elif contagens["atencao"] > 0:
@@ -168,9 +149,6 @@ def estado_k_global(df: pd.DataFrame) -> dict:
 
 
 def rotulo_k(estado: str) -> str:
-    """
-    Frase amigável para o estado de risco.
-    """
     if estado == "estavel":
         return "🟢 Ambiente estável — previsão em regime normal."
     if estado == "atencao":
@@ -181,25 +159,21 @@ def rotulo_k(estado: str) -> str:
 
 
 # ============================================================
-# k* TURBO++ — SENTINELA PREDITIVO (MÓDULO SIMPLIFICADO)
+# k* TURBO++ — SENTINELA PREDITIVO (NÃO INFLUENCIA PREVISÃO)
 # ============================================================
 
 def _extrair_vetor_passageiros(df_linha: pd.Series) -> np.ndarray:
-    return np.array([df_linha["p1"], df_linha["p2"], df_linha["p3"],
-                     df_linha["p4"], df_linha["p5"], df_linha["p6"]], dtype=float)
+    return np.array(
+        [df_linha["p1"], df_linha["p2"], df_linha["p3"],
+         df_linha["p4"], df_linha["p5"], df_linha["p6"]],
+        dtype=float
+    )
 
 
 def calcular_metricas_risco_janela(df_janela: pd.DataFrame) -> dict:
-    """
-    Calcula métricas de risco estruturais em uma janela (trecho da estrada).
-    Produz:
-    - turbulencia_media (mudança entre séries consecutivas)
-    - dispersao_media (variância média dos passageiros)
-    """
     if df_janela is None or df_janela.empty or len(df_janela) < 3:
         return {"turbulencia": 0.0, "dispersao": 0.0}
 
-    # Turbulência: média da distância entre séries consecutivas
     diffs = []
     linhas = df_janela.sort_values("idx").reset_index(drop=True)
     for i in range(1, len(linhas)):
@@ -208,7 +182,6 @@ def calcular_metricas_risco_janela(df_janela: pd.DataFrame) -> dict:
         diffs.append(np.linalg.norm(v2 - v1))
     turbulencia = float(np.mean(diffs)) if diffs else 0.0
 
-    # Dispersão: variância média por passageiro
     mat = np.vstack([_extrair_vetor_passageiros(linhas.iloc[i])
                      for i in range(len(linhas))])
     dispersao = float(np.mean(np.var(mat, axis=0)))
@@ -217,9 +190,6 @@ def calcular_metricas_risco_janela(df_janela: pd.DataFrame) -> dict:
 
 
 def normalizar_score(valor: float, referencia_baixa: float, referencia_alta: float) -> float:
-    """
-    Normaliza valor para [0,1] dado um intervalo aproximado.
-    """
     if referencia_alta <= referencia_baixa:
         return 0.0
     score = (valor - referencia_baixa) / (referencia_alta - referencia_baixa)
@@ -232,13 +202,6 @@ def calcular_k_star_estado(
     idx_alvo: int,
     largura_janela: int = 40,
 ) -> dict:
-    """
-    k* TURBO++ (versão simplificada):
-    - analisa um trecho antes do idx_alvo,
-    - mede turbulência e dispersão,
-    - gera um score de risco [0,1],
-    - converte em estado: estavel / atencao / critico.
-    """
     if df.empty:
         return {"estado": "indefinido", "score": 0.0}
 
@@ -247,24 +210,18 @@ def calcular_k_star_estado(
     idx_max = int(df["idx"].max())
     idx_alvo = max(idx_min + 1, min(idx_alvo, idx_max))
 
-    # Janela: pega até "largura_janela" séries antes do alvo
     inicio = max(idx_min, idx_alvo - largura_janela)
     df_janela = df[(df["idx"] >= inicio) & (df["idx"] < idx_alvo)].copy()
-
     if df_janela.empty:
         return {"estado": "indefinido", "score": 0.0}
 
     met = calcular_metricas_risco_janela(df_janela)
 
-    # Normalizações heurísticas (ajustáveis):
-    # Turbulência típica vai de 0 a ~60 (palpite), dispersão 0 a ~300 (palpite).
     score_turb = normalizar_score(met["turbulencia"], 0.0, 60.0)
     score_disp = normalizar_score(met["dispersao"], 0.0, 300.0)
 
-    # Score combinado: média ponderada
     score = 0.6 * score_turb + 0.4 * score_disp
 
-    # Mapeia para estados
     if score < 0.33:
         estado = "estavel"
     elif score < 0.66:
@@ -276,9 +233,6 @@ def calcular_k_star_estado(
 
 
 def rotulo_k_star(estado: str, score: float) -> str:
-    """
-    Mensagem interpretável para o k* (sentinela preditivo).
-    """
     score_pct = int(round(score * 100))
     if estado == "estavel":
         return f"🟢 k*: Ambiente tende a permanecer estável (risco ≈ {score_pct}%)."
@@ -290,71 +244,342 @@ def rotulo_k_star(estado: str, score: float) -> str:
 
 
 # ============================================================
-# PIPELINE V14 — PLACEHOLDER ESTRUTURAL (SUBSTITUÍVEL)
+# MOTOR TURBO++ REAL — IDX / IPF / IPO / S6
+# (k NÃO É USADO EM NENHUM CÁLCULO)
 # ============================================================
 
-def executar_pipeline_v14_simples(
-    df: pd.DataFrame,
-    idx_alvo: int,
-    n_series: int = 20,
-) -> pd.DataFrame:
+def construir_janelas(df: pd.DataFrame, tamanho_janela: int) -> pd.DataFrame:
     """
-    Pipeline V14 simples — versão estrutural.
-    Hoje: usa janelas recentes como candidatos.
-    Depois você pode plugar o motor real V14 TURBO++.
+    Constrói janelas IDX:
+    - contexto: sequência de tamanho_janela
+    - seguidor: série imediatamente seguinte (p1..p6) e k histórico dessa série.
     """
-    if df.empty:
-        return pd.DataFrame()
+    linhas = df.sort_values("idx").reset_index(drop=True)
+    janelas = []
+    max_idx = int(linhas["idx"].max())
+    min_idx = int(linhas["idx"].min())
 
+    for i in range(min_idx, max_idx - tamanho_janela):
+        inicio = i
+        fim = i + tamanho_janela - 1
+        seguidor_idx = fim + 1
+        if seguidor_idx > max_idx:
+            break
+
+        contexto = linhas[(linhas["idx"] >= inicio) & (linhas["idx"] <= fim)]
+        seguidor = linhas[linhas["idx"] == seguidor_idx]
+        if contexto.empty or seguidor.empty:
+            continue
+
+        contexto_mat = np.vstack([_extrair_vetor_passageiros(l) for _, l in contexto.iterrows()])
+        seg_vec = _extrair_vetor_passageiros(seguidor.iloc[0])
+
+        janelas.append(
+            {
+                "inicio_idx": inicio,
+                "fim_idx": fim,
+                "seguidor_idx": seguidor_idx,
+                "contexto_mat": contexto_mat,
+                "seguidor_vec": seg_vec,
+                "seguidor_serie": [
+                    int(seguidor.iloc[0]["p1"]),
+                    int(seguidor.iloc[0]["p2"]),
+                    int(seguidor.iloc[0]["p3"]),
+                    int(seguidor.iloc[0]["p4"]),
+                    int(seguidor.iloc[0]["p5"]),
+                    int(seguidor.iloc[0]["p6"]),
+                ],
+                "seguidor_k": int(seguidor.iloc[0]["k"]),
+            }
+        )
+    return pd.DataFrame(janelas)
+
+
+def vetorizar_contexto_atual(df: pd.DataFrame, idx_alvo: int, tamanho_janela: int) -> np.ndarray:
+    """
+    Constrói o contexto atual: janela imediatamente antes do idx_alvo.
+    """
     idx_alvo = int(idx_alvo)
     idx_min = int(df["idx"].min())
     idx_max = int(df["idx"].max())
     idx_alvo = max(idx_min + 1, min(idx_alvo, idx_max))
 
-    # Histórico antes do alvo
-    df_hist = df[df["idx"] < idx_alvo].copy()
-    if df_hist.empty:
-        df_hist = df.copy()
+    fim = idx_alvo - 1
+    inicio = max(idx_min, fim - tamanho_janela + 1)
 
-    # Pega as N últimas séries como candidatos
-    n_series = int(n_series)
-    candidatos = df_hist.tail(n_series).copy()
+    contexto = df[(df["idx"] >= inicio) & (df["idx"] <= fim)].sort_values("idx")
+    if contexto.empty or len(contexto) < 2:
+        return None
 
-    # Constrói vetor "series" e score simples
-    candidatos["series"] = candidatos.apply(
-        lambda row: [int(row[c]) for c in ["p1", "p2", "p3", "p4", "p5", "p6"]],
-        axis=1,
+    contexto_mat = np.vstack([_extrair_vetor_passageiros(l) for _, l in contexto.iterrows()])
+    return contexto_mat
+
+
+def calcular_similaridade_janelas(janelas_df: pd.DataFrame, contexto_atual: np.ndarray) -> pd.DataFrame:
+    """
+    IDX: mede similaridade entre contexto atual e cada janela histórica.
+    """
+    if janelas_df.empty or contexto_atual is None:
+        return pd.DataFrame()
+
+    scores = []
+    for idx, row in janelas_df.iterrows():
+        mat = row["contexto_mat"]
+        min_len = min(mat.shape[0], contexto_atual.shape[0])
+        if min_len <= 0:
+            continue
+
+        ca = contexto_atual[-min_len:, :]
+        cb = mat[-min_len:, :]
+
+        dif = ca - cb
+        dist = np.linalg.norm(dif)
+        sim = 1.0 / (1.0 + dist)
+        scores.append((idx, sim))
+
+    if not scores:
+        return pd.DataFrame()
+
+    idxs, sims = zip(*scores)
+    janelas_df = janelas_df.loc[list(idxs)].copy()
+    janelas_df["score_idx"] = sims
+    janelas_df = janelas_df.sort_values("score_idx", ascending=False).reset_index(drop=True)
+    return janelas_df
+
+
+def gerar_leque_original(df: pd.DataFrame, idx_alvo: int,
+                         tamanho_janela: int = 10, top_janelas: int = 40) -> pd.DataFrame:
+    """
+    Leque ORIGINAL (IPF bruto): pega seguidores das janelas mais semelhantes (IDX).
+    """
+    if df.empty:
+        return pd.DataFrame()
+
+    janelas = construir_janelas(df, tamanho_janela)
+    contexto_atual = vetorizar_contexto_atual(df, idx_alvo, tamanho_janela)
+    if janelas.empty or contexto_atual is None:
+        return pd.DataFrame()
+
+    janelas_sim = calcular_similaridade_janelas(janelas, contexto_atual)
+    if janelas_sim.empty:
+        return pd.DataFrame()
+
+    janelas_top = janelas_sim.head(top_janelas).copy()
+
+    registros = []
+    for _, row in janelas_top.iterrows():
+        registros.append(
+            {
+                "inicio_idx": row["inicio_idx"],
+                "fim_idx": row["fim_idx"],
+                "seguidor_idx": row["seguidor_idx"],
+                "series": row["seguidor_serie"],
+                "score_idx": row["score_idx"],
+                "k_hist": row["seguidor_k"],  # apenas informativo
+            }
+        )
+
+    leque = pd.DataFrame(registros)
+    return leque
+
+
+def corrigir_series(series: list) -> list:
+    """
+    Correções estruturais simples:
+    - ordena
+    - remove fora de [1, 60]
+    """
+    nums = [int(x) for x in series]
+    nums = [n for n in nums if 1 <= n <= 60]
+    while len(nums) < 6:
+        nums.append(nums[-1] if nums else 1)
+    nums = nums[:6]
+    nums = sorted(nums)
+    return nums
+
+
+def gerar_leque_corrigido(leque_original: pd.DataFrame) -> pd.DataFrame:
+    """
+    Aplica correções estruturais => IPO simplificado.
+    """
+    if leque_original.empty:
+        return pd.DataFrame()
+
+    leque = leque_original.copy()
+    leque["series_corr"] = leque["series"].apply(corrigir_series)
+    leque["score_ipo"] = leque["score_idx"]
+
+    return leque
+
+
+def s6_profundo_flat(leque: pd.DataFrame) -> pd.DataFrame:
+    """
+    S6 Profundo: achata as séries, agrupa e comprime por:
+    - frequência
+    - score médio (IDX/IPO)
+    - penalização leve por dispersão alta
+    """
+    if leque.empty:
+        return pd.DataFrame()
+
+    registros = []
+    for _, row in leque.iterrows():
+        s = row.get("series_corr", row["series"])
+        chave = tuple(s)
+        registros.append(
+            {
+                "series": chave,
+                "score_base": row.get("score_ipo", row.get("score_idx", 0.0)),
+            }
+        )
+
+    df_flat = pd.DataFrame(registros)
+    if df_flat.empty:
+        return pd.DataFrame()
+
+    # Dispersão (internamente, sem k)
+    def disp(t):
+        arr = np.array(t, dtype=float)
+        return float(np.var(arr))
+
+    df_flat["freq"] = 1
+    df_agg = (
+        df_flat.groupby("series")
+        .agg({"score_base": "mean", "freq": "sum"})
+        .reset_index()
+    )
+    df_agg["disp"] = df_agg["series"].apply(disp)
+
+    # Score final: combina frequência, score_base e dispersão
+    df_agg["score"] = (
+        0.5 * df_agg["score_base"] +
+        0.4 * (df_agg["freq"] / df_agg["freq"].max()) -
+        0.1 * normalizar_score(df_agg["disp"], 0.0, df_agg["disp"].max() or 1.0)
     )
 
-    max_idx_hist = candidatos["idx"].max()
-    candidatos["score"] = 1.0 - (max_idx_hist - candidatos["idx"]) / max(1, max_idx_hist)
-
-    # k_previsto histórico herdado (placeholder)
-    candidatos["k_previsto"] = candidatos["k"].astype(int)
-
-    candidatos = candidatos.sort_values("score", ascending=False).reset_index(drop=True)
-
-    return candidatos[["serie", "idx", "series", "score", "k_previsto"]]
+    df_agg = df_agg.sort_values("score", ascending=False).reset_index(drop=True)
+    return df_agg[["series", "score", "freq", "disp"]]
 
 
-def extrair_previsao_final(df_candidatos: pd.DataFrame):
+def unir_leques(leque_original: pd.DataFrame, leque_corrigido: pd.DataFrame) -> pd.DataFrame:
     """
-    Escolhe a melhor série candidata como previsão final.
+    Leque MISTO: une ORIGINAL + CORRIGIDO e reagrupa.
     """
-    if df_candidatos is None or df_candidatos.empty:
-        return None
-    melhor = df_candidatos.iloc[0]
-    return melhor["series"]
+    if leque_original.empty and leque_corrigido.empty:
+        return pd.DataFrame()
+    if leque_original.empty:
+        base = leque_corrigido.copy()
+        base["series_corr"] = base["series_corr"]
+        base["score_mix"] = base["score_ipo"]
+    elif leque_corrigido.empty:
+        base = leque_original.copy()
+        base["series_corr"] = base["series"]
+        base["score_mix"] = base["score_idx"]
+    else:
+        lo = leque_original.copy()
+        lc = leque_corrigido.copy()
+
+        lo["series_corr"] = lo["series"]
+        lo["score_mix"] = lo["score_idx"]
+
+        lc["series_corr"] = lc["series_corr"]
+        lc["score_mix"] = lc["score_ipo"]
+
+        base = pd.concat([lo, lc], ignore_index=True)
+
+    registros = []
+    for _, row in base.iterrows():
+        s = row["series_corr"]
+        registros.append({"series": tuple(s), "score_base": row["score_mix"]})
+
+    df_flat = pd.DataFrame(registros)
+    if df_flat.empty:
+        return pd.DataFrame()
+
+    df_flat["freq"] = 1
+    df_agg = (
+        df_flat.groupby("series")
+        .agg({"score_base": "mean", "freq": "sum"})
+        .reset_index()
+    )
+
+    def disp(t):
+        arr = np.array(t, dtype=float)
+        return float(np.var(arr))
+
+    df_agg["disp"] = df_agg["series"].apply(disp)
+    df_agg["score"] = (
+        0.5 * df_agg["score_base"] +
+        0.4 * (df_agg["freq"] / df_agg["freq"].max()) -
+        0.1 * normalizar_score(df_agg["disp"], 0.0, df_agg["disp"].max() or 1.0)
+    )
+
+    df_agg = df_agg.sort_values("score", ascending=False).reset_index(drop=True)
+    return df_agg[["series", "score", "freq", "disp"]]
 
 
-def estimar_k_previsto(df_candidatos: pd.DataFrame) -> int:
+def executar_pipeline_v14_turbo(
+    df: pd.DataFrame,
+    idx_alvo: int,
+    tamanho_janela: int = 10,
+    top_janelas: int = 40,
+    n_series_final: int = 50,
+) -> dict:
     """
-    Estima k previsto (reativo) usando o melhor candidato.
+    Motor V14 TURBO++:
+    - IDX: janelas por similaridade
+    - IPF: leque ORIGINAL
+    - IPO: leque CORRIGIDO
+    - S6: achatamento profundo
+    - MISTO: fusão final
     """
-    if df_candidatos is None or df_candidatos.empty:
-        return 0
-    melhor = df_candidatos.iloc[0]
-    return int(melhor.get("k_previsto", 0))
+    resultado = {
+        "leque_original": pd.DataFrame(),
+        "leque_corrigido": pd.DataFrame(),
+        "flat_original": pd.DataFrame(),
+        "flat_corrigido": pd.DataFrame(),
+        "flat_misto": pd.DataFrame(),
+        "previsao_final": None,
+    }
+
+    if df.empty:
+        return resultado
+
+    leque_orig = gerar_leque_original(df, idx_alvo, tamanho_janela, top_janelas)
+    if leque_orig.empty:
+        return resultado
+
+    leque_corr = gerar_leque_corrigido(leque_orig)
+
+    flat_orig = s6_profundo_flat(leque_orig)
+    flat_corr = s6_profundo_flat(leque_corr)
+    flat_mix = unir_leques(leque_orig, leque_corr)
+
+    # Limita quantidade final
+    def limitar(df_flat):
+        if df_flat is None or df_flat.empty:
+            return pd.DataFrame()
+        return df_flat.head(n_series_final).copy()
+
+    flat_orig = limitar(flat_orig)
+    flat_corr = limitar(flat_corr)
+    flat_mix = limitar(flat_mix)
+
+    previsao_final = None
+    if flat_mix is not None and not flat_mix.empty:
+        previsao_final = list(flat_mix.iloc[0]["series"])
+
+    resultado.update(
+        {
+            "leque_original": leque_orig,
+            "leque_corrigido": leque_corr,
+            "flat_original": flat_orig,
+            "flat_corrigido": flat_corr,
+            "flat_misto": flat_mix,
+            "previsao_final": previsao_final,
+        }
+    )
+    return resultado
 
 
 # ============================================================
@@ -362,31 +587,30 @@ def estimar_k_previsto(df_candidatos: pd.DataFrame) -> int:
 # ============================================================
 
 st.sidebar.title("🚗 Predict Cars V14 TURBO++")
-st.sidebar.markdown("Versão com **k (histórico)** e **k\* (sentinela preditivo)**.")
+st.sidebar.markdown("Versão com k (histórico) e k* (sentinela preditivo).")
 
 painel = st.sidebar.radio(
     "Escolha o painel:",
     [
         "📥 Histórico — Entrada",
-        "🔍 Pipeline V14 (Simples)",
+        "🔍 Pipeline V14 (Simples/TURBO++)",
         "🚨 Monitor de Risco (k & k*)",
-        "🚀 Modo TURBO++ — Previsão Final",
+        "🚀 Modo TURBO++ — Painel Completo",
     ],
 )
 
-# Inicializa sessão
 if "df" not in st.session_state:
     st.session_state["df"] = pd.DataFrame()
-if "df_candidatos" not in st.session_state:
-    st.session_state["df_candidatos"] = pd.DataFrame()
 if "ultimo_idx_alvo" not in st.session_state:
     st.session_state["ultimo_idx_alvo"] = None
 if "k_star_estado" not in st.session_state:
     st.session_state["k_star_estado"] = "indefinido"
 if "k_star_score" not in st.session_state:
     st.session_state["k_star_score"] = 0.0
+if "resultado_turbo" not in st.session_state:
+    st.session_state["resultado_turbo"] = {}
 
-df_sessao = st.session_state["df"]  # atalho local
+df_sessao = st.session_state["df"]
 
 
 # ============================================================
@@ -396,15 +620,12 @@ df_sessao = st.session_state["df"]  # atalho local
 if painel == "📥 Histórico — Entrada":
     st.markdown("## 📥 Histórico — Entrada")
 
-    df = None
-
     opc = st.radio(
         "Como deseja carregar o histórico?",
         ["Enviar arquivo CSV", "Copiar e colar o histórico"],
         horizontal=True,
     )
 
-    # ---------- OPÇÃO 1 — UPLOAD ----------
     if opc == "Enviar arquivo CSV":
         file = st.file_uploader("Selecione o arquivo CSV:", type=["csv"])
         if file is not None:
@@ -415,8 +636,6 @@ if painel == "📥 Histórico — Entrada":
                 st.success("Histórico carregado com sucesso!")
             except Exception as e:
                 st.error(f"Erro ao carregar CSV: {e}")
-
-    # ---------- OPÇÃO 2 — TEXTO ----------
     else:
         conteudo = st.text_area(
             "Cole o histórico aqui (ex: C1;41;5;4;52;30;33;0):",
@@ -431,7 +650,6 @@ if painel == "📥 Histórico — Entrada":
                 st.error(f"Erro ao interpretar o texto: {e}")
 
     df = st.session_state["df"]
-
     if df is not None and not df.empty:
         st.markdown("### 🔎 Prévia do histórico preparado (V14)")
         st.dataframe(df.head(30))
@@ -466,11 +684,11 @@ if painel == "📥 Histórico — Entrada":
 
 
 # ============================================================
-# PAINEL 2 — Pipeline V14 (Simples)
+# PAINEL 2 — Pipeline V14 (Simples/TURBO++)
 # ============================================================
 
-elif painel == "🔍 Pipeline V14 (Simples)":
-    st.markdown("## 🔍 Pipeline V14 — Execução Simples")
+elif painel == "🔍 Pipeline V14 (Simples/TURBO++)":
+    st.markdown("## 🔍 Pipeline V14 — Execução TURBO++ (núcleo)")
 
     df = st.session_state.get("df", pd.DataFrame())
     if df.empty:
@@ -489,56 +707,84 @@ elif painel == "🔍 Pipeline V14 (Simples)":
             step=1,
         )
     with col2:
-        n_series = st.number_input(
-            "Quantidade de séries candidatas:",
+        tamanho_janela = st.number_input(
+            "Tamanho da janela IDX:",
             min_value=5,
-            max_value=200,
-            value=30,
-            step=5,
+            max_value=30,
+            value=10,
+            step=1,
         )
     with col3:
-        executar = st.button("Executar Pipeline V14 (Simples)", type="primary")
+        top_janelas = st.number_input(
+            "Qtd. janelas similares (IDX):",
+            min_value=10,
+            max_value=100,
+            value=40,
+            step=5,
+        )
 
-    if executar:
-        df_cand = executar_pipeline_v14_simples(df, idx_alvo, n_series)
-        st.session_state["df_candidatos"] = df_cand
+    n_series_final = st.slider(
+        "Quantidade de séries finais (S6 Profundo):",
+        min_value=10,
+        max_value=200,
+        value=50,
+        step=10,
+    )
+
+    if st.button("Executar Pipeline V14 TURBO++", type="primary"):
+        resultado = executar_pipeline_v14_turbo(
+            df,
+            idx_alvo,
+            tamanho_janela=int(tamanho_janela),
+            top_janelas=int(top_janelas),
+            n_series_final=int(n_series_final),
+        )
+        st.session_state["resultado_turbo"] = resultado
         st.session_state["ultimo_idx_alvo"] = int(idx_alvo)
 
-        # Atualiza k* para este alvo
         kstar = calcular_k_star_estado(df, idx_alvo)
         st.session_state["k_star_estado"] = kstar["estado"]
         st.session_state["k_star_score"] = kstar["score"]
 
-    df_cand = st.session_state.get("df_candidatos", pd.DataFrame())
+    resultado = st.session_state.get("resultado_turbo", {})
+    leque_orig = resultado.get("leque_original", pd.DataFrame())
+    leque_corr = resultado.get("leque_corrigido", pd.DataFrame())
+    flat_mix = resultado.get("flat_misto", pd.DataFrame())
+    previsao_final = resultado.get("previsao_final", None)
+
+    if leque_orig is None or leque_orig.empty:
+        st.info("Execute o pipeline TURBO++ para ver os resultados.")
+        st.stop()
+
+    st.markdown("### 📊 Leque ORIGINAL (IPF bruto)")
+    st.dataframe(leque_orig[["seguidor_idx", "series", "score_idx", "k_hist"]])
+
+    if leque_corr is not None and not leque_corr.empty:
+        st.markdown("### 🔧 Leque CORRIGIDO (IPO simplificado)")
+        st.dataframe(leque_corr[["seguidor_idx", "series_corr", "score_ipo"]])
+
+    if flat_mix is not None and not flat_mix.empty:
+        st.markdown("### 🧬 S6 Profundo — Leque MISTO (achado e ranqueado)")
+        df_view = flat_mix.copy()
+        df_view["series_str"] = df_view["series"].apply(lambda s: " ".join(str(x) for x in s))
+        st.dataframe(df_view[["series_str", "score", "freq", "disp"]])
+
+    if previsao_final:
+        st.markdown("### 🎯 Núcleo TURBO++ (previsão bruta do motor)")
+        st.code(" ".join(str(x) for x in previsao_final), language="text")
+
     idx_alvo_mem = st.session_state.get("ultimo_idx_alvo", None)
+    serie_alvo = df[df["idx"] == idx_alvo_mem] if idx_alvo_mem is not None else pd.DataFrame()
+    if not serie_alvo.empty:
+        k_real = int(serie_alvo.iloc[0]["k"])
+        estado_k_real = classificar_k_valor(k_real)
+        st.markdown("### ⚠️ k histórico da série alvo")
+        st.info(rotulo_k(estado_k_real))
 
-    if df_cand is not None and not df_cand.empty:
-        st.markdown("### 📊 Séries candidatas — Pipeline V14")
-        st.dataframe(df_cand)
-
-        # k real da série alvo (histórico)
-        serie_alvo = df[df["idx"] == idx_alvo_mem] if idx_alvo_mem is not None else pd.DataFrame()
-        if not serie_alvo.empty:
-            k_real = int(serie_alvo.iloc[0]["k"])
-            estado_k_real = classificar_k_valor(k_real)
-            st.markdown("### ⚠️ k histórico da série alvo")
-            st.write(f"**Série alvo:** {serie_alvo.iloc[0]['serie']}")
-            st.info(rotulo_k(estado_k_real))
-
-        # k previsto reativo (herdado do melhor candidato)
-        k_prev = estimar_k_previsto(df_cand)
-        estado_k_prev = classificar_k_valor(k_prev)
-        st.markdown("### 🧭 k previsto (reativo, baseado nos candidatos)")
-        st.info(rotulo_k(estado_k_prev))
-
-        # k* preditivo (sentinela estrutural)
-        k_star_estado = st.session_state["k_star_estado"]
-        k_star_score = st.session_state["k_star_score"]
-        st.markdown("### ⚡ k* (sentinela preditivo TURBO++)")
-        st.info(rotulo_k_star(k_star_estado, k_star_score))
-
-    else:
-        st.info("Execute o pipeline para ver as séries candidatas.")
+    k_star_estado = st.session_state["k_star_estado"]
+    k_star_score = st.session_state["k_star_score"]
+    st.markdown("### ⚡ k* (sentinela preditivo TURBO++)")
+    st.info(rotulo_k_star(k_star_estado, k_star_score))
 
 
 # ============================================================
@@ -593,70 +839,93 @@ elif painel == "🚨 Monitor de Risco (k & k*)":
 
 
 # ============================================================
-# PAINEL 4 — Modo TURBO++ — Previsão Final
+# PAINEL 4 — Modo TURBO++ — Painel Completo
 # ============================================================
 
-elif painel == "🚀 Modo TURBO++ — Previsão Final":
-    st.markdown("## 🚀 Modo TURBO++ — Previsão Final")
+elif painel == "🚀 Modo TURBO++ — Painel Completo":
+    st.markdown("## 🚀 Modo TURBO++ — Painel Completo")
 
     df = st.session_state.get("df", pd.DataFrame())
     if df.empty:
         st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
         st.stop()
 
-    df_cand = st.session_state.get("df_candidatos", pd.DataFrame())
     idx_alvo_mem = st.session_state.get("ultimo_idx_alvo", None)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if idx_alvo_mem is None:
-            idx_min = int(df["idx"].min()) + 1
-            idx_max = int(df["idx"].max())
-            idx_escolhido = st.number_input(
-                "Índice alvo (idx) para o TURBO++:",
-                min_value=idx_min,
-                max_value=idx_max,
-                value=idx_max,
-                step=1,
-            )
-        else:
-            st.markdown(f"**Índice alvo (idx) usado no pipeline simples:** `{idx_alvo_mem}`")
-            idx_escolhido = idx_alvo_mem
-    with col2:
-        n_series_turbo = st.number_input(
-            "Quantidade de séries na base TURBO++:",
-            min_value=10,
-            max_value=300,
-            value=50,
-            step=10,
+    if idx_alvo_mem is None:
+        idx_min = int(df["idx"].min()) + 1
+        idx_max = int(df["idx"].max())
+        idx_escolhido = st.number_input(
+            "Índice alvo (idx) para o TURBO++:",
+            min_value=idx_min,
+            max_value=idx_max,
+            value=idx_max,
+            step=1,
         )
+    else:
+        st.markdown(f"**Índice alvo (idx) usado no pipeline TURBO++:** `{idx_alvo_mem}`")
+        idx_escolhido = idx_alvo_mem
+
+    n_series_final = st.slider(
+        "Quantidade de séries finais (S6 Profundo - painel completo):",
+        min_value=10,
+        max_value=200,
+        value=50,
+        step=10,
+    )
 
     st.markdown("---")
 
-    if st.button("Rodar TURBO++"):
-        df_cand = executar_pipeline_v14_simples(df, idx_escolhido, n_series_turbo)
-        st.session_state["df_candidatos"] = df_cand
+    if st.button("Rodar TURBO++ (painel completo)"):
+        resultado = executar_pipeline_v14_turbo(
+            df,
+            idx_escolhido,
+            tamanho_janela=10,
+            top_janelas=40,
+            n_series_final=int(n_series_final),
+        )
+        st.session_state["resultado_turbo"] = resultado
         st.session_state["ultimo_idx_alvo"] = int(idx_escolhido)
 
-        # Atualiza k* para este alvo
         kstar = calcular_k_star_estado(df, idx_escolhido)
         st.session_state["k_star_estado"] = kstar["estado"]
         st.session_state["k_star_score"] = kstar["score"]
 
-    df_cand = st.session_state.get("df_candidatos", pd.DataFrame())
+    resultado = st.session_state.get("resultado_turbo", {})
+    leque_orig = resultado.get("leque_original", pd.DataFrame())
+    leque_corr = resultado.get("leque_corrigido", pd.DataFrame())
+    flat_orig = resultado.get("flat_original", pd.DataFrame())
+    flat_corr = resultado.get("flat_corrigido", pd.DataFrame())
+    flat_mix = resultado.get("flat_misto", pd.DataFrame())
+    previsao_final = resultado.get("previsao_final", None)
 
-    if df_cand is None or df_cand.empty:
-        st.info("Rode o TURBO++ para gerar a previsão final.")
+    if leque_orig is None or leque_orig.empty:
+        st.info("Rode o TURBO++ para ver o painel completo.")
         st.stop()
 
-    st.markdown("### 📊 Base interna TURBO++ (candidatos)")
-    st.dataframe(df_cand)
+    st.markdown("### 🧱 Leque ORIGINAL (IPF) — séries brutas por similaridade")
+    st.dataframe(leque_orig[["seguidor_idx", "series", "score_idx", "k_hist"]])
 
-    previsao_final = extrair_previsao_final(df_cand)
-    k_prev = estimar_k_previsto(df_cand)
-    estado_k_prev = classificar_k_valor(k_prev)
-    k_star_estado = st.session_state["k_star_estado"]
-    k_star_score = st.session_state["k_star_score"]
+    if leque_corr is not None and not leque_corr.empty:
+        st.markdown("### 🔧 Leque CORRIGIDO (IPO) — séries estruturalmente ajustadas")
+        st.dataframe(leque_corr[["seguidor_idx", "series_corr", "score_ipo"]])
+
+    if flat_orig is not None and not flat_orig.empty:
+        st.markdown("### 🧬 S6 Profundo — Leque ORIGINAL achatado")
+        df_view = flat_orig.copy()
+        df_view["series_str"] = df_view["series"].apply(lambda s: " ".join(str(x) for x in s))
+        st.dataframe(df_view[["series_str", "score", "freq", "disp"]])
+
+    if flat_corr is not None and not flat_corr.empty:
+        st.markdown("### 🧬 S6 Profundo — Leque CORRIGIDO achatado")
+        df_view = flat_corr.copy()
+        df_view["series_str"] = df_view["series"].apply(lambda s: " ".join(str(x) for x in s))
+        st.dataframe(df_view[["series_str", "score", "freq", "disp"]])
+
+    if flat_mix is not None and not flat_mix.empty:
+        st.markdown("### 🧬 S6 Profundo — Leque MISTO (ORIGINAL + CORRIGIDO)")
+        df_view = flat_mix.copy()
+        df_view["series_str"] = df_view["series"].apply(lambda s: " ".join(str(x) for x in s))
+        st.dataframe(df_view[["series_str", "score", "freq", "disp"]])
 
     st.markdown("### 🎯 Previsão Final TURBO++")
     if previsao_final:
@@ -664,33 +933,25 @@ elif painel == "🚀 Modo TURBO++ — Previsão Final":
     else:
         st.warning("Nenhuma previsão final pôde ser gerada.")
 
-    st.markdown("### ⚠️ Contexto de risco (k histórico + k* preditivo)")
-    st.info("**k previsto (reativo, herdado dos candidatos):** " + rotulo_k(estado_k_prev))
-    st.info("**k\* (sentinela preditivo TURBO++):** " + rotulo_k_star(k_star_estado, k_star_score))
-
-    # Comparação opcional com k real do alvo
     idx_alvo_mem = st.session_state.get("ultimo_idx_alvo", None)
     serie_alvo = df[df["idx"] == idx_alvo_mem] if idx_alvo_mem is not None else pd.DataFrame()
     if not serie_alvo.empty:
         k_real = int(serie_alvo.iloc[0]["k"])
         estado_k_real = classificar_k_valor(k_real)
         st.markdown("### 🔁 Comparação com k histórico da série alvo")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**k histórico (real):**")
-            st.write(rotulo_k(estado_k_real))
-        with col2:
-            st.markdown("**k\* preditivo (TURBO++):**")
-            st.write(rotulo_k_star(k_star_estado, k_star_score))
+        st.info("k histórico (real): " + rotulo_k(estado_k_real))
+
+    k_star_estado = st.session_state["k_star_estado"]
+    k_star_score = st.session_state["k_star_score"]
+    st.markdown("### ⚡ Contexto de risco (k* preditivo)")
+    st.info(rotulo_k_star(k_star_estado, k_star_score))
 
     st.markdown("---")
     st.markdown(
         """
-        ℹ️ **Notas desta versão única V14 TURBO++**
-
-        - O motor de previsão ainda está em modo estrutural (baseado em janelas recentes).
-        - O fluxo já está pronto para receber o motor completo V14 (IDX/IPF/IPO/S6).
-        - O k histórico atua como sentinela reativo.
-        - O k\* atua como sentinela preditivo, antecipando risco estrutural.
+        ℹ️ Notas:
+        - O k histórico e o k* preditivo NUNCA entram na matemática da previsão.
+        - A previsão é 100% baseada na estrutura dos 6 passageiros.
+        - k e k* servem apenas como contexto de risco para interpretação.
         """
     )
