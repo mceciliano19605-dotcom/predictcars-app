@@ -420,16 +420,15 @@ if painel == "Estado Atual":
                 k_estado = "atencao"
             else:
                 k_estado = "estavel"
-        k_pred = calcular_k_pred(k_estado, df)
+        k_pred = calcular_k_pred(k_estado, df_hist)
 
         texto_k_atual = contexto_k_texto(k_estado, prefixo="k*")
         texto_k_pred  = contexto_k_texto(k_pred,    prefixo="k̂")
         
         # Exibir badge ambiental no Estado Atual
         st.markdown("### 🌡️ Estado Ambiental da Estrada (k*) — Estado Atual")
-        st.markdown(contexto_k_texto(k_estado, prefixo="k*"))
+        st.markdown(texto_k_atual)
         st.markdown(texto_k_pred)
-
     except Exception as e:
         st.error(f"Erro no sensor k* (Estado Atual): {e}")
     st.subheader("Resumo do Regime Atual")
@@ -2278,6 +2277,49 @@ def calcular_entropia_k(df, janela=10):
 
     except:
         return 0.5
+def calcular_tendencia_k(df, janela=12):
+    """
+    Tendência do k (k-slope).
+    Indica se o ambiente está melhorando (+), piorando (-) ou neutro.
+    Retorna: -1, 0 ou +1.
+    """
+
+    try:
+        if df is None or df.empty or "k" not in df.columns:
+            return 0  # neutro
+
+        k_vals = df["k"].tail(janela).tolist()
+
+        if len(k_vals) < 3:
+            return 0
+
+        # Converter k em binário (0 = estável, 1 = alerta/ruptura)
+        binario = [1 if k != 0 else 0 for k in k_vals]
+
+        # Eixo x (0,1,2,...)
+        xs = list(range(len(binario)))
+
+        # Cálculo do slope simples (regressão linear de 1 variável)
+        n = len(xs)
+        media_x = sum(xs) / n
+        media_y = sum(binario) / n
+
+        num = sum((xs[i] - media_x) * (binario[i] - media_y) for i in range(n))
+        den = sum((xs[i] - media_x) ** 2 for i in range(n))
+
+        slope = num / den if den != 0 else 0
+
+        # Interpretação da tendência
+        if slope > 0.05:
+            return +1  # piorando
+        elif slope < -0.05:
+            return -1  # melhorando
+        else:
+            return 0   # neutro
+
+    except:
+        return 0
+
 
 def calcular_k_pred(k_estado_atual: str, df):
     """
@@ -2286,10 +2328,32 @@ def calcular_k_pred(k_estado_atual: str, df):
     Depois, iremos substituir pela versão real com SDM, T_norm, entropia e tendência.
     """
     try:
-        # Versão placeholder: retorna o estado atual
-        return k_estado_atual
+        # 1) Calcular sensores avançados
+        sdm = calcular_sdm(df)
+        tnorm = calcular_t_norm(df)
+        ent = calcular_entropia_k(df)
+        trend = calcular_tendencia_k(df)
+
+        # 2) Score bruto
+        score = (
+            0.30 * (1 - sdm) +      # menor similaridade → mais crítico
+            0.30 * tnorm +         # mais turbulência → pior
+            0.25 * ent +           # mais entropia → pior
+            0.15 * (trend + 1)/2   # trend: -1,0,+1 → normaliza p/ 0..1
+        )
+
+        # 3) Classificação por faixas
+        if score < 0.33:
+            return "estavel"
+        elif score < 0.66:
+            return "atencao"
+        else:
+            return "critico"
+
     except:
         return k_estado_atual
+
+   
 
 def ajustar_n_series_por_k(k_ativo: str, n_series_base: int) -> int:
     """
