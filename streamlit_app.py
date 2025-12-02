@@ -51,9 +51,7 @@ def preparar_historico_V14(df_raw):
 
 with st.sidebar:
     st.markdown("## 🧭 Navegação — Predict Cars V14 TURBO++")
-
-    st.write("df no session_state:", st.session_state.get("df")) 
-    
+   
     painel = st.selectbox(
         "Escolha um painel:",
         [
