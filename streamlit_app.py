@@ -1,606 +1,362 @@
-# app_v14_auto.py
-# Predict Cars V14 TURBO++ — Modo Automático
-# Núcleo V14 + S6/S7 + TVF Adaptativo + QDS Dinâmico + k* Sensível + Auto-Mist
-
 import streamlit as st
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, List, Tuple
+from typing import Tuple, List, Dict, Any
 
 # ============================================================
-# CONFIG BÁSICA DO APP
+# CONFIGURAÇÃO INICIAL
 # ============================================================
-
 st.set_page_config(
-    page_title="Predict Cars V14 TURBO++ (Auto)",
+    page_title="Predict Cars V14 TURBO++",
     layout="wide",
 )
 
-st.title("🚗 Predict Cars V14 TURBO++ — Modo Automático")
-st.caption("Núcleo V14 + S6/S7 + TVF Adaptativo + QDS Dinâmico + k* Sensível + Auto-Mist")
+st.markdown(
+    """
+    # Predict Cars V14 TURBO++ — Modo Estrutural + k como Risco
+
+    Núcleo V14 + S6/S7 + TVF + Backtest Básico + AIQ + QDS + k* (camada de risco)
+
+    - A **previsão estrutural** (listas e séries) é feita **sem o k**.
+    - O **k** é usado apenas como **farol de risco** (clima / confiança).
+    """
+)
 
 # ============================================================
-# FUNÇÕES AUXILIARES — HISTÓRICO
+# FUNÇÕES DE SUPORTE
 # ============================================================
 
-def parse_pasted_history(text: str) -> pd.DataFrame:
+def preparar_historico(df_raw: pd.DataFrame) -> pd.DataFrame:
     """
-    Converte texto colado (linhas tipo:
-    C1;41;5;4;52;30;33;0
-    ou
-    1;41;5;4;52;30;33;0
-    ) em DataFrame numérico.
-    """
-    rows = []
-    for line in text.strip().splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        # aceita ; ou ,
-        if ";" in line:
-            parts = line.split(";")
-        else:
-            parts = line.split(",")
-
-        # tenta tirar prefixo C
-        first = parts[0].strip()
-        if first.upper().startswith("C"):
-            try:
-                idx = int(first[1:])
-            except ValueError:
-                idx = np.nan
-        else:
-            try:
-                idx = int(first)
-            except ValueError:
-                idx = np.nan
-
-        nums = []
-        for p in parts[1:]:
-            p = p.strip()
-            if p == "":
-                nums.append(np.nan)
-            else:
-                try:
-                    nums.append(int(p))
-                except ValueError:
-                    try:
-                        nums.append(float(p))
-                    except ValueError:
-                        nums.append(np.nan)
-
-        rows.append([idx] + nums)
-
-    if not rows:
-        return pd.DataFrame()
-
-    max_len = max(len(r) for r in rows)
-    for r in rows:
-        while len(r) < max_len:
-            r.append(np.nan)
-
-    cols = ["idx"] + [f"v{i}" for i in range(1, max_len)]
-    df = pd.DataFrame(rows, columns=cols)
-
-    # última coluna pode ser k (0/1, etc.)
-    # vamos assumir: idx | p1..pN | k (opcional)
-    return df
-
-
-def prepare_history(df_raw: pd.DataFrame) -> pd.DataFrame:
-    """
-    Normaliza o histórico:
-    - garante coluna 'idx' como índice de série
-    - detecta passageiros e possível coluna k.
+    Prepara o histórico para o formato interno:
+    colunas: idx, p1..p6, k
+    
+    Aceita:
+    - CSV com ; ou , separando
+    - Primeira coluna podendo ser 'C1', 'C2' etc ou apenas índices numéricos
+    - Última coluna sendo k (0/1) ou ausente (nesse caso assume k=0)
     """
     df = df_raw.copy()
 
-    # se não houver 'idx', assume primeira coluna
-    if "idx" not in df.columns:
-        df.columns = ["idx"] + [f"v{i}" for i in range(1, df.shape[1])]
+    # Se tiver apenas 7 colunas: idx + 6 passageiros
+    # Se tiver 8 colunas: idx + 6 passageiros + k
+    # Tenta identificar automaticamente.
+    n_cols = df.shape[1]
+    if n_cols < 7:
+        raise ValueError("Histórico precisa ter pelo menos 7 colunas (idx + 6 passageiros).")
 
-    # garante ordenação por idx
+    # Renomear colunas genéricas
+    cols = list(df.columns)
+    rename_map = {}
+
+    # idx na primeira coluna
+    rename_map[cols[0]] = "idx"
+
+    # passageiros
+    for i in range(1, 7):
+        rename_map[cols[i]] = f"p{i}"
+
+    # k (se existir)
+    if n_cols >= 8:
+        rename_map[cols[7]] = "k"
+
+    df = df.rename(columns=rename_map)
+
+    # Se não tiver k, cria k=0
+    if "k" not in df.columns:
+        df["k"] = 0
+
+    # Normalizar idx: remover prefixo tipo 'C'
+    def parse_idx(x):
+        try:
+            if isinstance(x, str) and x.upper().startswith("C"):
+                return int(x[1:])
+            return int(x)
+        except Exception:
+            return np.nan
+
+    df["idx"] = df["idx"].apply(parse_idx)
+    df = df.dropna(subset=["idx"])
+    df["idx"] = df["idx"].astype(int)
+
+    # Ordenar por idx
     df = df.sort_values("idx").reset_index(drop=True)
 
-    # tenta identificar se última coluna é k (0/1)
-    if df.shape[1] >= 3:
-        last_col = df.columns[-1]
-        # heurística: se os valores são 0/1 ou poucos inteiros pequenos, tratamos como k
-        vals = df[last_col].dropna().unique()
-        if len(vals) <= 5 and set(vals).issubset({0, 1, 2, 3}):
-            # ok, trata como k
-            df.rename(columns={last_col: "k"}, inplace=True)
-        else:
-            # sem k claro -> deixa sem renomear
-            pass
+    # Garantir tipos numéricos para passageiros e k
+    for col in [f"p{i}" for i in range(1, 7)]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df["k"] = pd.to_numeric(df["k"], errors="coerce").fillna(0).astype(int)
 
     return df
 
 
-def get_passenger_columns(df: pd.DataFrame) -> List[str]:
-    cols = [c for c in df.columns if c not in ("idx", "k")]
-    return cols
+def extrair_vetor(df: pd.DataFrame, idx_alvo: int) -> np.ndarray:
+    """Retorna o vetor [p1..p6] do índice alvo."""
+    linha = df[df["idx"] == idx_alvo]
+    if linha.empty:
+        raise ValueError(f"Índice {idx_alvo} não encontrado no histórico.")
+    return linha[[f"p{i}" for i in range(1, 7)]].values[0]
 
 
-# ============================================================
-# FUNÇÕES DE MÉTRICA E PIPELINE
-# ============================================================
-
-def series_distance(a: np.ndarray, b: np.ndarray) -> float:
-    """Distância média absoluta entre duas séries."""
-    return float(np.mean(np.abs(a - b)))
-
-
-def build_context_dataset(df: pd.DataFrame, passenger_cols: List[str]) -> pd.DataFrame:
+def calcular_distancias(df: pd.DataFrame, idx_alvo: int) -> pd.DataFrame:
     """
-    Constrói conjunto de contextos:
-    cada linha i representa o contexto C_i com o próximo C_{i+1} como alvo (predição).
+    Calcula distância estrutural simples (euclidiana) entre a série alvo e todas as anteriores.
+    Não usa k.
     """
-    contexts = []
-    for i in range(len(df) - 1):
-        row_now = df.iloc[i]
-        row_next = df.iloc[i + 1]
-        context = {
-            "ctx_idx": int(row_now["idx"]),
-            "next_idx": int(row_next["idx"]),
-        }
-        for c in passenger_cols:
-            context[f"ctx_{c}"] = row_now[c]
-            context[f"next_{c}"] = row_next[c]
-        if "k" in df.columns:
-            context["ctx_k"] = row_now.get("k", np.nan)
-            context["next_k"] = row_next.get("k", np.nan)
-        contexts.append(context)
+    alvo = extrair_vetor(df, idx_alvo)
+    candidatos = df[df["idx"] < idx_alvo].copy()  # só usa passado
 
-    return pd.DataFrame(contexts)
+    if candidatos.empty:
+        raise ValueError("Não há séries anteriores suficientes para calcular IDX/S6.")
+
+    mat = candidatos[[f"p{i}" for i in range(1, 7)]].values
+    dists = np.linalg.norm(mat - alvo, axis=1)
+
+    candidatos["dist"] = dists
+    # Dispersão (max-min) da série candidata
+    candidatos["disp"] = mat.max(axis=1) - mat.min(axis=1)
+    return candidatos
 
 
-def compute_k_state(df: pd.DataFrame, window: int = 50) -> str:
+def construir_s6_s7(
+    df: pd.DataFrame, idx_alvo: int, s6_max: int, s7_disp_max: float
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Estado de k* baseado nos últimos valores da coluna k (se existir).
-    Retorna: 'estavel', 'atencao', 'critico'.
+    Constrói S6 (vizinhança) e S7 (filtro por dispersão).
     """
-    if "k" not in df.columns:
-        return "desconhecido"
-
-    recent = df["k"].dropna().tail(window)
-    if recent.empty:
-        return "desconhecido"
-
-    # assume k como 0/1 (ou contagens pequenas)
-    rate = np.mean(recent.values > 0)
-
-    if rate < 0.2:
-        return "estavel"
-    elif rate < 0.4:
-        return "atencao"
-    else:
-        return "critico"
+    base = calcular_distancias(df, idx_alvo)
+    s6 = base.sort_values("dist").head(s6_max).reset_index(drop=True)
+    s7 = s6[s6["disp"] <= s7_disp_max].reset_index(drop=True)
+    return s6, s7
 
 
-def compute_structural_sensitivity(distances: np.ndarray, s7_survivors: int, s6_total: int) -> float:
+def calcular_tvf(s7: pd.DataFrame) -> pd.DataFrame:
     """
-    Sensibilidade Estrutural (SE): 0 a 100.
-    Leva em conta:
-    - proximidade média das vizinhanças
-    - taxa de sobrevivência em S7
+    Calcula um TVF adaptativo simples:
+    - score_tvf = 1 / (1 + dist) * (1 / (1 + disp_normalizada))
     """
-    if len(distances) == 0:
-        return 0.0
+    df = s7.copy()
+    if df.empty:
+        return df
 
-    avg_dist = float(np.mean(distances))
-    max_dist = float(np.max(distances)) if np.max(distances) > 0 else 1.0
+    # Normalizar dist e disp para [0,1] (evita explosões)
+    df["dist_n"] = (df["dist"] - df["dist"].min()) / (df["dist"].max() - df["dist"].min() + 1e-9)
+    df["disp_n"] = (df["disp"] - df["disp"].min()) / (df["disp"].max() - df["disp"].min() + 1e-9)
 
-    # quanto menor a distância, maior a coerência
-    coh_dist = 1.0 - min(avg_dist / max_dist, 1.0)
+    df["score_tvf"] = (1.0 / (1.0 + df["dist_n"])) * (1.0 / (1.0 + df["disp_n"]))
 
-    surv_ratio = s7_survivors / max(s6_total, 1)
-    surv_norm = min(surv_ratio / 0.3, 1.0)  # 30% de sobrevivência vira 1.0
-
-    se = 100.0 * (0.6 * coh_dist + 0.4 * surv_norm)
-    return float(se)
-
-
-def classify_regime(se: float, s7_survivors: int) -> str:
-    """
-    Classifica o regime da estrada:
-    - 'normal'
-    - 'pre-ruptura'
-    - 'ruptura'
-    """
-    if s7_survivors == 0 or se < 25:
-        return "ruptura"
-    elif se < 55:
-        return "pre-ruptura"
-    else:
-        return "normal"
-
-
-def compute_iaq(s6_total: int, s7_survivors: int, se: float) -> float:
-    """
-    IAQ — Índice de Alinhamento de Quadro (0 a 100).
-    Considera:
-    - relação S7/S6
-    - sensibilidade estrutural
-    """
-    surv_ratio = s7_survivors / max(s6_total, 1)
-    surv_norm = min(surv_ratio / 0.4, 1.0)  # 40% -> 1.0
-
-    se_norm = se / 100.0
-
-    iaq = 100.0 * (0.5 * surv_norm + 0.5 * se_norm)
-    return float(iaq)
-
-
-def compute_qds(iaq: float, se: float, k_state: str) -> float:
-    """
-    QDS Dinâmico (0 a 100).
-    Combina:
-    - IAQ
-    - Sensibilidade estrutural
-    - Estado de k*
-    """
-    k_factor = 1.0
-    if k_state == "estavel":
-        k_factor = 1.0
-    elif k_state == "atencao":
-        k_factor = 0.8
-    elif k_state == "critico":
-        k_factor = 0.6
-    else:
-        k_factor = 0.9  # desconhecido
-
-    base = 0.5 * (iaq + se)
-    qds = base * k_factor / 100.0 * 100.0
-    return float(qds)
-
-
-def adapt_tvf(regime: str, base_topn: int) -> int:
-    """
-    TVF Adaptativo: ajusta Top N final conforme o regime.
-    """
-    if regime == "normal":
-        return base_topn
-    elif regime == "pre-ruptura":
-        return max(16, base_topn // 2)
-    else:  # ruptura
-        return max(8, base_topn // 4)
-
-
-def adapt_s6_s7(regime: str, base_s6: int, base_disp: float) -> Tuple[int, float]:
-    """
-    Ajusta automaticamente S6 (nº de vizinhos) e S7 (dispersão máxima)
-    conforme o regime.
-    """
-    if regime == "normal":
-        return base_s6, base_disp
-    elif regime == "pre-ruptura":
-        return int(base_s6 * 1.5), base_disp + 15.0
-    else:  # ruptura
-        return int(base_s6 * 2.0), base_disp + 25.0
-
-
-def apply_s6_s7_tvf(
-    ctx_df: pd.DataFrame,
-    df: pd.DataFrame,
-    idx_alvo: int,
-    passenger_cols: List[str],
-    s6_limit: int,
-    disp_limit: float,
-    topn_tvf: int,
-) -> Dict[str, Any]:
-    """
-    Pipeline S6 -> S7 -> TVF para um dado conjunto de parâmetros.
-    Retorna infos para cálculo de QDS e previsões.
-    """
-    # contexto alvo (linha com idx == idx_alvo)
-    row_target = df[df["idx"] == idx_alvo]
-    if row_target.empty:
-        raise ValueError(f"Índice alvo {idx_alvo} não encontrado no histórico.")
-
-    target_vals = row_target.iloc[0][passenger_cols].values.astype(float)
-
-    # candidatos de contexto (todos ctx_idx com próximo conhecido)
-    ctx = ctx_df.copy()
-
-    # distância estrutural
-    ctx_pass_cols = [f"ctx_{c}" for c in passenger_cols]
-    ctx_matrix = ctx[ctx_pass_cols].values.astype(float)
-
-    dists = np.array([series_distance(target_vals, v) for v in ctx_matrix])
-    ctx["dist"] = dists
-
-    # S6 — pega vizinhos mais próximos
-    ctx_s6 = ctx.sort_values("dist").head(s6_limit).reset_index(drop=True)
-    s6_total = len(ctx_s6)
-
-    # monta as séries previstas (S6) a partir do próximo trecho
-    series_candidates = []
-    for _, r in ctx_s6.iterrows():
-        next_vals = [r[f"next_{c}"] for c in passenger_cols]
-        series_candidates.append(next_vals)
-    series_candidates = np.array(series_candidates, dtype=float)
-
-    # S7 — filtro de dispersão (max - min <= disp_limit)
-    dispersions = series_candidates.max(axis=1) - series_candidates.min(axis=1)
-    mask_s7 = dispersions <= disp_limit
-    s7_indices = np.where(mask_s7)[0]
-
-    s7_total = len(s7_indices)
-    if s7_total == 0:
-        survivors_df = pd.DataFrame(
-            columns=["series", "dist", "disp", "score_tvf"]
-        )
-        return {
-            "target_vals": target_vals,
-            "s6_total": s6_total,
-            "s7_total": s7_total,
-            "distances": dists,
-            "survivors_df": survivors_df,
-        }
-
-    survivors = series_candidates[s7_indices]
-    survivors_dist = dists[s7_indices]
-    survivors_disp = dispersions[s7_indices]
-
-    # TVF — scoring simples: combina distância e dispersão
-    dist_norm = survivors_dist / (survivors_dist.max() if survivors_dist.max() > 0 else 1.0)
-    disp_norm = survivors_disp / (survivors_disp.max() if survivors_disp.max() > 0 else 1.0)
-
-    score_tvf = (0.6 * (1 - dist_norm) + 0.4 * (1 - disp_norm))  # maior = melhor
-
-    survivors_df = pd.DataFrame({
-        "series": [list(map(int, s)) for s in survivors],
-        "dist": survivors_dist,
-        "disp": survivors_disp,
-        "score_tvf": score_tvf,
-    }).sort_values("score_tvf", ascending=False).reset_index(drop=True)
-
-    survivors_df = survivors_df.head(topn_tvf)
-
-    return {
-        "target_vals": target_vals,
-        "s6_total": s6_total,
-        "s7_total": s7_total,
-        "distances": dists,
-        "survivors_df": survivors_df,
-    }
-
-
-def run_adaptive_pipeline(
-    df: pd.DataFrame,
-    idx_alvo: int,
-    base_s6: int = 512,
-    base_disp: float = 45.0,
-    base_topn: int = 128,
-) -> Dict[str, Any]:
-    """
-    Roda pipeline adaptativo:
-    1) Tenta com parâmetros base
-    2) Diagnostica regime
-    3) Se necessário, ajusta S6/S7/TVF e roda de novo (Auto-Mist)
-    4) Calcula SE, IAQ, QDS, k* sensível
-    """
-    passenger_cols = get_passenger_columns(df)
-    ctx_df = build_context_dataset(df, passenger_cols)
-    k_state_global = compute_k_state(df)
-
-    logs = []
-
-    # --------- PASSO 1: parâmetros base ----------
-    res_base = apply_s6_s7_tvf(
-        ctx_df, df, idx_alvo, passenger_cols,
-        s6_limit=base_s6,
-        disp_limit=base_disp,
-        topn_tvf=base_topn,
-    )
-
-    se_base = compute_structural_sensitivity(
-        res_base["distances"],
-        res_base["s7_total"],
-        res_base["s6_total"],
-    )
-    regime_base = classify_regime(se_base, res_base["s7_total"])
-    iaq_base = compute_iaq(res_base["s6_total"], res_base["s7_total"], se_base)
-    qds_base = compute_qds(iaq_base, se_base, k_state_global)
-
-    logs.append({
-        "etapa": "Base",
-        "s6": base_s6,
-        "disp": base_disp,
-        "topn": base_topn,
-        "se": se_base,
-        "iaq": iaq_base,
-        "qds": qds_base,
-        "regime": regime_base,
-        "s6_total": res_base["s6_total"],
-        "s7_total": res_base["s7_total"],
-    })
-
-    # se já é regime normal com S7 aceitável, usamos esse resultado
-    if (regime_base == "normal") and (res_base["s7_total"] > 0):
-        final_res = res_base
-        final_regime = regime_base
-        final_se = se_base
-        final_iaq = iaq_base
-        final_qds = qds_base
-        final_params = (base_s6, base_disp, base_topn)
-    else:
-        # --------- PASSO 2: parâmetros adaptados ----------
-        adapt_s6, adapt_disp = adapt_s6_s7(regime_base, base_s6, base_disp)
-        adapt_topn = adapt_tvf(regime_base, base_topn)
-
-        res_adapt = apply_s6_s7_tvf(
-            ctx_df, df, idx_alvo, passenger_cols,
-            s6_limit=adapt_s6,
-            disp_limit=adapt_disp,
-            topn_tvf=adapt_topn,
-        )
-
-        se_adapt = compute_structural_sensitivity(
-            res_adapt["distances"],
-            res_adapt["s7_total"],
-            res_adapt["s6_total"],
-        )
-        regime_adapt = classify_regime(se_adapt, res_adapt["s7_total"])
-        iaq_adapt = compute_iaq(res_adapt["s6_total"], res_adapt["s7_total"], se_adapt)
-        qds_adapt = compute_qds(iaq_adapt, se_adapt, k_state_global)
-
-        logs.append({
-            "etapa": "Adaptado",
-            "s6": adapt_s6,
-            "disp": adapt_disp,
-            "topn": adapt_topn,
-            "se": se_adapt,
-            "iaq": iaq_adapt,
-            "qds": qds_adapt,
-            "regime": regime_adapt,
-            "s6_total": res_adapt["s6_total"],
-            "s7_total": res_adapt["s7_total"],
-        })
-
-        # escolhe o melhor resultado (maior QDS, desde que haja pelo menos 1 sobrevivente ou seja melhor que base)
-        if (res_adapt["s7_total"] > 0 and qds_adapt >= qds_base) or res_base["s7_total"] == 0:
-            final_res = res_adapt
-            final_regime = regime_adapt
-            final_se = se_adapt
-            final_iaq = iaq_adapt
-            final_qds = qds_adapt
-            final_params = (adapt_s6, adapt_disp, adapt_topn)
+    # Série de previsão = próxima linha do histórico após cada vizinho (se existir)
+    series_list = []
+    for _, row in df.iterrows():
+        idx_viz = int(row["idx"])
+        prox = df_sessao[df_sessao["idx"] == idx_viz + 1]
+        if prox.empty:
+            series_list.append(None)
         else:
-            final_res = res_base
-            final_regime = regime_base
-            final_se = se_base
-            final_iaq = iaq_base
-            final_qds = qds_base
-            final_params = (base_s6, base_disp, base_topn)
+            series_list.append(
+                list(prox[[f"p{i}" for i in range(1, 7)]].values[0]) + [int(prox["k"].values[0])]
+            )
 
-    survivors_df = final_res["survivors_df"]
+    df["series"] = series_list
+    df = df[~df["series"].isna()].reset_index(drop=True)
 
-    if survivors_df.empty:
-        previsao_final = None
+    return df.sort_values("score_tvf", ascending=False).reset_index(drop=True)
+
+
+def calcular_se_iaq(s6: pd.DataFrame) -> Tuple[float, float]:
+    """
+    SE (sensibilidade estrutural) e IAQ (índice de alinhamento qualitativo simples).
+    Versão simplificada baseada em variância e consistência.
+    """
+    if s6.empty:
+        return 0.0, 0.0
+
+    # Quanto menor a média de distâncias, maior o SE
+    dist = s6["dist"].values
+    se = float(max(0.0, 100.0 - 100.0 * dist.mean() / (dist.max() + 1e-9)))
+
+    # IAQ: combinação da variância de dispersão + compactação de distâncias
+    disp = s6["disp"].values
+    if len(disp) > 1:
+        var_disp = np.var(disp)
     else:
-        # Previsão Final TURBO++ = melhor série no TVF adaptativo
-        previsao_final = survivors_df.iloc[0]["series"]
+        var_disp = 0.0
+    iaq = float(max(0.0, 100.0 - 50.0 * var_disp / (disp.max() - disp.min() + 1e-9)))
 
-    return {
-        "idx_alvo": idx_alvo,
-        "passenger_cols": passenger_cols,
-        "target_vals": final_res["target_vals"],
-        "survivors_df": survivors_df,
-        "previsao_final": previsao_final,
-        "regime": final_regime,
-        "se": final_se,
-        "iaq": final_iaq,
-        "qds": final_qds,
-        "k_state": k_state_global,
-        "params": final_params,
-        "logs": logs,
-        "s6_total": final_res["s6_total"],
-        "s7_total": final_res["s7_total"],
-    }
+    return se, iaq
 
 
-def format_k_state(k_state: str) -> str:
-    if k_state == "estavel":
-        return "🟢 k*: Ambiente estável."
-    elif k_state == "atencao":
-        return "🟡 k*: Pré-ruptura residual — atenção."
-    elif k_state == "critico":
-        return "🔴 k*: Ambiente crítico — máxima cautela."
+def calcular_k_estado(df: pd.DataFrame, janela: int = 50) -> Tuple[str, float]:
+    """
+    Calcula o estado do k* com base nos últimos 'janela' valores de k.
+    - retorna (estado, frequencia_1_em_%)
+    """
+    if df.empty:
+        return "desconhecido", 0.0
+
+    ult = df.tail(janela)
+    freq1 = ult["k"].mean() * 100.0  # porcentagem de k=1
+
+    if freq1 < 10:
+        estado = "estavel"
+    elif freq1 < 25:
+        estado = "atencao"
     else:
-        return "⚪ k*: Estado de k* desconhecido."
+        estado = "critico"
+
+    return estado, float(freq1)
 
 
-def format_regime(regime: str) -> str:
-    if regime == "normal":
-        return "🟢 Regime: Estrada em regime normal (núcleo estável)."
-    elif regime == "pre-ruptura":
-        return "🟡 Regime: Pré-ruptura — vizinhança estrutural limitada."
+def calcular_qds(se: float, iaq: float, k_estado: str) -> float:
+    """
+    QDS simples baseado em SE, IAQ e penalização pelo k*.
+    - SE e IAQ são 0-100.
+    - Penaliza um pouco se k_estado é crítico.
+    """
+    base = 0.6 * se + 0.4 * iaq  # peso maior para SE
+    if k_estado == "estavel":
+        fator = 1.0
+    elif k_estado == "atencao":
+        fator = 0.9
     else:
-        return "🔴 Regime: Ruptura estrutural — histórico pouco confiável para estrutura fina."
+        fator = 0.75  # penaliza, mas NÃO altera a previsão, só a confiança
+
+    return float(base * fator / 100.0 * 100.0)  # mantém escala 0-100
 
 
-def format_qds_label(qds: float) -> str:
+def descrever_regime(se: float, iaq: float) -> str:
+    """
+    Regime da estrada baseado em SE e IAQ.
+    """
+    if se >= 65 and iaq >= 75:
+        return "Estrada em regime normal (núcleo estável)."
+    elif se >= 50 and iaq >= 60:
+        return "Estrada em regime intermediário (atenção moderada)."
+    else:
+        return "Estrada em regime turbulento / instável."
+
+
+def descrever_k_estado(k_estado: str, freq1: float) -> str:
+    if k_estado == "estavel":
+        return f"🟢 k*: Ambiente estável — poucos eventos críticos ({freq1:.1f}% de k=1)."
+    elif k_estado == "atencao":
+        return f"🟡 k*: Pré-ruptura / atenção — moderada frequência de k=1 ({freq1:.1f}%)."
+    else:
+        return f"🔴 k*: Ambiente crítico — alta frequência de k=1 ({freq1:.1f}%)."
+
+
+def descrever_qds(qds: float) -> str:
     if qds >= 70:
-        return "🟢 QDS alto — previsão estrutural forte."
+        return f"🟢 QDS alto ({qds:.1f}) — cenário forte para uso estrutural da previsão."
     elif qds >= 40:
-        return "🟡 QDS médio — usar com atenção."
+        return f"🟡 QDS médio ({qds:.1f}) — use a previsão como apoio, com atenção."
     else:
-        return "🔴 QDS baixo — usar apenas como referência."
+        return f"🔴 QDS baixo ({qds:.1f}) — usar apenas como referência qualitativa."
 
 
 # ============================================================
-# PAINEL 1 — Histórico — Entrada
+# ESTADO GLOBAL DO HISTÓRICO
 # ============================================================
 
-st.sidebar.header("Painéis")
-painel = st.sidebar.radio(
-    "Escolha o painel:",
-    ["📥 Histórico — Entrada", "🧠 Pipeline V14 — Execução Automática"],
+if "df" not in st.session_state:
+    st.session_state["df"] = None
+
+# Atalho interno para funções que usam o histórico
+df_sessao: pd.DataFrame = st.session_state["df"] if st.session_state["df"] is not None else pd.DataFrame()
+
+# ============================================================
+# MENU DE PAINÉIS
+# ============================================================
+
+painel = st.sidebar.selectbox(
+    "Painéis",
+    [
+        "📥 Histórico — Entrada",
+        "🧠 Núcleo Estrutural — IDX / S6 / S7",
+        "🎯 Previsão Estrutural Pura",
+        "🌡 Painel de Risco k* / QDS",
+        "🔍 Pipeline V14 — Execução Completa (Automático)",
+        "📜 Logs / Debug Básico",
+    ],
 )
 
-if "df_hist" not in st.session_state:
-    st.session_state["df_hist"] = None
+
+# ============================================================
+# PAINEL 1 — HISTÓRICO — ENTRADA
+# ============================================================
 
 if painel == "📥 Histórico — Entrada":
     st.markdown("## 📥 Histórico — Entrada")
 
-    df_hist = None
+    df = None
 
     opc = st.radio(
         "Como deseja carregar o histórico?",
-        ["Enviar arquivo CSV", "Copiar e colar o histórico"],
+        ["Enviar arquivo CSV", "Copiar e colar o histórico (texto bruto)"],
     )
 
     if opc == "Enviar arquivo CSV":
         file = st.file_uploader("Selecione o arquivo CSV:", type=["csv"])
         if file is not None:
             try:
-                df_raw = pd.read_csv(file, sep=None, engine="python")
-                df_hist = prepare_history(df_raw)
+                # tenta ; depois ,
+                try:
+                    df_raw = pd.read_csv(file, sep=";")
+                except Exception:
+                    file.seek(0)
+                    df_raw = pd.read_csv(file, sep=",")
+                df = preparar_historico(df_raw)
                 st.success("Histórico carregado e preparado com sucesso!")
-                st.write("Prévia do histórico (5 últimas linhas):")
-                st.dataframe(df_hist.tail(5), use_container_width=True)
-                st.session_state["df_hist"] = df_hist
+                st.session_state["df"] = df
+                st.write("Prévia do histórico preparado:")
+                st.dataframe(df.head(20))
             except Exception as e:
                 st.error(f"Erro ao carregar CSV: {e}")
 
     else:
-        text = st.text_area(
-            "Cole aqui o histórico (linhas tipo C1;41;5;4;52;30;33;0):",
-            height=250,
+        txt = st.text_area(
+            "Cole aqui o histórico (linhas como C1;41;5;4;52;30;33;0):",
+            height=200,
         )
         if st.button("Processar histórico colado"):
-            try:
-                df_raw = parse_pasted_history(text)
-                df_hist = prepare_history(df_raw)
-                st.success("Histórico colado e preparado com sucesso!")
-                st.write("Prévia do histórico (5 últimas linhas):")
-                st.dataframe(df_hist.tail(5), use_container_width=True)
-                st.session_state["df_hist"] = df_hist
-            except Exception as e:
-                st.error(f"Erro ao processar texto colado: {e}")
+            if not txt.strip():
+                st.warning("Cole algum conteúdo primeiro.")
+            else:
+                try:
+                    # Converte texto para CSV temporário em memória
+                    linhas = [l.strip() for l in txt.splitlines() if l.strip()]
+                    data = [l.split(";") for l in linhas]
+                    df_raw = pd.DataFrame(data)
+                    df = preparar_historico(df_raw)
+                    st.success("Histórico colado processado com sucesso!")
+                    st.session_state["df"] = df
+                    st.write("Prévia do histórico preparado:")
+                    st.dataframe(df.head(20))
+                except Exception as e:
+                    st.error(f"Erro ao processar histórico colado: {e}")
+
+    if st.session_state["df"] is not None:
+        st.markdown("### ✅ Histórico atual na sessão")
+        st.dataframe(st.session_state["df"].tail(10))
+
 
 # ============================================================
-# PAINEL 2 — Pipeline V14 — Execução Automática
+# PAINEL 2 — NÚCLEO ESTRUTURAL — IDX / S6 / S7
 # ============================================================
 
-if painel == "🧠 Pipeline V14 — Execução Automática":
-    st.markdown("## 🧠 Pipeline V14 — Execução Completa (Automática)")
+elif painel == "🧠 Núcleo Estrutural — IDX / S6 / S7":
+    st.markdown("## 🧠 Núcleo Estrutural — IDX / S6 / S7")
 
-    df_hist = st.session_state.get("df_hist", None)
-
-    if df_hist is None or df_hist.empty:
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
         st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
         st.stop()
 
-    passenger_cols = get_passenger_columns(df_hist)
+    col_esq, col_dir = st.columns([1, 1.2])
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        idx_min = int(df_hist["idx"].min())
-        idx_max = int(df_hist["idx"].max() - 1)  # não deixa escolher o último (precisa do próximo para contexto)
+    with col_esq:
+        idx_min = int(df["idx"].min())
+        idx_max = int(df["idx"].max()) - 1  # para prever próxima
         idx_alvo = st.number_input(
             "Selecione o índice alvo (C atual):",
             min_value=idx_min,
@@ -608,142 +364,380 @@ if painel == "🧠 Pipeline V14 — Execução Automática":
             value=idx_max,
             step=1,
         )
-    with col2:
-        base_s6 = st.number_input(
-            "Máx. séries em S6 (vizinhança base):",
-            min_value=32,
-            max_value=4096,
+
+        s6_max = st.number_input(
+            "Máx. séries em S6 (vizinhança):",
+            min_value=16,
+            max_value=2048,
             value=512,
-            step=32,
+            step=16,
         )
-    with col3:
-        base_disp = st.number_input(
-            "Dispersão máxima em S7 (max - min) — base:",
+        s7_disp_max = st.number_input(
+            "Dispersão máxima em S7 (max - min):",
             min_value=10.0,
-            max_value=100.0,
+            max_value=70.0,
             value=45.0,
             step=1.0,
         )
 
-    col4, col5 = st.columns(2)
-    with col4:
-        base_topn = st.number_input(
-            "Top N final pelo TVF — base:",
-            min_value=8,
-            max_value=512,
-            value=128,
-            step=8,
-        )
-    with col5:
-        auto_run = st.checkbox("Ativar Auto-Mist / QDS Dinâmico (sempre ligado)", value=True)
+        if st.button("Calcular Núcleo Estrutural (IDX / S6 / S7)"):
+            try:
+                s6, s7 = construir_s6_s7(df, idx_alvo, s6_max, s7_disp_max)
+                se, iaq = calcular_se_iaq(s6)
 
-    st.markdown("---")
+                st.session_state["idx_result"] = {
+                    "idx_alvo": idx_alvo,
+                    "s6": s6,
+                    "s7": s7,
+                    "se": se,
+                    "iaq": iaq,
+                }
+                st.success("Núcleo Estrutural calculado com sucesso!")
+            except Exception as e:
+                st.error(f"Erro ao calcular IDX/S6/S7: {e}")
 
-    if st.button("🚀 Rodar Pipeline V14 TURBO++ (Automático)"):
+    with col_dir:
+        if "idx_result" in st.session_state:
+            res = st.session_state["idx_result"]
+            idx_alvo = res["idx_alvo"]
+            s6 = res["s6"]
+            s7 = res["s7"]
+            se = res["se"]
+            iaq = res["iaq"]
+
+            st.markdown(f"### 🏁 Série Alvo (C{idx_alvo})")
+            alvo_vec = extrair_vetor(df, idx_alvo)
+            st.code(" ".join(str(int(x)) for x in alvo_vec), language="text")
+
+            st.markdown("### 🔍 Visão da Vizinhança")
+            st.write(f"Séries em S6: **{len(s6)}**")
+            st.write(f"Séries em S7 (após filtro dispersão): **{len(s7)}**")
+
+            st.markdown("### 📊 Métricas Estruturais")
+            st.write(f"Sensibilidade Estrutural (SE): **{se:.1f}**")
+            st.write(f"IAQ (qualidade estrutural): **{iaq:.1f}**")
+            st.info(descrever_regime(se, iaq))
+
+            with st.expander("Ver detalhes de S6 (vizinhança completa)"):
+                st.dataframe(s6[["idx", "p1", "p2", "p3", "p4", "p5", "p6", "dist", "disp"]].head(50))
+
+            with st.expander("Ver detalhes de S7 (após filtro de dispersão)"):
+                st.dataframe(s7[["idx", "p1", "p2", "p3", "p4", "p5", "p6", "dist", "disp"]].head(50))
+        else:
+            st.info("Calcule o núcleo estrutural à esquerda para ver os resultados aqui.")
+
+
+# ============================================================
+# PAINEL 3 — PREVISÃO ESTRUTURAL PURA (SEM k)
+# ============================================================
+
+elif painel == "🎯 Previsão Estrutural Pura":
+    st.markdown("## 🎯 Previsão Estrutural Pura (SEM k)")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
+        st.stop()
+
+    idx_min = int(df["idx"].min())
+    idx_max = int(df["idx"].max()) - 1
+    idx_alvo = st.number_input(
+        "Selecione o índice alvo (C atual):",
+        min_value=idx_min,
+        max_value=idx_max,
+        value=idx_max,
+        step=1,
+    )
+
+    s6_max = st.number_input(
+        "Máx. séries em S6 (vizinhança base):",
+        min_value=16,
+        max_value=2048,
+        value=512,
+        step=16,
+    )
+    s7_disp_max = st.number_input(
+        "Dispersão máxima em S7 (max - min) — base:",
+        min_value=10.0,
+        max_value=70.0,
+        value=45.0,
+        step=1.0,
+    )
+    top_n = st.number_input(
+        "Top N final pelo TVF (puro):",
+        min_value=10,
+        max_value=256,
+        value=64,
+        step=2,
+    )
+
+    if st.button("Gerar Previsão Estrutural Pura"):
         try:
-            result = run_adaptive_pipeline(
-                df_hist,
-                idx_alvo=idx_alvo,
-                base_s6=base_s6,
-                base_disp=base_disp,
-                base_topn=base_topn,
-            )
+            global df_sessao
+            df_sessao = df  # garante visibilidade em calcular_tvf
+            s6, s7 = construir_s6_s7(df, idx_alvo, s6_max, s7_disp_max)
+            se, iaq = calcular_se_iaq(s6)
+            ranking = calcular_tvf(s7)
 
-            # ==================================================
-            # SEÇÃO 1 — Série Alvo e Núcleo
-            # ==================================================
-            st.subheader("🏁 Série Alvo (C atual)")
+            if ranking.empty:
+                st.error("Nenhuma série candidata encontrada (S7 vazio). Ajuste S6/S7.")
+                st.stop()
 
-            row_target = df_hist[df_hist["idx"] == idx_alvo].iloc[0]
-            st.write(f"Índice alvo: **C{idx_alvo}**")
+            ranking_top = ranking.head(int(top_n))
 
-            serie_alvo = [int(row_target[c]) for c in passenger_cols]
-            st.code(" ".join(str(x) for x in serie_alvo), language="text")
+            st.markdown(f"### 🏁 Série Alvo (C{idx_alvo})")
+            alvo_vec = extrair_vetor(df, idx_alvo)
+            st.code(" ".join(str(int(x)) for x in alvo_vec), language="text")
 
-            # ==================================================
-            # SEÇÃO 2 — Diagnóstico Automático
-            # ==================================================
-            st.subheader("🧪 Diagnóstico Automático da Estrada")
+            st.markdown("### 📊 Núcleo Estrutural (SE / IAQ)")
+            st.write(f"SE: **{se:.1f}**")
+            st.write(f"IAQ: **{iaq:.1f}**")
+            st.info(descrever_regime(se, iaq))
 
-            col_a, col_b, col_c, col_d = st.columns(4)
-            with col_a:
-                st.metric("Séries em S6", result["s6_total"])
-            with col_b:
-                st.metric("Séries após S7", result["s7_total"])
-            with col_c:
-                st.metric("Sensibilidade Estrutural (SE)", f"{result['se']:.1f}")
-            with col_d:
-                st.metric("IAQ", f"{result['iaq']:.1f}")
+            st.markdown("### 📈 Ranking de Séries (TVF Puro — SEM k)")
+            st.write("Top séries segundo TVF (estrutura pura, sem impacto de k*):")
+            df_view = ranking_top[["series", "dist", "disp", "score_tvf"]].copy()
+            st.dataframe(df_view)
 
-            st.markdown(format_regime(result["regime"]))
-            st.markdown(format_k_state(result["k_state"]))
+            melhor = ranking_top.iloc[0]
+            previsao = melhor["series"]
 
-            st.subheader("📊 QDS Dinâmico")
-            st.metric("QDS — Qualidade Dinâmica da Série", f"{result['qds']:.1f}")
-            st.markdown(format_qds_label(result["qds"]))
+            st.markdown("### 🎯 Previsão Estrutural Pura — Série #1")
+            st.code(" ".join(str(int(x)) for x in previsao[:-1]) + f"  k={previsao[-1]}", language="text")
 
-            s6_final, disp_final, topn_final = result["params"]
-            st.markdown(
-                f"**Parâmetros finais usados (após Auto-Mist):** "
-                f"S6 = {s6_final}, S7 (disp máx) = {disp_final:.1f}, Top N TVF = {topn_final}"
-            )
-
-            # Logs das etapas (base vs adaptado)
-            with st.expander("Ver detalhes do Auto-Mist (etapas base vs adaptada)"):
-                logs_df = pd.DataFrame(result["logs"])
-                st.dataframe(logs_df, use_container_width=True)
-
-            # ==================================================
-            # SEÇÃO 3 — Ranking de Séries (TVF Adaptativo)
-            # ==================================================
-            st.subheader("📈 Ranking de Séries (TVF Adaptativo)")
-
-            survivors_df = result["survivors_df"]
-
-            if survivors_df.empty:
-                st.warning(
-                    "Nenhuma série passou pelos filtros S6/S7 mesmo com ajustes automáticos.\n\n"
-                    "Isso indica **ruptura estrutural severa**. "
-                    "Use apenas análises qualitativas — previsões numéricas não são confiáveis aqui."
-                )
-            else:
-                # Mostra top 20
-                st.write("Top séries segundo TVF adaptativo (máx. 20):")
-                show_df = survivors_df.head(20).copy()
-                show_df["series"] = show_df["series"].apply(
-                    lambda s: " ".join(str(int(x)) for x in s)
-                )
-                st.dataframe(show_df, use_container_width=True)
-
-            # ==================================================
-            # SEÇÃO 4 — Previsão Final TURBO++
-            # ==================================================
-            st.subheader("🎯 Previsão Final TURBO++")
-
-            if result["previsao_final"] is None:
-                st.error(
-                    "❌ Não foi possível gerar uma Previsão Final TURBO++ com QDS mínimo aceitável.\n\n"
-                    "Motivo provável: ruptura estrutural do trecho atual + histórico pouco informativo."
-                )
-            else:
-                serie_prev = result["previsao_final"]
-                st.code(" ".join(str(int(x)) for x in serie_prev), language="text")
-
-                resumo_k = format_k_state(result["k_state"])
-                resumo_regime = format_regime(result["regime"])
-                resumo_qds = format_qds_label(result["qds"])
-
-                st.markdown("**Contexto da previsão:**")
-                st.markdown(f"- {resumo_regime}")
-                st.markdown(f"- {resumo_k}")
-                st.markdown(f"- {resumo_qds}")
-
-                st.info(
-                    "Interpretação operacional:\n"
-                    "• Se QDS ≥ 70 → cenário forte para uso estrutural da previsão.\n"
-                    "• Se 40 ≤ QDS < 70 → use como apoio, combinando com outras leituras.\n"
-                    "• Se QDS < 40 → usar apenas como referência qualitativa, sem confiar em acertos diretos."
-                )
+            st.session_state["previsao_pura"] = {
+                "idx_alvo": idx_alvo,
+                "se": se,
+                "iaq": iaq,
+                "ranking": ranking_top,
+                "previsao": previsao,
+            }
 
         except Exception as e:
-            st.error(f"Erro ao rodar o pipeline: {e}")
+            st.error(f"Erro ao gerar previsão estrutural pura: {e}")
+
+
+# ============================================================
+# PAINEL 4 — PAINEL DE RISCO k* / QDS
+# ============================================================
+
+elif painel == "🌡 Painel de Risco k* / QDS":
+    st.markdown("## 🌡 Painel de Risco — k* / QDS")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
+        st.stop()
+
+    janela_k = st.number_input(
+        "Janela para cálculo de k* (nº de séries recentes):",
+        min_value=20,
+        max_value=200,
+        value=50,
+        step=5,
+    )
+
+    k_estado, freq1 = calcular_k_estado(df, janela=int(janela_k))
+    st.markdown("### 🔎 Estado do k* (clima)")
+    st.info(descrever_k_estado(k_estado, freq1))
+
+    st.markdown("### 📊 QDS Dinâmico (apenas exemplo global)")
+    # Usa última previsão pura (se existir) para um QDS mais coerente
+    if "previsao_pura" in st.session_state:
+        se = st.session_state["previsao_pura"]["se"]
+        iaq = st.session_state["previsao_pura"]["iaq"]
+    else:
+        # fallback: calcula sobre último índice
+        idx_alvo = int(df["idx"].max()) - 1
+        s6, _ = construir_s6_s7(df, idx_alvo, 128, 45.0)
+        se, iaq = calcular_se_iaq(s6)
+
+    qds = calcular_qds(se, iaq, k_estado)
+    st.write(f"SE: **{se:.1f}** — IAQ: **{iaq:.1f}** — QDS: **{qds:.1f}**")
+    st.info(descrever_qds(qds))
+
+    st.markdown(
+        """
+        **Importante:**  
+        - O k* e o QDS **não alteram mais as séries de previsão**.  
+        - Eles servem apenas como **camada de risco / confiança** para interpretar as listas estruturais.
+        """
+    )
+
+
+# ============================================================
+# PAINEL 5 — PIPELINE V14 — EXECUÇÃO COMPLETA (Automático)
+# ============================================================
+
+elif painel == "🔍 Pipeline V14 — Execução Completa (Automático)":
+    st.markdown("## 🔍 Pipeline V14 — Execução Completa (Automático)")
+    st.write("Núcleo V14 + S6/S7 + TVF Puro + k* como camada de risco (sem deformar a previsão).")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
+        st.stop()
+
+    col1, col2 = st.columns([1, 1.4])
+
+    with col1:
+        idx_min = int(df["idx"].min())
+        idx_max = int(df["idx"].max()) - 1
+        idx_alvo = st.number_input(
+            "Selecione o índice alvo (C atual):",
+            min_value=idx_min,
+            max_value=idx_max,
+            value=idx_max,
+            step=1,
+        )
+
+        s6_base = st.number_input(
+            "Máx. séries em S6 (vizinhança base):",
+            min_value=16,
+            max_value=2048,
+            value=512,
+            step=16,
+        )
+        s7_disp_base = st.number_input(
+            "Dispersão máxima em S7 (max - min) — base:",
+            min_value=10.0,
+            max_value=70.0,
+            value=45.0,
+            step=1.0,
+        )
+        top_n_base = st.number_input(
+            "Top N final pelo TVF — base:",
+            min_value=10,
+            max_value=256,
+            value=128,
+            step=2,
+        )
+
+        if st.button("🚀 Rodar Pipeline V14 TURBO++ (Automático)"):
+            try:
+                global df_sessao
+                df_sessao = df
+
+                # Núcleo estrutural
+                s6, s7 = construir_s6_s7(df, idx_alvo, s6_base, s7_disp_base)
+                se, iaq = calcular_se_iaq(s6)
+
+                # Ranking TVF puro
+                ranking = calcular_tvf(s7)
+                if ranking.empty:
+                    st.error("Nenhuma série passou por S7 — ajuste parâmetros.")
+                    st.stop()
+                ranking_top = ranking.head(int(top_n_base))
+
+                # Previsão pura
+                melhor = ranking_top.iloc[0]
+                previsao_pura = melhor["series"]
+
+                # k* e QDS
+                k_estado, freq1 = calcular_k_estado(df, janela=50)
+                qds = calcular_qds(se, iaq, k_estado)
+
+                st.session_state["pipeline_v14"] = {
+                    "idx_alvo": idx_alvo,
+                    "s6": s6,
+                    "s7": s7,
+                    "se": se,
+                    "iaq": iaq,
+                    "ranking": ranking_top,
+                    "previsao_pura": previsao_pura,
+                    "k_estado": k_estado,
+                    "freq1": freq1,
+                    "qds": qds,
+                    "s6_final": len(s6),
+                    "s7_final": len(s7),
+                    "top_n_final": int(top_n_base),
+                }
+
+                st.success("Pipeline V14 TURBO++ executado com sucesso!")
+            except Exception as e:
+                st.error(f"Erro ao executar pipeline: {e}")
+
+    with col2:
+        if "pipeline_v14" in st.session_state:
+            res = st.session_state["pipeline_v14"]
+            idx_alvo = res["idx_alvo"]
+            se = res["se"]
+            iaq = res["iaq"]
+            ranking_top = res["ranking"]
+            previsao_pura = res["previsao_pura"]
+            k_estado = res["k_estado"]
+            freq1 = res["freq1"]
+            qds = res["qds"]
+            s6_final = res["s6_final"]
+            s7_final = res["s7_final"]
+            top_n_final = res["top_n_final"]
+
+            st.markdown(f"### 🏁 Série Alvo (C{idx_alvo})")
+            alvo_vec = extrair_vetor(df, idx_alvo)
+            st.code(" ".join(str(int(x)) for x in alvo_vec), language="text")
+
+            st.markdown("### 🧪 Diagnóstico Automático da Estrada")
+            st.write(f"Séries em S6: **{s6_final}**")
+            st.write(f"Séries após S7: **{s7_final}**")
+            st.write(f"Sensibilidade Estrutural (SE): **{se:.1f}**")
+            st.write(f"IAQ: **{iaq:.1f}**")
+            st.info(descrever_regime(se, iaq))
+
+            st.markdown("### 🌡 Clima — k* / QDS (Camada de Risco)")
+            st.info(descrever_k_estado(k_estado, freq1))
+            st.info(descrever_qds(qds))
+
+            st.markdown(
+                f"Parâmetros finais usados (Auto-Mist estrutura pura): S6 = {s6_final}, "
+                f"S7 (disp máx) = {float(df['p1'].max() - df['p1'].min()):.1f if not df.empty else 0.0}, "
+                f"Top N TVF = {top_n_final}"
+            )
+
+            st.markdown("### 📈 Ranking de Séries (TVF Puro — máx. 20)")
+            df_view = ranking_top[["series", "dist", "disp", "score_tvf"]].head(20)
+            st.dataframe(df_view)
+
+            st.markdown("### 🎯 Previsão Final TURBO++ (Estrutural Pura + Risco Separado)")
+            st.code(" ".join(str(int(x)) for x in previsao_pura[:-1]) + f"  k={previsao_pura[-1]}", language="text")
+
+            st.markdown("#### Contexto da previsão:")
+            st.write(descrever_regime(se, iaq))
+            st.write(descrever_k_estado(k_estado, freq1))
+            st.write(descrever_qds(qds))
+
+        else:
+            st.info("Rode o pipeline na coluna da esquerda para ver os resultados aqui.")
+
+
+# ============================================================
+# PAINEL 6 — LOGS / DEBUG BÁSICO
+# ============================================================
+
+elif painel == "📜 Logs / Debug Básico":
+    st.markdown("## 📜 Logs / Debug Básico")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Histórico ainda não carregado.")
+    else:
+        st.markdown("### 📌 Informações gerais do histórico")
+        st.write(f"Nº de linhas: **{len(df)}**")
+        st.write(f"Intervalo de índices: **C{int(df['idx'].min())}** até **C{int(df['idx'].max())}**")
+        st.write("Prévia (últimas 20 linhas):")
+        st.dataframe(df.tail(20))
+
+    if "pipeline_v14" in st.session_state:
+        st.markdown("### 🧾 Última execução do Pipeline V14")
+        st.json(
+            {
+                "idx_alvo": st.session_state["pipeline_v14"]["idx_alvo"],
+                "s6_final": st.session_state["pipeline_v14"]["s6_final"],
+                "s7_final": st.session_state["pipeline_v14"]["s7_final"],
+                "se": st.session_state["pipeline_v14"]["se"],
+                "iaq": st.session_state["pipeline_v14"]["iaq"],
+                "k_estado": st.session_state["pipeline_v14"]["k_estado"],
+                "qds": st.session_state["pipeline_v14"]["qds"],
+            }
+        )
+    else:
+        st.info("Nenhuma execução do Pipeline V14 registrada ainda.")
