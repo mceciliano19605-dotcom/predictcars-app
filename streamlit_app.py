@@ -92,6 +92,7 @@ if painel == "📥 Histórico — Entrada":
                 df_raw = pd.read_csv(file)
                 df = preparar_historico_V14(df_raw)
                 st.success("Histórico carregado com sucesso!")
+                st.session_state["df"] = df
             except Exception as e:
                 st.error(f"Erro ao carregar CSV: {e}")
 
@@ -115,16 +116,13 @@ if painel == "📥 Histórico — Entrada":
                 df_raw = pd.DataFrame({"series": series})
                 df = preparar_historico_V14(df_raw)
                 st.success("Histórico carregado com sucesso!")
+                st.session_state["df"] = df
             except Exception as e:
                 st.error(f"Erro ao processar histórico colado: {e}")
 
     # ============================================================
     # SALVAR NO SESSION_STATE (VERSÃO CORRIGIDA E SEGURA)
     # ============================================================
-
-    # Se carregou um histórico novo, salva
-    if df is not None:
-        st.session_state["df"] = df
 
     # Sempre recarrega do session_state caso já exista
     df = st.session_state.get("df", None)
