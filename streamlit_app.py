@@ -181,8 +181,7 @@ if painel == "🔍 Pipeline V14 (Simples)":
     except Exception as e:
         st.error(f"Erro ao executar Pipeline V14 (Simples): {e}")
 
-    st.stop()
-
+  
 # ============================================================
 # PAINEL 3 — Pipeline V14 (Completo)
 # ============================================================
@@ -285,9 +284,6 @@ if painel == "🧠 Pipeline V14 (Completo)":
 
         with aba5:
             st.info("AIQ ainda não conectado.")
-
-    st.stop()
-
 
 
 # ============================================================
