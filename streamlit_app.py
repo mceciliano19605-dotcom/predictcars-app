@@ -22,6 +22,359 @@ try:
 except Exception:
     pass
 
+# ============================================================
+# NAVEGAÇÃO — MENU LATERAL
+# ============================================================
+
+with st.sidebar:
+    st.markdown("## 🧭 Navegação — Predict Cars V14 TURBO++")
+
+    painel = st.selectbox(
+        "Escolha um painel:",
+        [
+            "📥 Histórico — Entrada",
+            "🔍 Pipeline V14 (Simples)",
+            "🧠 Pipeline V14 (Completo)",
+            "🎯 Previsões — V14 Turbo++",
+            "🔂 Backtest Interno V14",
+            "📊 AIQ — Índice de Qualidade",
+            "📦 Exportar Sessão",
+        ]
+    )
+
+# ============================================================
+# PAINEL 1 — Histórico — Entrada
+# ============================================================
+
+if painel == "📥 Histórico — Entrada":
+
+    st.markdown("## 📥 Histórico — Entrada")
+
+    df = None
+
+    opc = st.radio(
+        "Como deseja carregar o histórico?",
+        ["Enviar arquivo CSV", "Copiar e colar o histórico"]
+    )
+
+    # ---------- OPÇÃO 1 — UPLOAD DE ARQUIVO ----------
+    if opc == "Enviar arquivo CSV":
+        file = st.file_uploader("Selecione o arquivo CSV:", type=["csv"])
+        if file is not None:
+            try:
+                df_raw = pd.read_csv(file)
+                df = preparar_historico_V14(df_raw)
+                st.success("Histórico carregado com sucesso!")
+            except Exception as e:
+                st.error(f"Erro ao carregar CSV: {e}")
+
+    # ---------- OPÇÃO 2 — COLAR HISTÓRICO ----------
+    else:
+        texto = st.text_area(
+            "Cole aqui o histórico (uma série por linha):",
+            height=200,
+            placeholder="Exemplo:\n8 15 23 30 39 59\n10 22 35 48 51 60\n..."
+        )
+
+        if texto.strip():
+            try:
+                linhas = texto.strip().split("\n")
+                series = []
+                for ln in linhas:
+                    nums = [int(x) for x in ln.replace(",", " ").split() if x.isdigit()]
+                    if len(nums) == 6:
+                        series.append(nums)
+
+                df_raw = pd.DataFrame({"series": series})
+                df = preparar_historico_V14(df_raw)
+                st.success("Histórico carregado com sucesso!")
+            except Exception as e:
+                st.error(f"Erro ao processar histórico colado: {e}")
+
+    # Salvar no session_state para os painéis seguintes
+    if df is not None:
+        st.session_state["df"] = df
+    else:
+        df = st.session_state.get("df", None)
+
+    st.markdown("---")
+
+    # 🔴 ENCERRA AQUI ESTE PAINEL
+    st.stop()
+
+# ============================================================
+# PAINEL 2 — Pipeline V14 (Simples)
+# ============================================================
+
+if painel == "🔍 Pipeline V14 (Simples)":
+
+    st.markdown("## 🔍 Pipeline V14 — Execução Simples")
+
+    # Verifica histórico carregado
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
+        st.stop()
+
+    # Selecionar índice alvo
+    idx_alvo = st.number_input(
+        "Selecione o índice alvo:",
+        min_value=1,
+        max_value=len(df) - 1,
+        value=len(df) - 1,
+        step=1,
+    )
+
+    try:
+        resultado = executar_pipeline_V14_simples(df, idx_alvo=idx_alvo)
+
+        st.success("Pipeline executado com sucesso!")
+
+        st.markdown("### 🔹 Série atual")
+        st.code(" ".join(str(x) for x in resultado["serie_atual"]))
+
+        st.markdown("### 🔹 Núcleo V14")
+        st.code(" ".join(str(x) for x in resultado["nucleo_v14"]))
+
+        st.markdown("### 🔹 Resultados do S7")
+        st.write(f"Séries filtradas: {resultado['info_S7']['total_filtrado']} "
+                 f"de {resultado['info_S7']['total_original']}")
+
+        st.markdown("### 🔹 Ranking TVF — Top 20")
+        df_scores = resultado["df_scores"]
+        if df_scores is not None and not df_scores.empty:
+            st.dataframe(df_scores.head(20), use_container_width=True)
+        else:
+            st.info("Nenhuma série disponível para avaliação.")
+
+    except Exception as e:
+        st.error(f"Erro ao executar Pipeline V14 (Simples): {e}")
+
+    st.stop()
+
+# ============================================================
+# PAINEL 3 — Pipeline V14 (Completo)
+# ============================================================
+
+if painel == "🧠 Pipeline V14 (Completo)":
+
+    st.markdown("## 🧠 Pipeline V14 — Execução Completa")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
+        st.stop()
+
+    max_idx = len(df)
+
+    idx_alvo = st.number_input(
+        "Selecione o índice alvo:",
+        min_value=1,
+        max_value=max_idx - 1,
+        value=max_idx - 1,
+        step=1,
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        usar_s6 = st.checkbox("Ativar S6 Profundo", value=True)
+        usar_s7 = st.checkbox("Ativar S7 / TVF", value=True)
+        usar_tvf_local = st.checkbox("Ativar TVF Local", value=True)
+    with col2:
+        usar_backtest_int = st.checkbox("Backtest Interno", value=True)
+        usar_backtest_fut = st.checkbox("Backtest do Futuro", value=False)
+        calcular_aiq = st.checkbox("Calcular AIQ", value=True)
+
+    n_series_saida = st.number_input(
+        "Qtd. de séries na saída final",
+        min_value=10,
+        max_value=500,
+        value=120,
+        step=10,
+    )
+
+    min_conf_pct = st.slider(
+        "Confiabilidade mínima (%)",
+        min_value=0.0,
+        max_value=100.0,
+        value=70.0,
+        step=1.0,
+    )
+
+    executar = st.button("🚀 Executar Pipeline V14 Completo")
+
+    # 🔵 TUDO A PARTIR DAQUI FICA DENTRO DO PAINEL
+    if executar:
+        with st.spinner("Rodando Núcleo V14 TURBO++…"):
+
+            # 🔵 Ligação real ao Núcleo V14 TURBO++
+            resultado = executar_pipeline_V14_completo(
+                df=df,
+                idx_alvo=idx_alvo,
+                n_series_saida=n_series_saida,
+                min_conf_pct=min_conf_pct,
+                config={
+                    "s6": usar_s6,
+                    "s7": usar_s7,
+                    "tvf_local": usar_tvf_local,
+                    "bt_int": usar_backtest_int,
+                    "bt_fut": usar_backtest_fut,
+                    "aiq": calcular_aiq,
+                }
+            )
+
+            # Desempacotar de forma segura
+            previsao_final = resultado.get("previsao_final")
+            resultado_s6 = resultado.get("s6")
+            resultado_s7 = resultado.get("s7_tfv")
+            resultado_bt_int = resultado.get("backtest_interno")
+            resultado_bt_fut = resultado.get("backtest_futuro")
+            resultado_aiq = resultado.get("aiq")
+
+        st.markdown("### 📊 Resultados")
+
+        aba1, aba2, aba3, aba4, aba5 = st.tabs(
+            ["🎯 Previsão", "🧬 S6", "🌀 S7 / TVF", "⏱ Backtests", "📈 AIQ"]
+        )
+
+        with aba1:
+            if previsao_final:
+                st.code(" ".join(str(x) for x in previsao_final))
+            else:
+                st.info("Núcleo ainda não conectado.")
+
+        with aba2:
+            st.info("S6 ainda não conectado.")
+
+        with aba3:
+            st.info("S7 / TVF ainda não conectado.")
+
+        with aba4:
+            st.info("Backtests ainda não conectados.")
+
+        with aba5:
+            st.info("AIQ ainda não conectado.")
+
+    st.stop()
+
+
+
+# ============================================================
+# PAINEL 4 — Previsões V14 Turbo++
+# ============================================================
+
+if painel == "🎯 Previsões — V14 Turbo++":
+
+    st.markdown("## 🎯 Previsões — V14 TURBO++")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro.")
+        st.stop()
+
+    n_series = st.number_input(
+        "Quantidade de séries a gerar:",
+        min_value=1,
+        max_value=300,
+        value=50,
+    )
+
+    gerar = st.button("🚀 Gerar Previsões Turbo++")
+
+    if gerar:
+        with st.spinner("Gerando previsões com Turbo++…"):
+
+            previsoes = []
+            for _ in range(n_series):
+                previsoes.append([0, 0, 0, 0, 0, 0])  # placeholder
+
+        st.success("Previsões geradas!")
+        for serie in previsoes:
+            st.code(" ".join(str(x) for x in serie))
+
+    st.stop()
+
+
+# ============================================================
+# PAINEL 5 — Backtest Interno V14
+# ============================================================
+
+if painel == "🔂 Backtest Interno V14":
+
+    st.markdown("## 🔂 Backtest Interno — V14")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro.")
+        st.stop()
+
+    janela = st.slider(
+        "Tamanho da janela (linhas para trás):",
+        min_value=5,
+        max_value=200,
+        value=30,
+    )
+
+    executar = st.button("🚀 Executar Backtest Interno")
+
+    if executar:
+        with st.spinner("Rodando backtest…"):
+            resultado = {"acertos": 0, "total": 0}  # placeholder
+
+        st.success("Backtest concluído!")
+        st.json(resultado)
+
+    st.stop()
+
+# ============================================================
+# PAINEL 6 — AIQ — Índice de Qualidade Global
+# ============================================================
+
+if painel == "📊 AIQ — Índice de Qualidade":
+
+    st.markdown("## 📊 AIQ — Índice de Qualidade Global")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro.")
+        st.stop()
+
+    calcular = st.button("📈 Calcular AIQ")
+
+    if calcular:
+        with st.spinner("Calculando AIQ…"):
+            aiq = 0  # placeholder
+
+        st.success("AIQ calculado!")
+        st.metric("AIQ Global", aiq)
+
+    st.stop()
+
+# ============================================================
+# PAINEL 7 — Exportar Sessão
+# ============================================================
+
+if painel == "📦 Exportar Sessão":
+
+    st.markdown("## 📦 Exportar Sessão")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro.")
+        st.stop()
+
+    if st.button("📥 Exportar histórico para CSV"):
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="Clique para baixar",
+            data=csv,
+            file_name="historico_v14.csv",
+            mime="text/csv",
+        )
+
+    st.stop()
+
+
 
 # ============================================================
 # 🔵 FUNÇÕES BASE — Normalização e utilidades gerais
