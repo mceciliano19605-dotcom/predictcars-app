@@ -87,6 +87,12 @@ if painel == "📥 Histórico — Entrada":
             try:
                 df_raw = pd.read_csv(file)
                 df = preparar_historico_V14(df_raw)
+                
+                # 🟦 DEBUG AQUI
+                st.write("DEBUG — df carregado:", df)
+                st.write("DEBUG — tipo:", type(df))
+                st.write("DEBUG — tamanho:", len(df))
+                
                 st.success("Histórico carregado com sucesso!")
                 st.session_state["df"] = df
             except Exception as e:
@@ -111,6 +117,12 @@ if painel == "📥 Histórico — Entrada":
 
                 df_raw = pd.DataFrame({"series": series})
                 df = preparar_historico_V14(df_raw)
+
+                # 🟦 DEBUG AQUI
+                st.write("DEBUG — df carregado:", df)
+                st.write("DEBUG — tipo:", type(df))
+                st.write("DEBUG — tamanho:", len(df))
+                
                 st.success("Histórico carregado com sucesso!")
                 st.session_state["df"] = df
             except Exception as e:
