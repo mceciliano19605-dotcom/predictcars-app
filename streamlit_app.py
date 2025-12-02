@@ -374,6 +374,39 @@ if painel == "📦 Exportar Sessão":
 
     st.stop()
 
+# ============================================================
+# 🔧 Função básica: preparar_historico_V14
+# ============================================================
+
+def preparar_historico_V14(df_raw):
+    """
+    Normaliza o histórico para o formato esperado pelo V14 TURBO++.
+    Recebe um DataFrame com a coluna 'series' contendo listas de 6 números.
+    Retorna um DataFrame com as séries padronizadas e prontas para uso.
+    """
+
+    df = df_raw.copy()
+
+    # Garantir que existe a coluna 'series'
+    if "series" not in df.columns:
+        raise ValueError("O DataFrame não contém a coluna 'series'.")
+
+    # Converter strings ou outras estruturas em listas de inteiros
+    def normalize_row(row):
+        if isinstance(row, list):
+            return row
+        if isinstance(row, str):
+            nums = [int(x) for x in row.replace(",", " ").split() if x.isdigit()]
+            return nums[:6]
+        return row
+
+    df["series"] = df["series"].apply(normalize_row)
+
+    # Filtrar qualquer série que não tenha 6 elementos
+    df = df[df["series"].apply(lambda x: isinstance(x, list) and len(x) == 6)]
+
+    df = df.reset_index(drop=True)
+    return df
 
 
 # ============================================================
