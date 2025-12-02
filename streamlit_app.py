@@ -1,1264 +1,749 @@
-# ============================================================
-#   PREDICT CARS — V14 TURBO++
-#   app.py (arquivo único)
-#   Núcleo V14 + S6/S7 + TVF + Backtest + AIQ + QDS + k*
-# ============================================================
+# app_v14_auto.py
+# Predict Cars V14 TURBO++ — Modo Automático
+# Núcleo V14 + S6/S7 + TVF Adaptativo + QDS Dinâmico + k* Sensível + Auto-Mist
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-import math
-import random
-import re
-
-# ------------------------------------------------------------
-# Configuração inicial da página
-# ------------------------------------------------------------
-try:
-    st.set_page_config(
-        page_title="Predict Cars V14 TURBO++",
-        page_icon="🚗",
-        layout="wide",
-    )
-except Exception:
-    pass
+from typing import Dict, Any, List, Tuple
 
 # ============================================================
-# 🔧 PREPARAÇÃO DO HISTÓRICO — V14 (ROBUSTO)
+# CONFIG BÁSICA DO APP
 # ============================================================
 
-def extrair_series_de_linha_texto(texto: str):
-    """
-    Recebe uma linha qualquer (CSV, texto colado, etc.)
-    Extrai TODOS os inteiros e retorna os 6 primeiros como série.
-    Ex:
-        "C1;41;5;4;52;30;33;0" -> [41, 5, 4, 52, 30, 33]
-        "8 15 23 30 39 59"     -> [8, 15, 23, 30, 39, 59]
-    """
-    if not isinstance(texto, str):
-        texto = str(texto)
-    nums = [int(x) for x in re.findall(r"\d+", texto)]
-    if len(nums) >= 6:
-        return nums[:6]
-    return None
+st.set_page_config(
+    page_title="Predict Cars V14 TURBO++ (Auto)",
+    layout="wide",
+)
 
-
-def preparar_historico_V14(df_raw: pd.DataFrame) -> pd.DataFrame:
-    """
-    Converte QUALQUER DataFrame de histórico em:
-        df["series"] = [p1, p2, p3, p4, p5, p6]
-    Estratégia:
-        - Junta os valores da linha em uma string
-        - Extrai todos os inteiros
-        - Usa sempre os 6 primeiros como passageiros
-        - Ignora Cx, k, etc.
-    Funciona para:
-        - C1;41;5;4;52;30;33;0
-        - C2;9;39;37;49;43;41;1
-        - CSVs com vírgula
-        - Arquivos com ou sem cabeçalho
-    """
-    series = []
-    for _, row in df_raw.iterrows():
-        # junta todos os valores não nulos da linha
-        texto = " ".join(str(v) for v in row if pd.notnull(v))
-        s = extrair_series_de_linha_texto(texto)
-        if s is not None:
-            series.append(s)
-
-    df = pd.DataFrame({"series": series})
-    return df.reset_index(drop=True)
-
+st.title("🚗 Predict Cars V14 TURBO++ — Modo Automático")
+st.caption("Núcleo V14 + S6/S7 + TVF Adaptativo + QDS Dinâmico + k* Sensível + Auto-Mist")
 
 # ============================================================
-# 🔵 FUNÇÕES BASE — Utilidades gerais
+# FUNÇÕES AUXILIARES — HISTÓRICO
 # ============================================================
 
-def formatar_serie_str(serie):
-    return " ".join(str(x) for x in serie)
-
-
-def normalizar_serie(s):
-    if isinstance(s, list):
-        return [int(x) for x in s]
-    try:
-        parts = s.replace(";", ",").split(",")
-        return [int(p.strip()) for p in parts if p.strip()]
-    except Exception:
-        return None
-
-
-# ============================================================
-# 🔵 SIMILARIDADE E MÓDULOS IDX/IPF/IPO/ASB/ADN/ICA/HLA
-# ============================================================
-
-def similaridade_estrutural(serie_atual, serie_passada):
+def parse_pasted_history(text: str) -> pd.DataFrame:
     """
-    Similaridade estrutural V14:
-        • distâncias normalizadas
-        • pares fixos
-        • ritmo
-        • microfaixas
+    Converte texto colado (linhas tipo:
+    C1;41;5;4;52;30;33;0
+    ou
+    1;41;5;4;52;30;33;0
+    ) em DataFrame numérico.
     """
-    diffs = [abs(a - b) for a, b in zip(serie_atual, serie_passada)]
-    base = sum(diffs)
-    return math.exp(-0.03 * base) / (1 + base)
-
-
-def IDX_puro_focado(df, atual):
-    melhor_sim = -1
-    melhor_serie = None
-    melhor_idx = None
-
-    for i in range(len(df)):
-        passada = df.iloc[i]["series"]
-        sim = similaridade_estrutural(atual, passada)
-        if sim > melhor_sim:
-            melhor_sim = sim
-            melhor_serie = passada
-            melhor_idx = i
-
-    motorista = sorted(melhor_serie, reverse=True)
-
-    return {
-        "nucleo": melhor_serie,
-        "motorista": motorista,
-        "idx": melhor_idx,
-        "similaridade": melhor_sim,
-    }
-
-
-def IDX_otimizado(df, atual):
-    base = IDX_puro_focado(df, atual)
-    nuc = sorted(base["nucleo"])
-
-    # Correções leves
-    for i in range(len(nuc) - 1):
-        if nuc[i + 1] - nuc[i] < 2:
-            nuc[i + 1] += 1
-
-    base["nucleo"] = sorted(nuc)
-    return base
-
-
-def aplicar_ASB(nucleo, serie_atual):
-    """
-    Anti Self-Bias leve:
-        - se já há >=3 coincidências, perturba levemente
-    """
-    novo = list(nucleo)
-    iguais = sum(1 for a, b in zip(nucleo, serie_atual) if a == b)
-
-    if iguais >= 3:
-        novo = [x + 1 if i % 2 == 0 else x - 1 for i, x in enumerate(novo)]
-        novo = sorted(max(1, x) for x in novo)
-
-    return novo
-
-
-def ajuste_dinamico(nucleo):
-    """
-    Ajuste Dinâmico leve:
-        - reduz gaps muito grandes
-    """
-    novo = sorted(nucleo)
-    for i in range(len(novo) - 1):
-        if novo[i + 1] - novo[i] >= 10:
-            novo[i + 1] -= 1
-    return sorted(novo)
-
-
-def ICA_profundo(nucleo):
-    n = list(nucleo)
-    meio = len(n) // 2
-    esq = n[:meio]
-    dir = sorted(n[meio:], reverse=True)
-    return sorted(esq + dir)
-
-
-def HLA_profundo(nucleo):
-    novo = list(nucleo)
-    for i in range(1, len(novo) - 1):
-        if abs(novo[i] - novo[i - 1]) >= 8:
-            novo[i] = (novo[i] + novo[i - 1]) // 2
-    return sorted(novo)
-
-
-# ============================================================
-# 🔵 NÚCLEO V14 CONSOLIDADO
-# ============================================================
-
-def construir_nucleo_V14(df, serie_atual):
-    ipf = IDX_puro_focado(df, serie_atual)
-    ipo = IDX_otimizado(df, serie_atual)
-
-    nucleo = ipo["nucleo"]
-    nucleo = aplicar_ASB(nucleo, serie_atual)
-    nucleo = ajuste_dinamico(nucleo)
-    nucleo = ICA_profundo(nucleo)
-    nucleo = HLA_profundo(nucleo)
-
-    return {
-        "nucleo_v14": nucleo,
-        "ipf": ipf,
-        "ipo": ipo,
-    }
-
-
-# ============================================================
-# 🔵 S6 PROFUNDO — Vizinhança Estruturada
-# ============================================================
-
-def gerar_vizinhos_S6(nucleo, largura=2, limites=(1, 60), max_series=512):
-    """
-    S6 Profundo:
-        Gera vizinhança controlada ao redor do núcleo V14 TURBO++.
-    """
-    base = list(nucleo)
-    candidatos = set()
-    candidatos.add(tuple(sorted(base)))
-
-    n = len(base)
-    min_v, max_v = limites
-
-    # Ajustes simples
-    for i in range(n):
-        for delta in [-1, 1]:
-            nova = base.copy()
-            nova[i] = max(min_v, min(max_v, nova[i] + delta))
-            candidatos.add(tuple(sorted(nova)))
-
-    # Ajustes duplos
-    for i in range(n):
-        for j in range(i + 1, n):
-            for d1 in [-1, 1]:
-                for d2 in [-1, 1]:
-                    nova = base.copy()
-                    nova[i] = max(min_v, min(max_v, nova[i] + d1))
-                    nova[j] = max(min_v, min(max_v, nova[j] + d2))
-                    candidatos.add(tuple(sorted(nova)))
-
-    candidatos = list(candidatos)
-
-    if len(candidatos) > max_series:
-        random.shuffle(candidatos)
-        candidatos = candidatos[:max_series]
-
-    return [list(c) for c in candidatos]
-
-
-# ============================================================
-# 🔵 S7 — Filtro Estrutural Final
-# ============================================================
-
-def filtrar_S7(series_lista, serie_atual=None, dispersao_max=45):
-    """
-    S7:
-        - remove séries incoerentes
-        - garante ordem crescente
-        - limita dispersão máxima (max - min)
-        - opcionalmente evita repetir série atual
-    """
-    filtradas = []
-    total = len(series_lista)
-
-    for s in series_lista:
-        if sorted(s) != s:
+    rows = []
+    for line in text.strip().splitlines():
+        line = line.strip()
+        if not line:
             continue
-        if max(s) - min(s) > dispersao_max:
-            continue
-        if serie_atual is not None and s == serie_atual:
-            continue
-        filtradas.append(s)
-
-    return {
-        "series_filtradas": filtradas,
-        "total_original": total,
-        "total_filtrado": len(filtradas),
-    }
-
-
-# ============================================================
-# 🔵 MÉTRICAS TVF / TCI / TPD / TCS / TVE
-# ============================================================
-
-def _dispersao(serie):
-    return max(serie) - min(serie)
-
-
-def _coerencia_interna(serie):
-    diffs = [serie[i + 1] - serie[i] for i in range(len(serie) - 1)]
-    if not diffs:
-        return 0.0
-    media = sum(diffs) / len(diffs)
-    var = sum((d - media) ** 2 for d in diffs) / len(diffs)
-    return 1 / (1 + var)
-
-
-def _proximidade_dispersao(serie, ref):
-    d1 = _dispersao(serie)
-    d2 = _dispersao(ref)
-    return 1 / (1 + abs(d1 - d2))
-
-
-def _coerencia_com_atual(serie, atual):
-    inter = len(set(serie) & set(atual))
-    inter_score = inter / max(1, len(serie))
-
-    diffs = []
-    for x in serie:
-        melhor = min(atual, key=lambda a: abs(a - x))
-        diffs.append(abs(x - melhor))
-
-    prox = 1 / (1 + (sum(diffs) / len(diffs))) if diffs else 0
-    return 0.5 * inter_score + 0.5 * prox
-
-
-def _validade_estrutural(serie):
-    diffs = [serie[i + 1] - serie[i] for i in range(len(serie) - 1)]
-    max_gap = max(diffs) if diffs else 0
-    return 1 / (1 + max_gap)
-
-
-def avaliar_series_TVx(series_lista, serie_atual, nucleo_v14):
-    registros = []
-
-    for s in series_lista:
-        tci = _coerencia_interna(s)
-        tpd = _proximidade_dispersao(s, nucleo_v14)
-        tcs = _coerencia_com_atual(s, serie_atual)
-        tve = _validade_estrutural(s)
-
-        tvf = (0.2 * tci) + (0.2 * tpd) + (0.3 * tcs) + (0.3 * tve)
-
-        registros.append({
-            "series": s,
-            "TCI": tci,
-            "TPD": tpd,
-            "TCS": tcs,
-            "TVE": tve,
-            "TVF": tvf,
-        })
-
-    df_scores = pd.DataFrame(registros)
-    if not df_scores.empty:
-        df_scores = df_scores.sort_values(by="TVF", ascending=False).reset_index(drop=True)
-
-    return df_scores
-
-
-# ============================================================
-# 🔵 BACKTEST INTERNO V14
-# ============================================================
-
-def backtest_interno_V14(df, janela_min=80, passo=1, max_testes=80):
-    resultados = []
-
-    n = len(df)
-    if n < janela_min + 2:
-        return pd.DataFrame(columns=["idx_atual", "idx_real", "acertos", "nucleo", "real"])
-
-    inicio = janela_min
-    fim = min(n - 1, janela_min + max_testes)
-
-    for i in range(inicio, fim, passo):
-        df_treino = df.iloc[:i].reset_index(drop=True)
-        serie_atual = df.iloc[i]["series"]
-
-        try:
-            nuc_info = construir_nucleo_V14(df_treino, serie_atual)
-            nucleo_v14 = nuc_info["nucleo_v14"]
-        except Exception:
-            continue
-
-        if i + 1 >= n:
-            break
-
-        serie_real = df.iloc[i + 1]["series"]
-        acertos = len(set(nucleo_v14) & set(serie_real))
-
-        resultados.append({
-            "idx_atual": i,
-            "idx_real": i + 1,
-            "acertos": acertos,
-            "nucleo": nucleo_v14,
-            "real": serie_real,
-        })
-
-    if not resultados:
-        return pd.DataFrame(columns=["idx_atual", "idx_real", "acertos", "nucleo", "real"])
-
-    return pd.DataFrame(resultados).reset_index(drop=True)
-
-
-# ============================================================
-# 🔵 AIQ — ÍNDICE DE QUALIDADE GLOBAL
-# ============================================================
-
-def calcular_AIQ_global(df_backtest):
-    if df_backtest is None or df_backtest.empty:
-        return {
-            "total_testes": 0,
-            "hit_3p": 0.0, "hit_4p": 0.0, "hit_5p": 0.0, "hit_6p": 0.0,
-            "acerto_medio": 0.0, "AIQ": 0.0,
-        }
-
-    total = len(df_backtest)
-    acertos = df_backtest["acertos"].tolist()
-
-    h3 = sum(1 for x in acertos if x >= 3) / total
-    h4 = sum(1 for x in acertos if x >= 4) / total
-    h5 = sum(1 for x in acertos if x >= 5) / total
-    h6 = sum(1 for x in acertos if x >= 6) / total
-    media = sum(acertos) / total
-
-    aiq = (
-        0.10 * h3 +
-        0.20 * h4 +
-        0.30 * h5 +
-        0.40 * h6
-    )
-    aiq = 0.7 * aiq + 0.3 * (media / 6.0)
-
-    return {
-        "total_testes": total,
-        "hit_3p": h3, "hit_4p": h4, "hit_5p": h5, "hit_6p": h6,
-        "acerto_medio": media,
-        "AIQ": aiq,
-    }
-
-
-# ============================================================
-# 🔵 k* — Estado Qualitativo do Ambiente
-# ============================================================
-
-def classificar_k_estado(serie_atual, nucleo_v14):
-    acertos = len(set(serie_atual) & set(nucleo_v14))
-    disp_atual = max(serie_atual) - min(serie_atual)
-    disp_nucleo = max(nucleo_v14) - min(nucleo_v14)
-    diff_disp = abs(disp_atual - disp_nucleo)
-
-    if acertos >= 4 and diff_disp <= 5:
-        estado = "estavel"
-        mensagem = "🟢 k*: Ambiente estável — regime coerente com o núcleo V14. Previsão em regime normal."
-    elif acertos >= 3 or diff_disp <= 10:
-        estado = "atencao"
-        mensagem = "🟡 k*: Pré-ruptura leve — estrutura ainda coerente, mas com sinais de tensão. Usar previsão com atenção."
-    else:
-        estado = "critico"
-        mensagem = "🔴 k*: Ambiente crítico — divergência estrutural relevante. Usar previsão com cautela máxima."
-
-    return {
-        "estado": estado,
-        "mensagem": mensagem,
-        "acertos": acertos,
-        "disp_atual": disp_atual,
-        "disp_nucleo": disp_nucleo,
-        "diff_disp": diff_disp,
-    }
-
-
-# ============================================================
-# 🔵 PIPELINE V14 — SIMPLES
-# ============================================================
-
-def executar_pipeline_V14_simples(df_historico, idx_alvo=None):
-    df = df_historico.reset_index(drop=True)
-    n = len(df)
-    if n < 2:
-        raise ValueError("Histórico insuficiente (mínimo 2 séries).")
-
-    if idx_alvo is None:
-        idx_alvo = n - 1
-
-    if idx_alvo <= 0 or idx_alvo >= n:
-        raise ValueError(f"idx_alvo inválido: {idx_alvo}. Deve estar entre 1 e {n - 1}.")
-
-    df_treino = df.iloc[:idx_alvo].reset_index(drop=True)
-    serie_atual = df.iloc[idx_alvo]["series"]
-
-    nuc_info = construir_nucleo_V14(df_treino, serie_atual)
-    nucleo_v14 = nuc_info["nucleo_v14"]
-
-    vizinhos = gerar_vizinhos_S6(nucleo_v14)
-    info_S7 = filtrar_S7(vizinhos, serie_atual=serie_atual)
-    series_filtradas = info_S7["series_filtradas"]
-
-    df_scores = avaliar_series_TVx(series_filtradas, serie_atual, nucleo_v14)
-
-    return {
-        "idx_alvo": idx_alvo,
-        "serie_atual": serie_atual,
-        "base_treino_rows": len(df_treino),
-        "nucleo_v14": nucleo_v14,
-        "ipf": nuc_info["ipf"],
-        "ipo": nuc_info["ipo"],
-        "raw_vizinhos": vizinhos,
-        "info_S7": info_S7,
-        "df_scores": df_scores,
-    }
-
-
-# ============================================================
-# 🔵 PIPELINE V14 — COMPLETO
-# ============================================================
-
-def executar_pipeline_V14_completo(
-    df_historico,
-    idx_alvo=None,
-    max_series_S6=512,
-    dispersao_max_S7=45,
-    top_n_final=128,
-):
-    df = df_historico.reset_index(drop=True)
-    n = len(df)
-    if n < 2:
-        raise ValueError("Histórico insuficiente (mínimo 2 séries).")
-
-    if idx_alvo is None:
-        idx_alvo = n - 1
-
-    if idx_alvo <= 0 or idx_alvo >= n:
-        raise ValueError(f"idx_alvo inválido: {idx_alvo}. Deve estar entre 1 e {n - 1}.")
-
-    df_treino = df.iloc[:idx_alvo].reset_index(drop=True)
-    serie_atual = df.iloc[idx_alvo]["series"]
-
-    nuc_info = construir_nucleo_V14(df_treino, serie_atual)
-    nucleo_v14 = nuc_info["nucleo_v14"]
-
-    vizinhos = gerar_vizinhos_S6(nucleo_v14, max_series=max_series_S6)
-    info_S7 = filtrar_S7(vizinhos, serie_atual=serie_atual, dispersao_max=dispersao_max_S7)
-    series_filtradas = info_S7["series_filtradas"]
-
-    df_scores = avaliar_series_TVx(series_filtradas, serie_atual, nucleo_v14)
-
-    if top_n_final is not None and top_n_final > 0 and not df_scores.empty:
-        df_scores_final = df_scores.head(top_n_final).reset_index(drop=True)
-    else:
-        df_scores_final = df_scores
-
-    info_pipeline = {
-        "idx_alvo": idx_alvo,
-        "base_treino_rows": len(df_treino),
-        "total_S6": len(vizinhos),
-        "total_S7": len(series_filtradas),
-        "top_n_final": len(df_scores_final),
-    }
-
-    return {
-        "info_pipeline": info_pipeline,
-        "df_scores_final": df_scores_final,
-        "nucleo_v14": nucleo_v14,
-        "serie_atual": serie_atual,
-        "info_S7": info_S7,
-        "ipf": nuc_info["ipf"],
-        "ipo": nuc_info["ipo"],
-    }
-
-
-# ============================================================
-# 🔵 BACKTEST + AIQ — EXECUÇÃO COMPLETA
-# ============================================================
-
-def executar_backtest_V14_completo(
-    df_historico,
-    janela_min=80,
-    passo=1,
-    max_testes=80,
-):
-    df = df_historico.reset_index(drop=True)
-    df_back = backtest_interno_V14(df, janela_min=janela_min, passo=passo, max_testes=max_testes)
-    resumo_aiq = calcular_AIQ_global(df_back)
-
-    return {
-        "df_backtest": df_back,
-        "resumo_aiq": resumo_aiq,
-    }
-
-
-# ============================================================
-# 🔵 QDS — Quantidade Dinâmica de Séries + Confiabilidade
-# ============================================================
-
-def calcular_confiabilidade_series(df_scores: pd.DataFrame, k_info: dict) -> pd.DataFrame:
-    if df_scores is None or df_scores.empty:
-        return df_scores
-
-    df = df_scores.copy()
-
-    tvf_min = df["TVF"].min()
-    tvf_max = df["TVF"].max()
-    if tvf_max == tvf_min:
-        df["conf_pura"] = 0.5
-    else:
-        df["conf_pura"] = (df["TVF"] - tvf_min) / (tvf_max - tvf_min)
-        df["conf_pura"] = df["conf_pura"].clip(0.05, 0.99)
-
-    estado = k_info.get("estado", "atencao")
-    if estado == "estavel":
-        fator = 1.0
-    elif estado == "atencao":
-        fator = 0.85
-    else:
-        fator = 0.7
-
-    df["conf_sensivel"] = (df["conf_pura"] * fator).clip(0.01, 0.99)
+        # aceita ; ou ,
+        if ";" in line:
+            parts = line.split(";")
+        else:
+            parts = line.split(",")
+
+        # tenta tirar prefixo C
+        first = parts[0].strip()
+        if first.upper().startswith("C"):
+            try:
+                idx = int(first[1:])
+            except ValueError:
+                idx = np.nan
+        else:
+            try:
+                idx = int(first)
+            except ValueError:
+                idx = np.nan
+
+        nums = []
+        for p in parts[1:]:
+            p = p.strip()
+            if p == "":
+                nums.append(np.nan)
+            else:
+                try:
+                    nums.append(int(p))
+                except ValueError:
+                    try:
+                        nums.append(float(p))
+                    except ValueError:
+                        nums.append(np.nan)
+
+        rows.append([idx] + nums)
+
+    if not rows:
+        return pd.DataFrame()
+
+    max_len = max(len(r) for r in rows)
+    for r in rows:
+        while len(r) < max_len:
+            r.append(np.nan)
+
+    cols = ["idx"] + [f"v{i}" for i in range(1, max_len)]
+    df = pd.DataFrame(rows, columns=cols)
+
+    # última coluna pode ser k (0/1, etc.)
+    # vamos assumir: idx | p1..pN | k (opcional)
+    return df
+
+
+def prepare_history(df_raw: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normaliza o histórico:
+    - garante coluna 'idx' como índice de série
+    - detecta passageiros e possível coluna k.
+    """
+    df = df_raw.copy()
+
+    # se não houver 'idx', assume primeira coluna
+    if "idx" not in df.columns:
+        df.columns = ["idx"] + [f"v{i}" for i in range(1, df.shape[1])]
+
+    # garante ordenação por idx
+    df = df.sort_values("idx").reset_index(drop=True)
+
+    # tenta identificar se última coluna é k (0/1)
+    if df.shape[1] >= 3:
+        last_col = df.columns[-1]
+        # heurística: se os valores são 0/1 ou poucos inteiros pequenos, tratamos como k
+        vals = df[last_col].dropna().unique()
+        if len(vals) <= 5 and set(vals).issubset({0, 1, 2, 3}):
+            # ok, trata como k
+            df.rename(columns={last_col: "k"}, inplace=True)
+        else:
+            # sem k claro -> deixa sem renomear
+            pass
 
     return df
 
 
-def estimar_acertos_esperados(conf: float) -> str:
-    if conf < 0.25:
-        return "1–2"
-    elif conf < 0.45:
-        return "2–3"
-    elif conf < 0.70:
-        return "3–4"
-    elif conf < 0.88:
-        return "4–5"
-    else:
-        return "5–6"
-
-
-def decidir_qtd_ideal_series(df_scores_conf: pd.DataFrame, k_info: dict) -> int:
-    if df_scores_conf is None or df_scores_conf.empty:
-        return 0
-
-    n_total = len(df_scores_conf)
-    estado = k_info.get("estado", "atencao")
-
-    if estado == "estavel":
-        base_pct = 0.6
-    elif estado == "atencao":
-        base_pct = 0.4
-    else:
-        base_pct = 0.25
-
-    base_n = max(10, int(n_total * base_pct))
-    base_n = min(base_n, n_total)
-
-    media_conf = df_scores_conf["conf_sensivel"].mean()
-    if media_conf > 0.75:
-        base_n = min(n_total, int(base_n * 1.2))
-    elif media_conf < 0.35:
-        base_n = max(5, int(base_n * 0.7))
-
-    return max(1, min(n_total, base_n))
+def get_passenger_columns(df: pd.DataFrame) -> List[str]:
+    cols = [c for c in df.columns if c not in ("idx", "k")]
+    return cols
 
 
 # ============================================================
-# 🧭 NAVEGAÇÃO — MENU LATERAL + ESTADO GLOBAL
+# FUNÇÕES DE MÉTRICA E PIPELINE
 # ============================================================
 
-with st.sidebar:
-    st.markdown("## 🧭 Navegação — Predict Cars V14 TURBO++")
+def series_distance(a: np.ndarray, b: np.ndarray) -> float:
+    """Distância média absoluta entre duas séries."""
+    return float(np.mean(np.abs(a - b)))
 
-    painel = st.selectbox(
-        "Escolha um painel:",
-        [
-            "📥 Histórico — Entrada",
-            "🔍 Pipeline V14 (Simples)",
-            "🧠 Pipeline V14 (Completo)",
-            "🎯 Previsões — V14 Turbo++",
-            "🔂 Backtest Interno V14",
-            "📊 AIQ — Índice de Qualidade",
-            "📦 Exportar Sessão",
-        ]
+
+def build_context_dataset(df: pd.DataFrame, passenger_cols: List[str]) -> pd.DataFrame:
+    """
+    Constrói conjunto de contextos:
+    cada linha i representa o contexto C_i com o próximo C_{i+1} como alvo (predição).
+    """
+    contexts = []
+    for i in range(len(df) - 1):
+        row_now = df.iloc[i]
+        row_next = df.iloc[i + 1]
+        context = {
+            "ctx_idx": int(row_now["idx"]),
+            "next_idx": int(row_next["idx"]),
+        }
+        for c in passenger_cols:
+            context[f"ctx_{c}"] = row_now[c]
+            context[f"next_{c}"] = row_next[c]
+        if "k" in df.columns:
+            context["ctx_k"] = row_now.get("k", np.nan)
+            context["next_k"] = row_next.get("k", np.nan)
+        contexts.append(context)
+
+    return pd.DataFrame(contexts)
+
+
+def compute_k_state(df: pd.DataFrame, window: int = 50) -> str:
+    """
+    Estado de k* baseado nos últimos valores da coluna k (se existir).
+    Retorna: 'estavel', 'atencao', 'critico'.
+    """
+    if "k" not in df.columns:
+        return "desconhecido"
+
+    recent = df["k"].dropna().tail(window)
+    if recent.empty:
+        return "desconhecido"
+
+    # assume k como 0/1 (ou contagens pequenas)
+    rate = np.mean(recent.values > 0)
+
+    if rate < 0.2:
+        return "estavel"
+    elif rate < 0.4:
+        return "atencao"
+    else:
+        return "critico"
+
+
+def compute_structural_sensitivity(distances: np.ndarray, s7_survivors: int, s6_total: int) -> float:
+    """
+    Sensibilidade Estrutural (SE): 0 a 100.
+    Leva em conta:
+    - proximidade média das vizinhanças
+    - taxa de sobrevivência em S7
+    """
+    if len(distances) == 0:
+        return 0.0
+
+    avg_dist = float(np.mean(distances))
+    max_dist = float(np.max(distances)) if np.max(distances) > 0 else 1.0
+
+    # quanto menor a distância, maior a coerência
+    coh_dist = 1.0 - min(avg_dist / max_dist, 1.0)
+
+    surv_ratio = s7_survivors / max(s6_total, 1)
+    surv_norm = min(surv_ratio / 0.3, 1.0)  # 30% de sobrevivência vira 1.0
+
+    se = 100.0 * (0.6 * coh_dist + 0.4 * surv_norm)
+    return float(se)
+
+
+def classify_regime(se: float, s7_survivors: int) -> str:
+    """
+    Classifica o regime da estrada:
+    - 'normal'
+    - 'pre-ruptura'
+    - 'ruptura'
+    """
+    if s7_survivors == 0 or se < 25:
+        return "ruptura"
+    elif se < 55:
+        return "pre-ruptura"
+    else:
+        return "normal"
+
+
+def compute_iaq(s6_total: int, s7_survivors: int, se: float) -> float:
+    """
+    IAQ — Índice de Alinhamento de Quadro (0 a 100).
+    Considera:
+    - relação S7/S6
+    - sensibilidade estrutural
+    """
+    surv_ratio = s7_survivors / max(s6_total, 1)
+    surv_norm = min(surv_ratio / 0.4, 1.0)  # 40% -> 1.0
+
+    se_norm = se / 100.0
+
+    iaq = 100.0 * (0.5 * surv_norm + 0.5 * se_norm)
+    return float(iaq)
+
+
+def compute_qds(iaq: float, se: float, k_state: str) -> float:
+    """
+    QDS Dinâmico (0 a 100).
+    Combina:
+    - IAQ
+    - Sensibilidade estrutural
+    - Estado de k*
+    """
+    k_factor = 1.0
+    if k_state == "estavel":
+        k_factor = 1.0
+    elif k_state == "atencao":
+        k_factor = 0.8
+    elif k_state == "critico":
+        k_factor = 0.6
+    else:
+        k_factor = 0.9  # desconhecido
+
+    base = 0.5 * (iaq + se)
+    qds = base * k_factor / 100.0 * 100.0
+    return float(qds)
+
+
+def adapt_tvf(regime: str, base_topn: int) -> int:
+    """
+    TVF Adaptativo: ajusta Top N final conforme o regime.
+    """
+    if regime == "normal":
+        return base_topn
+    elif regime == "pre-ruptura":
+        return max(16, base_topn // 2)
+    else:  # ruptura
+        return max(8, base_topn // 4)
+
+
+def adapt_s6_s7(regime: str, base_s6: int, base_disp: float) -> Tuple[int, float]:
+    """
+    Ajusta automaticamente S6 (nº de vizinhos) e S7 (dispersão máxima)
+    conforme o regime.
+    """
+    if regime == "normal":
+        return base_s6, base_disp
+    elif regime == "pre-ruptura":
+        return int(base_s6 * 1.5), base_disp + 15.0
+    else:  # ruptura
+        return int(base_s6 * 2.0), base_disp + 25.0
+
+
+def apply_s6_s7_tvf(
+    ctx_df: pd.DataFrame,
+    df: pd.DataFrame,
+    idx_alvo: int,
+    passenger_cols: List[str],
+    s6_limit: int,
+    disp_limit: float,
+    topn_tvf: int,
+) -> Dict[str, Any]:
+    """
+    Pipeline S6 -> S7 -> TVF para um dado conjunto de parâmetros.
+    Retorna infos para cálculo de QDS e previsões.
+    """
+    # contexto alvo (linha com idx == idx_alvo)
+    row_target = df[df["idx"] == idx_alvo]
+    if row_target.empty:
+        raise ValueError(f"Índice alvo {idx_alvo} não encontrado no histórico.")
+
+    target_vals = row_target.iloc[0][passenger_cols].values.astype(float)
+
+    # candidatos de contexto (todos ctx_idx com próximo conhecido)
+    ctx = ctx_df.copy()
+
+    # distância estrutural
+    ctx_pass_cols = [f"ctx_{c}" for c in passenger_cols]
+    ctx_matrix = ctx[ctx_pass_cols].values.astype(float)
+
+    dists = np.array([series_distance(target_vals, v) for v in ctx_matrix])
+    ctx["dist"] = dists
+
+    # S6 — pega vizinhos mais próximos
+    ctx_s6 = ctx.sort_values("dist").head(s6_limit).reset_index(drop=True)
+    s6_total = len(ctx_s6)
+
+    # monta as séries previstas (S6) a partir do próximo trecho
+    series_candidates = []
+    for _, r in ctx_s6.iterrows():
+        next_vals = [r[f"next_{c}"] for c in passenger_cols]
+        series_candidates.append(next_vals)
+    series_candidates = np.array(series_candidates, dtype=float)
+
+    # S7 — filtro de dispersão (max - min <= disp_limit)
+    dispersions = series_candidates.max(axis=1) - series_candidates.min(axis=1)
+    mask_s7 = dispersions <= disp_limit
+    s7_indices = np.where(mask_s7)[0]
+
+    s7_total = len(s7_indices)
+    if s7_total == 0:
+        survivors_df = pd.DataFrame(
+            columns=["series", "dist", "disp", "score_tvf"]
+        )
+        return {
+            "target_vals": target_vals,
+            "s6_total": s6_total,
+            "s7_total": s7_total,
+            "distances": dists,
+            "survivors_df": survivors_df,
+        }
+
+    survivors = series_candidates[s7_indices]
+    survivors_dist = dists[s7_indices]
+    survivors_disp = dispersions[s7_indices]
+
+    # TVF — scoring simples: combina distância e dispersão
+    dist_norm = survivors_dist / (survivors_dist.max() if survivors_dist.max() > 0 else 1.0)
+    disp_norm = survivors_disp / (survivors_disp.max() if survivors_disp.max() > 0 else 1.0)
+
+    score_tvf = (0.6 * (1 - dist_norm) + 0.4 * (1 - disp_norm))  # maior = melhor
+
+    survivors_df = pd.DataFrame({
+        "series": [list(map(int, s)) for s in survivors],
+        "dist": survivors_dist,
+        "disp": survivors_disp,
+        "score_tvf": score_tvf,
+    }).sort_values("score_tvf", ascending=False).reset_index(drop=True)
+
+    survivors_df = survivors_df.head(topn_tvf)
+
+    return {
+        "target_vals": target_vals,
+        "s6_total": s6_total,
+        "s7_total": s7_total,
+        "distances": dists,
+        "survivors_df": survivors_df,
+    }
+
+
+def run_adaptive_pipeline(
+    df: pd.DataFrame,
+    idx_alvo: int,
+    base_s6: int = 512,
+    base_disp: float = 45.0,
+    base_topn: int = 128,
+) -> Dict[str, Any]:
+    """
+    Roda pipeline adaptativo:
+    1) Tenta com parâmetros base
+    2) Diagnostica regime
+    3) Se necessário, ajusta S6/S7/TVF e roda de novo (Auto-Mist)
+    4) Calcula SE, IAQ, QDS, k* sensível
+    """
+    passenger_cols = get_passenger_columns(df)
+    ctx_df = build_context_dataset(df, passenger_cols)
+    k_state_global = compute_k_state(df)
+
+    logs = []
+
+    # --------- PASSO 1: parâmetros base ----------
+    res_base = apply_s6_s7_tvf(
+        ctx_df, df, idx_alvo, passenger_cols,
+        s6_limit=base_s6,
+        disp_limit=base_disp,
+        topn_tvf=base_topn,
     )
 
-st.title("🚗 Predict Cars V14 TURBO++")
-st.caption("Núcleo V14 + S6/S7 + TVF + Backtest + AIQ + QDS + k*")
+    se_base = compute_structural_sensitivity(
+        res_base["distances"],
+        res_base["s7_total"],
+        res_base["s6_total"],
+    )
+    regime_base = classify_regime(se_base, res_base["s7_total"])
+    iaq_base = compute_iaq(res_base["s6_total"], res_base["s7_total"], se_base)
+    qds_base = compute_qds(iaq_base, se_base, k_state_global)
 
-if "df_hist" not in st.session_state:
-    st.session_state["df_hist"] = None
+    logs.append({
+        "etapa": "Base",
+        "s6": base_s6,
+        "disp": base_disp,
+        "topn": base_topn,
+        "se": se_base,
+        "iaq": iaq_base,
+        "qds": qds_base,
+        "regime": regime_base,
+        "s6_total": res_base["s6_total"],
+        "s7_total": res_base["s7_total"],
+    })
 
-if "ultimo_pipeline" not in st.session_state:
-    st.session_state["ultimo_pipeline"] = None
+    # se já é regime normal com S7 aceitável, usamos esse resultado
+    if (regime_base == "normal") and (res_base["s7_total"] > 0):
+        final_res = res_base
+        final_regime = regime_base
+        final_se = se_base
+        final_iaq = iaq_base
+        final_qds = qds_base
+        final_params = (base_s6, base_disp, base_topn)
+    else:
+        # --------- PASSO 2: parâmetros adaptados ----------
+        adapt_s6, adapt_disp = adapt_s6_s7(regime_base, base_s6, base_disp)
+        adapt_topn = adapt_tvf(regime_base, base_topn)
+
+        res_adapt = apply_s6_s7_tvf(
+            ctx_df, df, idx_alvo, passenger_cols,
+            s6_limit=adapt_s6,
+            disp_limit=adapt_disp,
+            topn_tvf=adapt_topn,
+        )
+
+        se_adapt = compute_structural_sensitivity(
+            res_adapt["distances"],
+            res_adapt["s7_total"],
+            res_adapt["s6_total"],
+        )
+        regime_adapt = classify_regime(se_adapt, res_adapt["s7_total"])
+        iaq_adapt = compute_iaq(res_adapt["s6_total"], res_adapt["s7_total"], se_adapt)
+        qds_adapt = compute_qds(iaq_adapt, se_adapt, k_state_global)
+
+        logs.append({
+            "etapa": "Adaptado",
+            "s6": adapt_s6,
+            "disp": adapt_disp,
+            "topn": adapt_topn,
+            "se": se_adapt,
+            "iaq": iaq_adapt,
+            "qds": qds_adapt,
+            "regime": regime_adapt,
+            "s6_total": res_adapt["s6_total"],
+            "s7_total": res_adapt["s7_total"],
+        })
+
+        # escolhe o melhor resultado (maior QDS, desde que haja pelo menos 1 sobrevivente ou seja melhor que base)
+        if (res_adapt["s7_total"] > 0 and qds_adapt >= qds_base) or res_base["s7_total"] == 0:
+            final_res = res_adapt
+            final_regime = regime_adapt
+            final_se = se_adapt
+            final_iaq = iaq_adapt
+            final_qds = qds_adapt
+            final_params = (adapt_s6, adapt_disp, adapt_topn)
+        else:
+            final_res = res_base
+            final_regime = regime_base
+            final_se = se_base
+            final_iaq = iaq_base
+            final_qds = qds_base
+            final_params = (base_s6, base_disp, base_topn)
+
+    survivors_df = final_res["survivors_df"]
+
+    if survivors_df.empty:
+        previsao_final = None
+    else:
+        # Previsão Final TURBO++ = melhor série no TVF adaptativo
+        previsao_final = survivors_df.iloc[0]["series"]
+
+    return {
+        "idx_alvo": idx_alvo,
+        "passenger_cols": passenger_cols,
+        "target_vals": final_res["target_vals"],
+        "survivors_df": survivors_df,
+        "previsao_final": previsao_final,
+        "regime": final_regime,
+        "se": final_se,
+        "iaq": final_iaq,
+        "qds": final_qds,
+        "k_state": k_state_global,
+        "params": final_params,
+        "logs": logs,
+        "s6_total": final_res["s6_total"],
+        "s7_total": final_res["s7_total"],
+    }
+
+
+def format_k_state(k_state: str) -> str:
+    if k_state == "estavel":
+        return "🟢 k*: Ambiente estável."
+    elif k_state == "atencao":
+        return "🟡 k*: Pré-ruptura residual — atenção."
+    elif k_state == "critico":
+        return "🔴 k*: Ambiente crítico — máxima cautela."
+    else:
+        return "⚪ k*: Estado de k* desconhecido."
+
+
+def format_regime(regime: str) -> str:
+    if regime == "normal":
+        return "🟢 Regime: Estrada em regime normal (núcleo estável)."
+    elif regime == "pre-ruptura":
+        return "🟡 Regime: Pré-ruptura — vizinhança estrutural limitada."
+    else:
+        return "🔴 Regime: Ruptura estrutural — histórico pouco confiável para estrutura fina."
+
+
+def format_qds_label(qds: float) -> str:
+    if qds >= 70:
+        return "🟢 QDS alto — previsão estrutural forte."
+    elif qds >= 40:
+        return "🟡 QDS médio — usar com atenção."
+    else:
+        return "🔴 QDS baixo — usar apenas como referência."
 
 
 # ============================================================
 # PAINEL 1 — Histórico — Entrada
 # ============================================================
 
-if painel == "📥 Histórico — Entrada":
+st.sidebar.header("Painéis")
+painel = st.sidebar.radio(
+    "Escolha o painel:",
+    ["📥 Histórico — Entrada", "🧠 Pipeline V14 — Execução Automática"],
+)
 
+if "df_hist" not in st.session_state:
+    st.session_state["df_hist"] = None
+
+if painel == "📥 Histórico — Entrada":
     st.markdown("## 📥 Histórico — Entrada")
 
-    df = st.session_state.get("df_hist", None)
+    df_hist = None
 
     opc = st.radio(
         "Como deseja carregar o histórico?",
-        ["Enviar arquivo CSV", "Copiar e colar o histórico"]
+        ["Enviar arquivo CSV", "Copiar e colar o histórico"],
     )
 
-    # ---------- OPÇÃO 1 — UPLOAD DE ARQUIVO ----------
     if opc == "Enviar arquivo CSV":
         file = st.file_uploader("Selecione o arquivo CSV:", type=["csv"])
         if file is not None:
             try:
-                # Usa engine=python para detectar ; ou , automaticamente
-                df_raw = pd.read_csv(file, sep=None, engine="python", header=None)
-                df = preparar_historico_V14(df_raw)
-
-                st.write("DEBUG — tamanho:", len(df))
-
-                st.success(f"Histórico carregado com sucesso! ({len(df)} séries)")
-                st.session_state["df_hist"] = df
-
+                df_raw = pd.read_csv(file, sep=None, engine="python")
+                df_hist = prepare_history(df_raw)
+                st.success("Histórico carregado e preparado com sucesso!")
+                st.write("Prévia do histórico (5 últimas linhas):")
+                st.dataframe(df_hist.tail(5), use_container_width=True)
+                st.session_state["df_hist"] = df_hist
             except Exception as e:
                 st.error(f"Erro ao carregar CSV: {e}")
 
-    # ---------- OPÇÃO 2 — COLAR HISTÓRICO ----------
     else:
-        texto = st.text_area(
-            "Cole aqui o histórico (uma série por linha):",
-            height=200,
-            placeholder="Exemplo:\n8 15 23 30 39 59\nC1;41;5;4;52;30;33;0\n..."
+        text = st.text_area(
+            "Cole aqui o histórico (linhas tipo C1;41;5;4;52;30;33;0):",
+            height=250,
         )
-
-        if texto.strip():
+        if st.button("Processar histórico colado"):
             try:
-                linhas = texto.strip().split("\n")
-                series = []
-                for ln in linhas:
-                    s = extrair_series_de_linha_texto(ln)
-                    if s is not None:
-                        series.append(s)
-
-                df_raw = pd.DataFrame({"series": series})
-                df = df_raw.copy()  # já está no formato certo
-
-                st.write("DEBUG — tamanho:", len(df))
-
-                st.success(f"Histórico carregado com sucesso! ({len(df)} séries)")
-                st.session_state["df_hist"] = df
+                df_raw = parse_pasted_history(text)
+                df_hist = prepare_history(df_raw)
+                st.success("Histórico colado e preparado com sucesso!")
+                st.write("Prévia do histórico (5 últimas linhas):")
+                st.dataframe(df_hist.tail(5), use_container_width=True)
+                st.session_state["df_hist"] = df_hist
             except Exception as e:
-                st.error(f"Erro ao processar histórico colado: {e}")
-
-    st.markdown("---")
-
-    df = st.session_state.get("df_hist", None)
-    if df is not None and not df.empty:
-        st.markdown("### 📊 Amostra do histórico (últimas 10 linhas)")
-        st.dataframe(df.tail(10), use_container_width=True)
-    else:
-        st.info("Ainda não há histórico carregado.")
-
-    st.stop()
-
+                st.error(f"Erro ao processar texto colado: {e}")
 
 # ============================================================
-# PAINEL 2 — Pipeline V14 (Simples)
+# PAINEL 2 — Pipeline V14 — Execução Automática
 # ============================================================
 
-if painel == "🔍 Pipeline V14 (Simples)":
+if painel == "🧠 Pipeline V14 — Execução Automática":
+    st.markdown("## 🧠 Pipeline V14 — Execução Completa (Automática)")
 
-    st.markdown("## 🔍 Pipeline V14 — Execução Simples")
+    df_hist = st.session_state.get("df_hist", None)
 
-    df = st.session_state.get("df_hist", None)
-    if df is None or df.empty:
+    if df_hist is None or df_hist.empty:
         st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
         st.stop()
 
-    idx_alvo = st.number_input(
-        "Selecione o índice alvo:",
-        min_value=1,
-        max_value=len(df) - 1,
-        value=len(df) - 1,
-        step=1,
-    )
-
-    if st.button("🚀 Executar Pipeline V14 Simples"):
-        try:
-            resultado = executar_pipeline_V14_simples(df, idx_alvo=idx_alvo)
-
-            st.success("Pipeline executado com sucesso!")
-
-            st.markdown("### 🔹 Série atual")
-            st.code(formatar_serie_str(resultado["serie_atual"]), language="text")
-
-            st.markdown("### 🔹 Núcleo V14")
-            st.code(formatar_serie_str(resultado["nucleo_v14"]), language="text")
-
-            st.markdown("### 🔹 Resultados do S7")
-            st.write(f"Séries filtradas: {resultado['info_S7']['total_filtrado']} "
-                     f"de {resultado['info_S7']['total_original']}")
-
-            st.markdown("### 🔹 Ranking TVF — Top 20")
-            df_scores = resultado["df_scores"]
-            if df_scores is not None and not df_scores.empty:
-                df_view = df_scores.copy()
-                df_view["series_str"] = df_view["series"].apply(formatar_serie_str)
-                cols = ["series_str", "TVF", "TCI", "TPD", "TCS", "TVE"]
-                df_view = df_view[cols]
-                st.dataframe(df_view.head(20), use_container_width=True)
-            else:
-                st.info("Nenhuma série disponível para avaliação.")
-
-        except Exception as e:
-            st.error(f"Erro ao executar Pipeline V14 (Simples): {e}")
-
-    st.stop()
-
-
-# ============================================================
-# PAINEL 3 — Pipeline V14 (Completo)
-# ============================================================
-
-if painel == "🧠 Pipeline V14 (Completo)":
-
-    st.markdown("## 🧠 Pipeline V14 — Execução Completa")
-
-    df = st.session_state.get("df_hist", None)
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
-        st.stop()
-
-    n_rows = len(df)
-
-    idx_alvo = st.number_input(
-        "Selecione o índice alvo:",
-        min_value=1,
-        max_value=n_rows - 1,
-        value=n_rows - 1,
-        step=1,
-    )
+    passenger_cols = get_passenger_columns(df_hist)
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        max_series_S6 = st.number_input(
-            "Máx. séries em S6 (vizinhança)",
-            min_value=64,
-            max_value=4096,
-            value=512,
-            step=64,
+        idx_min = int(df_hist["idx"].min())
+        idx_max = int(df_hist["idx"].max() - 1)  # não deixa escolher o último (precisa do próximo para contexto)
+        idx_alvo = st.number_input(
+            "Selecione o índice alvo (C atual):",
+            min_value=idx_min,
+            max_value=idx_max,
+            value=idx_max,
+            step=1,
         )
     with col2:
-        dispersao_max_S7 = st.number_input(
-            "Dispersão máxima em S7 (max - min)",
-            min_value=20,
-            max_value=59,
-            value=45,
-            step=1,
+        base_s6 = st.number_input(
+            "Máx. séries em S6 (vizinhança base):",
+            min_value=32,
+            max_value=4096,
+            value=512,
+            step=32,
         )
     with col3:
-        top_n_final = st.number_input(
-            "Top N final pelo TVF",
-            min_value=16,
-            max_value=1024,
-            value=128,
-            step=16,
-        )
-
-    if st.button("🚀 Executar Pipeline V14 Completo"):
-        with st.spinner("Executando pipeline V14 TURBO++..."):
-            try:
-                resultado = executar_pipeline_V14_completo(
-                    df_historico=df,
-                    idx_alvo=idx_alvo,
-                    max_series_S6=int(max_series_S6),
-                    dispersao_max_S7=int(dispersao_max_S7),
-                    top_n_final=int(top_n_final),
-                )
-
-                st.session_state["ultimo_pipeline"] = {
-                    "params": {
-                        "idx_alvo": idx_alvo,
-                        "max_series_S6": int(max_series_S6),
-                        "dispersao_max_S7": int(dispersao_max_S7),
-                        "top_n_final": int(top_n_final),
-                    },
-                    "resultado": resultado,
-                }
-
-                info = resultado["info_pipeline"]
-                df_scores_final = resultado["df_scores_final"]
-                nucleo_v14 = resultado["nucleo_v14"]
-                serie_atual = resultado["serie_atual"]
-
-                st.success("Pipeline V14 executado com sucesso.")
-
-                col_a, col_b = st.columns(2)
-
-                with col_a:
-                    st.markdown("### 🎯 Série Alvo (C atual)")
-                    st.write(f"Índice alvo: **{info['idx_alvo']}**")
-                    st.code(formatar_serie_str(serie_atual), language="text")
-
-                with col_b:
-                    st.markdown("### 🧠 Núcleo V14 (núcleo previsivo)")
-                    st.write(f"Base de treino: **{info['base_treino_rows']}** séries")
-                    st.code(formatar_serie_str(nucleo_v14), language="text")
-
-                st.markdown("---")
-
-                col_s6, col_s7, col_top = st.columns(3)
-                with col_s6:
-                    st.metric("Séries geradas em S6", info["total_S6"])
-                with col_s7:
-                    st.metric("Séries após filtro S7", info["total_S7"])
-                with col_top:
-                    st.metric("Séries no ranking final (TVF)", info["top_n_final"])
-
-                st.markdown("### 📈 Ranking de Séries (TVF / TCI / TPD / TCS / TVE)")
-                if df_scores_final.empty:
-                    st.warning("Nenhuma série passou pelos filtros S6/S7.")
-                else:
-                    df_view = df_scores_final.copy()
-                    df_view["series_str"] = df_view["series"].apply(formatar_serie_str)
-                    cols_ordem = ["series_str", "TVF", "TCI", "TPD", "TCS", "TVE"]
-                    df_view = df_view[cols_ordem]
-                    st.dataframe(df_view, use_container_width=True)
-
-            except Exception as e:
-                st.error(f"Erro ao executar o pipeline V14: {e}")
-
-    st.stop()
-
-
-# ============================================================
-# PAINEL 4 — Previsões V14 Turbo++ (Pura + k* + QDS)
-# ============================================================
-
-if painel == "🎯 Previsões — V14 Turbo++":
-
-    st.markdown("## 🎯 Previsões — V14 TURBO++ (Pura + Sensível + QDS)")
-
-    df = st.session_state.get("df_hist", None)
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro.")
-        st.stop()
-
-    ultimo = st.session_state.get("ultimo_pipeline", None)
-    if not ultimo:
-        st.info("Rode primeiro o painel '🧠 Pipeline V14 (Completo)' para ativar este modo.")
-        st.stop()
-
-    params = ultimo["params"]
-    resultado = ultimo["resultado"]
-
-    df_scores_final = resultado["df_scores_final"]
-    nucleo_v14 = resultado["nucleo_v14"]
-    serie_atual = resultado["serie_atual"]
-
-    if df_scores_final is None or df_scores_final.empty:
-        st.warning("Nenhuma série disponível no ranking final. Rode novamente o pipeline.")
-        st.stop()
-
-    # k*
-    info_k = classificar_k_estado(serie_atual, nucleo_v14)
-
-    st.markdown("### 🌡️ k* — Estado Qualitativo do Ambiente")
-    st.info(info_k["mensagem"])
-
-    with st.expander("Detalhes técnicos do k*"):
-        st.write(f"Acertos entre série atual e núcleo V14: **{info_k['acertos']}**")
-        st.write(f"Dispersão série atual: **{info_k['disp_atual']}**")
-        st.write(f"Dispersão núcleo V14: **{info_k['disp_nucleo']}**")
-        st.write(f"Δ Dispersão: **{info_k['diff_disp']}**")
-
-    # Confiabilidade por série
-    df_conf = calcular_confiabilidade_series(df_scores_final, info_k)
-    df_conf["series_str"] = df_conf["series"].apply(formatar_serie_str)
-    df_conf["conf_sensivel_pct"] = (df_conf["conf_sensivel"] * 100).round(1)
-    df_conf["acertos_esperados"] = df_conf["conf_sensivel"].apply(estimar_acertos_esperados)
-
-    st.markdown("---")
-    st.markdown("### ⚙️ Configuração de Saída — QDS (Quantidade Dinâmica de Séries)")
-
-    modo_saida = st.radio(
-        "Escolha o modo de definição da quantidade de séries:",
-        [
-            "Automático (Quantidade Ideal pelo sistema)",
-            "Quantidade fixa (Top N)",
-            "Por confiabilidade mínima (%)",
-        ]
-    )
-
-    qtd_fixa = None
-    conf_min_alvo = None
-
-    if modo_saida == "Quantidade fixa (Top N)":
-        qtd_fixa = st.number_input(
-            "Quantidade de séries (Top N):",
-            min_value=1,
-            max_value=len(df_conf),
-            value=min(50, len(df_conf)),
-            step=1,
-        )
-    elif modo_saida == "Por confiabilidade mínima (%)":
-        conf_min_alvo = st.slider(
-            "Confiabilidade mínima por série (%):",
+        base_disp = st.number_input(
+            "Dispersão máxima em S7 (max - min) — base:",
             min_value=10.0,
-            max_value=99.0,
-            value=70.0,
+            max_value=100.0,
+            value=45.0,
             step=1.0,
         )
 
+    col4, col5 = st.columns(2)
+    with col4:
+        base_topn = st.number_input(
+            "Top N final pelo TVF — base:",
+            min_value=8,
+            max_value=512,
+            value=128,
+            step=8,
+        )
+    with col5:
+        auto_run = st.checkbox("Ativar Auto-Mist / QDS Dinâmico (sempre ligado)", value=True)
+
     st.markdown("---")
 
-    if st.button("🎯 Gerar Previsões TURBO++ com QDS"):
-        # Previsão pura
-        previsao_pura = df_conf.iloc[0]["series"]
+    if st.button("🚀 Rodar Pipeline V14 TURBO++ (Automático)"):
+        try:
+            result = run_adaptive_pipeline(
+                df_hist,
+                idx_alvo=idx_alvo,
+                base_s6=base_s6,
+                base_disp=base_disp,
+                base_topn=base_topn,
+            )
 
-        # Sensível ao k* (para fins de exibição, mesma sequência numérica;
-        # o ajuste prático está na confiabilidade e na QDS)
-        previsao_sensivel = previsao_pura
-        previsao_hibrida = previsao_pura
+            # ==================================================
+            # SEÇÃO 1 — Série Alvo e Núcleo
+            # ==================================================
+            st.subheader("🏁 Série Alvo (C atual)")
 
-        col_pp, col_ps, col_ph = st.columns(3)
+            row_target = df_hist[df_hist["idx"] == idx_alvo].iloc[0]
+            st.write(f"Índice alvo: **C{idx_alvo}**")
 
-        with col_pp:
-            st.markdown("#### 🎯 Previsão Pura (TVF)")
-            st.code(formatar_serie_str(previsao_pura), language="text")
+            serie_alvo = [int(row_target[c]) for c in passenger_cols]
+            st.code(" ".join(str(x) for x in serie_alvo), language="text")
 
-        with col_ps:
-            st.markdown("#### 🎯 Previsão Sensível ao k*")
-            st.code(formatar_serie_str(previsao_sensivel), language="text")
+            # ==================================================
+            # SEÇÃO 2 — Diagnóstico Automático
+            # ==================================================
+            st.subheader("🧪 Diagnóstico Automático da Estrada")
 
-        with col_ph:
-            st.markdown("#### 🎯 Previsão Híbrida (Pura + k*)")
-            st.code(formatar_serie_str(previsao_hibrida), language="text")
+            col_a, col_b, col_c, col_d = st.columns(4)
+            with col_a:
+                st.metric("Séries em S6", result["s6_total"])
+            with col_b:
+                st.metric("Séries após S7", result["s7_total"])
+            with col_c:
+                st.metric("Sensibilidade Estrutural (SE)", f"{result['se']:.1f}")
+            with col_d:
+                st.metric("IAQ", f"{result['iaq']:.1f}")
 
-        st.markdown("---")
+            st.markdown(format_regime(result["regime"]))
+            st.markdown(format_k_state(result["k_state"]))
 
-        # Decisão sobre a quantidade de séries
-        if modo_saida == "Automático (Quantidade Ideal pelo sistema)":
-            n_final = decidir_qtd_ideal_series(df_conf, info_k)
-            modo_desc = f"Automático — quantidade ideal: {n_final} séries"
-            df_final = df_conf.head(n_final).copy()
-        elif modo_saida == "Quantidade fixa (Top N)":
-            n_final = int(qtd_fixa)
-            modo_desc = f"Top N fixo: {n_final} séries"
-            df_final = df_conf.head(n_final).copy()
-        else:  # Por confiabilidade mínima
-            alvo = (conf_min_alvo or 70.0) / 100.0
-            df_filtrado = df_conf[df_conf["conf_sensivel"] >= alvo].copy()
-            if df_filtrado.empty:
-                st.warning("Nenhuma série atinge a confiabilidade mínima desejada. Exibindo as 10 melhores.")
-                df_final = df_conf.head(10).copy()
-                n_final = len(df_final)
-                modo_desc = (
-                    f"Filtro por confiabilidade mínima {conf_min_alvo:.1f}%, "
-                    f"mas nenhuma série atingiu — exibidas as 10 melhores."
+            st.subheader("📊 QDS Dinâmico")
+            st.metric("QDS — Qualidade Dinâmica da Série", f"{result['qds']:.1f}")
+            st.markdown(format_qds_label(result["qds"]))
+
+            s6_final, disp_final, topn_final = result["params"]
+            st.markdown(
+                f"**Parâmetros finais usados (após Auto-Mist):** "
+                f"S6 = {s6_final}, S7 (disp máx) = {disp_final:.1f}, Top N TVF = {topn_final}"
+            )
+
+            # Logs das etapas (base vs adaptado)
+            with st.expander("Ver detalhes do Auto-Mist (etapas base vs adaptada)"):
+                logs_df = pd.DataFrame(result["logs"])
+                st.dataframe(logs_df, use_container_width=True)
+
+            # ==================================================
+            # SEÇÃO 3 — Ranking de Séries (TVF Adaptativo)
+            # ==================================================
+            st.subheader("📈 Ranking de Séries (TVF Adaptativo)")
+
+            survivors_df = result["survivors_df"]
+
+            if survivors_df.empty:
+                st.warning(
+                    "Nenhuma série passou pelos filtros S6/S7 mesmo com ajustes automáticos.\n\n"
+                    "Isso indica **ruptura estrutural severa**. "
+                    "Use apenas análises qualitativas — previsões numéricas não são confiáveis aqui."
                 )
             else:
-                df_final = df_filtrado.reset_index(drop=True)
-                n_final = len(df_final)
-                modo_desc = (
-                    f"Confiabilidade mínima {conf_min_alvo:.1f}% — "
-                    f"{n_final} séries aprovadas."
+                # Mostra top 20
+                st.write("Top séries segundo TVF adaptativo (máx. 20):")
+                show_df = survivors_df.head(20).copy()
+                show_df["series"] = show_df["series"].apply(
+                    lambda s: " ".join(str(int(x)) for x in s)
+                )
+                st.dataframe(show_df, use_container_width=True)
+
+            # ==================================================
+            # SEÇÃO 4 — Previsão Final TURBO++
+            # ==================================================
+            st.subheader("🎯 Previsão Final TURBO++")
+
+            if result["previsao_final"] is None:
+                st.error(
+                    "❌ Não foi possível gerar uma Previsão Final TURBO++ com QDS mínimo aceitável.\n\n"
+                    "Motivo provável: ruptura estrutural do trecho atual + histórico pouco informativo."
+                )
+            else:
+                serie_prev = result["previsao_final"]
+                st.code(" ".join(str(int(x)) for x in serie_prev), language="text")
+
+                resumo_k = format_k_state(result["k_state"])
+                resumo_regime = format_regime(result["regime"])
+                resumo_qds = format_qds_label(result["qds"])
+
+                st.markdown("**Contexto da previsão:**")
+                st.markdown(f"- {resumo_regime}")
+                st.markdown(f"- {resumo_k}")
+                st.markdown(f"- {resumo_qds}")
+
+                st.info(
+                    "Interpretação operacional:\n"
+                    "• Se QDS ≥ 70 → cenário forte para uso estrutural da previsão.\n"
+                    "• Se 40 ≤ QDS < 70 → use como apoio, combinando com outras leituras.\n"
+                    "• Se QDS < 40 → usar apenas como referência qualitativa, sem confiar em acertos diretos."
                 )
 
-        st.markdown(f"### 📌 Estratégia de Saída: {modo_desc}")
-
-        df_final_view = df_final.copy()
-        df_final_view["Confiabilidade (%)"] = df_final_view["conf_sensivel_pct"]
-        df_final_view["Acertos Esperados"] = df_final_view["acertos_esperados"]
-
-        cols_ordem = [
-            "series_str",
-            "Confiabilidade (%)",
-            "Acertos Esperados",
-            "TVF",
-            "TCI",
-            "TPD",
-            "TCS",
-            "TVE",
-        ]
-        df_final_view = df_final_view[cols_ordem]
-
-        st.markdown("### 📋 Séries de Previsão — Lista Final (uma por linha)")
-        st.dataframe(df_final_view, use_container_width=True)
-
-        linhas_puras = "\n".join(df_final_view["series_str"].tolist())
-        st.text_area(
-            "Séries puras (Top N final) — prontas para copiar/colar:",
-            value=linhas_puras,
-            height=200,
-        )
-
-        # Exportação CSV das séries ranqueadas com confiabilidade
-        st.markdown("### 💾 Exportar lista de séries (com confiabilidade e acertos esperados)")
-        df_export = df_final.copy()
-        df_export["series_str"] = df_export["series"].apply(formatar_serie_str)
-        df_export["Confiabilidade (%)"] = df_export["conf_sensivel_pct"]
-        df_export["Acertos Esperados"] = df_export["acertos_esperados"]
-        cols_export = [
-            "series_str",
-            "Confiabilidade (%)",
-            "Acertos Esperados",
-            "TVF",
-            "TCI",
-            "TPD",
-            "TCS",
-            "TVE",
-            "series",
-        ]
-        df_export = df_export[cols_export]
-
-        csv_bytes = df_export.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            label="💾 Baixar CSV com séries ranqueadas + confiabilidade",
-            data=csv_bytes,
-            file_name="predict_cars_V14_TURBOpp_series_qds.csv",
-            mime="text/csv",
-        )
-
-    st.stop()
-
-
-# ============================================================
-# PAINEL 5 — Backtest Interno V14
-# ============================================================
-
-if painel == "🔂 Backtest Interno V14":
-
-    st.markdown("## 🔂 Backtest Interno — V14")
-
-    df = st.session_state.get("df_hist", None)
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro.")
-        st.stop()
-
-    janela = st.slider(
-        "Tamanho da janela mínima para começar o backtest:",
-        min_value=20,
-        max_value=max(20, len(df) - 2),
-        value=min(80, max(20, len(df) - 2)),
-        step=5,
-    )
-
-    passo = st.number_input(
-        "Passo ao percorrer o histórico:",
-        min_value=1,
-        max_value=10,
-        value=1,
-        step=1,
-    )
-
-    max_testes = st.number_input(
-        "Máximo de pontos de teste:",
-        min_value=10,
-        max_value=200,
-        value=80,
-        step=10,
-    )
-
-    if st.button("🧪 Executar Backtest + AIQ"):
-        with st.spinner("Executando backtest interno V14..."):
-            try:
-                res_bt = executar_backtest_V14_completo(
-                    df_historico=df,
-                    janela_min=int(janela),
-                    passo=int(passo),
-                    max_testes=int(max_testes),
-                )
-                df_back = res_bt["df_backtest"]
-                resumo_aiq = res_bt["resumo_aiq"]
-
-                if df_back is None or df_back.empty:
-                    st.warning("Backtest não produziu resultados.")
-                else:
-                    st.success("Backtest executado com sucesso.")
-
-                    col_aiq1, col_aiq2, col_aiq3, col_aiq4 = st.columns(4)
-                    col_aiq1.metric("Testes realizados", resumo_aiq["total_testes"])
-                    col_aiq2.metric("Hit ≥ 3", f"{resumo_aiq['hit_3p'] * 100:.1f}%")
-                    col_aiq3.metric("Hit ≥ 4", f"{resumo_aiq['hit_4p'] * 100:.1f}%")
-                    col_aiq4.metric("Hit ≥ 5", f"{resumo_aiq['hit_5p'] * 100:.1f}%")
-
-                    col_aiq5, col_aiq6 = st.columns(2)
-                    col_aiq5.metric("Hit = 6", f"{resumo_aiq['hit_6p'] * 100:.1f}%")
-                    col_aiq6.metric("AIQ Global V14", f"{resumo_aiq['AIQ']:.3f}")
-
-                    st.markdown("#### Detalhes do Backtest (amostra)")
-                    df_bt_view = df_back.copy()
-                    df_bt_view["nucleo_str"] = df_bt_view["nucleo"].apply(formatar_serie_str)
-                    df_bt_view["real_str"] = df_bt_view["real"].apply(formatar_serie_str)
-                    st.dataframe(
-                        df_bt_view[["idx_atual", "idx_real", "acertos", "nucleo_str", "real_str"]].head(50),
-                        use_container_width=True,
-                    )
-
-            except Exception as e:
-                st.error(f"Erro ao executar o backtest V14: {e}")
-
-    st.stop()
-
-
-# ============================================================
-# PAINEL 6 — AIQ — Índice de Qualidade Global (visão rápida)
-# ============================================================
-
-if painel == "📊 AIQ — Índice de Qualidade":
-
-    st.markdown("## 📊 AIQ — Índice de Qualidade Global")
-
-    df = st.session_state.get("df_hist", None)
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro.")
-        st.stop()
-
-    st.info("Use este painel para uma visão rápida do AIQ. "
-            "Para detalhes completos, utilize o painel '🔂 Backtest Interno V14'.")
-
-    if st.button("📈 Calcular AIQ Rápido (parâmetros padrão)"):
-        with st.spinner("Executando backtest rápido..."):
-            try:
-                res_bt = executar_backtest_V14_completo(
-                    df_historico=df,
-                    janela_min=min(80, max(20, len(df) - 2)),
-                    passo=1,
-                    max_testes=80,
-                )
-                df_back = res_bt["df_backtest"]
-                resumo_aiq = res_bt["resumo_aiq"]
-
-                if df_back is None or df_back.empty:
-                    st.warning("Backtest rápido não produziu resultados.")
-                else:
-                    st.success("AIQ calculado com sucesso!")
-
-                    col_aiq1, col_aiq2, col_aiq3, col_aiq4 = st.columns(4)
-                    col_aiq1.metric("Testes realizados", resumo_aiq["total_testes"])
-                    col_aiq2.metric("Hit ≥ 3", f"{resumo_aiq['hit_3p'] * 100:.1f}%")
-                    col_aiq3.metric("Hit ≥ 4", f"{resumo_aiq['hit_4p'] * 100:.1f}%")
-                    col_aiq4.metric("Hit ≥ 5", f"{resumo_aiq['hit_5p'] * 100:.1f}%")
-
-                    col_aiq5, col_aiq6 = st.columns(2)
-                    col_aiq5.metric("Hit = 6", f"{resumo_aiq['hit_6p'] * 100:.1f}%")
-                    col_aiq6.metric("AIQ Global V14", f"{resumo_aiq['AIQ']:.3f}")
-
-            except Exception as e:
-                st.error(f"Erro ao calcular AIQ: {e}")
-
-    st.stop()
-
-
-# ============================================================
-# PAINEL 7 — Exportar Sessão
-# ============================================================
-
-if painel == "📦 Exportar Sessão":
-
-    st.markdown("## 📦 Exportar Sessão")
-
-    df = st.session_state.get("df_hist", None)
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro.")
-        st.stop()
-
-    if st.button("📥 Exportar histórico para CSV"):
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            label="Clique para baixar o histórico",
-            data=csv,
-            file_name="historico_v14_series_puras.csv",
-            mime="text/csv",
-        )
-
-    st.stop()
-
-
+        except Exception as e:
+            st.error(f"Erro ao rodar o pipeline: {e}")
