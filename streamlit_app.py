@@ -56,6 +56,8 @@ if "df" not in st.session_state:
 with st.sidebar:
     st.markdown("## 🧭 Navegação — Predict Cars V14 TURBO++")
 
+    st.write("df no session_state:", st.session_state.get("df")) 
+    
     painel = st.selectbox(
         "Escolha um painel:",
         [
