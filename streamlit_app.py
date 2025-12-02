@@ -452,10 +452,14 @@ def s6_profundo_flat(leque: pd.DataFrame) -> pd.DataFrame:
 
     # Score final: combina frequência, score_base e dispersão
     df_agg["score"] = (
-        0.5 * df_agg["score_base"] +
-        0.4 * (df_agg["freq"] / df_agg["freq"].max()) -
-        0.1 * normalizar_score(df_agg["disp"], 0.0, df_agg["disp"].max() or 1.0)
-    )
+       0.5 * df_agg["score_base"] +
+       0.4 * (df_agg["freq"] / df_agg["freq"].max()) -
+       0.1 * df_agg["disp"].apply(
+           lambda v: normalizar_score(v, 0.0, df_agg["disp"].max() or 1.0)
+       )
+   )
+ 
+
 
     df_agg = df_agg.sort_values("score", ascending=False).reset_index(drop=True)
     return df_agg[["series", "score", "freq", "disp"]]
@@ -511,9 +515,11 @@ def unir_leques(leque_original: pd.DataFrame, leque_corrigido: pd.DataFrame) -> 
     df_agg["score"] = (
         0.5 * df_agg["score_base"] +
         0.4 * (df_agg["freq"] / df_agg["freq"].max()) -
-        0.1 * normalizar_score(df_agg["disp"], 0.0, df_agg["disp"].max() or 1.0)
-    )
-
+        0.1 * df_agg["disp"].apply(
+            lambda v: normalizar_score(v, 0.0, df_agg["disp"].max() or 1.0)
+        )
+     )   
+            
     df_agg = df_agg.sort_values("score", ascending=False).reset_index(drop=True)
     return df_agg[["series", "score", "freq", "disp"]]
 
