@@ -132,7 +132,7 @@ if painel == "📥 Histórico — Entrada":
     st.markdown("---")
 
     # 🔴 ENCERRA AQUI ESTE PAINEL
-
+    st.stop()
 
 
 # ============================================================
