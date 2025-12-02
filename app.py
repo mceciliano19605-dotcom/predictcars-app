@@ -2205,6 +2205,23 @@ def calcular_k_pred(k_estado_atual: str, df):
     except:
         return k_estado_atual
 
+def ajustar_n_series_por_k(k_ativo: str, n_series_base: int) -> int:
+    """
+    Ajuste simples do tamanho do leque com base no k_ativo.
+    - estavel  → mantém o tamanho original
+    - atencao  → reduz levemente o leque
+    - critico  → reduz mais o leque, focando nas séries mais fortes
+    Sempre respeita um mínimo de 5 séries.
+    """
+    n = n_series_base
+
+    if k_ativo == "atencao":
+        n = max(5, n - 2)
+    elif k_ativo == "critico":
+        n = max(5, n - 4)
+
+    return n
+
 # Previsão Final TURBO
 try:
     previsao_final = None
@@ -2235,6 +2252,17 @@ try:
         cat = row["category"]
         ss = " ".join(str(x) for x in row["series"])
 
+        # Ajuste leve por k_ativo (modo simples)
+        if k_ativo == "critico":
+            # Em ambiente crítico, remover Cobertura (focar no núcleo forte)
+            if "Cobertura" in cat:
+                continue
+        elif k_ativo == "atencao":
+            # Em atenção, reduzir Cobertura (deixa passar só parte)
+            import random
+            if "Cobertura" in cat and random.random() < 0.5:
+                continue
+
         if cat.startswith("Premium"):
             lista_premium.append(ss)
         elif cat.startswith("Estrutural"):
@@ -2258,6 +2286,7 @@ try:
 
 except Exception as e:
     st.error(f"Erro ao gerar listas auxiliares: {e}")
+
 
 # Lista Pura Final TURBO
 try:
@@ -2385,11 +2414,14 @@ if painel == "S1–S5 + Ajuste Fino":
     flat_mix = unir_leques(flat_original, flat_corr)
 
     # Aplicar modo de saída no MIX
+
+    n_series_ajustado = ajustar_n_series_por_k(k_ativo, n_series_fixed)
+
     flat_corrigido = limit_by_mode(
         flat_mix,
         regime_state,
         output_mode,
-        n_series_fixed,
+        n_series_ajustado,
         min_conf_pct,
     )
 
