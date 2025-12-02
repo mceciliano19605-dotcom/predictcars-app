@@ -2193,6 +2193,92 @@ def contexto_k_texto(k_estado: str, prefixo: str = "k*") -> str:
     else:
         return f"🔴 {prefixo}: Ambiente crítico — usar previsão com cautela máxima."
 
+def calcular_sdm(df, janela=8):
+    """
+    SDM — Similaridade Dinâmica do Momento.
+    Mede quão parecidos são os últimos trechos entre si.
+    Retorna valor entre 0 e 1.
+    """
+
+    try:
+        if df is None or df.empty or len(df) < janela + 1:
+            return 0.5  # neutro
+
+        # Extrair últimos n1..n6
+        recentes = df[["n1","n2","n3","n4","n5","n6"]].tail(janela + 1).values
+
+        atual = recentes[-1]
+        anteriores = recentes[:-1]
+
+        sims = []
+        for linha in anteriores:
+            dist = abs(linha - atual).sum()
+            sim = 1 / (1 + dist)
+            sims.append(sim)
+
+        return float(sum(sims) / len(sims))
+
+    except:
+        return 0.5  # fallback neutro
+def calcular_t_norm(df, janela=10):
+    """
+    T_norm — Turbulência Normalizada.
+    Mede quanta oscilação existe nos últimos trechos.
+    Retorna valor entre 0 e 1.
+    """
+
+    try:
+        if df is None or df.empty or len(df) < janela:
+            return 0.5  # neutro
+
+        # pegar últimos trechos n1..n6
+        bloco = df[["n1","n2","n3","n4","n5","n6"]].tail(janela).values
+
+        # medir dispersão média entre trechos
+        variacoes = []
+        for i in range(1, len(bloco)):
+            dist = abs(bloco[i] - bloco[i-1]).sum()
+            variacoes.append(dist)
+
+        media = sum(variacoes) / len(variacoes)
+
+        # normaliza entre 0 e 1 usando função suave
+        t_norm = 1 - (1 / (1 + media))
+
+        return float(t_norm)
+
+    except:
+        return 0.5  # fallback neutro
+def calcular_entropia_k(df, janela=10):
+    """
+    Entropia direcional do k.
+    Mede a irregularidade do comportamento do k recente.
+    Retorna valor entre 0 e 1.
+    """
+
+    try:
+        if df is None or df.empty or "k" not in df.columns:
+            return 0.5  # neutro
+
+        # últimos valores de k
+        k_vals = df["k"].tail(janela).tolist()
+
+        if len(k_vals) <= 1:
+            return 0.5
+
+        # contar mudanças de estado
+        mudancas = 0
+        for i in range(1, len(k_vals)):
+            if (k_vals[i] != 0) != (k_vals[i-1] != 0):
+                mudancas += 1
+
+        entropia = mudancas / (len(k_vals) - 1)
+
+        return float(entropia)
+
+    except:
+        return 0.5
+
 def calcular_k_pred(k_estado_atual: str, df):
     """
     k preditivo básico (k̂) — versão inicial.
