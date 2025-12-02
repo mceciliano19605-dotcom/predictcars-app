@@ -1,7 +1,7 @@
 # ============================================================
 #   PREDICT CARS — V14 TURBO++
-#   app_v14_turbo_test.py
-#   Núcleo V14 + S6/S7 + TVF + Backtest + AIQ + UI em painéis
+#   app.py
+#   Núcleo V14 + S6/S7 + TVF + Backtest + AIQ + UI
 # ============================================================
 
 import streamlit as st
@@ -37,7 +37,7 @@ def parse_serie_str(s):
       - '8 15 23 30 39 59'
       - '8,15,23,30,39,59'
       - '8; 15; 23; 30; 39; 59'
-      - 'C2943; 8; 15; 23; 30; 39; 59; k'
+      - 'C2943; 8; 15; 23; 30; 39; 59; 1'
     Retorna:
       - [n1, n2, n3, n4, n5, n6] ou None se inválido.
     """
@@ -117,7 +117,6 @@ def preparar_historico_V14(
             return vals
 
         df["series"] = df.apply(_linha_para_serie, axis=1)
-        # Depois normaliza como se fosse coluna única
         col_series = "series"
         modo = "coluna"
 
@@ -136,7 +135,6 @@ def preparar_historico_V14(
 
             # É número isolado (provavelmente não serve)
             if isinstance(x, (int, float)):
-                # Não tem como montar 6 passageiros a partir de 1 só
                 return None
 
             # String: tenta interpretar
@@ -662,6 +660,59 @@ def classificar_k_estado(serie_atual, nucleo_v14):
 
 
 # ============================================================
+# 🔵 Ajuste da Previsão com base em k*
+# ============================================================
+
+def ajustar_previsao_por_k(previsao_pura, serie_atual, nucleo_v14, info_k):
+    """
+    Gera uma previsão 'ajustada por k*':
+        - em regime estável: igual à previsão pura
+        - em atenção: aproxima levemente do núcleo
+        - em crítico: aproxima mais forte do núcleo / série atual
+    """
+    estado = info_k["estado"]
+    base = list(previsao_pura)
+    nuc = sorted(nucleo_v14)
+    atual = sorted(serie_atual)
+
+    if estado == "estavel":
+        return sorted(base)
+
+    ajustada = []
+
+    if estado == "atencao":
+        # Puxa cada número 1 passo em direção ao valor mais próximo do núcleo
+        for x in base:
+            alvo = min(nuc, key=lambda a: abs(a - x))
+            if x < alvo:
+                novo = x + 1
+            elif x > alvo:
+                novo = x - 1
+            else:
+                novo = x
+            ajustada.append(novo)
+
+    else:  # critico
+        # Puxa mais forte para uma combinação entre núcleo e série atual
+        for x in base:
+            alvo_nuc = min(nuc, key=lambda a: abs(a - x))
+            alvo_atual = min(atual, key=lambda a: abs(a - x))
+            alvo_medio = int(round((alvo_nuc + alvo_atual) / 2))
+            # aproxima 2 passos em direção ao alvo_medio
+            if x < alvo_medio:
+                novo = x + 2
+            elif x > alvo_medio:
+                novo = x - 2
+            else:
+                novo = x
+            ajustada.append(novo)
+
+    ajustada = [max(1, min(60, int(v))) for v in ajustada]
+    ajustada = sorted(adjustada)
+    return ajustada
+
+
+# ============================================================
 # 🧭 NAVEGAÇÃO — MENU LATERAL
 # ============================================================
 
@@ -693,7 +744,7 @@ if painel == "📥 Histórico — Entrada":
 
     st.markdown("## 📥 Histórico — Entrada")
 
-    df = st.session_state.get("df", None)
+    df_state = st.session_state.get("df", None)
 
     opc = st.radio(
         "Como deseja carregar o histórico?",
@@ -778,16 +829,16 @@ if painel == "📥 Histórico — Entrada":
 
     if erro_hist:
         st.error(erro_hist)
-    elif df_hist is None:
+    elif df_hist is None and df_state is None:
         st.info("Carregue um CSV ou cole o histórico para ver o resultado.")
     else:
-        st.success(f"Histórico carregado com sucesso ({len(df_hist)} séries).")
-        st.write("DEBUG — tipo:", type(df_hist))
-        st.write("DEBUG — tamanho:", len(df_hist))
-        st.dataframe(df_hist.tail(10), use_container_width=True)
+        if df_hist is not None:
+            st.session_state["df"] = df_hist
+            df_state = df_hist
 
-        # Salva no session_state para os demais painéis
-        st.session_state["df"] = df_hist
+        st.success(f"Histórico disponível ({len(df_state)} séries).")
+        st.write("DEBUG — tamanho:", len(df_state))
+        st.dataframe(df_state.tail(10), use_container_width=True)
 
     st.stop()
 
@@ -964,12 +1015,12 @@ if painel == "🧠 Pipeline V14 (Completo)":
 
 
 # ============================================================
-# PAINEL 4 — Previsões V14 Turbo++
+# PAINEL 4 — Previsões V14 Turbo++ (com e sem k*)
 # ============================================================
 
 if painel == "🎯 Previsões — V14 Turbo++":
 
-    st.markdown("## 🎯 Previsão Final TURBO++ + k* + Séries Puras")
+    st.markdown("## 🎯 Previsão Final TURBO++ — Comparação com e sem k*")
 
     df = st.session_state.get("df", None)
     if df is None or df.empty:
@@ -1015,7 +1066,7 @@ if painel == "🎯 Previsões — V14 Turbo++":
             step=16,
         )
 
-    gerar_prev_final = st.button("🎯 Gerar Previsão Final TURBO++")
+    gerar_prev_final = st.button("🎯 Gerar Previsão Final TURBO++ (com e sem k*)")
 
     if gerar_prev_final:
         with st.spinner("Calculando Previsão Final TURBO++..."):
@@ -1037,9 +1088,13 @@ if painel == "🎯 Previsões — V14 Turbo++":
                     st.warning("Nenhuma série passou pelos filtros S6/S7 — não foi possível gerar uma Previsão Final TURBO++.")
                 else:
                     melhor = df_scores_pf.iloc[0]
-                    previsao_final = melhor["series"]
+                    previsao_pura = melhor["series"]
 
-                    st.success("Previsão Final TURBO++ gerada com sucesso.")
+                    # k* e previsão ajustada
+                    info_k = classificar_k_estado(serie_atual_pf, nucleo_v14_pf)
+                    previsao_ajustada = ajustar_previsao_por_k(previsao_pura, serie_atual_pf, nucleo_v14_pf, info_k)
+
+                    st.success("Previsões geradas com sucesso.")
 
                     col_pf1, col_pf2 = st.columns(2)
 
@@ -1052,11 +1107,11 @@ if painel == "🎯 Previsões — V14 Turbo++":
                         st.markdown("##### 🧠 Núcleo V14 (núcleo previsivo)")
                         st.code(formatar_serie_str(nucleo_v14_pf), language="text")
 
-                    st.markdown("### 🎯 Previsão Final TURBO++ (6 passageiros)")
-                    st.code(formatar_serie_str(previsao_final), language="text")
+                    st.markdown("### 🎯 Previsão Pura (sem k*)")
+                    st.code(formatar_serie_str(previsao_pura), language="text")
 
-                    # ---------------- k* ----------------
-                    info_k = classificar_k_estado(serie_atual_pf, nucleo_v14_pf)
+                    st.markdown("### 🎯 Previsão Ajustada (sensível a k*)")
+                    st.code(formatar_serie_str(previsao_ajustada), language="text")
 
                     st.markdown("### 🌡️ k* — Estado Qualitativo do Ambiente")
                     st.info(info_k["mensagem"])
@@ -1279,4 +1334,3 @@ if painel == "📦 Exportar Sessão":
         )
 
     st.stop()
-
