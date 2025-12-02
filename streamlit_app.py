@@ -44,6 +44,10 @@ def preparar_historico_V14(df_raw):
     df = df[df["series"].apply(lambda x: isinstance(x, list) and len(x) == 6)]
     df = df.reset_index(drop=True)
     return df
+# Inicializar df no session_state
+if "df" not in st.session_state:
+    st.session_state["df"] = None
+
 
 # ============================================================
 # NAVEGAÇÃO — MENU LATERAL
