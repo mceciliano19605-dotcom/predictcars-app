@@ -7,6 +7,7 @@
 # - Testes de Confiabilidade (empírico)
 # - Painel: Séries Alternativas Inteligentes V14-FLEX
 #   (Modo Automático + Modo Avançado por Confiabilidade)
+# - Painel: Teste Avançado das Séries Alternativas (Principal + A–E)
 
 import streamlit as st
 import pandas as pd
@@ -189,7 +190,7 @@ def avaliar_risco_k(df: pd.DataFrame) -> Tuple[str, str]:
     else:
         desc_k = (
             "⚠️ k histórico da série alvo\n"
-            "🔴 Ambiente crítico — trecho turbulento da estrada."
+            "🔴 Ambiente crítico — turbulência elevada na estrada."
         )
 
     # k* preditivo baseado na frequência de k>0 nas últimas N séries
@@ -782,12 +783,16 @@ def painel_modo_turbo_completo() -> None:
 
 
 # ============================================================
-# PAINEL 5 — MODO REPLAY AUTOMÁTICO DO HISTÓRICO
+# FUNÇÃO DE ACERTOS (REAPROVEITADA)
 # ============================================================
 
 def calcular_acertos(p_real: List[int], p_prev: List[int]) -> int:
     return len(set(p_real) & set(p_prev))
 
+
+# ============================================================
+# PAINEL 5 — MODO REPLAY AUTOMÁTICO DO HISTÓRICO
+# ============================================================
 
 def painel_modo_replay() -> None:
     st.markdown("## 📅 Modo Replay Automático do Histórico")
@@ -832,21 +837,21 @@ def painel_modo_replay() -> None:
         total = 0
 
         with st.spinner("Executando replay ao longo do histórico..."):
-            for idx_alvo in range(int(inicio), int(fim) + 1):
-                # previsão para série idx_alvo usando contexto até idx_alvo-1
-                resultado = executar_pipeline_v14_flex(df, idx_alvo - 1)
+            for idx_prev in range(int(inicio), int(fim) + 1):
+                # previsão para série idx_prev usando contexto até idx_prev-1
+                resultado = executar_pipeline_v14_flex(df, idx_prev - 1)
                 if not resultado:
                     continue
 
-                real_row = df.iloc[idx_alvo - 1]
+                real_row = df.iloc[idx_prev - 1]
                 passageiros_reais = list(real_row["passageiros"])
                 serie_prev = resultado["serie_final"]
                 acertos = calcular_acertos(passageiros_reais, serie_prev)
 
                 resultados.append(
                     {
-                        "idx_prev": idx_alvo - 1,
-                        "idx_real": idx_alvo,
+                        "idx_prev": idx_prev - 1,
+                        "idx_real": idx_prev,
                         "id_prev": resultado["id_alvo"],
                         "id_real": real_row["id"],
                         "prev": serie_prev,
@@ -1062,6 +1067,141 @@ def painel_series_alternativas_inteligentes() -> None:
 
 
 # ============================================================
+# PAINEL 8 — TESTE AVANÇADO DAS SÉRIES ALTERNATIVAS (Principal + A–E)
+# ============================================================
+
+def painel_teste_avancado_series_alternativas() -> None:
+    st.markdown("## 📊 Teste Avançado das Séries Alternativas (Principal + A–E)")
+
+    df = st.session_state.get("df")
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
+        return
+
+    if len(df) < 3:
+        st.warning("Histórico muito curto para testes avançados.")
+        return
+
+    st.markdown(
+        "Este painel executa o pipeline V14-FLEX ao longo do histórico e, "
+        "para cada ponto, gera a Série Principal (Modo E) e as alternativas "
+        "(A–E), medindo os acertos de cada uma frente à série real."
+    )
+
+    idx_min = 2
+    idx_max = len(df) - 1
+
+    col1, col2 = st.columns(2)
+    with col1:
+        inicio = st.number_input(
+            "Índice inicial para teste (previsão para a próxima série):",
+            min_value=idx_min,
+            max_value=idx_max,
+            value=idx_min,
+            step=1,
+        )
+    with col2:
+        fim = st.number_input(
+            "Índice final para teste:",
+            min_value=inicio,
+            max_value=idx_max,
+            value=idx_max,
+            step=1,
+        )
+
+    if st.button("Executar Teste Avançado A–E"):
+        resultados = []
+        total = 0
+
+        with st.spinner("Executando teste avançado ao longo do histórico..."):
+            for idx_prev in range(int(inicio), int(fim) + 1):
+                # pipeline para previsão da série idx_prev usando contexto até idx_prev-1
+                resultado = executar_pipeline_v14_flex(df, idx_prev - 1)
+                if not resultado:
+                    continue
+
+                leque_final = resultado.get("leque_final", [])
+                serie_principal = resultado.get("serie_final", [])
+                if not leque_final or not serie_principal:
+                    continue
+
+                series_alt = gerar_series_alternativas_inteligentes(
+                    leque_final,
+                    serie_principal,
+                )
+                if not series_alt:
+                    continue
+
+                real_row = df.iloc[idx_prev - 1]
+                passageiros_reais = list(real_row["passageiros"])
+
+                linha_resultado: Dict[str, Any] = {
+                    "idx_prev": idx_prev - 1,
+                    "idx_real": idx_prev,
+                    "id_real": real_row["id"],
+                    "passageiros_reais": passageiros_reais,
+                }
+
+                for s in series_alt:
+                    nome = s["nome"]
+                    serie = s["serie"]
+                    acertos = calcular_acertos(passageiros_reais, serie)
+                    linha_resultado[f"acertos_{nome}"] = acertos
+
+                resultados.append(linha_resultado)
+                total += 1
+
+        if not resultados:
+            st.error("Teste avançado não gerou resultados.")
+            return
+
+        df_res = pd.DataFrame(resultados)
+        st.session_state["teste_avancado_series"] = df_res
+
+        st.success(f"Teste avançado concluído com {total} previsões.")
+        st.markdown("### Amostra de resultados (Primeiras linhas)")
+        st.dataframe(df_res.head(50))
+
+        # Métricas agregadas por série
+        st.markdown("---")
+        st.markdown("### Métricas agregadas por série alternativa")
+
+        colunas_acertos = [
+            c for c in df_res.columns if c.startswith("acertos_")
+        ]
+        if not colunas_acertos:
+            st.warning("Nenhuma coluna de acertos encontrada.")
+            return
+
+        linhas_metricas = []
+        for col in colunas_acertos:
+            media = float(df_res[col].mean())
+            freq_ge2 = 100 * float((df_res[col] >= 2).mean())
+            freq_ge3 = 100 * float((df_res[col] >= 3).mean())
+            freq_ge4 = 100 * float((df_res[col] >= 4).mean())
+            linhas_metricas.append(
+                {
+                    "Série": col.replace("acertos_", ""),
+                    "Média de acertos": round(media, 2),
+                    "≥2 acertos (%)": round(freq_ge2, 1),
+                    "≥3 acertos (%)": round(freq_ge3, 1),
+                    "≥4 acertos (%)": round(freq_ge4, 1),
+                }
+            )
+
+        df_metricas = pd.DataFrame(linhas_metricas).sort_values(
+            by="Média de acertos", ascending=False
+        )
+        st.dataframe(df_metricas.reset_index(drop=True))
+
+        st.markdown(
+            "Estas métricas mostram, ao longo do intervalo analisado, "
+            "qual série (Principal, A, B, C, D, E) apresentou melhor desempenho "
+            "em termos de acertos médios e frequência de acertos mais altos."
+        )
+
+
+# ============================================================
 # ROTEADOR PRINCIPAL DE PAINÉIS
 # ============================================================
 
@@ -1075,6 +1215,7 @@ painel = st.radio(
         "📅 Modo Replay Automático do Histórico",
         "🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)",
         "🎛 Séries Alternativas Inteligentes V14-FLEX",
+        "📊 Teste Avançado das Séries Alternativas (Principal + A–E)",
     ],
 )
 
@@ -1092,3 +1233,5 @@ elif painel == "🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)":
     painel_testes_confiabilidade()
 elif painel == "🎛 Séries Alternativas Inteligentes V14-FLEX":
     painel_series_alternativas_inteligentes()
+elif painel == "📊 Teste Avançado das Séries Alternativas (Principal + A–E)":
+    painel_teste_avancado_series_alternativas()
