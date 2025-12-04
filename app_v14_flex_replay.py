@@ -492,91 +492,161 @@ def monte_carlo_profundo_ultra(
 
 
 def montar_previsao_turbo_ultra(
-    df: pd.DataFrame,
-    idx_alvo: int,
-    n_series_saida: int = 60,
-    window_s6: int = 80,
-    window_mc: int = 120,
-    n_sim_mc: int = 2000,
-    incluir_micro_leque: bool = True,
-    peso_s6: float = 0.5,
-    peso_mc: float = 0.4,
-    peso_micro: float = 0.1,
-) -> pd.DataFrame:
-    """
-    Núcleo de fusão TURBO++ ULTRA:
+    df,
+    idx_alvo,
+    n_s6=60,
+    janela_s6=80,
+    janela_mc=120,
+    n_sim_mc=2000,
+    peso_s6=0.5,
+    peso_mc=0.4,
+    peso_micro=0.1,
+):
+    import numpy as np
+    import pandas as pd
+    import streamlit as st
 
-    Combina:
-    - S6 Profundo ULTRA
-    - Monte Carlo Profundo ULTRA
-    - Micro-Leque ULTRA (opcional)
-    """
-    if df is None or df.empty:
-        return pd.DataFrame()
+    progresso = st.progress(0)           # barra de progresso
+    status = st.empty()                  # texto de status
 
-    # S6
-    df_s6 = s6_profundo_ultra(df, idx_alvo, window=window_s6, n_series=n_series_saida * 2)
-    if df_s6.empty:
-        df_s6 = pd.DataFrame(columns=["series", "score_s6", "origem"])
+    # ---------------------------------------------
+    # ETAPA 1 — Gerar S6 Profundo
+    # ---------------------------------------------
+    progresso.progress(5)
+    status.write("🔧 Gerando S6 Profundo ULTRA...")
 
-    # MC
-    df_mc = monte_carlo_profundo_ultra(
+    df_s6 = gerar_s6_profundo_ultra(
         df,
-        idx_alvo,
+        idx_alvo=idx_alvo,
+        n_series_saida=n_s6,
+        janela=janela_s6,
+    )
+
+    if df_s6 is None or df_s6.empty:
+        st.error("S6 Profundo falhou ao gerar séries.")
+        return None
+
+    df_s6 = df_s6.copy()
+    df_s6["score_s6"] = df_s6["score"].astype(float)
+    df_s6["score_mc"] = 0.0
+    df_s6["score_micro"] = 0.0
+
+    progresso.progress(20)
+    status.write("🔧 S6 Profundo gerado com sucesso.")
+
+    # ---------------------------------------------
+    # ETAPA 2 — Gerar Monte Carlo Profundo ULTRA
+    # ---------------------------------------------
+    progresso.progress(25)
+    status.write("🎲 Executando Monte Carlo Profundo ULTRA...")
+
+    df_mc = gerar_monte_carlo_profundo_ultra(
+        df,
+        idx_alvo=idx_alvo,
+        janela_mc=janela_mc,
         n_sim=n_sim_mc,
-        n_series_saida=n_series_saida * 2,
-        window=window_mc,
-    )
-    if df_mc.empty:
-        df_mc = pd.DataFrame(columns=["series", "score_mc", "freq_mc", "origem"])
-
-    # Micro-Leque
-    if incluir_micro_leque:
-        df_micro = micro_leque_ultra(df, idx_alvo)
-    else:
-        df_micro = pd.DataFrame(columns=["series", "score_micro", "origem"])
-
-    # Normalizar colunas de score
-    for col in ["score_s6", "score_mc", "score_micro"]:
-        for d in (df_s6, df_mc, df_micro):
-            if col in d.columns:
-                if d[col].max() > 0:
-                    d[col] = d[col] / d[col].max()
-                else:
-                    d[col] = 0.0
-
-    frames = []
-    if not df_s6.empty:
-        frames.append(df_s6[["series", "score_s6"]])
-    if not df_mc.empty:
-        frames.append(df_mc[["series", "score_mc"]])
-    if not df_micro.empty:
-        frames.append(df_micro[["series", "score_micro"]])
-
-    if not frames:
-        return pd.DataFrame()
-
-    df_all = pd.concat(frames, ignore_index=True)
-    df_all = df_all.groupby("series", as_index=False).agg(
-        {
-            "score_s6": "max",
-            "score_mc": "max",
-            "score_micro": "max",
-        }
     )
 
-    for col in ["score_s6", "score_mc", "score_micro"]:
-        if col not in df_all.columns:
-            df_all[col] = 0.0
+    if df_mc is None or df_mc.empty:
+        st.error("Monte Carlo Profundo não gerou resultados.")
+        return None
 
-    df_all["score_final"] = (
-        peso_s6 * df_all["score_s6"].fillna(0.0)
-        + peso_mc * df_all["score_mc"].fillna(0.0)
-        + peso_micro * df_all["score_micro"].fillna(0.0)
+    df_mc = df_mc.copy()
+    df_mc["score_s6"] = 0.0
+    df_mc["score_mc"] = df_mc["score"].astype(float)
+    df_mc["score_micro"] = 0.0
+
+    progresso.progress(55)
+    status.write("🎲 Monte Carlo Profundo concluído.")
+
+    # ---------------------------------------------
+    # ETAPA 3 — Gerar Micro-Leque ULTRA
+    # ---------------------------------------------
+    progresso.progress(60)
+    status.write("🪶 Gerando Micro-Leque ULTRA...")
+
+    df_micro = gerar_micro_leque_ultra(
+        df,
+        idx_alvo=idx_alvo,
     )
 
-    df_all = df_all.sort_values("score_final", ascending=False).head(n_series_saida).reset_index(drop=True)
-    return df_all
+    if df_micro is None or df_micro.empty:
+        df_micro = pd.DataFrame(columns=["series", "score"])
+    df_micro = df_micro.copy()
+    df_micro["score_s6"] = 0.0
+    df_micro["score_mc"] = 0.0
+    df_micro["score_micro"] = df_micro["score"].astype(float)
+
+    progresso.progress(70)
+    status.write("🪶 Micro-Leque pronto.")
+
+    # ---------------------------------------------
+    # ETAPA 4 — Unificação das tabelas
+    # ---------------------------------------------
+    progresso.progress(75)
+    status.write("🔗 Unificando tabelas...")
+
+    df_all = pd.concat([df_s6, df_mc, df_micro], ignore_index=True)
+
+    # ---------------------------------------------
+    # ETAPA 5 — NORMALIZAÇÃO DAS SÉRIES (CORREÇÃO DO ERRO)
+    # ---------------------------------------------
+    progresso.progress(80)
+    status.write("🧩 Normalizando séries...")
+
+    def normalizar_serie(s):
+        if s is None:
+            return tuple()
+        if isinstance(s, str):
+            try:
+                valores = [int(x) for x in s.replace(",", " ").split() if x.isdigit()]
+                return tuple(valores)
+            except:
+                return tuple()
+        if isinstance(s, (list, tuple, np.ndarray)):
+            try:
+                return tuple(int(x) for x in s)
+            except:
+                return tuple()
+        return tuple()
+
+    df_all["series"] = df_all["series"].apply(normalizar_serie)
+    df_all = df_all[df_all["series"].apply(lambda x: len(x) > 0)]
+
+    progresso.progress(85)
+    status.write("🧩 Séries normalizadas.")
+
+    # ---------------------------------------------
+    # ETAPA 6 — FUSÃO ULTRA
+    # ---------------------------------------------
+    progresso.progress(90)
+    status.write("⚖️ Aplicando fusão ULTRA...")
+
+    df_fusao = (
+        df_all.groupby("series", as_index=False)
+        .agg(
+            {
+                "score_s6": "max",
+                "score_mc": "max",
+                "score_micro": "max",
+            }
+        )
+        .copy()
+    )
+
+    df_fusao["score_total"] = (
+        df_fusao["score_s6"] * peso_s6
+        + df_fusao["score_mc"] * peso_mc
+        + df_fusao["score_micro"] * peso_micro
+    )
+
+    df_fusao = df_fusao.sort_values("score_total", ascending=False).reset_index(drop=True)
+
+    progresso.progress(100)
+    status.write("✨ Fusão ULTRA concluída.")
+
+    return df_fusao
+
 
 
 # ============================================================
