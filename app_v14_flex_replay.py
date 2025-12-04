@@ -8,6 +8,7 @@
 # - Painel: Séries Alternativas Inteligentes V14-FLEX
 #   (Modo Automático + Modo Avançado por Confiabilidade)
 # - Painel: Teste Avançado das Séries Alternativas (Principal + A–E)
+# - Painel: Modo Adaptativo V14-FLEX (Saída Recomendada pelo risco k*)
 
 import streamlit as st
 import pandas as pd
@@ -216,6 +217,19 @@ def avaliar_risco_k(df: pd.DataFrame) -> Tuple[str, str]:
         )
 
     return desc_k, desc_k_star
+
+
+def calcular_risco_pct_global(df: pd.DataFrame) -> int:
+    """
+    Retorna apenas o risco percentual k* (0–100), para uso no modo adaptativo.
+    """
+    if df.empty or "k" not in df.columns:
+        return 0
+    n_janela = min(50, len(df))
+    sub = df.tail(n_janela)
+    proporcao_eventos = float((sub["k"] > 0).mean())
+    risco_pct = int(round(100 * proporcao_eventos))
+    return risco_pct
 
 
 # ============================================================
@@ -1202,6 +1216,133 @@ def painel_teste_avancado_series_alternativas() -> None:
 
 
 # ============================================================
+# PAINEL 9 — MODO ADAPTATIVO V14-FLEX (Saída Recomendada)
+# ============================================================
+
+def painel_modo_adaptativo_v14() -> None:
+    st.markdown("## 🎯 Modo Adaptativo V14-FLEX — Saída Recomendada")
+
+    df = st.session_state.get("df")
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
+        return
+
+    ultimo = st.session_state.get("ultimo_pipeline")
+    if not ultimo or "resultado" not in ultimo:
+        st.info(
+            "Execute primeiro o painel '🔍 Pipeline V14-FLEX (TURBO++)' "
+            "para gerar o leque final e a série principal."
+        )
+        return
+
+    resultado = ultimo["resultado"]
+    leque_final = resultado.get("leque_final", [])
+    serie_principal = resultado.get("serie_final", [])
+
+    if not leque_final or not serie_principal:
+        st.warning("Não há leque final ou série principal disponíveis.")
+        return
+
+    # Gera séries alternativas
+    series_alt = gerar_series_alternativas_inteligentes(leque_final, serie_principal)
+    if not series_alt:
+        st.warning("Não foi possível gerar séries alternativas.")
+        return
+
+    # Calcula risco k* global (histórico)
+    risco_pct = calcular_risco_pct_global(df)
+
+    if risco_pct >= 60:
+        regime = "Alta turbulência"
+        cor = "🔴"
+        recomendadas_nomes = [
+            "Série A — Conservadora",
+            "Série Principal (Modo E)",
+            "Série E — Anti-SelfBias",
+        ]
+        comentario = (
+            "Ambiente turbulento: priorizar estabilidade (A), núcleo estrutural (Principal) "
+            "e quebra de viés (E)."
+        )
+    elif risco_pct >= 30:
+        regime = "Ruído moderado"
+        cor = "🟡"
+        recomendadas_nomes = [
+            "Série Principal (Modo E)",
+            "Série B — Intermediária Estruturada",
+            "Série D — Cluster Puro",
+        ]
+        comentario = (
+            "Ambiente com ruído moderado: equilibrar núcleo (Principal), estrutura intermediária (B) "
+            "e cluster dominante (D)."
+        )
+    else:
+        regime = "Baixa turbulência"
+        cor = "🟢"
+        recomendadas_nomes = [
+            "Série Principal (Modo E)",
+            "Série A — Conservadora",
+        ]
+        comentario = (
+            "Ambiente estável: foco em núcleo bem estruturado (Principal) e série conservadora (A)."
+        )
+
+    st.markdown(
+        f"{cor} **Regime adaptativo detectado:** {regime} "
+        f"(k* ≈ {risco_pct}%)"
+    )
+    st.markdown(comentario)
+
+    st.markdown("---")
+    st.markdown("### Séries recomendadas automaticamente para este regime")
+
+    # Índice rápido por nome
+    series_por_nome = {s["nome"]: s for s in series_alt}
+
+    for nome in recomendadas_nomes:
+        s = series_por_nome.get(nome)
+        if not s:
+            continue
+        conf = s["confiabilidade"]
+        serie = s["serie"]
+        if not serie:
+            continue
+
+        with st.expander(f"{nome} — RECOMENDADA"):
+            st.code(" ".join(str(x) for x in serie), language="text")
+            st.markdown(f"**Estilo:** {s['descricao']}")
+            st.markdown(
+                f"**Confiabilidade estimada:** {conf['nivel']} "
+                f"(~{conf['prob']*100:.0f}%)"
+            )
+            st.markdown(f"**Acertos prováveis:** {conf['faixa_acertos']}")
+            st.markdown(
+                "Marcada como recomendada pelo modo adaptativo V14-FLEX "
+                "para o regime atual da estrada."
+            )
+
+    st.markdown("---")
+    st.markdown("### Outras séries disponíveis (visão completa)")
+
+    for s in series_alt:
+        if s["nome"] in recomendadas_nomes:
+            continue
+        conf = s["confiabilidade"]
+        serie = s["serie"]
+        if not serie:
+            continue
+
+        with st.expander(f"{s['nome']}"):
+            st.code(" ".join(str(x) for x in serie), language="text")
+            st.markdown(f"**Estilo:** {s['descricao']}")
+            st.markdown(
+                f"**Confiabilidade estimada:** {conf['nivel']} "
+                f"(~{conf['prob']*100:.0f}%)"
+            )
+            st.markdown(f"**Acertos prováveis:** {conf['faixa_acertos']}")
+
+
+# ============================================================
 # ROTEADOR PRINCIPAL DE PAINÉIS
 # ============================================================
 
@@ -1216,6 +1357,7 @@ painel = st.radio(
         "🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)",
         "🎛 Séries Alternativas Inteligentes V14-FLEX",
         "📊 Teste Avançado das Séries Alternativas (Principal + A–E)",
+        "🎯 Modo Adaptativo V14-FLEX (Saída Recomendada)",
     ],
 )
 
@@ -1235,3 +1377,5 @@ elif painel == "🎛 Séries Alternativas Inteligentes V14-FLEX":
     painel_series_alternativas_inteligentes()
 elif painel == "📊 Teste Avançado das Séries Alternativas (Principal + A–E)":
     painel_teste_avancado_series_alternativas()
+elif painel == "🎯 Modo Adaptativo V14-FLEX (Saída Recomendada)":
+    painel_modo_adaptativo_v14()
