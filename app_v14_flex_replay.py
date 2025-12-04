@@ -1,1561 +1,2037 @@
 # ============================================================
-# Predict Cars V14-FLEX ULTRA REAL (TURBO++) — VERSÃO GIGANTE
-# ============================================================
-# Versão com:
-# - Número variável de passageiros (FLEX)
-# - Barômetro ULTRA real
-# - k* ULTRA (sentinela preditivo)
-# - IDX Avançado ULTRA
-# - IPF / IPO refinados
-# - S6 Profundo em camadas
-# - Micro-Leque ULTRA
-# - Monte Carlo Profundo
-# - QDS real + Backtest real
-# - Painéis completos em Streamlit
+# Predict Cars V14-FLEX ULTRA REAL (TURBO++)
+# streamlit_app.py — NOVO ARQUIVO COMPLETO (PARTE 1/4)
+#
+# Versão: V14-FLEX ULTRA REAL (TURBO++)
+# Características principais:
+#   - Entrada FLEX (n variável de passageiros)
+#   - Barômetro ULTRA REAL
+#   - k* ULTRA REAL
+#   - IDX ULTRA
+#   - IPF / IPO refinados
+#   - S6 Profundo (camadas)
+#   - Micro-Leque ULTRA
+#   - Monte Carlo Profundo ULTRA
+#   - Pipeline de Previsão ULTRA REAL
+#   - QDS REAL + Backtest REAL
+#   - Replay LIGHT
+#   - Replay ULTRA com horizonte ajustável
+#   - Modo TURBO++ Adaptativo
+#
+# Arquivo dividido em 4 partes para facilitar a colagem.
+# Esta é a PARTE 1/4.
 # ============================================================
 
-import streamlit as st
-import pandas as pd
-import numpy as np
+import io
 import math
-from io import StringIO
+import textwrap
 from typing import List, Dict, Any, Tuple, Optional
 
+import numpy as np
+import pandas as pd
+import streamlit as st
+
 # ------------------------------------------------------------
-# CONFIGURAÇÃO DA PÁGINA
+# CONFIGURAÇÃO BÁSICA DO APP
 # ------------------------------------------------------------
+
 st.set_page_config(
     page_title="Predict Cars V14-FLEX ULTRA REAL (TURBO++)",
     layout="wide",
 )
 
-# ============================================================
-# 1. UTILITÁRIOS DE HISTÓRICO (FLEX)
-# ============================================================
+# ------------------------------------------------------------
+# FUNÇÕES GERAIS DE SESSÃO E UTILITÁRIOS
+# ------------------------------------------------------------
 
-def detectar_colunas_passageiros(df: pd.DataFrame) -> Tuple[List[str], Optional[str], Optional[str]]:
+def inicializar_sessao() -> None:
     """
-    Detecta:
-      - coluna de ID (id da série)
-      - colunas de passageiros (p1..pn)
-      - coluna de k (índice de regime/risco)
-    A detecção é flexível e tenta se adaptar ao CSV recebido.
+    Garante que todas as chaves importantes existam em st.session_state.
+    Não perde nada que já esteja setado.
+    """
+    defaults = {
+        "df": None,                  # histórico preparado
+        "raw_df": None,              # histórico bruto
+        "meta_cols": None,           # metadados sobre colunas
+        "regime_state": "estavel",   # estado inicial do barômetro
+        "k_star_estado": "estavel",  # estado inicial do k*
+        "ultimo_idx_alvo": None,     # último índice alvo selecionado
+        "log_eventos": [],           # lista de eventos/importantes do app
+        "qds_cache": {},             # cache para QDS / Backtest
+        "replay_cache": {},          # cache para modos de replay
+        "turbo_config": {},          # configuração atual do modo TURBO++
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+
+def registrar_evento(msg: str) -> None:
+    """
+    Registra um evento no log interno do app.
+    """
+    if "log_eventos" not in st.session_state:
+        st.session_state["log_eventos"] = []
+    st.session_state["log_eventos"].append(msg)
+
+
+def mostrar_log_eventos(max_linhas: int = 15) -> None:
+    """
+    Mostra as últimas linhas do log em um expander discreto.
+    """
+    log = st.session_state.get("log_eventos", [])
+    if not log:
+        return
+    with st.expander("📜 Log interno (últimos eventos)", expanded=False):
+        for linha in log[-max_linhas:]:
+            st.markdown(f"- {linha}")
+
+
+def detectar_separador(conteudo: str) -> str:
+    """
+    Tenta detectar o separador principal de um bloco de texto.
+    """
+    # Conta ocorrências por linha
+    linhas = [l for l in conteudo.splitlines() if l.strip()]
+    if not linhas:
+        return ";"
+
+    candidatos = [";", ",", "\t", " "]
+    contagens = {sep: 0 for sep in candidatos}
+    for ln in linhas[:20]:
+        for sep in candidatos:
+            contagens[sep] += ln.count(sep)
+
+    # Escolhe o separador com maior contagem
+    sep_escolhido = max(contagens, key=contagens.get)
+    if contagens[sep_escolhido] == 0:
+        # fallback
+        return ";"
+    return sep_escolhido
+
+
+def carregar_df_de_texto(conteudo: str) -> pd.DataFrame:
+    """
+    Lê o conteúdo colado pelo usuário e converte em DataFrame.
+    Tenta detectar o separador.
+    """
+    sep = detectar_separador(conteudo)
+    buffer = io.StringIO(conteudo.strip())
+    try:
+        df_raw = pd.read_csv(buffer, sep=sep, header=None)
+    except Exception:
+        # fallback bruto
+        buffer.seek(0)
+        df_raw = pd.read_csv(buffer, sep=";", header=None)
+    return df_raw
+
+
+def preparar_historico_flex(df_raw: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Prepara o histórico no formato FLEX, assumindo:
+        - 1ª coluna: ID da série (ex: "C1", "C2"... ou número)
+        - colunas intermediárias: passageiros (n variável)
+        - última coluna: k (rótulo)
+
+    Retorna:
+        df (DataFrame) com colunas:
+            ["id", "p_1", ..., "p_n", "k"]
+        meta (dict) com detalhes da estrutura.
+    """
+    if df_raw is None or df_raw.empty:
+        raise ValueError("DataFrame bruto vazio.")
+
+    df_work = df_raw.copy()
+
+    # Remove colunas totalmente vazias
+    df_work = df_work.dropna(axis=1, how="all")
+
+    if df_work.shape[1] < 3:
+        raise ValueError(
+            "O histórico precisa de pelo menos 3 colunas: ID, passageiros, k."
+        )
+
+    n_cols = df_work.shape[1]
+    idx_col = 0
+    k_col = n_cols - 1
+    n_passageiros = n_cols - 2  # tudo entre ID e k
+
+    df = pd.DataFrame()
+    df["id"] = df_work.iloc[:, idx_col]
+
+    # Passageiros
+    for i in range(n_passageiros):
+        df[f"p_{i+1}"] = pd.to_numeric(
+            df_work.iloc[:, 1 + i], errors="coerce"
+        )
+
+    # k
+    df["k"] = pd.to_numeric(df_work.iloc[:, k_col], errors="coerce")
+
+    # Limpa linhas totalmente vazias de passageiros
+    passageiros_cols = [c for c in df.columns if c.startswith("p_")]
+    df = df.dropna(subset=passageiros_cols, how="all")
+
+    # Reseta índice
+    df = df.reset_index(drop=True)
+
+    # Cria coluna de índice numérico interno (1,2,3,...)
+    df["idx"] = np.arange(1, len(df) + 1)
+
+    # Metadados
+    meta = {
+        "n_series": len(df),
+        "n_passageiros": n_passageiros,
+        "cols_passageiros": passageiros_cols,
+        "col_k": "k",
+        "col_id": "id",
+    }
+
+    return df, meta
+
+
+def extrair_passageiros_linha(df: pd.DataFrame, idx: int) -> List[int]:
+    """
+    Dado um DataFrame preparado e um índice interno (1-based, coluna 'idx'),
+    retorna a lista de passageiros daquela série.
     """
     if df is None or df.empty:
-        return [], None, None
+        return []
 
-    cols = list(df.columns)
+    row = df.loc[df["idx"] == idx]
+    if row.empty:
+        return []
 
-    # 1) Detectar coluna de id:
-    #    - se a primeira coluna não for estritamente numérica, assume como ID
-    col_id = None
-    primeira = cols[0]
-    if not pd.api.types.is_numeric_dtype(df[primeira]):
-        col_id = primeira
-
-    # 2) Detectar coluna de k:
-    #    - prioridade: coluna chamada exatamente "k"
-    #    - se não existir, assume a última coluna numérica como k
-    col_k = None
-    for c in cols[::-1]:
-        if str(c).strip().lower() == "k":
-            col_k = c
-            break
-
-    if col_k is None:
-        for c in cols[::-1]:
-            if pd.api.types.is_numeric_dtype(df[c]):
-                col_k = c
-                break
-
-    # 3) Detectar colunas de passageiros:
-    #    - colunas numéricas entre ID e k
-    cols_pass = []
-    for c in cols:
-        if c == col_id or c == col_k:
-            continue
-        if pd.api.types.is_numeric_dtype(df[c]):
-            cols_pass.append(c)
-
-    return cols_pass, col_id, col_k
+    passageiros_cols = [c for c in df.columns if c.startswith("p_")]
+    valores = row[passageiros_cols].iloc[0].tolist()
+    return [int(x) for x in valores if not pd.isna(x)]
 
 
-def preparar_historico_flex(df_raw: pd.DataFrame) -> pd.DataFrame:
+def resumo_rapido_serie(df: pd.DataFrame, idx: int) -> str:
     """
-    Normaliza o histórico para o formato interno do V14-FLEX ULTRA:
-      - coluna 'id' (string)
-      - colunas 'p1'..'pn' (passageiros)
-      - coluna 'k' (int)
-    Mantém a flexibilidade no número de passageiros.
+    Gera um resumo rápido da série (ID, passageiros, k) para exibição.
     """
-    df = df_raw.copy()
+    if df is None or df.empty:
+        return "Série inválida."
 
-    # Remove colunas totalmente vazias (ruído comum em CSV)
-    df = df.dropna(axis=1, how="all")
+    linha = df.loc[df["idx"] == idx]
+    if linha.empty:
+        return "Série não encontrada."
 
-    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
-
-    # Se não houver id, cria IDs artificiais C1, C2, ...
-    if col_id is None:
-        df.insert(0, "id", [f"C{i+1}" for i in range(len(df))])
-        col_id = "id"
-
-    # Se não houver k, cria k=0 (placeholder neutro)
-    if col_k is None:
-        df["k"] = 0
-        col_k = "k"
-
-    # Renomeia colunas de passageiros para p1..pn
-    mapping = {}
-    for i, c in enumerate(cols_pass, start=1):
-        mapping[c] = f"p{i}"
-    df = df.rename(columns=mapping)
-
-    # Garante tipos
-    df[col_id] = df[col_id].astype(str)
-    df[col_k] = pd.to_numeric(df[col_k], errors="coerce").fillna(0).astype(int)
-
-    # Ordena colunas: id, p1..pn, k
-    cols_ord = [col_id] + sorted(
-        [c for c in df.columns if c.startswith("p")],
-        key=lambda x: int(x[1:])
-    ) + [col_k]
-
-    df = df[cols_ord]
-
-    return df
+    row = linha.iloc[0]
+    passageiros_cols = [c for c in df.columns if c.startswith("p_")]
+    passageiros = [int(x) for x in row[passageiros_cols].tolist() if not pd.isna(x)]
+    k_val = row["k"]
+    return f"{row['id']} — Passageiros: {passageiros} — k: {int(k_val) if not pd.isna(k_val) else 'NA'}"
 
 
-def parse_text_to_df(texto: str) -> pd.DataFrame:
-    """
-    Converte texto colado em tabela.
-    Tenta inteligentemente vários separadores: ; , tab e espaço.
-    É compatível com formatos do tipo:
-      C1;41;5;4;52;30;33;0
-      C2;9;39;...
-    """
-    if not texto or not texto.strip():
-        return pd.DataFrame()
-
-    raw = texto.strip()
-
-    # Tenta ;, depois , e tab
-    for sep in [";", ",", "\t"]:
-        try:
-            df = pd.read_csv(StringIO(raw), sep=sep, header=None)
-            if df.shape[1] >= 3:
-                df.columns = [f"c{i+1}" for i in range(df.shape[1])]
-                return df
-        except Exception:
-            pass
-
-    # Última tentativa: separador por espaços
-    try:
-        df = pd.read_csv(StringIO(raw), sep=r"\s+", header=None, engine="python")
-        df.columns = [f"c{i+1}" for i in range(df.shape[1])]
-        return df
-    except Exception:
-        return pd.DataFrame()
-
-# ============================================================
-# 2. BARÔMETRO ULTRA REAL — CLIMA DA ESTRADA
-# ============================================================
-
-def _volatilidade_janela(series: np.ndarray, janela: int) -> float:
-    """
-    Volatilidade (desvio padrão) de uma série em janela deslizante.
-    Se não houver séries suficientes, usa tudo.
-    """
-    if len(series) == 0:
-        return 0.0
-    if len(series) <= janela:
-        return float(np.std(series))
-    return float(np.std(series[-janela:]))
-
-
-def _dispersao_media_series(df: pd.DataFrame, cols_pass: List[str], janela: int = 40) -> float:
-    """
-    Dispersão média por série:
-      - calcula o desvio padrão em cada série (linha) sobre os passageiros
-      - depois tira a média das últimas 'janela' séries
-    """
-    if df is None or df.empty or not cols_pass:
-        return 0.0
-    arr = df[cols_pass].values.astype(float)
-    std_por_serie = np.std(arr, axis=1)
-    if len(std_por_serie) <= janela:
-        return float(np.mean(std_por_serie))
-    return float(np.mean(std_por_serie[-janela:]))
-
-
-def _entropia_normalizada(series: np.ndarray, n_bins: int = 20) -> float:
-    """
-    Entropia normalizada da distribuição da estrada.
-    Mede o quão 'espalhada' ou 'caótica' está a distribuição.
-    """
-    if len(series) == 0:
-        return 0.0
-    hist, _ = np.histogram(series, bins=n_bins, density=True)
-    hist = hist + 1e-12  # evita log(0)
-    H = -np.sum(hist * np.log(hist))
-    H_max = np.log(len(hist))
-    if H_max == 0:
-        return 0.0
-    return float(H / H_max)
-
+# ------------------------------------------------------------
+# PLACEHOLDERS DE MÓDULOS ULTRA
+# (os detalhes internos serão desenvolvidos nas partes 2/4 e 3/4)
+# ------------------------------------------------------------
 
 def calcular_barometro_ultra(df: pd.DataFrame) -> Dict[str, Any]:
     """
-    Calcula o BARÔMETRO ULTRA — clima da estrada.
-    Combina:
-      - volatilidade local (curto prazo)
-      - volatilidade global (médio prazo)
-      - dispersão média entre passageiros
-      - entropia da estrada
-      - variação de k
-    E produz:
-      - 'estado' ∈ {Calmo, Moderado, Turbulento, Ruptura Imminente}
-      - 'score' ∈ [0,1]
+    Barômetro ULTRA REAL — placeholder de alto nível.
+    Implementação detalhada virá na PARTE 2/4.
     """
-    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
-    if df is None or df.empty or not cols_pass:
+    if df is None or df.empty:
         return {
-            "estado": "Indefinido",
-            "score": None,
-            "vol_local": 0.0,
-            "vol_global": 0.0,
-            "dispersao": 0.0,
-            "entropia": 0.0,
-            "var_k": 0.0,
+            "estado": "desconhecido",
+            "indice_turbulencia": None,
+            "texto": "Histórico não carregado.",
         }
 
-    # Série somada dos passageiros — proxy da "energia da estrada"
-    arr_pass = df[cols_pass].values.astype(float)
-    soma = arr_pass.sum(axis=1)
+    # Placeholder simplificado (será refinado na parte 2/4)
+    n_series = len(df)
+    k_vals = df["k"].fillna(0).values
+    vol_k = float(np.std(k_vals)) if len(k_vals) > 1 else 0.0
 
-    vol_local = _volatilidade_janela(soma, janela=12)   # curto prazo
-    vol_global = _volatilidade_janela(soma, janela=40)  # médio prazo
-    dispersao = _dispersao_media_series(df, cols_pass, janela=40)
-    entropia = _entropia_normalizada(soma, n_bins=20)
-
-    # Variação média de k
-    if col_k and col_k in df.columns:
-        kvals = df[col_k].astype(float).values
-        if len(kvals) > 1:
-            var_k = float(np.mean(np.abs(np.diff(kvals))))
-        else:
-            var_k = 0.0
-    else:
-        var_k = 0.0
-
-    # Normalizações aproximadas (calibráveis)
-    v_local_n = min(vol_local / 35.0, 1.0)
-    v_global_n = min(vol_global / 50.0, 1.0)
-    disp_n = min(dispersao / 22.0, 1.0)
-    entr_n = min(entropia / 3.5, 1.0)  # entropia normalizada já é [0,1], aqui é só para re-escala leve
-    var_k_n = min(var_k / 3.0, 1.0)
-
-    # Score final (pesos podem ser recalibrados)
-    score = (
-        0.25 * v_local_n +
-        0.25 * v_global_n +
-        0.20 * disp_n +
-        0.15 * entr_n +
-        0.15 * var_k_n
-    )
-    score = float(round(score, 3))
-
-    # Classificação do regime
-    if score < 0.25:
-        estado = "Calmo"
-    elif score < 0.50:
-        estado = "Moderado"
-    elif score < 0.75:
-        estado = "Turbulento"
-    else:
-        estado = "Ruptura Imminente"
-
-    return {
-        "estado": estado,
-        "score": score,
-        "vol_local": float(round(vol_local, 3)),
-        "vol_global": float(round(vol_global, 3)),
-        "dispersao": float(round(dispersao, 3)),
-        "entropia": float(round(entropia, 3)),
-        "var_k": float(round(var_k, 3)),
-    }
-
-# ============================================================
-# 3. k* ULTRA REAL — SENTINELA PREDITIVO
-# ============================================================
-
-def calcular_kstar_ultra(df: pd.DataFrame,
-                         cols_pass: List[str],
-                         col_k: Optional[str]) -> Dict[str, Any]:
-    """
-    k* ULTRA REAL:
-      - mede instabilidade estrutural da estrada
-      - combina:
-          * variação ponto a ponto dos passageiros (L1)
-          * dispersão média por série
-          * instabilidade do somatório (explosões/colapsos)
-          * variação de k
-    Produz:
-      - kstar ∈ [0,1]
-      - estado {estavel, atencao, critico}
-      - texto explicativo
-    """
-    if df is None or df.empty or not cols_pass:
-        return {
-            "kstar": None,
-            "estado": "indefinido",
-            "texto": "Histórico insuficiente para calcular k*.",
-        }
-
-    arr = df[cols_pass].values.astype(float)
-
-    # 1) Variação média L1 dos passageiros entre séries
-    if len(arr) > 1:
-        diffs = np.abs(np.diff(arr, axis=0))
-        var_l1 = float(np.mean(diffs))
-    else:
-        var_l1 = 0.0
-
-    # 2) Dispersão média entre passageiros (por série)
-    disp_series = np.std(arr, axis=1)
-    disp_media = float(np.mean(disp_series)) if len(disp_series) > 0 else 0.0
-
-    # 3) Instabilidade do somatório (expansão/contração da estrada)
-    soma = arr.sum(axis=1)
-    if len(soma) > 1:
-        inst = float(np.mean(np.abs(np.diff(soma))))
-    else:
-        inst = 0.0
-
-    # 4) Variação de k
-    if col_k and col_k in df.columns:
-        kvals = df[col_k].astype(float).values
-        if len(kvals) > 1:
-            var_k = float(np.mean(np.abs(np.diff(kvals))))
-        else:
-            var_k = 0.0
-    else:
-        var_k = 0.0
-
-    # Normalizações calibráveis (pontos de sensibilidade)
-    n_l1 = min(var_l1 / 30.0, 1.0)
-    n_disp = min(disp_media / 25.0, 1.0)
-    n_inst = min(inst / 40.0, 1.0)
-    n_vk = min(var_k / 3.0, 1.0)
-
-    # k* final
-    kstar = (
-        0.35 * n_l1 +
-        0.25 * n_disp +
-        0.25 * n_inst +
-        0.15 * n_vk
-    )
-    kstar = float(round(kstar, 3))
-
-    # Estado interpretativo
-    if kstar < 0.33:
+    if vol_k < 0.5:
         estado = "estavel"
-        texto = "🟢 k*: Estrada estável — regime coerente, sem sinais fortes de ruptura."
-    elif kstar < 0.66:
+        texto = "Ambiente historicamente estável."
+    elif vol_k < 1.0:
         estado = "atencao"
-        texto = "🟡 k*: Pré-ruptura — surgem micro-instabilidades, usar previsões com atenção."
+        texto = "Flutuações moderadas — atenção."
     else:
         estado = "critico"
-        texto = "🔴 k*: Instabilidade pesada — risco elevado de ruptura, usar com cautela máxima."
+        texto = "Turbulência intensa na estrada."
 
     return {
-        "kstar": kstar,
         "estado": estado,
+        "indice_turbulencia": vol_k,
         "texto": texto,
-        "detalhes": {
-            "var_l1": float(round(var_l1, 3)),
-            "disp_media": float(round(disp_media, 3)),
-            "instabilidade": float(round(inst, 3)),
-            "var_k": float(round(var_k, 3)),
-        },
+        "n_series": n_series,
     }
 
-# ============================================================
-# 4. FERRAMENTAS ESTRUTURAIS — VETORES E SIMILARIDADE (BASE IDX)
-# ============================================================
 
-def vetor_estrutura_norm(row: pd.Series, cols_pass: List[str]) -> np.ndarray:
+def calcular_k_star_ultra(df: pd.DataFrame) -> Dict[str, Any]:
     """
-    Converte uma série (linha do histórico) em vetor estrutural normalizado.
-    Mantém apenas a forma, sem escala absoluta.
+    k* ULTRA REAL — placeholder de alto nível.
+    Implementação detalhada virá na PARTE 2/4.
     """
-    v = row[cols_pass].astype(float).values
-    if len(v) == 0:
-        return np.zeros(1, dtype=float)
-    v_min = np.min(v)
-    v_max = np.max(v)
-    if v_max == v_min:
-        # série "plana" — retorna zeros (nenhuma forma definida)
-        return np.zeros_like(v, dtype=float)
-    return (v - v_min) / (v_max - v_min)
+    if df is None or df.empty:
+        return {
+            "estado": "desconhecido",
+            "k_star": None,
+            "texto": "Histórico não carregado.",
+        }
 
+    # Placeholder simples com base na entropia do k
+    k_vals = df["k"].dropna().values
+    if len(k_vals) == 0:
+        return {
+            "estado": "desconhecido",
+            "k_star": None,
+            "texto": "k insuficiente para calcular k*.",
+        }
 
-def similaridade_estrutural_ultra(a: np.ndarray, b: np.ndarray) -> float:
-    """
-    Similaridade avançada:
-      - combina distância euclidiana e correlação.
-      - ideal para detectar "trechos de estrada" com forma parecida.
-    """
-    if len(a) != len(b):
-        m = min(len(a), len(b))
-        a = a[:m]
-        b = b[:m]
+    unique, counts = np.unique(k_vals, return_counts=True)
+    probs = counts / counts.sum()
+    entropia = -float(np.sum(probs * np.log2(probs + 1e-9)))
 
-    if len(a) == 0:
-        return 0.0
+    # Normaliza entropia em 0-1 (placeholder)
+    ent_norm = entropia / (math.log2(len(unique) + 1e-9))
 
-    # Distância euclidiana
-    d = float(np.linalg.norm(a - b))
-
-    # Correlação (se houver pontos suficientes)
-    if len(a) > 2:
-        c = float(np.corrcoef(a, b)[0, 1])
-        if math.isnan(c):
-            c = 0.0
+    if ent_norm < 0.33:
+        estado = "estavel"
+        texto = "k*: ambiente concentrado — baixa turbulência estrutural."
+    elif ent_norm < 0.66:
+        estado = "atencao"
+        texto = "k*: ambiente misto — pré-ruptura residual possível."
     else:
-        c = 0.0
-
-    # Score:
-    # - exp(-d) garante decaimento suave por distância
-    # - (0.5 + 0.5*max(c,0)) valoriza correlação positiva
-    base = math.exp(-d)
-    fator_corr = 0.5 + 0.5 * max(c, 0.0)
-    score = base * fator_corr
-
-    return float(score)
-# ============================================================
-# 5. IDX ULTRA REAL — RANKING DE SIMILARIDADE ESTRUTURAL
-# ============================================================
-
-def idx_ultra_avancado(df: pd.DataFrame, idx_alvo: int) -> pd.DataFrame:
-    """
-    IDX ULTRA REAL:
-      - compara o alvo contra todas as outras séries
-      - usa vetor estrutural normalizado
-      - calcula similaridade avançada
-      - retorna ranking ordenado descendentemente
-    """
-    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
-    if df is None or df.empty or not cols_pass:
-        return pd.DataFrame()
-
-    # Série alvo
-    alvo = df.iloc[idx_alvo - 1]
-    v_alvo = vetor_estrutura_norm(alvo, cols_pass)
-
-    registros = []
-    for i in range(len(df)):
-        if i == idx_alvo - 1:
-            continue
-        v_i = vetor_estrutura_norm(df.iloc[i], cols_pass)
-        sim = similaridade_estrutural_ultra(v_alvo, v_i)
-        registros.append(
-            (i + 1, df.iloc[i][col_id], sim)
-        )
-
-    out = pd.DataFrame(registros, columns=["idx", "id", "similaridade"])
-    out = out.sort_values("similaridade", ascending=False).reset_index(drop=True)
-    return out
-
-
-# ============================================================
-# 6. NÚCLEO IPF / IPO ULTRA REAL
-# ============================================================
-
-def ipf_nucleo_puro_ultra(df: pd.DataFrame,
-                          idx_base: int,
-                          cols_pass: List[str]) -> List[int]:
-    """
-    Núcleo IPF REAL:
-      - pega série-base bruta
-      - mantém estrutura fiel
-      - retorna forma principal (padrão mais confiável)
-    """
-    base = df.iloc[idx_base - 1][cols_pass].astype(float).values
-    return [int(round(x)) for x in base]
-
-
-def ipo_nucleo_otimizado_ultra(df: pd.DataFrame,
-                               idx_base: int,
-                               cols_pass: List[str]) -> List[int]:
-    """
-    Núcleo IPO REAL:
-      - corrige micro-ruídos na base
-      - suaviza outliers
-      - reforça tendências dominantes
-    """
-    base = df.iloc[idx_base - 1][cols_pass].astype(float).values
-    # Suavização simples: média ponderada local
-    suav = []
-    for i in range(len(base)):
-        vizinhos = []
-        if i > 0:
-            vizinhos.append(base[i - 1])
-        vizinhos.append(base[i])
-        if i < len(base) - 1:
-            vizinhos.append(base[i + 1])
-        suav.append(int(round(np.mean(vizinhos))))
-    return suav
-
-
-def gerar_nucleos_ipf_ipo(df: pd.DataFrame,
-                          idx_alvo: int,
-                          top_n: int = 25) -> List[List[int]]:
-    """
-    Gera núcleos IPF/IPO (e blend) a partir do IDX ULTRA.
-    Será usado pelo S6 Profundo.
-    """
-    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
-
-    # Ranking IDX
-    rank = idx_ultra_avancado(df, idx_alvo)
-    if rank.empty:
-        return []
-
-    candidatos = []
-    top = rank.head(top_n)
-
-    for _, r in top.iterrows():
-        idx_base = int(r["idx"])
-
-        # IPF puro
-        ipf = ipf_nucleo_puro_ultra(df, idx_base, cols_pass)
-        candidatos.append(ipf)
-
-        # IPO otimizado
-        ipo = ipo_nucleo_otimizado_ultra(df, idx_base, cols_pass)
-        candidatos.append(ipo)
-
-        # Blend IPF/IPO
-        arr_ipf = np.array(ipf, dtype=float)
-        arr_ipo = np.array(ipo, dtype=float)
-        blend = np.round((arr_ipf + arr_ipo) / 2.0).astype(int).tolist()
-        candidatos.append(blend)
-
-    # Remover duplicados mantendo a ordem
-    uniq = []
-    seen = set()
-    for s in candidatos:
-        t = tuple(s)
-        if t not in seen:
-            uniq.append(s)
-            seen.add(t)
-
-    return uniq
-
-
-# ============================================================
-# 7. S6 PROFUNDO ULTRA REAL — CAMADAS 1 e 2
-# ============================================================
-
-def s6_profundo_base(series_list: List[List[int]],
-                     barometro: Dict[str, Any]) -> List[List[int]]:
-    """
-    S6 Profundo — Camada 1:
-      - Ajuste primário orientado pelo Barômetro (clima da estrada)
-      - Estratégias por regime:
-           * Calmo → compressão suave
-           * Moderado → correção leve de extremos
-           * Turbulento → expansão leve controlada
-           * Ruptura Imminente → estratégias dual (conservadora + agressiva)
-    """
-    estado = barometro.get("estado", "Moderado")
-    score = barometro.get("score", 0.5)
-
-    out = []
-
-    for s in series_list:
-        arr = np.array(s, dtype=float)
-        media = np.mean(arr)
-
-        if estado == "Calmo":
-            # Puxa levemente os valores para a média (suavização)
-            novo = arr + 0.15 * (media - arr)
-            out.append(np.round(novo).astype(int).tolist())
-
-        elif estado == "Moderado":
-            # Correção leve de extremos
-            q1 = np.quantile(arr, 0.25)
-            q3 = np.quantile(arr, 0.75)
-            novo = arr.copy()
-            novo[arr < q1] += 1
-            novo[arr > q3] -= 1
-            out.append(np.round(novo).astype(int).tolist())
-
-        elif estado == "Turbulento":
-            # Expansão moderada
-            fator = 1.0 + 0.4 * score
-            delta = (arr - media) * 0.10 * fator
-            novo = arr + delta
-            out.append(np.round(novo).astype(int).tolist())
-
-        else:  # Ruptura Imminente
-            # Estratégia duplicada: conservadora + agressiva
-            # Conservadora
-            cons = arr + 0.25 * (media - arr)
-            out.append(np.round(cons).astype(int).tolist())
-
-            # Agressiva: amplifica tendências
-            delta = (arr - media) * (0.25 + 0.25 * score)
-            aggr = arr + delta
-            out.append(np.round(aggr).astype(int).tolist())
-
-    # Remover duplicados
-    uniq = []
-    seen = set()
-    for s in out:
-        t = tuple(s)
-        if t not in seen:
-            uniq.append(s)
-            seen.add(t)
-
-    return uniq
-
-
-def s6_profundo_segunda_camada(series_list: List[List[int]],
-                               kstar_info: Dict[str, Any]) -> List[List[int]]:
-    """
-    S6 Profundo — Camada 2:
-      - Ajuste secundário orientado por k*
-      - Quanto maior o k* (instabilidade), maior a suavização estrutural
-      - Quanto menor o k*, mais preserva a forma bruta
-    """
-    kstar = kstar_info.get("kstar", 0.5)
-    out = []
-
-    for s in series_list:
-        arr = np.array(s, dtype=float)
-        media = np.mean(arr)
-
-        # Ajuste dependendo do nível de instabilidade
-        if kstar <= 0.33:
-            # Estrada estável → preservar forma original
-            novo = arr.copy()
-
-        elif kstar <= 0.66:
-            # Atenção → suavizar um pouco extremos
-            delta = (media - arr) * 0.10
-            novo = arr + delta
-
-        else:
-            # Crítico → puxar mais forte para a média (evitar explosões)
-            delta = (media - arr) * 0.20
-            novo = arr + delta
-
-        out.append(np.round(novo).astype(int).tolist())
-
-    # Deduplicação
-    uniq = []
-    seen = set()
-    for s in out:
-        t = tuple(s)
-        if t not in seen:
-            uniq.append(s)
-            seen.add(t)
-
-    return uniq
-
-
-# ============================================================
-# 8. UNIR LEQUES (S1 + IPF/IPO + S6)
-# ============================================================
-
-def unir_listas_sem_duplicatas(*listas: List[List[int]]) -> List[List[int]]:
-    """
-    Une várias listas de candidatos descartando duplicatas.
-    Mantém ordem original.
-    """
-    out = []
-    seen = set()
-    for lst in listas:
-        for s in lst:
-            t = tuple(s)
-            if t not in seen:
-                seen.add(t)
-                out.append(s)
-    return out
-
-
-# ============================================================
-# ------ FIM DA PARTE 2/4 ------
-# Cole a Parte 3/4 imediatamente na sequência, sem linhas em branco
-# ============================================================
-# ============================================================
-# 9. S1 VIZINHANÇA ULTRA + MICRO-LEQUE ULTRA
-# ============================================================
-
-def s1_vizinhanca_ultra(df: pd.DataFrame,
-                         idx_alvo: int,
-                         cols_pass: List[str],
-                         raio: int = 6) -> List[List[int]]:
-    """
-    S1 — Vizinhança ULTRA:
-      - Pega séries em torno do índice alvo (antes e depois)
-      - Considera um raio configurável
-      - Ideal para capturar "ondas locais" da estrada
-    """
-    n = len(df)
-    candidatos = []
-
-    for delta in range(-raio, raio + 1):
-        if delta == 0:
-            continue
-        pos = idx_alvo - 1 + delta
-        if 0 <= pos < n:
-            row = df.iloc[pos]
-            candidatos.append(row[cols_pass].astype(int).tolist())
-
-    # Remoção de duplicatas mantendo ordem
-    uniq = []
-    seen = set()
-    for s in candidatos:
-        t = tuple(s)
-        if t not in seen:
-            seen.add(t)
-            uniq.append(s)
-
-    return uniq
-
-
-def micro_leque_ultra(series_list: List[List[int]],
-                      intensidade: int = 2) -> List[List[int]]:
-    """
-    Micro-Leque ULTRA:
-      - Pequenos ajustes combinatórios nas séries base
-      - Perturbações leves em 1 ou 2 passageiros
-      - Mantém coerência da estrutura global
-    """
-    candidatos = []
-
-    for s in series_list:
-        base = np.array(s, dtype=int)
-
-        # Micro-ajustes em 1 passageiro
-        for _ in range(intensidade):
-            v = base.copy()
-            i = np.random.randint(0, len(v))
-            passo = np.random.choice([-2, -1, 1, 2])
-            v[i] = max(0, v[i] + passo)
-            candidatos.append(v.astype(int).tolist())
-
-        # Micro-ajustes em 2 passageiros
-        if len(base) >= 2:
-            for _ in range(intensidade):
-                v = base.copy()
-                i1, i2 = np.random.choice(len(v), 2, replace=False)
-                passo1 = np.random.choice([-1, 1])
-                passo2 = np.random.choice([-1, 1])
-                v[i1] = max(0, v[i1] + passo1)
-                v[i2] = max(0, v[i2] + passo2)
-                candidatos.append(v.astype(int).tolist())
-
-    # Remover duplicatas
-    uniq = []
-    seen = set()
-    for s in candidatos:
-        t = tuple(s)
-        if t not in seen:
-            uniq.append(s)
-            seen.add(t)
-
-    return uniq
-
-
-# ============================================================
-# 10. MONTE CARLO PROFUNDO ULTRA REAL
-# ============================================================
-
-def monte_carlo_profundo_ultra(series: List[List[int]],
-                               alvo_vec: np.ndarray,
-                               barometro: Dict[str, Any],
-                               kstar_info: Dict[str, Any]) -> pd.DataFrame:
-    """
-    Monte Carlo Profundo ULTRA:
-      - Recebe um universo de séries candidatas
-      - Avalia cada uma em relação ao alvo e ao clima da estrada
-      - Combina:
-           * coerência estrutural (correlação com alvo)
-           * dispersão
-           * adequação ao regime (Barômetro)
-           * ajuste ao nível de instabilidade (k*)
-      - Retorna DataFrame com score e ranking
-    """
-    if not series:
-        return pd.DataFrame()
-
-    estado = barometro.get("estado", "Moderado")
-    reg_score = barometro.get("score", 0.5)
-    kstar = kstar_info.get("kstar", 0.5) if kstar_info.get("kstar") is not None else 0.5
-
-    registros = []
-
-    for s in series:
-        arr = np.array(s, dtype=float)
-
-        # Dispersão interna da série candidata
-        disp = float(np.std(arr))
-
-        # Coerência com o alvo (correlação)
-        if len(arr) != len(alvo_vec):
-            m = min(len(arr), len(alvo_vec))
-            a = arr[:m]
-            b = alvo_vec[:m]
-        else:
-            a = arr
-            b = alvo_vec
-
-        if len(a) > 2:
-            corr = float(np.corrcoef(a, b)[0, 1])
-            if math.isnan(corr):
-                corr = 0.0
-        else:
-            corr = 0.0
-
-        # Fator de regime (Barômetro)
-        if estado == "Calmo":
-            # preferir séries mais concentradas (menor dispersão)
-            reg_factor = 1.0 - 0.6 * reg_score
-        elif estado == "Moderado":
-            reg_factor = 1.0
-        elif estado == "Turbulento":
-            reg_factor = 0.8 + 0.2 * reg_score
-        else:  # Ruptura Imminente
-            reg_factor = 0.6 + 0.4 * reg_score
-
-        # Fator de confiança baseado em k*
-        if kstar <= 0.33:
-            k_factor = 1.0
-        elif kstar <= 0.66:
-            k_factor = 0.9
-        else:
-            k_factor = 0.75
-
-        # Normalizações básicas
-        disp_norm = 1.0 / (1.0 + disp)      # quanto menor a dispersão, maior este valor
-        corr_pos = max(corr, 0.0)           # correlação negativa não ajuda
-
-        # Score final — pesos calibráveis
-        score = (
-            0.45 * corr_pos +
-            0.25 * disp_norm +
-            0.15 * reg_factor +
-            0.15 * k_factor
-        )
-
-        registros.append({
-            "series": s,
-            "disp": float(round(disp, 3)),
-            "corr": float(round(corr, 3)),
-            "reg_factor": float(round(reg_factor, 3)),
-            "k_factor": float(round(k_factor, 3)),
-            "score": float(round(score, 6)),
-        })
-
-    df_mc = pd.DataFrame(registros)
-    df_mc = df_mc.sort_values("score", ascending=False).reset_index(drop=True)
-    df_mc["rank"] = np.arange(1, len(df_mc) + 1)
-
-    return df_mc
-
-
-# ============================================================
-# 11. PIPELINE ULTRA REAL — GERAÇÃO DE PREVISÕES
-# ============================================================
-
-def gerar_previsoes_ultra_real(df: pd.DataFrame,
-                               idx_alvo: int,
-                               n_final: int,
-                               barometro: Dict[str, Any],
-                               kstar_info: Dict[str, Any]) -> pd.DataFrame:
-    """
-    Pipeline completo de previsão ULTRA REAL:
-      1) S1 Vizinhança
-      2) Núcleos IPF / IPO (IDX-based)
-      3) S6 Profundo (2 camadas)
-      4) Micro-Leque ULTRA
-      5) União dos leques
-      6) Monte Carlo Profundo ULTRA
-      7) Seleção final (Top N)
-    """
-    if df is None or df.empty:
-        return pd.DataFrame()
-
-    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
-    if not cols_pass:
-        return pd.DataFrame()
-
-    # Série alvo e vetor estrutural
-    alvo_row = df.iloc[idx_alvo - 1]
-    alvo_vec = alvo_row[cols_pass].astype(float).values
-
-    # 1) S1 — vizinhança local
-    leque_s1 = s1_vizinhanca_ultra(df, idx_alvo, cols_pass, raio=6)
-
-    # 2) Núcleos IPF / IPO recheados via IDX ULTRA
-    leque_ipf_ipo = gerar_nucleos_ipf_ipo(df, idx_alvo, top_n=25)
-
-    # Leque base inicial
-    base_primario = unir_listas_sem_duplicatas(leque_s1, leque_ipf_ipo)
-
-    # 3) S6 Profundo — camada 1
-    leque_s6_1 = s6_profundo_base(base_primario, barometro)
-
-    # 4) S6 Profundo — camada 2 (ajuste por k*)
-    leque_s6_2 = s6_profundo_segunda_camada(leque_s6_1, kstar_info)
-
-    # 5) Micro-Leque ULTRA
-    leque_micro = micro_leque_ultra(leque_s6_2, intensidade=3)
-
-    # Universo total de séries
-    universo = unir_listas_sem_duplicatas(
-        base_primario,
-        leque_s6_1,
-        leque_s6_2,
-        leque_micro,
-    )
-
-    # 6) Monte Carlo Profundo ULTRA
-    df_mc = monte_carlo_profundo_ultra(
-        universo,
-        alvo_vec,
-        barometro,
-        kstar_info,
-    )
-
-    if df_mc.empty:
-        return pd.DataFrame()
-
-    # 7) Seleção final
-    df_final = df_mc.head(n_final).reset_index(drop=True)
-    return df_final
-
-
-# ============================================================
-# 12. QDS REAL + BACKTEST REAL ULTRA
-# ============================================================
-
-def calcular_qds_real(df: pd.DataFrame,
-                      horizonte: int = 80,
-                      n_final: int = 20) -> Dict[str, Any]:
-    """
-    QDS REAL ULTRA:
-      - Roda o motor completo nas últimas 'horizonte' séries
-      - Compara sempre com a série seguinte (verdade histórica)
-      - Mede:
-          * média de acertos de passageiros
-          * QDS = média_acertos / nº de passageiros
-          * nº de casos válidos avaliados
-    """
-    if df is None or df.empty or len(df) < horizonte + 5:
-        return {"qds": None, "media_acertos": None, "n_casos": 0}
-
-    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
-    if not cols_pass:
-        return {"qds": None, "media_acertos": None, "n_casos": 0}
-
-    # Pré-cálculo global de barômetro e k* (aproximação para QDS)
-    barometro = calcular_barometro_ultra(df)
-    kstar_info = calcular_kstar_ultra(df, cols_pass, col_k)
-
-    inicio = max(1, len(df) - horizonte)
-    acertos = []
-
-    for idx_alvo in range(inicio, len(df) - 1):
-        df_prev = gerar_previsoes_ultra_real(
-            df,
-            idx_alvo,
-            n_final,
-            barometro,
-            kstar_info,
-        )
-        if df_prev.empty:
-            continue
-
-        # Série real (seguinte ao alvo)
-        real_row = df.iloc[idx_alvo]
-        real = set(real_row[cols_pass].astype(int).tolist())
-
-        melhor = df_prev.iloc[0]["series"]
-        prev = set(melhor)
-
-        ac = len(real.intersection(prev))
-        acertos.append(ac)
-
-    if not acertos:
-        return {"qds": None, "media_acertos": None, "n_casos": 0}
-
-    media_ac = float(np.mean(acertos))
-    n_pass = len(cols_pass)
-    qds = float(round(media_ac / max(n_pass, 1), 3))
+        estado = "critico"
+        texto = "k*: ambiente crítico — alta dispersão estrutural."
 
     return {
-        "qds": qds,
-        "media_acertos": media_ac,
-        "n_casos": len(acertos),
+        "estado": estado,
+        "k_star": ent_norm,
+        "texto": texto,
     }
 
 
 # ============================================================
-# 13. REPLAY ULTRA — HISTÓRICO PASSO A PASSO
+# INÍCIO DO APP — NAVEGAÇÃO GERAL
 # ============================================================
 
-def gerar_replay_ultra(df: pd.DataFrame,
-                       n_final: int = 15) -> pd.DataFrame:
+inicializar_sessao()
+
+st.title("🚗 Predict Cars V14-FLEX ULTRA REAL (TURBO++)")
+
+st.markdown(
     """
-    Replay ULTRA:
-      - Para cada índice alvo (até o penúltimo),
-      - roda o motor completo,
-      - registra:
-          * id alvo
-          * id real (série seguinte)
-          * previsão principal
-          * série real
-          * nº de acertos
-      - Permite auditar o comportamento do motor no histórico.
-    """
-    if df is None or df.empty:
-        return pd.DataFrame()
+Sistema ULTRA completo com:
+**Barômetro**, **k\***, **IDX**, **IPF / IPO**, **S6 Profundo**, **Micro-Leque**,  
+**Monte Carlo Profundo**, **QDS + Backtest**, **Replay LIGHT / ULTRA** e **Modo TURBO++ Adaptativo**.
+"""
+)
 
-    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
-    if not cols_pass:
-        return pd.DataFrame()
+# ------------------------------------------------------------
+# SIDEBAR — NAVEGAÇÃO PRINCIPAL
+# ------------------------------------------------------------
 
-    barometro = calcular_barometro_ultra(df)
-    kstar_info = calcular_kstar_ultra(df, cols_pass, col_k)
+with st.sidebar:
+    st.markdown("### 🧭 Navegação")
 
-    registros = []
+    painel = st.radio(
+        "Escolha o painel:",
+        [
+            "📥 Histórico — Entrada (FLEX)",
+            "🔍 Pipeline V14-FLEX ULTRA",
+            "🚨 Monitor de Risco (Barômetro + k*)",
+            "📊 IDX / IPF / IPO ULTRA",
+            "🧬 S6 Profundo & Micro-Leque ULTRA",
+            "🎲 Monte Carlo Profundo ULTRA",
+            "🧪 QDS REAL & Backtest REAL",
+            "📅 Replay LIGHT",
+            "📅 Replay ULTRA (Horizonte Ajustável)",
+            "🚀 Modo TURBO++ ULTRA",
+        ],
+    )
 
-    for idx_alvo in range(1, len(df) - 1):
-        df_prev = gerar_previsoes_ultra_real(
-            df,
-            idx_alvo,
-            n_final,
-            barometro,
-            kstar_info,
-        )
-        if df_prev.empty:
-            continue
-
-        # Verdade histórica → série seguinte ao alvo
-        real_row = df.iloc[idx_alvo]
-        real = set(real_row[cols_pass].astype(int).tolist())
-
-        melhor = df_prev.iloc[0]["series"]
-        prev = set(melhor)
-
-        ac = len(real.intersection(prev))
-
-        registros.append({
-            "idx_alvo": idx_alvo,
-            "id_alvo": df.iloc[idx_alvo - 1][col_id],
-            "id_real": df.iloc[idx_alvo][col_id],
-            "previsao": melhor,
-            "real": list(real),
-            "acertos": ac,
-        })
-
-    if not registros:
-        return pd.DataFrame()
-
-    return pd.DataFrame(registros)
-
+    st.markdown("---")
+    mostrar_log = st.checkbox("Mostrar log interno", value=False)
+    if mostrar_log:
+        mostrar_log_eventos()
 
 # ============================================================
-# 14. DISTRIBUIÇÃO DE k — SUPORTE AO MONITOR DE RISCO
+# PAINEL 1 — HISTÓRICO — ENTRADA (FLEX)
 # ============================================================
 
-def calcular_distribuicao_k(df: pd.DataFrame) -> Dict[str, Any]:
-    """
-    Estatísticas de k para o Monitor de Risco:
-      - média
-      - desvio padrão
-      - distribuição de frequências
-    """
-    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
-    if col_k is None or col_k not in df.columns:
-        return {"media": None, "std": None, "freq": {}, "col_k": None}
+if painel == "📥 Histórico — Entrada (FLEX)":
+    st.markdown("## 📥 Histórico — Entrada (FLEX)")
 
-    serie = df[col_k].astype(float)
-    media = float(serie.mean())
-    std = float(serie.std(ddof=0)) if len(serie) > 1 else 0.0
-    freq = serie.value_counts().sort_index().to_dict()
+    st.markdown(
+        """
+Este painel permite carregar o **histórico FLEX**, onde o número de passageiros pode variar:
 
-    return {
-        "media": media,
-        "std": std,
-        "freq": freq,
-        "col_k": col_k,
-    }
+- 1ª coluna: **ID da série** (ex.: `C1`, `C2`, ...).
+- Colunas intermediárias: **passageiros** (p_1, p_2, ..., p_n).
+- Última coluna: **k** (rótulo / classe).
+"""
+    )
 
-# ============================================================
-# ------ FIM DA PARTE 3/4 ------
-# Cole a Parte 4/4 imediatamente na sequência
-# ============================================================
-# ============================================================
-# 15. INTERFACE STREAMLIT — PAINÉIS COMPLETOS
-# ============================================================
-
-def painel_historico_entrada():
-    """
-    Painel 1 — Histórico — Entrada
-    Permite carregar o histórico via:
-      - upload de CSV
-      - texto colado
-    E monta o DataFrame interno no formato FLEX.
-    """
-    st.markdown("## 📥 Histórico — Entrada (Modo FLEX ULTRA)")
-
-    df_local = None
     opc = st.radio(
         "Como deseja carregar o histórico?",
         ["Enviar arquivo CSV", "Copiar e colar o histórico"],
-        horizontal=False,
+        horizontal=True,
     )
 
+    df = None
+    meta = None
+
+    # ---------- OPÇÃO 1 — UPLOAD DE ARQUIVO ----------
     if opc == "Enviar arquivo CSV":
         file = st.file_uploader("Selecione o arquivo CSV:", type=["csv"])
         if file is not None:
             try:
-                df_raw = pd.read_csv(file)
-                df_local = preparar_historico_flex(df_raw)
-                st.session_state["df"] = df_local
-                st.success("Histórico carregado com sucesso!")
-                st.dataframe(df_local.head(30), use_container_width=True)
+                df_raw = pd.read_csv(file, header=None)
+                df_prep, meta = preparar_historico_flex(df_raw)
+
+                st.session_state["raw_df"] = df_raw
+                st.session_state["df"] = df_prep
+                st.session_state["meta_cols"] = meta
+
+                registrar_evento(
+                    f"Histórico carregado via CSV: {meta['n_series']} séries, "
+                    f"{meta['n_passageiros']} passageiros."
+                )
+
+                st.success("✅ Histórico carregado e preparado com sucesso!")
+                st.write("**Prévia do histórico preparado:**")
+                st.dataframe(df_prep.head(20))
+
+                st.info(
+                    f"Séries: `{meta['n_series']}` | Passageiros por série: `{meta['n_passageiros']}`"
+                )
             except Exception as e:
                 st.error(f"Erro ao carregar CSV: {e}")
+                registrar_evento(f"Erro ao carregar CSV: {e}")
 
-    else:
+    # ---------- OPÇÃO 2 — COLAR TEXTO ----------
+    if opc == "Copiar e colar o histórico":
+        exemplo = textwrap.dedent(
+            """
+            C1;41;5;4;52;30;33;0
+            C2;9;39;37;49;43;41;1
+            C3;36;30;10;11;29;47;2
+            C4;6;59;42;27;1;5;0
+            C5;1;19;46;6;16;2;0
+            """
+        ).strip()
+
         texto = st.text_area(
-            "Cole o histórico (ex: C1;41;5;4;52;30;33;0):",
-            height=220,
-        )
-        if st.button("Processar texto colado"):
-            try:
-                df_raw = parse_text_to_df(texto)
-                if df_raw.empty:
-                    st.error("Não foi possível interpretar o texto colado.")
-                else:
-                    df_local = preparar_historico_flex(df_raw)
-                    st.session_state["df"] = df_local
-                    st.success("Histórico carregado com sucesso a partir do texto!")
-                    st.dataframe(df_local.head(30), use_container_width=True)
-            except Exception as e:
-                st.error(f"Erro ao processar texto: {e}")
-
-    st.markdown("---")
-    df = st.session_state.get("df", None)
-    if df is not None and not df.empty:
-        cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.metric("Nº de séries", len(df))
-        with c2:
-            st.metric("Nº de passageiros", len(cols_pass))
-        with c3:
-            st.metric("Coluna de k", col_k if col_k else "N/A")
-
-
-def painel_pipeline_ultra():
-    """
-    Painel 2 — Pipeline V14-FLEX ULTRA
-    Executa o pipeline completo de previsão para um índice alvo específico.
-    """
-    st.markdown("## 🔍 Pipeline V14-FLEX ULTRA — Execução Direta")
-
-    df = st.session_state.get("df", None)
-    if df is None or df.empty:
-        st.warning("Carregue primeiro o histórico no painel '📥 Histórico — Entrada'.")
-        st.stop()
-
-    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
-
-    c1, c2 = st.columns(2)
-    with c1:
-        idx_alvo = st.number_input(
-            "Índice alvo (1 = primeira série):",
-            min_value=1,
-            max_value=len(df),
-            value=len(df),
-            step=1,
-        )
-    with c2:
-        n_final = st.slider(
-            "Quantidade de séries de saída (Top N):",
-            min_value=5,
-            max_value=80,
-            value=25,
-            step=5,
+            "Cole abaixo o histórico (ID;passageiros;k):",
+            value=exemplo,
+            height=200,
         )
 
-    if st.button("Executar Pipeline ULTRA REAL"):
-        with st.spinner("Rodando IPF/IPO + S6 + Micro-Leque + Monte Carlo Profundo..."):
-            barometro = calcular_barometro_ultra(df)
-            kstar_info = calcular_kstar_ultra(df, cols_pass, col_k)
-            df_prev = gerar_previsoes_ultra_real(
-                df,
-                idx_alvo,
-                n_final,
-                barometro,
-                kstar_info,
-            )
-
-        if df_prev.empty:
-            st.error("Não foi possível gerar previsões.")
-        else:
-            st.success("Pipeline ULTRA executado com sucesso.")
-
-            df_view = df_prev.copy()
-            df_view["series_str"] = df_view["series"].apply(
-                lambda s: " ".join(str(x) for x in s)
-            )
-
-            st.markdown("### 🎯 Saída ULTRA — Séries de Previsão (Top N)")
-            st.dataframe(
-                df_view[
-                    ["rank", "series_str", "score", "disp", "corr", "reg_factor", "k_factor"]
-                ],
-                use_container_width=True,
-            )
-
-            melhor = df_prev.iloc[0]["series"]
-            st.markdown("### 🏁 Previsão Principal")
-            st.code(" ".join(str(x) for x in melhor), language="text")
-
-
-def painel_monitor_risco():
-    """
-    Painel 3 — Monitor de Risco (Barômetro + k*)
-    Mostra:
-      - estatísticas de k
-      - Barômetro ULTRA
-      - k* ULTRA (sentinela preditivo)
-    """
-    st.markdown("## 🚨 Monitor de Risco — Barômetro + k* ULTRA")
-
-    df = st.session_state.get("df", None)
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro.")
-        st.stop()
-
-    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
-
-    dist_k = calcular_distribuicao_k(df)
-    barometro = calcular_barometro_ultra(df)
-    kstar_info = calcular_kstar_ultra(df, cols_pass, col_k)
-
-    # Estatísticas de k
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.metric(
-            "Média de k",
-            f"{dist_k['media']:.2f}" if dist_k["media"] is not None else "N/A",
-        )
-    with c2:
-        st.metric(
-            "Desvio padrão de k",
-            f"{dist_k['std']:.2f}" if dist_k["std"] is not None else "N/A",
-        )
-    with c3:
-        st.metric("Nº de séries", len(df))
-
-    st.markdown("### 🔢 Distribuição de k")
-    if dist_k["freq"]:
-        df_freq = pd.DataFrame(
-            [{"k": k, "freq": v} for k, v in dist_k["freq"].items()]
-        ).sort_values("k")
-        st.dataframe(df_freq, use_container_width=True)
-    else:
-        st.info("Não há dados suficientes para estatísticas de k.")
-
-    st.markdown("---")
-    # Barômetro ULTRA
-    st.markdown("### 🌡️ Barômetro ULTRA — Clima da Estrada")
-    b1, b2, b3, b4 = st.columns(4)
-    with b1:
-        st.metric("Regime", barometro["estado"])
-    with b2:
-        st.metric("Score de regime (0–1)", barometro["score"])
-    with b3:
-        st.metric("Volatilidade local", f"{barometro['vol_local']:.2f}")
-    with b4:
-        st.metric("Dispersão média", f"{barometro['dispersao']:.2f}")
-
-    st.markdown("---")
-    # k* ULTRA
-    st.markdown("### 🧭 k* ULTRA — Sentinela Preditivo")
-    if kstar_info["kstar"] is not None:
-        st.metric("k* (0–1)", kstar_info["kstar"])
-    st.info(kstar_info["texto"])
-
-
-def painel_turbo_adaptativo():
-    """
-    Painel 4 — Modo TURBO++ Adaptativo
-    Reúne:
-      - estado da estrada (Barômetro + k*)
-      - IDX ULTRA do alvo
-      - Leque ULTRA + Monte Carlo Profundo
-      - Previsão final TURBO++
-    """
-    st.markdown("## 🚀 Modo TURBO++ Adaptativo — Painel Completo")
-
-    df = st.session_state.get("df", None)
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro.")
-        st.stop()
-
-    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
-
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        idx_alvo = st.number_input(
-            "Índice alvo (1 = primeira série):",
-            min_value=1,
-            max_value=len(df),
-            value=len(df),
-            step=1,
-        )
-    with c2:
-        n_final = st.slider(
-            "Nº de séries na saída ULTRA:",
-            min_value=10,
-            max_value=80,
-            value=30,
-            step=5,
-        )
-    with c3:
-        mostra_idx = st.checkbox(
-            "Mostrar IDX completo (núcleo de similaridade)",
-            value=True,
-        )
-
-    if st.button("Rodar TURBO++ Adaptativo"):
-        with st.spinner("Executando TURBO++ ULTRA..."):
-            barometro = calcular_barometro_ultra(df)
-            kstar_info = calcular_kstar_ultra(df, cols_pass, col_k)
-            rank_idx = idx_ultra_avancado(df, idx_alvo) if mostra_idx else pd.DataFrame()
-            df_prev = gerar_previsoes_ultra_real(
-                df,
-                idx_alvo,
-                n_final,
-                barometro,
-                kstar_info,
-            )
-
-        if df_prev.empty:
-            st.error("Não foi possível gerar previsões.")
-            st.stop()
-
-        st.success("Modo TURBO++ executado.")
-
-        # 1) Estado da estrada
-        st.markdown("### 1️⃣ Estado da Estrada (Barômetro + k*)")
-        a1, a2, a3 = st.columns(3)
-        with a1:
-            st.metric("Regime", barometro["estado"])
-        with a2:
-            st.metric("Score de regime", barometro["score"])
-        with a3:
-            if kstar_info["kstar"] is not None:
-                st.metric("k* (0–1)", kstar_info["kstar"])
+        if st.button("📥 Processar histórico colado"):
+            if not texto.strip():
+                st.warning("Cole algum conteúdo antes de processar.")
             else:
-                st.metric("k* (0–1)", "N/A")
-        st.info(kstar_info["texto"])
+                try:
+                    df_raw = carregar_df_de_texto(texto)
+                    df_prep, meta = preparar_historico_flex(df_raw)
 
-        st.markdown("---")
+                    st.session_state["raw_df"] = df_raw
+                    st.session_state["df"] = df_prep
+                    st.session_state["meta_cols"] = meta
 
-        # 2) IDX ULTRA
-        if mostra_idx and not rank_idx.empty:
-            st.markdown("### 2️⃣ IDX ULTRA — Núcleo de Similaridade")
-            st.dataframe(rank_idx.head(30), use_container_width=True)
+                    registrar_evento(
+                        f"Histórico carregado via texto colado: {meta['n_series']} séries, "
+                        f"{meta['n_passageiros']} passageiros."
+                    )
 
-        st.markdown("---")
+                    st.success("✅ Histórico colado e preparado com sucesso!")
+                    st.write("**Prévia do histórico preparado:**")
+                    st.dataframe(df_prep.head(20))
 
-        # 3) Leque ULTRA + Monte Carlo Profundo
-        st.markdown("### 3️⃣ Leque ULTRA + Monte Carlo Profundo — Saída Final")
-        df_view = df_prev.copy()
-        df_view["series_str"] = df_view["series"].apply(
-            lambda s: " ".join(str(x) for x in s)
-        )
+                    st.info(
+                        f"Séries: `{meta['n_series']}` | Passageiros por série: `{meta['n_passageiros']}`"
+                    )
+                except Exception as e:
+                    st.error(f"Erro ao processar histórico colado: {e}")
+                    registrar_evento(f"Erro ao processar histórico colado: {e}")
 
-        st.dataframe(
-            df_view[
-                ["rank", "series_str", "score", "disp", "corr", "reg_factor", "k_factor"]
-            ],
-            use_container_width=True,
-        )
-
-        melhor = df_prev.iloc[0]["series"]
-        st.markdown("### 🎯 Previsão Final TURBO++")
-        st.code(" ".join(str(x) for x in melhor), language="text")
-
-
-def painel_replay_ultra():
-    """
-    Painel 5 — Replay Automático ULTRA
-    Mostra o que o motor teria feito passo a passo no histórico.
-    """
-    st.markdown("## 📅 Replay Automático ULTRA — Passo a Passo")
+    st.markdown("---")
 
     df = st.session_state.get("df", None)
+    meta = st.session_state.get("meta_cols", None)
+
+    if df is not None and meta is not None:
+        st.markdown("### 🔎 Resumo do histórico atual")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total de séries", meta["n_series"])
+        with col2:
+            st.metric("Passageiros por série", meta["n_passageiros"])
+        with col3:
+            st.metric("Coluna k", meta["col_k"])
+
+        # Escolher uma série para inspecionar rapidamente
+        idx_max = int(df["idx"].max())
+        idx_sel = st.number_input(
+            "Selecione um índice interno para inspecionar (1 = primeira série carregada):",
+            min_value=1,
+            max_value=idx_max,
+            value=idx_max,
+            step=1,
+        )
+
+        st.markdown("#### 📌 Série selecionada")
+        st.code(resumo_rapido_serie(df, idx_sel), language="text")
+
+        st.markdown("#### 📊 Visualização tabular (completa)")
+        st.dataframe(df)
+
+    else:
+        st.info("Carregue o histórico para habilitar os demais painéis.")
+
+# ============================================================
+# FIM DA PARTE 1/4
+# As próximas partes (2/4, 3/4, 4/4) continuarão a partir daqui.
+# ============================================================
+# ============================================================
+# PARTE 2/4
+# Barômetro ULTRA REAL, k* ULTRA REAL, IDX / IPF / IPO ULTRA,
+# Pipeline de Previsão V14-FLEX ULTRA
+# ============================================================
+
+# ------------------------------------------------------------
+# (Re)definição detalhada do Barômetro ULTRA REAL
+# ------------------------------------------------------------
+
+def calcular_barometro_ultra(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Barômetro ULTRA REAL:
+    Mede a turbulência global da estrada a partir da série de k.
+
+    Ideia ULTRA:
+        - Usa desvio-padrão de k.
+        - Usa média do módulo da variação de k (|Δk|).
+        - Combina em um índice de turbulência normalizado (0–1).
+        - Mapeia para estados: estável / atenção / crítico.
+    """
     if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro.")
-        st.stop()
+        resultado = {
+            "estado": "desconhecido",
+            "indice_turbulencia": None,
+            "texto": "Histórico não carregado.",
+            "vol_k": None,
+            "media_delta_k": None,
+            "n_series": 0,
+        }
+        st.session_state["regime_state"] = "desconhecido"
+        return resultado
 
-    n_final = st.slider(
-        "Nº de séries na saída ULTRA (por passo do replay):",
-        min_value=5,
-        max_value=40,
-        value=15,
-        step=5,
-    )
+    k_vals = df["k"].dropna().astype(float).values
+    n_series = len(k_vals)
 
-    if st.button("Rodar Replay ULTRA"):
-        with st.spinner("Executando Replay passo a passo..."):
-            df_rep = gerar_replay_ultra(df, n_final=n_final)
+    if n_series < 3:
+        resultado = {
+            "estado": "estavel",
+            "indice_turbulencia": 0.0,
+            "texto": "Histórico curto — assumindo ambiente estável por falta de dados.",
+            "vol_k": 0.0,
+            "media_delta_k": 0.0,
+            "n_series": n_series,
+        }
+        st.session_state["regime_state"] = "estavel"
+        return resultado
 
-        if df_rep.empty:
-            st.error("Replay não produziu resultados.")
+    # Desvio-padrão de k
+    vol_k = float(np.std(k_vals))
+
+    # Média do módulo da variação de k
+    deltas = np.diff(k_vals)
+    media_delta_k = float(np.mean(np.abs(deltas))) if len(deltas) > 0 else 0.0
+
+    # Normalização simples (ULTRA, mas controlada)
+    # Escala "esperada" para k: assumimos k em [0, 5] como típico;
+    # se for diferente, a normalização continua funcionando.
+    escala_vol = max(np.max(np.abs(k_vals)), 1.0)
+    escala_delta = max(np.max(np.abs(deltas)), 1.0) if len(deltas) > 0 else 1.0
+
+    vol_norm = min(vol_k / (escala_vol + 1e-9), 1.0)
+    delta_norm = min(media_delta_k / (escala_delta + 1e-9), 1.0)
+
+    indice_turbulencia = float(0.6 * vol_norm + 0.4 * delta_norm)
+
+    if indice_turbulencia < 0.3:
+        estado = "estavel"
+        texto = "Barômetro: estrada historicamente estável."
+    elif indice_turbulencia < 0.6:
+        estado = "atencao"
+        texto = "Barômetro: turbulência moderada — atenção elevada."
+    else:
+        estado = "critico"
+        texto = "Barômetro: turbulência pesada — ambiente crítico."
+
+    resultado = {
+        "estado": estado,
+        "indice_turbulencia": indice_turbulencia,
+        "texto": texto,
+        "vol_k": vol_k,
+        "media_delta_k": media_delta_k,
+        "n_series": n_series,
+    }
+
+    st.session_state["regime_state"] = estado
+    return resultado
+
+
+# ------------------------------------------------------------
+# (Re)definição detalhada do k* ULTRA REAL
+# ------------------------------------------------------------
+
+def calcular_k_star_ultra(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    k* ULTRA REAL:
+    Mede o nível estrutural de desordem de k (entropia) e a assimetria
+    entre estados "calmos" e "tensos".
+
+    Ideia ULTRA:
+        - Entropia da distribuição de k.
+        - Foco maior nas últimas janelas (regime atual).
+        - Normaliza em 0–100 como "sensibilidade" do sentinela k*.
+    """
+    if df is None or df.empty:
+        resultado = {
+            "estado": "desconhecido",
+            "k_star": None,
+            "texto": "Histórico não carregado.",
+            "entropia": None,
+            "entropia_norm": None,
+            "n_k": 0,
+        }
+        st.session_state["k_star_estado"] = "desconhecido"
+        return resultado
+
+    k_vals = df["k"].dropna().astype(float).values
+    n_k = len(k_vals)
+    if n_k == 0:
+        resultado = {
+            "estado": "desconhecido",
+            "k_star": None,
+            "texto": "k insuficiente para calcular k*.",
+            "entropia": None,
+            "entropia_norm": None,
+            "n_k": 0,
+        }
+        st.session_state["k_star_estado"] = "desconhecido"
+        return resultado
+
+    # Foco nas últimas 80 séries (ou tudo, se menor)
+    janela = min(80, n_k)
+    k_focus = k_vals[-janela:]
+
+    unique, counts = np.unique(k_focus, return_counts=True)
+    probs = counts / counts.sum()
+
+    entropia = -float(np.sum(probs * np.log2(probs + 1e-12)))
+    entropia_max = math.log2(len(unique) + 1e-12)
+    ent_norm = float(entropia / (entropia_max + 1e-12)) if entropia_max > 0 else 0.0
+
+    # k* em escala 0–100 (ULTRA)
+    k_star_val = float(ent_norm * 100.0)
+
+    if ent_norm < 0.33:
+        estado = "estavel"
+        texto = "k*: ambiente concentrado — estrutura previsível, baixa dispersão."
+    elif ent_norm < 0.66:
+        estado = "atencao"
+        texto = "k*: ambiente misto — sinais de pré-ruptura residual."
+    else:
+        estado = "critico"
+        texto = "k*: ambiente crítico — alta dispersão estrutural."
+
+    resultado = {
+        "estado": estado,
+        "k_star": k_star_val,
+        "texto": texto,
+        "entropia": entropia,
+        "entropia_norm": ent_norm,
+        "n_k": n_k,
+    }
+
+    st.session_state["k_star_estado"] = estado
+    return resultado
+
+
+# ------------------------------------------------------------
+# IDX / IPF / IPO ULTRA — Núcleos de referência
+# ------------------------------------------------------------
+
+def calcular_nucleos_idx_ipf_ipo_ultra(
+    df: pd.DataFrame,
+    idx_alvo: int,
+    meta: Dict[str, Any],
+    janela_max: int = 40,
+) -> Dict[str, Any]:
+    """
+    Calcula os núcleos IDX / IPF / IPO ULTRA em torno de um índice alvo.
+
+    Estratégia ULTRA (mas totalmente determinística):
+        - Janela de histórico [idx_alvo - janela, idx_alvo - 1].
+        - IDX ULTRA: média ponderada dos passageiros (peso maior nas séries mais recentes).
+        - IPF ULTRA: mediana por passageiro (robusto a outliers).
+        - IPO ULTRA original: média simples.
+        - IPO ULTRA refinado: reorganização leve da IPO original para reduzir auto-sesgo.
+    """
+    if df is None or df.empty or meta is None:
+        return {
+            "ok": False,
+            "msg": "Histórico ou metadados indisponíveis.",
+        }
+
+    if idx_alvo <= 1:
+        return {
+            "ok": False,
+            "msg": "Índice alvo precisa ser maior que 1 para ter histórico anterior.",
+        }
+
+    idx_min = int(df["idx"].min())
+    idx_max = int(df["idx"].max())
+    idx_alvo = int(idx_alvo)
+
+    if not (idx_min <= idx_alvo <= idx_max):
+        return {
+            "ok": False,
+            "msg": f"Índice alvo fora do intervalo [{idx_min}, {idx_max}].",
+        }
+
+    # Janela de histórico ULTRA
+    janela = min(janela_max, idx_alvo - idx_min)
+    inicio = max(idx_min, idx_alvo - janela)
+    fim = idx_alvo - 1
+
+    df_janela = df[(df["idx"] >= inicio) & (df["idx"] <= fim)].copy()
+    if df_janela.empty:
+        return {
+            "ok": False,
+            "msg": "Janela de histórico vazia.",
+        }
+
+    cols_pass = meta["cols_passageiros"]
+    n_pass = meta["n_passageiros"]
+
+    # Matriz de passageiros (linhas = séries, colunas = passageiros)
+    M = df_janela[cols_pass].astype(float).values
+
+    # ---------- IPO ULTRA: média simples + reorganização anti-sesgo ----------
+    ipo_original = np.nanmean(M, axis=0)
+
+    # Anti-selfbias: dá mais peso às extremidades da janela
+    pesos_border = np.linspace(1.0, 1.5, len(df_janela))
+    pesos_border[: len(df_janela) // 4] *= 1.2
+    pesos_border[-len(df_janela) // 4 :] *= 1.2
+    pesos_border = pesos_border / (pesos_border.sum() + 1e-9)
+
+    ipo_ultra = np.average(M, axis=0, weights=pesos_border)
+
+    # Ordem refinada: tenta aproximar dos passageiros da série alvo
+    serie_alvo = df.loc[df["idx"] == idx_alvo, cols_pass].astype(float).iloc[0].values
+    diffs = np.abs(ipo_ultra - serie_alvo)
+    ordem = np.argsort(diffs)  # ordena por proximidade à série alvo
+    ipo_refinado = ipo_ultra[ordem]
+
+    # ---------- IPF ULTRA: mediana (robusta) ----------
+    ipf_ultra = np.nanmedian(M, axis=0)
+
+    # ---------- IDX ULTRA: média ponderada, pesos crescentes ----------
+    n_linhas = M.shape[0]
+    pesos = np.linspace(1.0, 2.0, n_linhas)
+    pesos = pesos / (pesos.sum() + 1e-9)
+    idx_ultra = np.average(M, axis=0, weights=pesos)
+
+    def arr_to_int_list(a: np.ndarray) -> List[int]:
+        return [int(round(x)) for x in a.tolist()]
+
+    resultado = {
+        "ok": True,
+        "msg": "",
+        "idx_ultra": arr_to_int_list(idx_ultra),
+        "ipf_ultra": arr_to_int_list(ipf_ultra),
+        "ipo_original": arr_to_int_list(ipo_original),
+        "ipo_ultra": arr_to_int_list(ipo_refinado),
+        "janela_inicio": int(inicio),
+        "janela_fim": int(fim),
+        "janela_tamanho": int(len(df_janela)),
+        "idx_alvo": int(idx_alvo),
+        "serie_alvo": arr_to_int_list(serie_alvo),
+    }
+
+    return resultado
+
+
+# ------------------------------------------------------------
+# Painel: 🚨 Monitor de Risco (Barômetro + k*)
+# ------------------------------------------------------------
+
+if painel == "🚨 Monitor de Risco (Barômetro + k*)":
+    st.markdown("## 🚨 Monitor de Risco (Barômetro + k*)")
+
+    df = st.session_state.get("df", None)
+
+    if df is None or df.empty:
+        st.warning("Carregue o histórico no painel '📥 Histórico — Entrada (FLEX)' antes.")
+    else:
+        meta = st.session_state.get("meta_cols", None)
+
+        col_top1, col_top2 = st.columns(2)
+
+        with col_top1:
+            st.markdown("### 🌡️ Barômetro ULTRA REAL")
+            bar = calcular_barometro_ultra(df)
+
+            if bar["estado"] == "estavel":
+                emoji = "🟢"
+            elif bar["estado"] == "atencao":
+                emoji = "🟡"
+            elif bar["estado"] == "critico":
+                emoji = "🔴"
+            else:
+                emoji = "⚪"
+
+            st.markdown(f"{emoji} **Estado do barômetro:** `{bar['estado']}`")
+            st.write(bar["texto"])
+
+            st.metric("Índice de turbulência", f"{bar['indice_turbulencia']:.3f}" if bar["indice_turbulencia"] is not None else "NA")
+            st.metric("Desvio-padrão de k", f"{bar['vol_k']:.3f}" if bar["vol_k"] is not None else "NA")
+            st.metric("Média de |Δk|", f"{bar['media_delta_k']:.3f}" if bar["media_delta_k"] is not None else "NA")
+
+        with col_top2:
+            st.markdown("### 🛰️ k* ULTRA REAL (Sentinela)")
+            kinfo = calcular_k_star_ultra(df)
+
+            if kinfo["estado"] == "estavel":
+                emoji = "🟢"
+            elif kinfo["estado"] == "atencao":
+                emoji = "🟡"
+            elif kinfo["estado"] == "critico":
+                emoji = "🔴"
+            else:
+                emoji = "⚪"
+
+            k_star_val = kinfo["k_star"]
+            st.markdown(f"{emoji} **Estado do k\\*:** `{kinfo['estado']}`")
+            st.write(kinfo["texto"])
+            st.metric("k* (0–100)", f"{k_star_val:.1f}" if k_star_val is not None else "NA")
+
+            if kinfo["entropia"] is not None:
+                st.metric("Entropia de k", f"{kinfo['entropia']:.3f}")
+                st.metric("Entropia normalizada", f"{kinfo['entropia_norm']:.3f}")
+
+        st.markdown("---")
+
+        # Combinação Barômetro + k*
+        regime = st.session_state.get("regime_state", "desconhecido")
+        k_estado = st.session_state.get("k_star_estado", "desconhecido")
+
+        # Regras simples de combinação
+        if regime == "critico" or k_estado == "critico":
+            risco_global = "crítico"
+            emoji_global = "🔴"
+            texto_global = "Ambiente global crítico — usar qualquer previsão com máxima cautela."
+        elif regime == "atencao" or k_estado == "atencao":
+            risco_global = "atenção"
+            emoji_global = "🟡"
+            texto_global = "Ambiente global em atenção — turbulência moderada; valide bem cada passo."
+        elif regime == "estavel" and k_estado == "estavel":
+            risco_global = "estável"
+            emoji_global = "🟢"
+            texto_global = "Ambiente global estável — regime favorável para previsões ULTRA."
         else:
-            st.success("Replay executado.")
-            st.dataframe(df_rep.head(100), use_container_width=True)
+            risco_global = "indefinido"
+            emoji_global = "⚪"
+            texto_global = "Ambiente global pouco definido — dados insuficientes ou regime híbrido."
 
-            media_ac = float(df_rep["acertos"].mean())
-            max_ac = int(df_rep["acertos"].max())
-            n_casos = len(df_rep)
+        st.markdown("### 🌐 Síntese Global de Risco")
+        st.markdown(f"{emoji_global} **Nível global de risco:** `{risco_global}`")
+        st.write(texto_global)
 
-            r1, r2, r3 = st.columns(3)
-            with r1:
-                st.metric("Média de acertos", f"{media_ac:.2f}")
-            with r2:
-                st.metric("Máximo de acertos", max_ac)
-            with r3:
-                st.metric("Nº de casos avaliados", n_casos)
+        registrar_evento(
+            f"Monitor de risco consultado — barômetro={regime}, k*={k_estado}, risco_global={risco_global}."
+        )
 
 
-def painel_qds_backtest():
-    """
-    Painel 6 — Confiabilidade — QDS / Backtest
-    Calcula QDS REAL ULTRA e mostra interpretação.
-    """
-    st.markdown("## 🧪 Confiabilidade — QDS REAL / Backtest REAL")
+# ------------------------------------------------------------
+# Painel: 📊 IDX / IPF / IPO ULTRA
+# ------------------------------------------------------------
+
+if painel == "📊 IDX / IPF / IPO ULTRA":
+    st.markdown("## 📊 IDX / IPF / IPO ULTRA")
 
     df = st.session_state.get("df", None)
-    if df is None or df.empty:
+    meta = st.session_state.get("meta_cols", None)
+
+    if df is None or df.empty or meta is None:
+        st.warning("Carregue o histórico no painel '📥 Histórico — Entrada (FLEX)' antes.")
+    else:
+        idx_max = int(df["idx"].max())
+        idx_default = st.session_state.get("ultimo_idx_alvo", idx_max)
+
+        col_sel1, col_sel2 = st.columns([2, 1])
+        with col_sel1:
+            idx_alvo = st.number_input(
+                "Selecione o índice alvo para calcular os núcleos (1 = primeira série):",
+                min_value=1,
+                max_value=idx_max,
+                value=int(idx_default),
+                step=1,
+            )
+        with col_sel2:
+            st.write("")
+            st.write("")
+            if st.button("Usar última série como alvo"):
+                idx_alvo = idx_max
+
+        resultado = calcular_nucleos_idx_ipf_ipo_ultra(df, int(idx_alvo), meta)
+        if not resultado["ok"]:
+            st.error(resultado["msg"])
+        else:
+            st.session_state["ultimo_idx_alvo"] = int(idx_alvo)
+
+            st.markdown("### 🎯 Série alvo (contexto imediato)")
+            st.code(
+                f"ID {df.loc[df['idx'] == resultado['idx_alvo'], 'id'].iloc[0]} | "
+                f"Passageiros: {resultado['serie_alvo']}",
+                language="text",
+            )
+
+            st.markdown("### 📦 Janela de histórico usada")
+            col_j1, col_j2, col_j3 = st.columns(3)
+            with col_j1:
+                st.metric("Início da janela", resultado["janela_inicio"])
+            with col_j2:
+                st.metric("Fim da janela", resultado["janela_fim"])
+            with col_j3:
+                st.metric("Tamanho da janela", resultado["janela_tamanho"])
+
+            st.markdown("### 🧠 Núcleos IDX / IPF / IPO ULTRA")
+            col_n1, col_n2 = st.columns(2)
+
+            with col_n1:
+                st.markdown("#### IDX ULTRA (média ponderada dinâmica)")
+                st.code(" ".join(str(x) for x in resultado["idx_ultra"]), language="text")
+
+                st.markdown("#### IPF ULTRA (mediana robusta)")
+                st.code(" ".join(str(x) for x in resultado["ipf_ultra"]), language="text")
+
+            with col_n2:
+                st.markdown("#### IPO ORIGINAL (média simples)")
+                st.code(" ".join(str(x) for x in resultado["ipo_original"]), language="text")
+
+                st.markdown("#### IPO ULTRA (refinada anti-sesgo)")
+                st.code(" ".join(str(x) for x in resultado["ipo_ultra"]), language="text")
+
+            registrar_evento(
+                f"IDX/IPF/IPO ULTRA calculado para idx_alvo={int(idx_alvo)} "
+                f"com janela [{resultado['janela_inicio']}, {resultado['janela_fim']}]."
+            )
+
+
+# ------------------------------------------------------------
+# Painel: 🔍 Pipeline V14-FLEX ULTRA
+# (camada de orquestração de alto nível — sem S6/Monte Carlo ainda)
+# ------------------------------------------------------------
+
+if painel == "🔍 Pipeline V14-FLEX ULTRA":
+    st.markdown("## 🔍 Pipeline V14-FLEX ULTRA — Execução Base")
+
+    df = st.session_state.get("df", None)
+    meta = st.session_state.get("meta_cols", None)
+
+    if df is None or df.empty or meta is None:
+        st.warning("Carregue o histórico no painel '📥 Histórico — Entrada (FLEX)' antes.")
+        st.stop()
+
+    idx_max = int(df["idx"].max())
+    idx_default = st.session_state.get("ultimo_idx_alvo", idx_max)
+
+    st.markdown("### 🎯 Seleção da série alvo")
+
+    col_selA, col_selB = st.columns([2, 1])
+    with col_selA:
+        modo_idx = st.radio(
+            "Como deseja escolher o índice alvo?",
+            ["Usar última série do histórico", "Escolher manualmente"],
+            horizontal=True,
+        )
+
+    if modo_idx == "Usar última série do histórico":
+        idx_alvo = idx_max
+    else:
+        with col_selB:
+            idx_alvo = st.number_input(
+                "Índice alvo:",
+                min_value=1,
+                max_value=idx_max,
+                value=int(idx_default),
+                step=1,
+            )
+
+    idx_alvo = int(idx_alvo)
+    st.session_state["ultimo_idx_alvo"] = idx_alvo
+
+    st.markdown("#### 📌 Série alvo selecionada")
+    st.code(resumo_rapido_serie(df, idx_alvo), language="text")
+
+    st.markdown("---")
+
+    # ---------- Camada 1: Diagnóstico de risco (Barômetro + k*) ----------
+    st.markdown("### 1️⃣ Diagnóstico de risco — Barômetro + k*")
+
+    col_r1, col_r2 = st.columns(2)
+    with col_r1:
+        bar = calcular_barometro_ultra(df)
+        if bar["estado"] == "estavel":
+            emoji = "🟢"
+        elif bar["estado"] == "atencao":
+            emoji = "🟡"
+        elif bar["estado"] == "critico":
+            emoji = "🔴"
+        else:
+            emoji = "⚪"
+        st.markdown(f"{emoji} **Barômetro:** `{bar['estado']}`")
+        st.write(bar["texto"])
+
+    with col_r2:
+        kinfo = calcular_k_star_ultra(df)
+        if kinfo["estado"] == "estavel":
+            emoji = "🟢"
+        elif kinfo["estado"] == "atencao":
+            emoji = "🟡"
+        elif kinfo["estado"] == "critico":
+            emoji = "🔴"
+        else:
+            emoji = "⚪"
+        st.markdown(f"{emoji} **k\\*:** `{kinfo['estado']}`")
+        st.write(kinfo["texto"])
+
+    st.markdown("---")
+
+    # ---------- Camada 2: Núcleos IDX / IPF / IPO ----------
+    st.markdown("### 2️⃣ Núcleos IDX / IPF / IPO ULTRA (base para previsão)")
+
+    nucleos = calcular_nucleos_idx_ipf_ipo_ultra(df, idx_alvo, meta)
+    if not nucleos["ok"]:
+        st.error(nucleos["msg"])
+        st.stop()
+
+    col_nA, col_nB = st.columns(2)
+    with col_nA:
+        st.markdown("#### IDX ULTRA")
+        st.code(" ".join(str(x) for x in nucleos["idx_ultra"]), language="text")
+
+        st.markdown("#### IPF ULTRA")
+        st.code(" ".join(str(x) for x in nucleos["ipf_ultra"]), language="text")
+
+    with col_nB:
+        st.markdown("#### IPO ORIGINAL")
+        st.code(" ".join(str(x) for x in nucleos["ipo_original"]), language="text")
+
+        st.markdown("#### IPO ULTRA (refinada)")
+        st.code(" ".join(str(x) for x in nucleos["ipo_ultra"]), language="text")
+
+    st.info(
+        f"Janela usada: índices de `{nucleos['janela_inicio']}` até `{nucleos['janela_fim']}` "
+        f"(tamanho `{nucleos['janela_tamanho']}` séries)."
+    )
+
+    # ---------- Camada 3: Pré-síntese para previsão ULTRA ----------
+    st.markdown("---")
+    st.markdown("### 3️⃣ Pré-síntese da base de previsão ULTRA")
+
+    st.write(
+        """
+Nesta camada, o app consolida os núcleos IDX / IPF / IPO como
+**ponto de partida** para o motor ULTRA (S6 Profundo, Micro-Leque,
+Monte Carlo, QDS / Backtest), que será aplicado nas próximas camadas.
+"""
+    )
+
+    # Para manter traço explícito no estado, armazenamos núcleos atuais
+    st.session_state["nucleos_ultra_base"] = nucleos
+
+    st.success(
+        "Base ULTRA para previsão consolidada. As próximas camadas (S6, Micro-Leque, "
+        "Monte Carlo, QDS / Backtest e Modo TURBO++) usarão estes núcleos."
+    )
+
+    registrar_evento(
+        f"Pipeline V14-FLEX ULTRA executado para idx_alvo={idx_alvo} "
+        f"com janela [{nucleos['janela_inicio']}, {nucleos['janela_fim']}]."
+    )
+
+# ============================================================
+# FIM DA PARTE 2/4
+# Próxima parte: S6 Profundo, Micro-Leque ULTRA, Monte Carlo
+# Profundo, QDS REAL & Backtest REAL.
+# ============================================================
+# ============================================================
+# PARTE 3/4
+# S6 Profundo, Micro-Leque ULTRA, Monte Carlo Profundo ULTRA,
+# QDS REAL & Backtest REAL
+# ============================================================
+
+# ------------------------------------------------------------
+# Micro-Leque ULTRA — geração de séries candidatas
+# ------------------------------------------------------------
+
+def gerar_micro_leque_ultra(
+    df: pd.DataFrame,
+    idx_alvo: int,
+    meta: Dict[str, Any],
+    nucleos: Dict[str, Any],
+    n_por_nucleo: int = 40,
+) -> pd.DataFrame:
+    """
+    Gera o Micro-Leque ULTRA a partir dos núcleos:
+        - IDX ULTRA
+        - IPF ULTRA
+        - IPO ULTRA
+
+    Estratégia:
+        - Usa cada núcleo como base.
+        - Cria variações leves (perturbações) dentro do intervalo global da estrada.
+        - Garante diversidade mantendo séries distintas.
+    """
+    if df is None or df.empty or meta is None or not nucleos.get("ok", False):
+        return pd.DataFrame(columns=["source", "series"])
+
+    cols_pass = meta["cols_passageiros"]
+    n_pass = meta["n_passageiros"]
+
+    # Faixa global da estrada (mín e máx por passageiro)
+    M = df[cols_pass].astype(float).values
+    global_min = int(np.nanmin(M))
+    global_max = int(np.nanmax(M))
+
+    def limitar(x: int) -> int:
+        return int(max(global_min, min(global_max, x)))
+
+    bases = [
+        ("IDX_ULTRA", nucleos["idx_ultra"]),
+        ("IPF_ULTRA", nucleos["ipf_ultra"]),
+        ("IPO_ULTRA", nucleos["ipo_ultra"]),
+    ]
+
+    candidatos = []
+    conjunto_series = set()
+
+    rng = np.random.default_rng(seed=123456 + idx_alvo)
+
+    for nome, base in bases:
+        base_arr = np.array(base, dtype=int)
+        for _ in range(n_por_nucleo):
+            # Número de posições a perturbar (0–2)
+            n_pert = rng.integers(0, min(3, n_pass + 1))
+            serie = base_arr.copy()
+
+            if n_pert > 0:
+                posicoes = rng.choice(n_pass, size=n_pert, replace=False)
+                for pos in posicoes:
+                    delta = int(rng.integers(-3, 4))  # [-3, 3]
+                    serie[pos] = limitar(serie[pos] + delta)
+
+            chave = tuple(int(x) for x in serie)
+            if chave not in conjunto_series:
+                conjunto_series.add(chave)
+                candidatos.append({"source": nome, "series": list(chave)})
+
+        # Inclui a própria base explicitamente
+        chave_base = tuple(int(x) for x in base_arr)
+        if chave_base not in conjunto_series:
+            conjunto_series.add(chave_base)
+            candidatos.append({"source": f"{nome}_BASE", "series": list(chave_base)})
+
+    df_micro = pd.DataFrame(candidatos)
+    return df_micro
+
+
+# ------------------------------------------------------------
+# S6 Profundo ULTRA — ranqueamento estrutural
+# ------------------------------------------------------------
+
+def s6_profundo_ultra(
+    df: pd.DataFrame,
+    idx_alvo: int,
+    meta: Dict[str, Any],
+    nucleos: Dict[str, Any],
+    n_por_nucleo: int = 40,
+) -> pd.DataFrame:
+    """
+    S6 Profundo ULTRA:
+        - Usa o Micro-Leque ULTRA.
+        - Calcula score estrutural por série candidata.
+        - Ordena do mais forte ao mais fraco.
+
+    Score:
+        - Similaridade com IPO ULTRA (estrutura).
+        - Afinidade com o k local (consistência de regime).
+    """
+    if df is None or df.empty or meta is None or not nucleos.get("ok", False):
+        return pd.DataFrame(columns=["rank", "source", "series", "score_total"])
+
+    cols_pass = meta["cols_passageiros"]
+
+    df_micro = gerar_micro_leque_ultra(df, idx_alvo, meta, nucleos, n_por_nucleo)
+    if df_micro.empty:
+        return pd.DataFrame(columns=["rank", "source", "series", "score_total"])
+
+    ipo_ultra = np.array(nucleos["ipo_ultra"], dtype=float)
+
+    # k atual e k da janela
+    k_vals = df["k"].astype(float).values
+    idx_min = int(df["idx"].min())
+    pos_alvo = idx_alvo - idx_min
+    if 0 <= pos_alvo < len(k_vals):
+        k_atual = k_vals[pos_alvo]
+    else:
+        k_atual = float(np.nan)
+
+    if pos_alvo > 0:
+        k_janela = k_vals[max(0, pos_alvo - 40):pos_alvo]
+        k_med = float(np.nanmean(k_janela)) if len(k_janela) > 0 else float(np.nan)
+    else:
+        k_med = float(np.nan)
+
+    # Escala de normalização para afinidade de k
+    escala_k = max(1.0, np.nanmax(np.abs(k_vals)) if len(k_vals) > 0 else 1.0)
+
+    scores = []
+    for _, row in df_micro.iterrows():
+        serie = np.array(row["series"], dtype=float)
+
+        # Similaridade estrutural com IPO ULTRA (distância euclidiana inversa)
+        dist = float(np.linalg.norm(serie - ipo_ultra))
+        sim_estrutura = 1.0 / (1.0 + dist)
+
+        # Afinidade de k (se possível)
+        if not (np.isnan(k_atual) or np.isnan(k_med)):
+            delta_k = abs(k_atual - k_med)
+            afin_k = 1.0 - min(delta_k / (escala_k + 1e-9), 1.0)
+        else:
+            afin_k = 0.5  # neutro
+
+        # Combinação (peso maior na estrutura)
+        score_total = 0.7 * sim_estrutura + 0.3 * afin_k
+
+        scores.append(
+            {
+                "source": row["source"],
+                "series": row["series"],
+                "score_estrutura": sim_estrutura,
+                "score_k": afin_k,
+                "score_total": score_total,
+            }
+        )
+
+    df_scores = pd.DataFrame(scores)
+    df_scores = df_scores.sort_values(by="score_total", ascending=False).reset_index(drop=True)
+    df_scores["rank"] = df_scores.index + 1
+
+    # Guarda no estado
+    st.session_state["s6_ultra_resultado"] = {
+        "idx_alvo": idx_alvo,
+        "nucleos": nucleos,
+        "tabela": df_scores,
+    }
+
+    return df_scores
+
+
+# ------------------------------------------------------------
+# Monte Carlo Profundo ULTRA — robustez das séries
+# ------------------------------------------------------------
+
+def monte_carlo_profundo_ultra(
+    df: pd.DataFrame,
+    meta: Dict[str, Any],
+    s6_df: pd.DataFrame,
+    n_simulacoes: int = 500,
+    top_n: int = 20,
+) -> pd.DataFrame:
+    """
+    Monte Carlo Profundo ULTRA:
+        - Avalia a robustez das top séries de S6 Profundo.
+        - Simula estradas alternativas com base no histórico real.
+        - Mede a quantidade esperada de acertos (interseção de passageiros).
+
+    Saída:
+        DataFrame com colunas:
+            - rank_s6, series, media_acertos, prob_ge4, prob_ge5, prob_ge6
+    """
+    if df is None or df.empty or meta is None or s6_df is None or s6_df.empty:
+        return pd.DataFrame(
+            columns=[
+                "rank_s6",
+                "series",
+                "media_acertos",
+                "prob_ge4",
+                "prob_ge5",
+                "prob_ge6",
+            ]
+        )
+
+    cols_pass = meta["cols_passageiros"]
+    M = df[cols_pass].astype(int).values
+    n_series_hist = M.shape[0]
+
+    # Top N do S6
+    s6_top = s6_df.sort_values(by="score_total", ascending=False).head(top_n).copy()
+
+    rng = np.random.default_rng(seed=987654)
+
+    resultados = []
+    for _, row in s6_top.iterrows():
+        serie = [int(x) for x in row["series"]]
+        conj_cand = set(serie)
+
+        acertos_list = []
+
+        for _ in range(n_simulacoes):
+            idx_aleatorio = int(rng.integers(0, n_series_hist))
+            real = M[idx_aleatorio, :]
+            conj_real = set(int(x) for x in real)
+            acertos = len(conj_cand.intersection(conj_real))
+            acertos_list.append(acertos)
+
+        acertos_arr = np.array(acertos_list)
+        media_acertos = float(acertos_arr.mean()) if len(acertos_arr) > 0 else 0.0
+        prob_ge4 = float(np.mean(acertos_arr >= 4)) if len(acertos_arr) > 0 else 0.0
+        prob_ge5 = float(np.mean(acertos_arr >= 5)) if len(acertos_arr) > 0 else 0.0
+        prob_ge6 = float(np.mean(acertos_arr >= 6)) if len(acertos_arr) > 0 else 0.0
+
+        resultados.append(
+            {
+                "rank_s6": int(row["rank"]),
+                "series": serie,
+                "media_acertos": media_acertos,
+                "prob_ge4": prob_ge4,
+                "prob_ge5": prob_ge5,
+                "prob_ge6": prob_ge6,
+            }
+        )
+
+    mc_df = pd.DataFrame(resultados)
+    mc_df = mc_df.sort_values(by=["prob_ge6", "prob_ge5", "prob_ge4", "media_acertos"], ascending=False).reset_index(drop=True)
+
+    # Guarda no estado
+    st.session_state["monte_carlo_ultra"] = mc_df
+
+    return mc_df
+
+
+# ------------------------------------------------------------
+# QDS REAL + Backtest REAL
+# ------------------------------------------------------------
+
+def calcular_qds_real_e_backtest(
+    df: pd.DataFrame,
+    meta: Dict[str, Any],
+    n_testes_max: int = 60,
+    janela_max: int = 40,
+) -> Dict[str, Any]:
+    """
+    QDS REAL + Backtest REAL ULTRA (simplificado):
+
+    Para cada índice alvo i, testa:
+        - Usa histórico até i-1.
+        - Calcula núcleos IDX/IPF/IPO ULTRA.
+        - Usa IPO ULTRA como previsão da próxima série (i+1).
+        - Compara com a série real (i+1) e mede acertos de passageiros.
+
+    Gera:
+        - Distribuição dos acertos.
+        - Médias, percentuais com >=4, >=5, =6 acertos.
+        - QDS em % como proporção média de acertos / n_passageiros.
+    """
+    if df is None or df.empty or meta is None:
+        return {
+            "ok": False,
+            "msg": "Histórico ou metadados indisponíveis.",
+        }
+
+    idx_min = int(df["idx"].min())
+    idx_max = int(df["idx"].max())
+    cols_pass = meta["cols_passageiros"]
+    n_pass = meta["n_passageiros"]
+
+    resultados_acertos = []
+    idxs_testados = []
+
+    # Limita quantos testes para não estourar performance
+    # Vamos de trás para frente (regime mais recente)
+    candidatos = list(range(idx_max - 1, idx_min + janela_max, -1))  # até idx_max-1
+    candidatos = candidatos[:n_testes_max]
+    candidatos = sorted(candidatos)
+
+    for idx_alvo in candidatos:
+        nucleos = calcular_nucleos_idx_ipf_ipo_ultra(df, idx_alvo, meta, janela_max=janela_max)
+        if not nucleos.get("ok", False):
+            continue
+
+        idx_next = idx_alvo + 1
+        if idx_next > idx_max:
+            continue
+
+        # Previsão simplificada: IPO ULTRA como "previsão de passageiros"
+        prev = set(int(x) for x in nucleos["ipo_ultra"])
+
+        real_row = df.loc[df["idx"] == idx_next, cols_pass]
+        if real_row.empty:
+            continue
+        real = set(int(x) for x in real_row.astype(int).iloc[0].tolist())
+
+        acertos = len(prev.intersection(real))
+        resultados_acertos.append(acertos)
+        idxs_testados.append(idx_alvo)
+
+    if not resultados_acertos:
+        return {
+            "ok": False,
+            "msg": "Não foi possível executar o Backtest REAL com os parâmetros atuais.",
+        }
+
+    arr = np.array(resultados_acertos)
+    media_acertos = float(arr.mean())
+    mediana_acertos = float(np.median(arr))
+    melhor_acerto = int(arr.max())
+    p_ge4 = float(np.mean(arr >= 4))
+    p_ge5 = float(np.mean(arr >= 5))
+    p_ge6 = float(np.mean(arr >= 6))
+
+    # QDS como proporção média de acertos sobre n_passageiros
+    qds_pct = float(100.0 * media_acertos / n_pass)
+
+    resumo = {
+        "ok": True,
+        "msg": "",
+        "n_testes": len(resultados_acertos),
+        "indices_testados": idxs_testados,
+        "acertos": resultados_acertos,
+        "media_acertos": media_acertos,
+        "mediana_acertos": mediana_acertos,
+        "melhor_acerto": melhor_acerto,
+        "p_ge4": p_ge4,
+        "p_ge5": p_ge5,
+        "p_ge6": p_ge6,
+        "qds_pct": qds_pct,
+        "n_passageiros": n_pass,
+    }
+
+    # Guarda em cache
+    st.session_state["qds_cache"]["default"] = resumo
+
+    return resumo
+
+
+# ------------------------------------------------------------
+# Painel: 🧬 S6 Profundo & Micro-Leque ULTRA
+# ------------------------------------------------------------
+
+if painel == "🧬 S6 Profundo & Micro-Leque ULTRA":
+    st.markdown("## 🧬 S6 Profundo & Micro-Leque ULTRA")
+
+    df = st.session_state.get("df", None)
+    meta = st.session_state.get("meta_cols", None)
+
+    if df is None or df.empty or meta is None:
+        st.warning("Carregue o histórico no painel '📥 Histórico — Entrada (FLEX)' antes.")
+    else:
+        idx_max = int(df["idx"].max())
+        idx_default = st.session_state.get("ultimo_idx_alvo", idx_max)
+
+        st.markdown("### 🎯 Seleção da série alvo")
+
+        col_sel1, col_sel2 = st.columns([2, 1])
+        with col_sel1:
+            idx_alvo = st.number_input(
+                "Índice alvo para S6 Profundo:",
+                min_value=1,
+                max_value=idx_max,
+                value=int(idx_default),
+                step=1,
+            )
+        with col_sel2:
+            n_por_nucleo = st.slider(
+                "Séries por núcleo no Micro-Leque:",
+                min_value=10,
+                max_value=80,
+                value=40,
+                step=5,
+            )
+
+        idx_alvo = int(idx_alvo)
+        st.session_state["ultimo_idx_alvo"] = idx_alvo
+
+        st.markdown("#### 📌 Série alvo")
+        st.code(resumo_rapido_serie(df, idx_alvo), language="text")
+
+        nucleos = calcular_nucleos_idx_ipf_ipo_ultra(df, idx_alvo, meta)
+        if not nucleos.get("ok", False):
+            st.error(nucleos["msg"])
+        else:
+            st.markdown("### 🧪 Execução do S6 Profundo ULTRA")
+
+            if st.button("Rodar S6 Profundo ULTRA agora"):
+                tabela_s6 = s6_profundo_ultra(
+                    df,
+                    idx_alvo,
+                    meta,
+                    nucleos,
+                    n_por_nucleo=n_por_nucleo,
+                )
+
+                if tabela_s6.empty:
+                    st.error("S6 Profundo não gerou séries. Verifique o histórico.")
+                else:
+                    st.success(
+                        f"S6 Profundo ULTRA gerou {len(tabela_s6)} séries candidatas."
+                    )
+
+                    st.markdown("### 🏆 Top 15 séries do S6 Profundo ULTRA")
+                    top15 = tabela_s6.head(15)
+                    linhas = []
+                    for _, row in top15.iterrows():
+                        linhas.append(
+                            f"#{int(row['rank']):02d} | "
+                            f"{' '.join(str(x) for x in row['series'])} | "
+                            f"score={row['score_total']:.4f}"
+                        )
+                    st.code("\n".join(linhas), language="text")
+
+                    st.markdown("#### 🔬 Tabela completa S6 Profundo ULTRA")
+                    st.dataframe(tabela_s6)
+
+                    registrar_evento(
+                        f"S6 Profundo ULTRA executado para idx_alvo={idx_alvo} "
+                        f"com {len(tabela_s6)} séries candidatas."
+                    )
+            else:
+                st.info("Configure os parâmetros e clique em **Rodar S6 Profundo ULTRA agora**.")
+
+
+# ------------------------------------------------------------
+# Painel: 🎲 Monte Carlo Profundo ULTRA
+# ------------------------------------------------------------
+
+if painel == "🎲 Monte Carlo Profundo ULTRA":
+    st.markdown("## 🎲 Monte Carlo Profundo ULTRA")
+
+    df = st.session_state.get("df", None)
+    meta = st.session_state.get("meta_cols", None)
+    s6_res = st.session_state.get("s6_ultra_resultado", None)
+
+    if df is None or df.empty or meta is None:
+        st.warning("Carregue o histórico no painel '📥 Histórico — Entrada (FLEX)' antes.")
+    else:
+        if not s6_res or "tabela" not in s6_res or s6_res["tabela"].empty:
+            st.warning(
+                "Nenhum resultado de S6 Profundo ULTRA encontrado. "
+                "Execute o painel '🧬 S6 Profundo & Micro-Leque ULTRA' primeiro."
+            )
+        else:
+            tabela_s6 = s6_res["tabela"]
+            idx_alvo = s6_res["idx_alvo"]
+
+            st.markdown(
+                f"Último S6 Profundo foi executado para **idx_alvo = {idx_alvo}** "
+                f"com {len(tabela_s6)} séries candidatas."
+            )
+
+            col_cfg1, col_cfg2 = st.columns(2)
+            with col_cfg1:
+                n_sim = st.slider(
+                    "Número de simulações Monte Carlo:",
+                    min_value=100,
+                    max_value=2000,
+                    value=500,
+                    step=100,
+                )
+            with col_cfg2:
+                top_n = st.slider(
+                    "Top N séries do S6 a avaliar:",
+                    min_value=5,
+                    max_value=50,
+                    value=20,
+                    step=5,
+                )
+
+            if st.button("Rodar Monte Carlo Profundo ULTRA"):
+                mc_df = monte_carlo_profundo_ultra(
+                    df,
+                    meta,
+                    tabela_s6,
+                    n_simulacoes=n_sim,
+                    top_n=top_n,
+                )
+
+                if mc_df.empty:
+                    st.error("Monte Carlo não produziu resultados.")
+                else:
+                    st.success(
+                        f"Monte Carlo Profundo ULTRA executado para Top {top_n} séries de S6."
+                    )
+
+                    st.markdown("### 🏆 Séries mais robustas no Monte Carlo")
+                    linhas = []
+                    for i, row in mc_df.head(15).iterrows():
+                        linhas.append(
+                            f"S6#{int(row['rank_s6']):02d} | "
+                            f"{' '.join(str(x) for x in row['series'])} | "
+                            f"hits̄={row['media_acertos']:.3f} | "
+                            f"P(≥4)={row['prob_ge4']:.3f} | "
+                            f"P(≥5)={row['prob_ge5']:.3f} | "
+                            f"P(6)={row['prob_ge6']:.3f}"
+                        )
+                    st.code("\n".join(linhas), language="text")
+
+                    st.markdown("#### 🔬 Tabela completa Monte Carlo ULTRA")
+                    st.dataframe(mc_df)
+
+                    registrar_evento(
+                        f"Monte Carlo Profundo ULTRA executado (n_sim={n_sim}, top_n={top_n})."
+                    )
+            else:
+                st.info("Ajuste os parâmetros e clique em **Rodar Monte Carlo Profundo ULTRA**.")
+
+
+# ------------------------------------------------------------
+# Painel: 🧪 QDS REAL & Backtest REAL
+# ------------------------------------------------------------
+
+if painel == "🧪 QDS REAL & Backtest REAL":
+    st.markdown("## 🧪 QDS REAL & Backtest REAL")
+
+    df = st.session_state.get("df", None)
+    meta = st.session_state.get("meta_cols", None)
+
+    if df is None or df.empty or meta is None:
+        st.warning("Carregue o histórico no painel '📥 Histórico — Entrada (FLEX)' antes.")
+    else:
+        col_cfg1, col_cfg2 = st.columns(2)
+        with col_cfg1:
+            n_testes_max = st.slider(
+                "Máximo de pontos de Backtest:",
+                min_value=20,
+                max_value=150,
+                value=60,
+                step=10,
+            )
+        with col_cfg2:
+            janela_max = st.slider(
+                "Janela máxima de histórico por teste:",
+                min_value=20,
+                max_value=80,
+                value=40,
+                step=5,
+            )
+
+        if st.button("Calcular QDS REAL + Backtest REAL agora"):
+            resultado = calcular_qds_real_e_backtest(
+                df,
+                meta,
+                n_testes_max=n_testes_max,
+                janela_max=janela_max,
+            )
+
+            if not resultado.get("ok", False):
+                st.error(resultado["msg"])
+            else:
+                st.success(
+                    f"Backtest REAL executado com {resultado['n_testes']} pontos de teste."
+                )
+
+                col_m1, col_m2, col_m3 = st.columns(3)
+                with col_m1:
+                    st.metric(
+                        "QDS REAL (%)",
+                        f"{resultado['qds_pct']:.2f}%",
+                        help="Qualidade Dinâmica de Série: proporção média de acertos em relação ao número de passageiros.",
+                    )
+                with col_m2:
+                    st.metric(
+                        "Média de acertos",
+                        f"{resultado['media_acertos']:.3f}",
+                    )
+                with col_m3:
+                    st.metric(
+                        "Melhor acerto (máx)",
+                        f"{resultado['melhor_acerto']}",
+                    )
+
+                col_p1, col_p2, col_p3 = st.columns(3)
+                with col_p1:
+                    st.metric(
+                        "P(≥4 acertos)",
+                        f"{resultado['p_ge4']*100:.1f}%",
+                    )
+                with col_p2:
+                    st.metric(
+                        "P(≥5 acertos)",
+                        f"{resultado['p_ge5']*100:.1f}%",
+                    )
+                with col_p3:
+                    st.metric(
+                        "P(6 acertos)",
+                        f"{resultado['p_ge6']*100:.1f}%",
+                    )
+
+                st.markdown("### Distribuição dos acertos no Backtest REAL")
+                linhas = []
+                for idx_alvo, acertos in zip(
+                    resultado["indices_testados"], resultado["acertos"]
+                ):
+                    linhas.append(f"idx_alvo={idx_alvo} → acertos={acertos}")
+                st.code("\n".join(linhas), language="text")
+
+                registrar_evento(
+                    f"QDS REAL + Backtest REAL executados: QDS={resultado['qds_pct']:.2f}%, "
+                    f"media_acertos={resultado['media_acertos']:.3f}."
+                )
+        else:
+            cache = st.session_state.get("qds_cache", {}).get("default")
+            if cache and cache.get("ok", False):
+                st.info(
+                    f"Último QDS REAL calculado: {cache['qds_pct']:.2f}% "
+                    f"com {cache['n_testes']} pontos de teste."
+                )
+            else:
+                st.info(
+                    "Configure os parâmetros e clique em "
+                    "**Calcular QDS REAL + Backtest REAL agora**."
+                )
+
+# ============================================================
+# FIM DA PARTE 3/4
+# Próxima parte: Replay LIGHT, Replay ULTRA (horizonte ajustável)
+# e Modo TURBO++ ULTRA (integração final de previsão).
+# ============================================================
+# ============================================================
+# PARTE 4/4
+# Replay LIGHT, Replay ULTRA com horizonte ajustável,
+# Modo TURBO++ ULTRA — Motor Final Consolidado
+# ============================================================
+
+# ------------------------------------------------------------
+# Função auxiliar: rodar previsão ULTRA completa (single)
+# Envolve:
+#   - Cálculo de núcleos ULTRA
+#   - S6 Profundo
+#   - Monte Carlo Profundo
+#   - Seleção final (melhor série)
+# ------------------------------------------------------------
+
+def previsao_ultra_completa(
+    df: pd.DataFrame,
+    meta: Dict[str, Any],
+    idx_alvo: int,
+    n_s6_por_nucleo: int = 40,
+    n_mc_sim: int = 400,
+    top_n_mc: int = 20,
+) -> Dict[str, Any]:
+    """
+    Executa o pipeline ULTRA completo para UMA série alvo.
+    Retorna:
+        {
+            "ok": bool,
+            "idx_alvo": int,
+            "serie_alvo": [...],
+            "s6_top": DataFrame,
+            "mc_top": DataFrame,
+            "previsao_final": [...],
+            "mensagem": str
+        }
+    """
+    if df is None or df.empty or meta is None:
+        return {"ok": False, "mensagem": "Histórico indisponível."}
+
+    nucleos = calcular_nucleos_idx_ipf_ipo_ultra(df, idx_alvo, meta)
+    if not nucleos.get("ok", False):
+        return {"ok": False, "mensagem": nucleos["msg"]}
+
+    # S6 Profundo
+    s6_df = s6_profundo_ultra(
+        df, idx_alvo, meta, nucleos,
+        n_por_nucleo=n_s6_por_nucleo,
+    )
+    if s6_df.empty:
+        return {"ok": False, "mensagem": "S6 Profundo não produziu séries."}
+
+    # Monte Carlo Profundo
+    mc_df = monte_carlo_profundo_ultra(
+        df, meta, s6_df,
+        n_simulacoes=n_mc_sim,
+        top_n=top_n_mc,
+    )
+    if mc_df.empty:
+        return {"ok": False, "mensagem": "Monte Carlo não produziu resultados."}
+
+    # Seleção final = maior prob_ge6 (empate → prob_ge5 → prob_ge4 → média)
+    melhor = mc_df.iloc[0]
+    previsao_final = melhor["series"]
+
+    return {
+        "ok": True,
+        "idx_alvo": idx_alvo,
+        "serie_alvo": extrair_passageiros_linha(df, idx_alvo),
+        "s6_top": s6_df,
+        "mc_top": mc_df,
+        "previsao_final": previsao_final,
+        "mensagem": "",
+    }
+
+
+# ============================================================
+# 📅 Replay LIGHT
+# ============================================================
+
+if painel == "📅 Replay LIGHT":
+    st.markdown("## 📅 Replay LIGHT — Execução rápida")
+
+    df = st.session_state.get("df", None)
+    meta = st.session_state.get("meta_cols", None)
+
+    if df is None or df.empty or meta is None:
         st.warning("Carregue o histórico primeiro.")
         st.stop()
 
-    horizonte = st.slider(
-        "Horizonte para QDS / Backtest (últimas N séries):",
-        min_value=20,
-        max_value=250,
-        value=80,
-        step=10,
-    )
+    idx_max = int(df["idx"].max())
+    st.info("O Replay LIGHT executa previsões ULTRA sem Monte Carlo, para alta velocidade.")
 
-    n_final = st.slider(
-        "Nº de séries na saída ULTRA (para cada teste):",
+    # Parâmetros LIGHT
+    n_por_nucleo = st.slider(
+        "Séries por núcleo (Micro-Leque LIGHT):",
         min_value=5,
         max_value=40,
         value=20,
         step=5,
     )
 
-    if st.button("Rodar QDS REAL / Backtest REAL"):
-        with st.spinner("Calculando QDS e Backtest ULTRA..."):
-            info = calcular_qds_real(df, horizonte=horizonte, n_final=n_final)
+    horizonte = st.slider(
+        "Número de séries para processar no Replay LIGHT:",
+        min_value=5,
+        max_value=min(80, idx_max - 1),
+        value=20,
+        step=1,
+    )
 
-        if info["n_casos"] == 0:
-            st.error("Não foi possível calcular QDS / Backtest (poucos casos válidos).")
-        else:
-            st.success("QDS / Backtest calculados.")
+    start_idx = idx_max - horizonte + 1
+    st.write(f"Executando Replay LIGHT para índices de `{start_idx}` até `{idx_max}`.")
 
-            q1, q2, q3 = st.columns(3)
-            with q1:
-                st.metric(
-                    "QDS (0–1)",
-                    info["qds"] if info["qds"] is not None else "N/A",
-                )
-            with q2:
-                st.metric(
-                    "Média de acertos",
-                    f"{info['media_acertos']:.2f}",
-                )
-            with q3:
-                st.metric(
-                    "Nº de casos avaliados",
-                    info["n_casos"],
-                )
+    if st.button("Rodar Replay LIGHT agora"):
+        resultados = []
+        for idx_alvo in range(start_idx, idx_max + 1):
+            nucleos = calcular_nucleos_idx_ipf_ipo_ultra(df, idx_alvo, meta)
+            if not nucleos.get("ok", False):
+                continue
 
-            st.markdown(
-                """
-                **Leitura sugerida do QDS:**
-                - QDS > 0.70 → motor extremamente aderente ao histórico recente.
-                - QDS entre 0.50 e 0.70 → aderência boa, mas com ruído.
-                - QDS entre 0.30 e 0.50 → regime de atenção / necessidade de ajuste fino.
-                - QDS < 0.30 → baixa aderência; revisar parâmetros, regime ou janela.
-                """
+            s6_df = s6_profundo_ultra(
+                df, idx_alvo, meta, nucleos,
+                n_por_nucleo=n_por_nucleo,
             )
+            if s6_df.empty:
+                continue
+
+            # Seleção LIGHT: melhor pelo score_total (S6)
+            melhor = s6_df.iloc[0]
+            resultados.append({
+                "idx": idx_alvo,
+                "serie_alvo": extrair_passageiros_linha(df, idx_alvo),
+                "previsao": melhor["series"],
+                "score": melhor["score_total"],
+            })
+
+        if not resultados:
+            st.error("Replay LIGHT não gerou resultados.")
+        else:
+            st.success(f"Replay LIGHT executado para {len(resultados)} séries.")
+            linhas = []
+            for r in resultados:
+                linhas.append(
+                    f"idx={r['idx']} | alvo={r['serie_alvo']} | "
+                    f"prev={r['previsao']} | score={r['score']:.4f}"
+                )
+            st.code("\n".join(linhas), language="text")
+
+            st.session_state["replay_light"] = resultados
+
+            registrar_evento(
+                f"Replay LIGHT executado para {len(resultados)} séries."
+            )
+    else:
+        st.info("Configure e clique em **Rodar Replay LIGHT agora**.")
+
 
 # ============================================================
-# 16. FUNÇÃO PRINCIPAL (main)
+# 📅 Replay ULTRA (Horizonte Ajustável)
 # ============================================================
 
-def main():
-    """
-    Função principal do app Streamlit.
-    Define o layout geral, navegação lateral e chama os painéis.
-    """
-    st.title("🚗 Predict Cars V14-FLEX ULTRA REAL (TURBO++)")
-    st.caption(
-        "Versão FLEX ULTRA REAL — todos os módulos refinados "
-        "integrados ao Barômetro, k*, IDX, S6, Micro-Leque, Monte Carlo e QDS."
+if painel == "📅 Replay ULTRA (Horizonte Ajustável)":
+    st.markdown("## 📅 Replay ULTRA — Horizonte Ajustável")
+
+    df = st.session_state.get("df", None)
+    meta = st.session_state.get("meta_cols", None)
+
+    if df is None or df.empty or meta is None:
+        st.warning("Carregue o histórico primeiro.")
+        st.stop()
+
+    idx_max = int(df["idx"].max())
+
+    st.info(
+        """
+O Replay ULTRA executa o **pipeline completo**:
+IDX/IPF/IPO → S6 Profundo → Monte Carlo Profundo → Previsão final.
+
+Agora com **horizonte ajustável**, para limitar quantas séries serão processadas
+(para evitar sobrecarga).
+"""
     )
 
-    # Inicializa DataFrame na sessão, se ainda não existir
-    if "df" not in st.session_state:
-        st.session_state["df"] = None
-
-    st.sidebar.header("Navegação")
-    painel = st.sidebar.radio(
-        "Escolha o painel:",
-        [
-            "📥 Histórico — Entrada",
-            "🔍 Pipeline V14-FLEX ULTRA",
-            "🚨 Monitor de Risco (Barômetro + k*)",
-            "🚀 Modo TURBO++ Adaptativo",
-            "📅 Replay Automático ULTRA",
-            "🧪 Confiabilidade — QDS / Backtest",
-        ],
+    horizonte = st.slider(
+        "Quantas séries deseja processar?",
+        min_value=5,
+        max_value=min(100, idx_max - 1),
+        value=20,
+        step=1,
     )
 
-    if painel == "📥 Histórico — Entrada":
-        painel_historico_entrada()
-    elif painel == "🔍 Pipeline V14-FLEX ULTRA":
-        painel_pipeline_ultra()
-    elif painel == "🚨 Monitor de Risco (Barômetro + k*)":
-        painel_monitor_risco()
-    elif painel == "🚀 Modo TURBO++ Adaptativo":
-        painel_turbo_adaptativo()
-    elif painel == "📅 Replay Automático ULTRA":
-        painel_replay_ultra()
-    elif painel == "🧪 Confiabilidade — QDS / Backtest":
-        painel_qds_backtest()
+    start_idx = idx_max - horizonte + 1
+    st.write(f"Horizonte selecionado: `{start_idx}` → `{idx_max}`.")
+
+    n_por_nucleo = st.slider("Séries por núcleo (Micro-Leque):", 20, 80, 40, 5)
+    n_sim = st.slider("Simulações Monte Carlo:", 200, 2000, 800, 200)
+    top_n = st.slider("Top-N Monte Carlo:", 10, 50, 20, 5)
+
+    if st.button("Rodar Replay ULTRA agora"):
+        resultados = []
+        total = idx_max - start_idx + 1
+        barra = st.progress(0)
+
+        for i, idx_alvo in enumerate(range(start_idx, idx_max + 1)):
+            barra.progress((i + 1) / total)
+
+            res = previsao_ultra_completa(
+                df, meta, idx_alvo,
+                n_s6_por_nucleo=n_por_nucleo,
+                n_mc_sim=n_sim,
+                top_n_mc=top_n,
+            )
+            if res["ok"]:
+                resultados.append(res)
+
+        if not resultados:
+            st.error("Replay ULTRA não produziu resultados.")
+        else:
+            st.success(f"Replay ULTRA completo — {len(resultados)} séries processadas.")
+
+            linhas = []
+            for r in resultados:
+                linhas.append(
+                    f"idx={r['idx_alvo']} | alvo={r['serie_alvo']} | "
+                    f"prev={r['previsao_final']}"
+                )
+            st.code("\n".join(linhas), language="text")
+
+            st.session_state["replay_ultra"] = resultados
+
+            registrar_evento(
+                f"Replay ULTRA executado com horizonte={horizonte}."
+            )
+    else:
+        st.info("Configure e clique em **Rodar Replay ULTRA agora**.")
 
 
 # ============================================================
-# 17. PONTO DE ENTRADA
+# 🚀 Modo TURBO++ ULTRA — Previsão final unificada
 # ============================================================
 
-if __name__ == "__main__":
-    main()
+if painel == "🚀 Modo TURBO++ ULTRA":
+    st.markdown("## 🚀 Modo TURBO++ ULTRA — Motor Final")
+
+    df = st.session_state.get("df", None)
+    meta = st.session_state.get("meta_cols", None)
+
+    if df is None or df.empty or meta is None:
+        st.warning("Carregue o histórico primeiro.")
+        st.stop()
+
+    idx_max = int(df["idx"].max())
+
+    st.markdown("### 🎯 Série alvo (última)")
+    st.code(resumo_rapido_serie(df, idx_max), language="text")
+
+    st.markdown("---")
+
+    st.markdown("### ⚙️ Parâmetros do motor TURBO++")
+
+    n_por_nucleo = st.slider(
+        "Micro-Leque ULTRA — séries por núcleo:",
+        min_value=20,
+        max_value=80,
+        value=40,
+        step=5,
+    )
+
+    n_sim = st.slider(
+        "Monte Carlo Profundo — número de simulações:",
+        min_value=300,
+        max_value=3000,
+        value=1000,
+        step=100,
+    )
+
+    top_n = st.slider(
+        "Top-N do Monte Carlo:",
+        min_value=10,
+        max_value=50,
+        value=20,
+        step=5,
+    )
+
+    if st.button("EXECUTAR PREVISÃO TURBO++ ULTRA"):
+        st.info("Executando motor ULTRA…")
+
+        res = previsao_ultra_completa(
+            df,
+            meta,
+            idx_max,
+            n_s6_por_nucleo=n_por_nucleo,
+            n_mc_sim=n_sim,
+            top_n_mc=top_n,
+        )
+
+        if not res["ok"]:
+            st.error(res["mensagem"])
+        else:
+            st.success("Previsão TURBO++ gerada com sucesso!")
+
+            st.markdown("### 🎯 **Previsão Final ULTRA**")
+            st.code(" ".join(str(x) for x in res["previsao_final"]), language="text")
+
+            # Interpretar risco global
+            regime = st.session_state.get("regime_state", "desconhecido")
+            k_est = st.session_state.get("k_star_estado", "desconhecido")
+
+            if regime == "critico" or k_est == "critico":
+                st.error("🔴 Ambiente crítico — máxima cautela.")
+            elif regime == "atencao" or k_est == "atencao":
+                st.warning("🟡 Ambiente moderado — atenção elevada.")
+            else:
+                st.success("🟢 Ambiente estável — previsão em regime favorável.")
+
+            registrar_evento("Previsão TURBO++ executada.")
+
+    else:
+        st.info("Configure os parâmetros e clique em **EXECUTAR PREVISÃO TURBO++ ULTRA**.")
+
+
+# ============================================================
+# FIM DO ARQUIVO COMPLETO — Predict Cars V14-FLEX ULTRA REAL
+# (TURBO++)
+# ============================================================
