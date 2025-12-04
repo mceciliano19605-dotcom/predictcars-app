@@ -419,7 +419,9 @@ if painel == "📥 Histórico — Entrada (FLEX)":
         file = st.file_uploader("Selecione o arquivo CSV:", type=["csv"])
         if file is not None:
             try:
-                df_raw = pd.read_csv(file, sep=None, engine="python")
+                df_raw = pd.read_csv(file, sep=";", header=None, engine="python")
+                df_raw = df_raw.dropna(axis=1, how="all")
+               
                 df = preparar_historico_flex(df_raw)
                 st.success("Histórico carregado com sucesso (modo FLEX).")
                 st.write(f"Total de séries: **{len(df)}**")
