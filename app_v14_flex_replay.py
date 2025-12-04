@@ -2018,9 +2018,9 @@ if painel == "🚀 Modo TURBO++ ULTRA":
             regime = st.session_state.get("regime_state", "desconhecido")
             k_est = st.session_state.get("k_star_estado", "desconhecido")
 
-            if regime == "critico" or k_est == "critico":
+            if regime == "critico":
                 st.error("🔴 Ambiente crítico — máxima cautela.")
-            elif regime == "atencao" or k_est == "atencao":
+            elif regime == "atencao":
                 st.warning("🟡 Ambiente moderado — atenção elevada.")
             else:
                 st.success("🟢 Ambiente estável — previsão em regime favorável.")
