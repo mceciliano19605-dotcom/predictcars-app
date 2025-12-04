@@ -1,1381 +1,1561 @@
-# Predict Cars V14-FLEX REPLAY
-# App completo com:
-# - Pipeline V14-FLEX (IPF → IPO → S6 → Modo E)
-# - Monitor de Risco (k / k*)
-# - Modo TURBO++ — Painel Completo
-# - Replay Automático
-# - Testes de Confiabilidade (empírico)
-# - Painel: Séries Alternativas Inteligentes V14-FLEX
-#   (Modo Automático + Modo Avançado por Confiabilidade)
-# - Painel: Teste Avançado das Séries Alternativas (Principal + A–E)
-# - Painel: Modo Adaptativo V14-FLEX (Saída Recomendada pelo risco k*)
+# ============================================================
+# Predict Cars V14-FLEX ULTRA REAL (TURBO++) — VERSÃO GIGANTE
+# ============================================================
+# Versão com:
+# - Número variável de passageiros (FLEX)
+# - Barômetro ULTRA real
+# - k* ULTRA (sentinela preditivo)
+# - IDX Avançado ULTRA
+# - IPF / IPO refinados
+# - S6 Profundo em camadas
+# - Micro-Leque ULTRA
+# - Monte Carlo Profundo
+# - QDS real + Backtest real
+# - Painéis completos em Streamlit
+# ============================================================
 
 import streamlit as st
 import pandas as pd
-from typing import List, Dict, Any, Tuple
+import numpy as np
+import math
+from io import StringIO
+from typing import List, Dict, Any, Tuple, Optional
 
-# ============================================================
-# CONFIGURAÇÃO BÁSICA
-# ============================================================
-
+# ------------------------------------------------------------
+# CONFIGURAÇÃO DA PÁGINA
+# ------------------------------------------------------------
 st.set_page_config(
-    page_title="Predict Cars V14-FLEX REPLAY",
+    page_title="Predict Cars V14-FLEX ULTRA REAL (TURBO++)",
     layout="wide",
 )
 
-st.markdown(
+# ============================================================
+# 1. UTILITÁRIOS DE HISTÓRICO (FLEX)
+# ============================================================
+
+def detectar_colunas_passageiros(df: pd.DataFrame) -> Tuple[List[str], Optional[str], Optional[str]]:
     """
-# Predict Cars V14-FLEX REPLAY
-Versão FLEX: número variável de passageiros + modo replay automático + validação empírica.
-"""
-)
+    Detecta:
+      - coluna de ID (id da série)
+      - colunas de passageiros (p1..pn)
+      - coluna de k (índice de regime/risco)
+    A detecção é flexível e tenta se adaptar ao CSV recebido.
+    """
+    if df is None or df.empty:
+        return [], None, None
 
-# ============================================================
-# CONSTANTES E FUNÇÕES AUXILIARES
-# ============================================================
+    cols = list(df.columns)
 
-NUM_MIN = 1
-NUM_MAX = 60
+    # 1) Detectar coluna de id:
+    #    - se a primeira coluna não for estritamente numérica, assume como ID
+    col_id = None
+    primeira = cols[0]
+    if not pd.api.types.is_numeric_dtype(df[primeira]):
+        col_id = primeira
+
+    # 2) Detectar coluna de k:
+    #    - prioridade: coluna chamada exatamente "k"
+    #    - se não existir, assume a última coluna numérica como k
+    col_k = None
+    for c in cols[::-1]:
+        if str(c).strip().lower() == "k":
+            col_k = c
+            break
+
+    if col_k is None:
+        for c in cols[::-1]:
+            if pd.api.types.is_numeric_dtype(df[c]):
+                col_k = c
+                break
+
+    # 3) Detectar colunas de passageiros:
+    #    - colunas numéricas entre ID e k
+    cols_pass = []
+    for c in cols:
+        if c == col_id or c == col_k:
+            continue
+        if pd.api.types.is_numeric_dtype(df[c]):
+            cols_pass.append(c)
+
+    return cols_pass, col_id, col_k
 
 
-def _coerce_int(x: Any) -> int:
+def preparar_historico_flex(df_raw: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normaliza o histórico para o formato interno do V14-FLEX ULTRA:
+      - coluna 'id' (string)
+      - colunas 'p1'..'pn' (passageiros)
+      - coluna 'k' (int)
+    Mantém a flexibilidade no número de passageiros.
+    """
+    df = df_raw.copy()
+
+    # Remove colunas totalmente vazias (ruído comum em CSV)
+    df = df.dropna(axis=1, how="all")
+
+    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
+
+    # Se não houver id, cria IDs artificiais C1, C2, ...
+    if col_id is None:
+        df.insert(0, "id", [f"C{i+1}" for i in range(len(df))])
+        col_id = "id"
+
+    # Se não houver k, cria k=0 (placeholder neutro)
+    if col_k is None:
+        df["k"] = 0
+        col_k = "k"
+
+    # Renomeia colunas de passageiros para p1..pn
+    mapping = {}
+    for i, c in enumerate(cols_pass, start=1):
+        mapping[c] = f"p{i}"
+    df = df.rename(columns=mapping)
+
+    # Garante tipos
+    df[col_id] = df[col_id].astype(str)
+    df[col_k] = pd.to_numeric(df[col_k], errors="coerce").fillna(0).astype(int)
+
+    # Ordena colunas: id, p1..pn, k
+    cols_ord = [col_id] + sorted(
+        [c for c in df.columns if c.startswith("p")],
+        key=lambda x: int(x[1:])
+    ) + [col_k]
+
+    df = df[cols_ord]
+
+    return df
+
+
+def parse_text_to_df(texto: str) -> pd.DataFrame:
+    """
+    Converte texto colado em tabela.
+    Tenta inteligentemente vários separadores: ; , tab e espaço.
+    É compatível com formatos do tipo:
+      C1;41;5;4;52;30;33;0
+      C2;9;39;...
+    """
+    if not texto or not texto.strip():
+        return pd.DataFrame()
+
+    raw = texto.strip()
+
+    # Tenta ;, depois , e tab
+    for sep in [";", ",", "\t"]:
+        try:
+            df = pd.read_csv(StringIO(raw), sep=sep, header=None)
+            if df.shape[1] >= 3:
+                df.columns = [f"c{i+1}" for i in range(df.shape[1])]
+                return df
+        except Exception:
+            pass
+
+    # Última tentativa: separador por espaços
     try:
-        return int(str(x).strip())
-    except Exception:
-        return 0
-
-
-# ------------------------------------------------------------
-# PARSER FLEX - CSV
-# ------------------------------------------------------------
-
-def preparar_historico_V14(df_raw: pd.DataFrame) -> pd.DataFrame:
-    """
-    Converte o CSV cru para o formato padrão do V14-FLEX:
-
-    colunas:
-    - id (str)
-    - passageiros (list[int])
-    - k (int)
-    - n_passageiros (int)
-    - idx_numeric (int)
-    """
-    linhas = []
-    for i, row in enumerate(df_raw.itertuples(index=False)):  # type: ignore
-        valores = list(row)
-        if not valores:
-            continue
-
-        s0 = str(valores[0]).strip()
-        if s0 and not s0.isdigit():
-            id_serie = s0
-            resto = valores[1:]
-        else:
-            id_serie = f"C{i+1}"
-            resto = valores
-
-        if len(resto) < 2:
-            continue
-
-        k_val = _coerce_int(resto[-1])
-        passageiros = [_coerce_int(x) for x in resto[:-1]]
-        passageiros = [p for p in passageiros if p > 0]
-
-        if not passageiros:
-            continue
-
-        linhas.append(
-            {
-                "id": id_serie,
-                "passageiros": passageiros,
-                "k": k_val,
-                "n_passageiros": len(passageiros),
-            }
-        )
-
-    df = pd.DataFrame(linhas)
-    if not df.empty:
-        df["idx_numeric"] = range(1, len(df) + 1)
-    return df
-
-
-# ------------------------------------------------------------
-# PARSER FLEX - TEXTO
-# ------------------------------------------------------------
-
-def preparar_historico_de_texto(texto: str) -> pd.DataFrame:
-    """
-    Converte histórico colado em texto em DataFrame padrão V14-FLEX.
-
-    Aceita linhas do tipo:
-    C1;41;5;4;52;30;33;0
-    41;5;4;52;30;33;0
-    41,5,4,52,30,33,0
-    41 5 4 52 30 33 0
-    """
-    linhas = []
-    for i, raw_line in enumerate(texto.splitlines()):
-        linha = raw_line.strip()
-        if not linha:
-            continue
-
-        if ";" in linha:
-            partes = [p.strip() for p in linha.split(";")]
-        elif "," in linha:
-            partes = [p.strip() for p in linha.split(",")]
-        else:
-            partes = [p.strip() for p in linha.split()]
-
-        if not partes:
-            continue
-
-        s0 = partes[0]
-        if s0 and not s0.isdigit():
-            id_serie = s0
-            resto = partes[1:]
-        else:
-            id_serie = f"C{i+1}"
-            resto = partes
-
-        if len(resto) < 2:
-            continue
-
-        k_val = _coerce_int(resto[-1])
-        passageiros = [_coerce_int(x) for x in resto[:-1]]
-        passageiros = [p for p in passageiros if p > 0]
-        if not passageiros:
-            continue
-
-        linhas.append(
-            {
-                "id": id_serie,
-                "passageiros": passageiros,
-                "k": k_val,
-                "n_passageiros": len(passageiros),
-            }
-        )
-
-    df = pd.DataFrame(linhas)
-    if not df.empty:
-        df["idx_numeric"] = range(1, len(df) + 1)
-    return df
-
-
-# ============================================================
-# MÓDULO DE RISCO — k & k*
-# ============================================================
-
-def avaliar_risco_k(df: pd.DataFrame) -> Tuple[str, str]:
-    """
-    Avalia risco histórico (k) e risco preditivo agregado (k*).
-    Retorna (desc_k, desc_k_star) em Markdown.
-    """
-    if df.empty or "k" not in df.columns:
-        return (
-            "⚠️ k histórico da série alvo\nDados insuficientes para avaliar.",
-            "⚡ k* (sentinela preditivo)\nDados insuficientes para projetar risco.",
-        )
-
-    # k histórico da última série
-    k_ultimo = int(df.iloc[-1]["k"])
-    if k_ultimo <= 0:
-        desc_k = (
-            "⚠️ k histórico da série alvo\n"
-            "🟢 Ambiente estável — previsão em regime normal."
-        )
-    elif k_ultimo == 1:
-        desc_k = (
-            "⚠️ k histórico da série alvo\n"
-            "🟡 Ambiente em atenção — sinais de pré-ruptura local."
-        )
-    else:
-        desc_k = (
-            "⚠️ k histórico da série alvo\n"
-            "🔴 Ambiente crítico — turbulência elevada na estrada."
-        )
-
-    # k* preditivo baseado na frequência de k>0 nas últimas N séries
-    n_janela = min(50, len(df))
-    sub = df.tail(n_janela)
-    proporcao_eventos = float((sub["k"] > 0).mean())
-    risco_pct = int(round(100 * proporcao_eventos))
-
-    if risco_pct <= 15:
-        desc_k_star = (
-            "⚡ k* (sentinela preditivo TURBO++)\n"
-            f"🟢 k*: Ambiente tende a permanecer estável (risco ≈ {risco_pct}%)."
-        )
-    elif risco_pct <= 40:
-        desc_k_star = (
-            "⚡ k* (sentinela preditivo TURBO++)\n"
-            f"🟡 k*: Ambiente com ruído moderado (risco ≈ {risco_pct}%)."
-        )
-    else:
-        desc_k_star = (
-            "⚡ k* (sentinela preditivo TURBO++)\n"
-            f"🔴 k*: Ambiente com alta turbulência (risco ≈ {risco_pct}%)."
-        )
-
-    return desc_k, desc_k_star
-
-
-def calcular_risco_pct_global(df: pd.DataFrame) -> int:
-    """
-    Retorna apenas o risco percentual k* (0–100), para uso no modo adaptativo.
-    """
-    if df.empty or "k" not in df.columns:
-        return 0
-    n_janela = min(50, len(df))
-    sub = df.tail(n_janela)
-    proporcao_eventos = float((sub["k"] > 0).mean())
-    risco_pct = int(round(100 * proporcao_eventos))
-    return risco_pct
-
-
-# ============================================================
-# PIPELINE V14-FLEX — IPF, IPO, S6, MODO E
-# ============================================================
-
-def extrair_contexto(df: pd.DataFrame, idx_alvo: int, janela: int = 30) -> pd.DataFrame:
-    """
-    Extrai janela de contexto antes da série alvo (não inclui a série alvo).
-    idx_alvo é 1-based.
-    """
-    if df.empty:
+        df = pd.read_csv(StringIO(raw), sep=r"\s+", header=None, engine="python")
+        df.columns = [f"c{i+1}" for i in range(df.shape[1])]
         return df
+    except Exception:
+        return pd.DataFrame()
 
-    pos = max(0, min(len(df) - 1, idx_alvo - 1))
-    inicio = max(0, pos - janela)
-    return df.iloc[inicio:pos].copy()
+# ============================================================
+# 2. BARÔMETRO ULTRA REAL — CLIMA DA ESTRADA
+# ============================================================
 
-
-def gerar_leque_original(contexto: pd.DataFrame) -> List[int]:
+def _volatilidade_janela(series: np.ndarray, janela: int) -> float:
     """
-    IPF simplificado: conta frequências dos passageiros na janela de contexto
-    e monta um leque ORIGINAL.
+    Volatilidade (desvio padrão) de uma série em janela deslizante.
+    Se não houver séries suficientes, usa tudo.
     """
-    if contexto.empty or "passageiros" not in contexto.columns:
-        return []
-
-    cont: Dict[int, int] = {}
-    for passageiros in contexto["passageiros"]:
-        for p in passageiros:
-            if NUM_MIN <= p <= NUM_MAX:
-                cont[p] = cont.get(p, 0) + 1
-
-    if not cont:
-        return []
-
-    ordenado = sorted(cont.items(), key=lambda kv: (-kv[1], kv[0]))
-    numeros = [n for n, _ in ordenado[:25]]
-    return sorted(set(numeros))
+    if len(series) == 0:
+        return 0.0
+    if len(series) <= janela:
+        return float(np.std(series))
+    return float(np.std(series[-janela:]))
 
 
-def gerar_leque_corrigido(contexto: pd.DataFrame, leque_original: List[int]) -> List[int]:
+def _dispersao_media_series(df: pd.DataFrame, cols_pass: List[str], janela: int = 40) -> float:
     """
-    IPO simplificado: reforça números dos últimos trechos,
-    removendo os muito raros do leque original.
+    Dispersão média por série:
+      - calcula o desvio padrão em cada série (linha) sobre os passageiros
+      - depois tira a média das últimas 'janela' séries
     """
-    if contexto.empty or not leque_original:
-        return leque_original
-
-    recente = contexto.tail(min(10, len(contexto)))
-    cont: Dict[int, int] = {}
-    for passageiros in recente["passageiros"]:
-        for p in passageiros:
-            if NUM_MIN <= p <= NUM_MAX:
-                cont[p] = cont.get(p, 0) + 1
-
-    filtrado = [n for n in leque_original if cont.get(n, 0) >= 1]
-
-    if not filtrado:
-        filtrado = leque_original
-
-    return sorted(set(filtrado))
+    if df is None or df.empty or not cols_pass:
+        return 0.0
+    arr = df[cols_pass].values.astype(float)
+    std_por_serie = np.std(arr, axis=1)
+    if len(std_por_serie) <= janela:
+        return float(np.mean(std_por_serie))
+    return float(np.mean(std_por_serie[-janela:]))
 
 
-def gerar_leque_misto(leque_original: List[int], leque_corrigido: List[int]) -> List[int]:
+def _entropia_normalizada(series: np.ndarray, n_bins: int = 20) -> float:
     """
-    S6 Profundo simplificado: união ORIGINAL + CORRIGIDO.
+    Entropia normalizada da distribuição da estrada.
+    Mede o quão 'espalhada' ou 'caótica' está a distribuição.
     """
-    return sorted(set(leque_original) | set(leque_corrigido))
+    if len(series) == 0:
+        return 0.0
+    hist, _ = np.histogram(series, bins=n_bins, density=True)
+    hist = hist + 1e-12  # evita log(0)
+    H = -np.sum(hist * np.log(hist))
+    H_max = np.log(len(hist))
+    if H_max == 0:
+        return 0.0
+    return float(H / H_max)
 
 
-def selecionar_serie_final_modo_E(leque_final: List[int]) -> List[int]:
+def calcular_barometro_ultra(df: pd.DataFrame) -> Dict[str, Any]:
     """
-    Seleciona a série final (6 passageiros) a partir do Leque Final.
-
-    Modo E — MIX Inteligente (A + B + D):
-    - recorte central
-    - espalhamento pelo leque
-    - remoção de extremos e ruídos óbvios
+    Calcula o BARÔMETRO ULTRA — clima da estrada.
+    Combina:
+      - volatilidade local (curto prazo)
+      - volatilidade global (médio prazo)
+      - dispersão média entre passageiros
+      - entropia da estrada
+      - variação de k
+    E produz:
+      - 'estado' ∈ {Calmo, Moderado, Turbulento, Ruptura Imminente}
+      - 'score' ∈ [0,1]
     """
-    if not leque_final:
-        return []
+    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
+    if df is None or df.empty or not cols_pass:
+        return {
+            "estado": "Indefinido",
+            "score": None,
+            "vol_local": 0.0,
+            "vol_global": 0.0,
+            "dispersao": 0.0,
+            "entropia": 0.0,
+            "var_k": 0.0,
+        }
 
-    numeros = sorted(set(leque_final))
-    n = len(numeros)
+    # Série somada dos passageiros — proxy da "energia da estrada"
+    arr_pass = df[cols_pass].values.astype(float)
+    soma = arr_pass.sum(axis=1)
 
-    if n <= 6:
-        return numeros
+    vol_local = _volatilidade_janela(soma, janela=12)   # curto prazo
+    vol_global = _volatilidade_janela(soma, janela=40)  # médio prazo
+    dispersao = _dispersao_media_series(df, cols_pass, janela=40)
+    entropia = _entropia_normalizada(soma, n_bins=20)
 
-    # Recorte central se houver muitos números
-    if n > 10:
-        corte = max(1, int(0.2 * n))
-        centro = numeros[corte:-corte]
-        if centro:
-            numeros = centro
-            n = len(numeros)
+    # Variação média de k
+    if col_k and col_k in df.columns:
+        kvals = df[col_k].astype(float).values
+        if len(kvals) > 1:
+            var_k = float(np.mean(np.abs(np.diff(kvals))))
+        else:
+            var_k = 0.0
+    else:
+        var_k = 0.0
 
-    # índices relativos para espalhar no leque
-    indices_relativos = [0.12, 0.30, 0.48, 0.62, 0.78, 0.90]
-    escolhidos: List[int] = []
-    usados = set()
+    # Normalizações aproximadas (calibráveis)
+    v_local_n = min(vol_local / 35.0, 1.0)
+    v_global_n = min(vol_global / 50.0, 1.0)
+    disp_n = min(dispersao / 22.0, 1.0)
+    entr_n = min(entropia / 3.5, 1.0)  # entropia normalizada já é [0,1], aqui é só para re-escala leve
+    var_k_n = min(var_k / 3.0, 1.0)
 
-    for rel in indices_relativos:
-        idx = int(round(rel * (n - 1)))
-        idx = max(0, min(n - 1, idx))
-        v = numeros[idx]
-        if v not in usados:
-            escolhidos.append(v)
-            usados.add(v)
+    # Score final (pesos podem ser recalibrados)
+    score = (
+        0.25 * v_local_n +
+        0.25 * v_global_n +
+        0.20 * disp_n +
+        0.15 * entr_n +
+        0.15 * var_k_n
+    )
+    score = float(round(score, 3))
 
-    # completar se faltar
-    if len(escolhidos) < 6:
-        for v in numeros:
-            if v not in usados:
-                escolhidos.append(v)
-                usados.add(v)
-                if len(escolhidos) == 6:
-                    break
-
-    return sorted(escolhidos)
-
-
-def executar_pipeline_v14_flex(
-    df: pd.DataFrame,
-    idx_alvo: int,
-    janela: int = 30,
-) -> Dict[str, Any]:
-    """
-    Executa o pipeline V14-FLEX completo para uma série alvo (idx_alvo, 1-based).
-    Retorna um dict com todos os elementos relevantes.
-    """
-    if df.empty:
-        return {}
-
-    idx_alvo = int(idx_alvo)
-    pos = max(0, min(len(df) - 1, idx_alvo - 1))
-    alvo_row = df.iloc[pos]
-
-    contexto = extrair_contexto(df, idx_alvo, janela)
-    leque_original = gerar_leque_original(contexto)
-    leque_corrigido = gerar_leque_corrigido(contexto, leque_original)
-    leque_misto = gerar_leque_misto(leque_original, leque_corrigido)
-    leque_final = leque_misto.copy()
-    serie_final = selecionar_serie_final_modo_E(leque_final)
-
-    desc_k, desc_k_star = avaliar_risco_k(df.iloc[: pos + 1])
+    # Classificação do regime
+    if score < 0.25:
+        estado = "Calmo"
+    elif score < 0.50:
+        estado = "Moderado"
+    elif score < 0.75:
+        estado = "Turbulento"
+    else:
+        estado = "Ruptura Imminente"
 
     return {
-        "id_alvo": alvo_row["id"],
-        "passageiros_alvo": alvo_row["passageiros"],
-        "k_alvo": int(alvo_row["k"]),
-        "leque_original": leque_original,
-        "leque_corrigido": leque_corrigido,
-        "leque_misto": leque_misto,
-        "leque_final": leque_final,
-        "serie_final": serie_final,
-        "desc_k": desc_k,
-        "desc_k_star": desc_k_star,
+        "estado": estado,
+        "score": score,
+        "vol_local": float(round(vol_local, 3)),
+        "vol_global": float(round(vol_global, 3)),
+        "dispersao": float(round(dispersao, 3)),
+        "entropia": float(round(entropia, 3)),
+        "var_k": float(round(var_k, 3)),
     }
 
-
 # ============================================================
-# MÓDULO — SÉRIES ALTERNATIVAS INTELIGENTES V14-FLEX
+# 3. k* ULTRA REAL — SENTINELA PREDITIVO
 # ============================================================
 
-def estimar_confiabilidade_heuristica(tipo: str, tamanho_leque: int) -> Dict[str, Any]:
+def calcular_kstar_ultra(df: pd.DataFrame,
+                         cols_pass: List[str],
+                         col_k: Optional[str]) -> Dict[str, Any]:
     """
-    Estima confiabilidade de forma heurística com base no tipo de série
-    e no tamanho do leque final.
+    k* ULTRA REAL:
+      - mede instabilidade estrutural da estrada
+      - combina:
+          * variação ponto a ponto dos passageiros (L1)
+          * dispersão média por série
+          * instabilidade do somatório (explosões/colapsos)
+          * variação de k
+    Produz:
+      - kstar ∈ [0,1]
+      - estado {estavel, atencao, critico}
+      - texto explicativo
     """
-    base_map = {
-        "principal": 0.75,
-        "conservadora": 0.80,
-        "intermediaria": 0.70,
-        "agressiva": 0.60,
-        "cluster": 0.68,
-        "asb": 0.70,
-    }
-    base = base_map.get(tipo, 0.65)
+    if df is None or df.empty or not cols_pass:
+        return {
+            "kstar": None,
+            "estado": "indefinido",
+            "texto": "Histórico insuficiente para calcular k*.",
+        }
 
-    # ajuste por tamanho de leque
-    if tamanho_leque <= 15:
-        base += 0.05
-    elif tamanho_leque >= 30:
-        base -= 0.05
+    arr = df[cols_pass].values.astype(float)
 
-    prob = max(0.40, min(0.95, base))
-
-    if prob >= 0.78:
-        nivel = "Alta"
-        faixa_acertos = "3–5 acertos prováveis em cenários típicos."
-    elif prob >= 0.65:
-        nivel = "Intermediária"
-        faixa_acertos = "2–4 acertos prováveis."
+    # 1) Variação média L1 dos passageiros entre séries
+    if len(arr) > 1:
+        diffs = np.abs(np.diff(arr, axis=0))
+        var_l1 = float(np.mean(diffs))
     else:
-        nivel = "Baixa"
-        faixa_acertos = "1–3 acertos prováveis."
+        var_l1 = 0.0
+
+    # 2) Dispersão média entre passageiros (por série)
+    disp_series = np.std(arr, axis=1)
+    disp_media = float(np.mean(disp_series)) if len(disp_series) > 0 else 0.0
+
+    # 3) Instabilidade do somatório (expansão/contração da estrada)
+    soma = arr.sum(axis=1)
+    if len(soma) > 1:
+        inst = float(np.mean(np.abs(np.diff(soma))))
+    else:
+        inst = 0.0
+
+    # 4) Variação de k
+    if col_k and col_k in df.columns:
+        kvals = df[col_k].astype(float).values
+        if len(kvals) > 1:
+            var_k = float(np.mean(np.abs(np.diff(kvals))))
+        else:
+            var_k = 0.0
+    else:
+        var_k = 0.0
+
+    # Normalizações calibráveis (pontos de sensibilidade)
+    n_l1 = min(var_l1 / 30.0, 1.0)
+    n_disp = min(disp_media / 25.0, 1.0)
+    n_inst = min(inst / 40.0, 1.0)
+    n_vk = min(var_k / 3.0, 1.0)
+
+    # k* final
+    kstar = (
+        0.35 * n_l1 +
+        0.25 * n_disp +
+        0.25 * n_inst +
+        0.15 * n_vk
+    )
+    kstar = float(round(kstar, 3))
+
+    # Estado interpretativo
+    if kstar < 0.33:
+        estado = "estavel"
+        texto = "🟢 k*: Estrada estável — regime coerente, sem sinais fortes de ruptura."
+    elif kstar < 0.66:
+        estado = "atencao"
+        texto = "🟡 k*: Pré-ruptura — surgem micro-instabilidades, usar previsões com atenção."
+    else:
+        estado = "critico"
+        texto = "🔴 k*: Instabilidade pesada — risco elevado de ruptura, usar com cautela máxima."
 
     return {
-        "prob": prob,
-        "nivel": nivel,
-        "faixa_acertos": faixa_acertos,
+        "kstar": kstar,
+        "estado": estado,
+        "texto": texto,
+        "detalhes": {
+            "var_l1": float(round(var_l1, 3)),
+            "disp_media": float(round(disp_media, 3)),
+            "instabilidade": float(round(inst, 3)),
+            "var_k": float(round(var_k, 3)),
+        },
+    }
+
+# ============================================================
+# 4. FERRAMENTAS ESTRUTURAIS — VETORES E SIMILARIDADE (BASE IDX)
+# ============================================================
+
+def vetor_estrutura_norm(row: pd.Series, cols_pass: List[str]) -> np.ndarray:
+    """
+    Converte uma série (linha do histórico) em vetor estrutural normalizado.
+    Mantém apenas a forma, sem escala absoluta.
+    """
+    v = row[cols_pass].astype(float).values
+    if len(v) == 0:
+        return np.zeros(1, dtype=float)
+    v_min = np.min(v)
+    v_max = np.max(v)
+    if v_max == v_min:
+        # série "plana" — retorna zeros (nenhuma forma definida)
+        return np.zeros_like(v, dtype=float)
+    return (v - v_min) / (v_max - v_min)
+
+
+def similaridade_estrutural_ultra(a: np.ndarray, b: np.ndarray) -> float:
+    """
+    Similaridade avançada:
+      - combina distância euclidiana e correlação.
+      - ideal para detectar "trechos de estrada" com forma parecida.
+    """
+    if len(a) != len(b):
+        m = min(len(a), len(b))
+        a = a[:m]
+        b = b[:m]
+
+    if len(a) == 0:
+        return 0.0
+
+    # Distância euclidiana
+    d = float(np.linalg.norm(a - b))
+
+    # Correlação (se houver pontos suficientes)
+    if len(a) > 2:
+        c = float(np.corrcoef(a, b)[0, 1])
+        if math.isnan(c):
+            c = 0.0
+    else:
+        c = 0.0
+
+    # Score:
+    # - exp(-d) garante decaimento suave por distância
+    # - (0.5 + 0.5*max(c,0)) valoriza correlação positiva
+    base = math.exp(-d)
+    fator_corr = 0.5 + 0.5 * max(c, 0.0)
+    score = base * fator_corr
+
+    return float(score)
+# ============================================================
+# 5. IDX ULTRA REAL — RANKING DE SIMILARIDADE ESTRUTURAL
+# ============================================================
+
+def idx_ultra_avancado(df: pd.DataFrame, idx_alvo: int) -> pd.DataFrame:
+    """
+    IDX ULTRA REAL:
+      - compara o alvo contra todas as outras séries
+      - usa vetor estrutural normalizado
+      - calcula similaridade avançada
+      - retorna ranking ordenado descendentemente
+    """
+    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
+    if df is None or df.empty or not cols_pass:
+        return pd.DataFrame()
+
+    # Série alvo
+    alvo = df.iloc[idx_alvo - 1]
+    v_alvo = vetor_estrutura_norm(alvo, cols_pass)
+
+    registros = []
+    for i in range(len(df)):
+        if i == idx_alvo - 1:
+            continue
+        v_i = vetor_estrutura_norm(df.iloc[i], cols_pass)
+        sim = similaridade_estrutural_ultra(v_alvo, v_i)
+        registros.append(
+            (i + 1, df.iloc[i][col_id], sim)
+        )
+
+    out = pd.DataFrame(registros, columns=["idx", "id", "similaridade"])
+    out = out.sort_values("similaridade", ascending=False).reset_index(drop=True)
+    return out
+
+
+# ============================================================
+# 6. NÚCLEO IPF / IPO ULTRA REAL
+# ============================================================
+
+def ipf_nucleo_puro_ultra(df: pd.DataFrame,
+                          idx_base: int,
+                          cols_pass: List[str]) -> List[int]:
+    """
+    Núcleo IPF REAL:
+      - pega série-base bruta
+      - mantém estrutura fiel
+      - retorna forma principal (padrão mais confiável)
+    """
+    base = df.iloc[idx_base - 1][cols_pass].astype(float).values
+    return [int(round(x)) for x in base]
+
+
+def ipo_nucleo_otimizado_ultra(df: pd.DataFrame,
+                               idx_base: int,
+                               cols_pass: List[str]) -> List[int]:
+    """
+    Núcleo IPO REAL:
+      - corrige micro-ruídos na base
+      - suaviza outliers
+      - reforça tendências dominantes
+    """
+    base = df.iloc[idx_base - 1][cols_pass].astype(float).values
+    # Suavização simples: média ponderada local
+    suav = []
+    for i in range(len(base)):
+        vizinhos = []
+        if i > 0:
+            vizinhos.append(base[i - 1])
+        vizinhos.append(base[i])
+        if i < len(base) - 1:
+            vizinhos.append(base[i + 1])
+        suav.append(int(round(np.mean(vizinhos))))
+    return suav
+
+
+def gerar_nucleos_ipf_ipo(df: pd.DataFrame,
+                          idx_alvo: int,
+                          top_n: int = 25) -> List[List[int]]:
+    """
+    Gera núcleos IPF/IPO (e blend) a partir do IDX ULTRA.
+    Será usado pelo S6 Profundo.
+    """
+    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
+
+    # Ranking IDX
+    rank = idx_ultra_avancado(df, idx_alvo)
+    if rank.empty:
+        return []
+
+    candidatos = []
+    top = rank.head(top_n)
+
+    for _, r in top.iterrows():
+        idx_base = int(r["idx"])
+
+        # IPF puro
+        ipf = ipf_nucleo_puro_ultra(df, idx_base, cols_pass)
+        candidatos.append(ipf)
+
+        # IPO otimizado
+        ipo = ipo_nucleo_otimizado_ultra(df, idx_base, cols_pass)
+        candidatos.append(ipo)
+
+        # Blend IPF/IPO
+        arr_ipf = np.array(ipf, dtype=float)
+        arr_ipo = np.array(ipo, dtype=float)
+        blend = np.round((arr_ipf + arr_ipo) / 2.0).astype(int).tolist()
+        candidatos.append(blend)
+
+    # Remover duplicados mantendo a ordem
+    uniq = []
+    seen = set()
+    for s in candidatos:
+        t = tuple(s)
+        if t not in seen:
+            uniq.append(s)
+            seen.add(t)
+
+    return uniq
+
+
+# ============================================================
+# 7. S6 PROFUNDO ULTRA REAL — CAMADAS 1 e 2
+# ============================================================
+
+def s6_profundo_base(series_list: List[List[int]],
+                     barometro: Dict[str, Any]) -> List[List[int]]:
+    """
+    S6 Profundo — Camada 1:
+      - Ajuste primário orientado pelo Barômetro (clima da estrada)
+      - Estratégias por regime:
+           * Calmo → compressão suave
+           * Moderado → correção leve de extremos
+           * Turbulento → expansão leve controlada
+           * Ruptura Imminente → estratégias dual (conservadora + agressiva)
+    """
+    estado = barometro.get("estado", "Moderado")
+    score = barometro.get("score", 0.5)
+
+    out = []
+
+    for s in series_list:
+        arr = np.array(s, dtype=float)
+        media = np.mean(arr)
+
+        if estado == "Calmo":
+            # Puxa levemente os valores para a média (suavização)
+            novo = arr + 0.15 * (media - arr)
+            out.append(np.round(novo).astype(int).tolist())
+
+        elif estado == "Moderado":
+            # Correção leve de extremos
+            q1 = np.quantile(arr, 0.25)
+            q3 = np.quantile(arr, 0.75)
+            novo = arr.copy()
+            novo[arr < q1] += 1
+            novo[arr > q3] -= 1
+            out.append(np.round(novo).astype(int).tolist())
+
+        elif estado == "Turbulento":
+            # Expansão moderada
+            fator = 1.0 + 0.4 * score
+            delta = (arr - media) * 0.10 * fator
+            novo = arr + delta
+            out.append(np.round(novo).astype(int).tolist())
+
+        else:  # Ruptura Imminente
+            # Estratégia duplicada: conservadora + agressiva
+            # Conservadora
+            cons = arr + 0.25 * (media - arr)
+            out.append(np.round(cons).astype(int).tolist())
+
+            # Agressiva: amplifica tendências
+            delta = (arr - media) * (0.25 + 0.25 * score)
+            aggr = arr + delta
+            out.append(np.round(aggr).astype(int).tolist())
+
+    # Remover duplicados
+    uniq = []
+    seen = set()
+    for s in out:
+        t = tuple(s)
+        if t not in seen:
+            uniq.append(s)
+            seen.add(t)
+
+    return uniq
+
+
+def s6_profundo_segunda_camada(series_list: List[List[int]],
+                               kstar_info: Dict[str, Any]) -> List[List[int]]:
+    """
+    S6 Profundo — Camada 2:
+      - Ajuste secundário orientado por k*
+      - Quanto maior o k* (instabilidade), maior a suavização estrutural
+      - Quanto menor o k*, mais preserva a forma bruta
+    """
+    kstar = kstar_info.get("kstar", 0.5)
+    out = []
+
+    for s in series_list:
+        arr = np.array(s, dtype=float)
+        media = np.mean(arr)
+
+        # Ajuste dependendo do nível de instabilidade
+        if kstar <= 0.33:
+            # Estrada estável → preservar forma original
+            novo = arr.copy()
+
+        elif kstar <= 0.66:
+            # Atenção → suavizar um pouco extremos
+            delta = (media - arr) * 0.10
+            novo = arr + delta
+
+        else:
+            # Crítico → puxar mais forte para a média (evitar explosões)
+            delta = (media - arr) * 0.20
+            novo = arr + delta
+
+        out.append(np.round(novo).astype(int).tolist())
+
+    # Deduplicação
+    uniq = []
+    seen = set()
+    for s in out:
+        t = tuple(s)
+        if t not in seen:
+            uniq.append(s)
+            seen.add(t)
+
+    return uniq
+
+
+# ============================================================
+# 8. UNIR LEQUES (S1 + IPF/IPO + S6)
+# ============================================================
+
+def unir_listas_sem_duplicatas(*listas: List[List[int]]) -> List[List[int]]:
+    """
+    Une várias listas de candidatos descartando duplicatas.
+    Mantém ordem original.
+    """
+    out = []
+    seen = set()
+    for lst in listas:
+        for s in lst:
+            t = tuple(s)
+            if t not in seen:
+                seen.add(t)
+                out.append(s)
+    return out
+
+
+# ============================================================
+# ------ FIM DA PARTE 2/4 ------
+# Cole a Parte 3/4 imediatamente na sequência, sem linhas em branco
+# ============================================================
+# ============================================================
+# 9. S1 VIZINHANÇA ULTRA + MICRO-LEQUE ULTRA
+# ============================================================
+
+def s1_vizinhanca_ultra(df: pd.DataFrame,
+                         idx_alvo: int,
+                         cols_pass: List[str],
+                         raio: int = 6) -> List[List[int]]:
+    """
+    S1 — Vizinhança ULTRA:
+      - Pega séries em torno do índice alvo (antes e depois)
+      - Considera um raio configurável
+      - Ideal para capturar "ondas locais" da estrada
+    """
+    n = len(df)
+    candidatos = []
+
+    for delta in range(-raio, raio + 1):
+        if delta == 0:
+            continue
+        pos = idx_alvo - 1 + delta
+        if 0 <= pos < n:
+            row = df.iloc[pos]
+            candidatos.append(row[cols_pass].astype(int).tolist())
+
+    # Remoção de duplicatas mantendo ordem
+    uniq = []
+    seen = set()
+    for s in candidatos:
+        t = tuple(s)
+        if t not in seen:
+            seen.add(t)
+            uniq.append(s)
+
+    return uniq
+
+
+def micro_leque_ultra(series_list: List[List[int]],
+                      intensidade: int = 2) -> List[List[int]]:
+    """
+    Micro-Leque ULTRA:
+      - Pequenos ajustes combinatórios nas séries base
+      - Perturbações leves em 1 ou 2 passageiros
+      - Mantém coerência da estrutura global
+    """
+    candidatos = []
+
+    for s in series_list:
+        base = np.array(s, dtype=int)
+
+        # Micro-ajustes em 1 passageiro
+        for _ in range(intensidade):
+            v = base.copy()
+            i = np.random.randint(0, len(v))
+            passo = np.random.choice([-2, -1, 1, 2])
+            v[i] = max(0, v[i] + passo)
+            candidatos.append(v.astype(int).tolist())
+
+        # Micro-ajustes em 2 passageiros
+        if len(base) >= 2:
+            for _ in range(intensidade):
+                v = base.copy()
+                i1, i2 = np.random.choice(len(v), 2, replace=False)
+                passo1 = np.random.choice([-1, 1])
+                passo2 = np.random.choice([-1, 1])
+                v[i1] = max(0, v[i1] + passo1)
+                v[i2] = max(0, v[i2] + passo2)
+                candidatos.append(v.astype(int).tolist())
+
+    # Remover duplicatas
+    uniq = []
+    seen = set()
+    for s in candidatos:
+        t = tuple(s)
+        if t not in seen:
+            uniq.append(s)
+            seen.add(t)
+
+    return uniq
+
+
+# ============================================================
+# 10. MONTE CARLO PROFUNDO ULTRA REAL
+# ============================================================
+
+def monte_carlo_profundo_ultra(series: List[List[int]],
+                               alvo_vec: np.ndarray,
+                               barometro: Dict[str, Any],
+                               kstar_info: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Monte Carlo Profundo ULTRA:
+      - Recebe um universo de séries candidatas
+      - Avalia cada uma em relação ao alvo e ao clima da estrada
+      - Combina:
+           * coerência estrutural (correlação com alvo)
+           * dispersão
+           * adequação ao regime (Barômetro)
+           * ajuste ao nível de instabilidade (k*)
+      - Retorna DataFrame com score e ranking
+    """
+    if not series:
+        return pd.DataFrame()
+
+    estado = barometro.get("estado", "Moderado")
+    reg_score = barometro.get("score", 0.5)
+    kstar = kstar_info.get("kstar", 0.5) if kstar_info.get("kstar") is not None else 0.5
+
+    registros = []
+
+    for s in series:
+        arr = np.array(s, dtype=float)
+
+        # Dispersão interna da série candidata
+        disp = float(np.std(arr))
+
+        # Coerência com o alvo (correlação)
+        if len(arr) != len(alvo_vec):
+            m = min(len(arr), len(alvo_vec))
+            a = arr[:m]
+            b = alvo_vec[:m]
+        else:
+            a = arr
+            b = alvo_vec
+
+        if len(a) > 2:
+            corr = float(np.corrcoef(a, b)[0, 1])
+            if math.isnan(corr):
+                corr = 0.0
+        else:
+            corr = 0.0
+
+        # Fator de regime (Barômetro)
+        if estado == "Calmo":
+            # preferir séries mais concentradas (menor dispersão)
+            reg_factor = 1.0 - 0.6 * reg_score
+        elif estado == "Moderado":
+            reg_factor = 1.0
+        elif estado == "Turbulento":
+            reg_factor = 0.8 + 0.2 * reg_score
+        else:  # Ruptura Imminente
+            reg_factor = 0.6 + 0.4 * reg_score
+
+        # Fator de confiança baseado em k*
+        if kstar <= 0.33:
+            k_factor = 1.0
+        elif kstar <= 0.66:
+            k_factor = 0.9
+        else:
+            k_factor = 0.75
+
+        # Normalizações básicas
+        disp_norm = 1.0 / (1.0 + disp)      # quanto menor a dispersão, maior este valor
+        corr_pos = max(corr, 0.0)           # correlação negativa não ajuda
+
+        # Score final — pesos calibráveis
+        score = (
+            0.45 * corr_pos +
+            0.25 * disp_norm +
+            0.15 * reg_factor +
+            0.15 * k_factor
+        )
+
+        registros.append({
+            "series": s,
+            "disp": float(round(disp, 3)),
+            "corr": float(round(corr, 3)),
+            "reg_factor": float(round(reg_factor, 3)),
+            "k_factor": float(round(k_factor, 3)),
+            "score": float(round(score, 6)),
+        })
+
+    df_mc = pd.DataFrame(registros)
+    df_mc = df_mc.sort_values("score", ascending=False).reset_index(drop=True)
+    df_mc["rank"] = np.arange(1, len(df_mc) + 1)
+
+    return df_mc
+
+
+# ============================================================
+# 11. PIPELINE ULTRA REAL — GERAÇÃO DE PREVISÕES
+# ============================================================
+
+def gerar_previsoes_ultra_real(df: pd.DataFrame,
+                               idx_alvo: int,
+                               n_final: int,
+                               barometro: Dict[str, Any],
+                               kstar_info: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Pipeline completo de previsão ULTRA REAL:
+      1) S1 Vizinhança
+      2) Núcleos IPF / IPO (IDX-based)
+      3) S6 Profundo (2 camadas)
+      4) Micro-Leque ULTRA
+      5) União dos leques
+      6) Monte Carlo Profundo ULTRA
+      7) Seleção final (Top N)
+    """
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
+    if not cols_pass:
+        return pd.DataFrame()
+
+    # Série alvo e vetor estrutural
+    alvo_row = df.iloc[idx_alvo - 1]
+    alvo_vec = alvo_row[cols_pass].astype(float).values
+
+    # 1) S1 — vizinhança local
+    leque_s1 = s1_vizinhanca_ultra(df, idx_alvo, cols_pass, raio=6)
+
+    # 2) Núcleos IPF / IPO recheados via IDX ULTRA
+    leque_ipf_ipo = gerar_nucleos_ipf_ipo(df, idx_alvo, top_n=25)
+
+    # Leque base inicial
+    base_primario = unir_listas_sem_duplicatas(leque_s1, leque_ipf_ipo)
+
+    # 3) S6 Profundo — camada 1
+    leque_s6_1 = s6_profundo_base(base_primario, barometro)
+
+    # 4) S6 Profundo — camada 2 (ajuste por k*)
+    leque_s6_2 = s6_profundo_segunda_camada(leque_s6_1, kstar_info)
+
+    # 5) Micro-Leque ULTRA
+    leque_micro = micro_leque_ultra(leque_s6_2, intensidade=3)
+
+    # Universo total de séries
+    universo = unir_listas_sem_duplicatas(
+        base_primario,
+        leque_s6_1,
+        leque_s6_2,
+        leque_micro,
+    )
+
+    # 6) Monte Carlo Profundo ULTRA
+    df_mc = monte_carlo_profundo_ultra(
+        universo,
+        alvo_vec,
+        barometro,
+        kstar_info,
+    )
+
+    if df_mc.empty:
+        return pd.DataFrame()
+
+    # 7) Seleção final
+    df_final = df_mc.head(n_final).reset_index(drop=True)
+    return df_final
+
+
+# ============================================================
+# 12. QDS REAL + BACKTEST REAL ULTRA
+# ============================================================
+
+def calcular_qds_real(df: pd.DataFrame,
+                      horizonte: int = 80,
+                      n_final: int = 20) -> Dict[str, Any]:
+    """
+    QDS REAL ULTRA:
+      - Roda o motor completo nas últimas 'horizonte' séries
+      - Compara sempre com a série seguinte (verdade histórica)
+      - Mede:
+          * média de acertos de passageiros
+          * QDS = média_acertos / nº de passageiros
+          * nº de casos válidos avaliados
+    """
+    if df is None or df.empty or len(df) < horizonte + 5:
+        return {"qds": None, "media_acertos": None, "n_casos": 0}
+
+    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
+    if not cols_pass:
+        return {"qds": None, "media_acertos": None, "n_casos": 0}
+
+    # Pré-cálculo global de barômetro e k* (aproximação para QDS)
+    barometro = calcular_barometro_ultra(df)
+    kstar_info = calcular_kstar_ultra(df, cols_pass, col_k)
+
+    inicio = max(1, len(df) - horizonte)
+    acertos = []
+
+    for idx_alvo in range(inicio, len(df) - 1):
+        df_prev = gerar_previsoes_ultra_real(
+            df,
+            idx_alvo,
+            n_final,
+            barometro,
+            kstar_info,
+        )
+        if df_prev.empty:
+            continue
+
+        # Série real (seguinte ao alvo)
+        real_row = df.iloc[idx_alvo]
+        real = set(real_row[cols_pass].astype(int).tolist())
+
+        melhor = df_prev.iloc[0]["series"]
+        prev = set(melhor)
+
+        ac = len(real.intersection(prev))
+        acertos.append(ac)
+
+    if not acertos:
+        return {"qds": None, "media_acertos": None, "n_casos": 0}
+
+    media_ac = float(np.mean(acertos))
+    n_pass = len(cols_pass)
+    qds = float(round(media_ac / max(n_pass, 1), 3))
+
+    return {
+        "qds": qds,
+        "media_acertos": media_ac,
+        "n_casos": len(acertos),
     }
 
 
-def _escolher_seis(numeros: List[int], indices_relativos: List[float]) -> List[int]:
+# ============================================================
+# 13. REPLAY ULTRA — HISTÓRICO PASSO A PASSO
+# ============================================================
+
+def gerar_replay_ultra(df: pd.DataFrame,
+                       n_final: int = 15) -> pd.DataFrame:
     """
-    Escolhe 6 números de um leque usando índices relativos (0–1).
+    Replay ULTRA:
+      - Para cada índice alvo (até o penúltimo),
+      - roda o motor completo,
+      - registra:
+          * id alvo
+          * id real (série seguinte)
+          * previsão principal
+          * série real
+          * nº de acertos
+      - Permite auditar o comportamento do motor no histórico.
     """
-    if not numeros:
-        return []
+    if df is None or df.empty:
+        return pd.DataFrame()
 
-    nums = sorted(set(numeros))
-    n = len(nums)
-    if n <= 6:
-        return nums
+    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
+    if not cols_pass:
+        return pd.DataFrame()
 
-    usados = set()
-    escolhidos: List[int] = []
-    for rel in indices_relativos:
-        idx = int(round(rel * (n - 1)))
-        idx = max(0, min(n - 1, idx))
-        v = nums[idx]
-        if v not in usados:
-            escolhidos.append(v)
-            usados.add(v)
+    barometro = calcular_barometro_ultra(df)
+    kstar_info = calcular_kstar_ultra(df, cols_pass, col_k)
 
-    if len(escolhidos) < 6:
-        for v in nums:
-            if v not in usados:
-                escolhidos.append(v)
-                usados.add(v)
-                if len(escolhidos) == 6:
-                    break
+    registros = []
 
-    return sorted(escolhidos)
+    for idx_alvo in range(1, len(df) - 1):
+        df_prev = gerar_previsoes_ultra_real(
+            df,
+            idx_alvo,
+            n_final,
+            barometro,
+            kstar_info,
+        )
+        if df_prev.empty:
+            continue
 
+        # Verdade histórica → série seguinte ao alvo
+        real_row = df.iloc[idx_alvo]
+        real = set(real_row[cols_pass].astype(int).tolist())
 
-def gerar_series_alternativas_inteligentes(
-    leque_final: List[int],
-    serie_principal: List[int],
-) -> List[Dict[str, Any]]:
-    """
-    Gera séries alternativas A–E a partir do leque_final e da série principal.
+        melhor = df_prev.iloc[0]["series"]
+        prev = set(melhor)
 
-    Retorna lista de dicts com:
-    - nome
-    - tipo
-    - serie (list[int])
-    - descricao
-    - confiabilidade (dict com prob, nivel, faixa_acertos)
-    """
-    if not leque_final:
-        return []
+        ac = len(real.intersection(prev))
 
-    nums = sorted(set(leque_final))
-    tam = len(nums)
+        registros.append({
+            "idx_alvo": idx_alvo,
+            "id_alvo": df.iloc[idx_alvo - 1][col_id],
+            "id_real": df.iloc[idx_alvo][col_id],
+            "previsao": melhor,
+            "real": list(real),
+            "acertos": ac,
+        })
 
-    # Principal (Modo E)
-    conf_principal = estimar_confiabilidade_heuristica("principal", tam)
-    series: List[Dict[str, Any]] = [
-        {
-            "nome": "Série Principal (Modo E)",
-            "tipo": "principal",
-            "serie": serie_principal,
-            "descricao": "Equilíbrio geral do leque — MIX Inteligente (A+B+D).",
-            "confiabilidade": conf_principal,
-        }
-    ]
+    if not registros:
+        return pd.DataFrame()
 
-    # A) Conservadora — foco ainda mais central
-    if tam > 10:
-        corte = max(1, int(0.25 * tam))
-        centro = nums[corte:-corte] or nums
-    else:
-        centro = nums
-
-    serie_A = _escolher_seis(centro, [0.18, 0.30, 0.42, 0.58, 0.70, 0.82])
-    conf_A = estimar_confiabilidade_heuristica("conservadora", tam)
-    series.append(
-        {
-            "nome": "Série A — Conservadora",
-            "tipo": "conservadora",
-            "serie": serie_A,
-            "descricao": "Núcleo mais central do leque, priorizando estabilidade.",
-            "confiabilidade": conf_A,
-        }
-    )
-
-    # B) Intermediária — variação suave em torno do leque inteiro
-    indices_B = [0.12, 0.28, 0.44, 0.60, 0.76, 0.90]
-    serie_B = _escolher_seis(nums, indices_B)
-    conf_B = estimar_confiabilidade_heuristica("intermediaria", tam)
-    series.append(
-        {
-            "nome": "Série B — Intermediária Estruturada",
-            "tipo": "intermediaria",
-            "serie": serie_B,
-            "descricao": "Combina estrutura central com abertura para faixas vizinhas.",
-            "confiabilidade": conf_B,
-        }
-    )
-
-    # C) Agressiva — usa bordas e meio
-    indices_C = [0.0, 0.18, 0.36, 0.64, 0.82, 1.0]
-    serie_C = _escolher_seis(nums, indices_C)
-    conf_C = estimar_confiabilidade_heuristica("agressiva", tam)
-    series.append(
-        {
-            "nome": "Série C — Agressiva",
-            "tipo": "agressiva",
-            "serie": serie_C,
-            "descricao": "Explora bordas e zonas menos óbvias do leque para cenários extremos.",
-            "confiabilidade": conf_C,
-        }
-    )
-
-    # D) Cluster Puro — foco na faixa mais densa
-    if tam >= 8:
-        inicio = int(0.30 * tam)
-        fim = int(0.70 * tam)
-        cluster = nums[inicio:fim] or nums
-    else:
-        cluster = nums
-
-    serie_D = _escolher_seis(cluster, [0.05, 0.25, 0.45, 0.60, 0.80, 0.95])
-    conf_D = estimar_confiabilidade_heuristica("cluster", tam)
-    series.append(
-        {
-            "nome": "Série D — Cluster Puro",
-            "tipo": "cluster",
-            "serie": serie_D,
-            "descricao": "Foca na faixa mais densa do leque, simulando o cluster dominante.",
-            "confiabilidade": conf_D,
-        }
-    )
-
-    # E) Anti-SelfBias — desloca padrão central
-    indices_E = [0.10, 0.32, 0.40, 0.55, 0.68, 0.88]
-    serie_E = _escolher_seis(nums, indices_E)
-    conf_E = estimar_confiabilidade_heuristica("asb", tam)
-    series.append(
-        {
-            "nome": "Série E — Anti-SelfBias",
-            "tipo": "asb",
-            "serie": serie_E,
-            "descricao": "Quebra padrões óbvios do leque para reduzir enviesamento.",
-            "confiabilidade": conf_E,
-        }
-    )
-
-    return series
+    return pd.DataFrame(registros)
 
 
 # ============================================================
-# PAINEL 1 — HISTÓRICO — ENTRADA
+# 14. DISTRIBUIÇÃO DE k — SUPORTE AO MONITOR DE RISCO
 # ============================================================
 
-def painel_historico_entrada() -> None:
-    st.markdown("## 📥 Histórico — Entrada")
+def calcular_distribuicao_k(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Estatísticas de k para o Monitor de Risco:
+      - média
+      - desvio padrão
+      - distribuição de frequências
+    """
+    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
+    if col_k is None or col_k not in df.columns:
+        return {"media": None, "std": None, "freq": {}, "col_k": None}
 
-    df = st.session_state.get("df")
-    if df is not None and not df.empty:
-        st.success("Histórico já carregado na sessão.")
-        st.dataframe(df[["id", "passageiros", "k", "n_passageiros"]])
+    serie = df[col_k].astype(float)
+    media = float(serie.mean())
+    std = float(serie.std(ddof=0)) if len(serie) > 1 else 0.0
+    freq = serie.value_counts().sort_index().to_dict()
 
+    return {
+        "media": media,
+        "std": std,
+        "freq": freq,
+        "col_k": col_k,
+    }
+
+# ============================================================
+# ------ FIM DA PARTE 3/4 ------
+# Cole a Parte 4/4 imediatamente na sequência
+# ============================================================
+# ============================================================
+# 15. INTERFACE STREAMLIT — PAINÉIS COMPLETOS
+# ============================================================
+
+def painel_historico_entrada():
+    """
+    Painel 1 — Histórico — Entrada
+    Permite carregar o histórico via:
+      - upload de CSV
+      - texto colado
+    E monta o DataFrame interno no formato FLEX.
+    """
+    st.markdown("## 📥 Histórico — Entrada (Modo FLEX ULTRA)")
+
+    df_local = None
     opc = st.radio(
         "Como deseja carregar o histórico?",
         ["Enviar arquivo CSV", "Copiar e colar o histórico"],
+        horizontal=False,
     )
 
     if opc == "Enviar arquivo CSV":
         file = st.file_uploader("Selecione o arquivo CSV:", type=["csv"])
         if file is not None:
             try:
-                df_raw = pd.read_csv(file, header=None, sep=None, engine="python")
-                df = preparar_historico_V14(df_raw)
-                st.session_state["df"] = df
+                df_raw = pd.read_csv(file)
+                df_local = preparar_historico_flex(df_raw)
+                st.session_state["df"] = df_local
                 st.success("Histórico carregado com sucesso!")
-                st.dataframe(df[["id", "passageiros", "k", "n_passageiros"]])
+                st.dataframe(df_local.head(30), use_container_width=True)
             except Exception as e:
                 st.error(f"Erro ao carregar CSV: {e}")
+
     else:
         texto = st.text_area(
-            "Cole o histórico aqui (uma série por linha):",
-            height=200,
-            placeholder="Exemplo:\nC1;41;5;4;52;30;33;0\nC2;9;39;37;49;43;41;1\n...",
+            "Cole o histórico (ex: C1;41;5;4;52;30;33;0):",
+            height=220,
         )
-        if st.button("Processar histórico colado"):
-            if not texto.strip():
-                st.warning("Cole algum conteúdo antes de processar.")
-            else:
-                try:
-                    df = preparar_historico_de_texto(texto)
-                    if df.empty:
-                        st.error("Não foi possível interpretar o histórico.")
-                    else:
-                        st.session_state["df"] = df
-                        st.success("Histórico carregado com sucesso!")
-                        st.dataframe(df[["id", "passageiros", "k", "n_passageiros"]])
-                except Exception as e:
-                    st.error(f"Erro ao processar texto: {e}")
+        if st.button("Processar texto colado"):
+            try:
+                df_raw = parse_text_to_df(texto)
+                if df_raw.empty:
+                    st.error("Não foi possível interpretar o texto colado.")
+                else:
+                    df_local = preparar_historico_flex(df_raw)
+                    st.session_state["df"] = df_local
+                    st.success("Histórico carregado com sucesso a partir do texto!")
+                    st.dataframe(df_local.head(30), use_container_width=True)
+            except Exception as e:
+                st.error(f"Erro ao processar texto: {e}")
+
+    st.markdown("---")
+    df = st.session_state.get("df", None)
+    if df is not None and not df.empty:
+        cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("Nº de séries", len(df))
+        with c2:
+            st.metric("Nº de passageiros", len(cols_pass))
+        with c3:
+            st.metric("Coluna de k", col_k if col_k else "N/A")
 
 
-# ============================================================
-# PAINEL 2 — PIPELINE V14-FLEX (TURBO++)
-# ============================================================
+def painel_pipeline_ultra():
+    """
+    Painel 2 — Pipeline V14-FLEX ULTRA
+    Executa o pipeline completo de previsão para um índice alvo específico.
+    """
+    st.markdown("## 🔍 Pipeline V14-FLEX ULTRA — Execução Direta")
 
-def painel_pipeline_v14_flex() -> None:
-    st.markdown("## 🔍 Pipeline V14-FLEX (TURBO++)")
-
-    df = st.session_state.get("df")
+    df = st.session_state.get("df", None)
     if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
-        return
+        st.warning("Carregue primeiro o histórico no painel '📥 Histórico — Entrada'.")
+        st.stop()
 
-    col1, col2 = st.columns(2)
+    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
 
-    with col1:
-        st.write("### Seleção da série alvo")
-        idx_min = 1
-        idx_max = len(df)
+    c1, c2 = st.columns(2)
+    with c1:
         idx_alvo = st.number_input(
-            "Índice alvo (1 = primeira série carregada):",
-            min_value=idx_min,
-            max_value=idx_max,
-            value=idx_max,
-            step=1,
-        )
-        alvo_row = df.iloc[int(idx_alvo) - 1]
-        st.markdown(f"**ID alvo:** {alvo_row['id']}")
-        st.markdown(f"**Passageiros alvo:** {alvo_row['passageiros']}")
-        st.markdown(f"**k alvo:** {int(alvo_row['k'])}")
-
-    with col2:
-        st.write("### Configuração da janela de contexto")
-        janela = st.slider(
-            "Janela de contexto (séries anteriores usadas no IPF/IPO):",
-            min_value=10,
-            max_value=100,
-            value=min(30, len(df) - 1 if len(df) > 1 else 10),
-            step=1,
-        )
-
-    if st.button("Executar Pipeline V14-FLEX TURBO++"):
-        with st.spinner("Rodando pipeline V14-FLEX TURBO++..."):
-            resultado = executar_pipeline_v14_flex(df, idx_alvo, janela=janela)
-
-        if not resultado:
-            st.error("Não foi possível executar o pipeline.")
-            return
-
-        st.markdown("### Estrutura dos Leques")
-
-        st.write("Leque ORIGINAL (IPF bruto)")
-        st.code(" ".join(str(x) for x in resultado["leque_original"]), language="text")
-
-        st.write("🔧 Leque CORRIGIDO (IPO simplificado)")
-        st.code(" ".join(str(x) for x in resultado["leque_corrigido"]), language="text")
-
-        st.write("🧬 S6 Profundo — Leque MISTO (achado e ranqueado)")
-        st.code(" ".join(str(x) for x in resultado["leque_misto"]), language="text")
-
-        st.write("🎯 Núcleo TURBO++ FLEX (previsão bruta do motor)")
-        st.code(" ".join(str(x) for x in resultado["leque_final"]), language="text")
-
-        st.markdown("---")
-        st.markdown(resultado["desc_k"])
-        st.markdown("")
-        st.markdown(resultado["desc_k_star"])
-
-        st.markdown("---")
-        st.markdown("### 🎯 Previsão Final TURBO++ FLEX (Modo E)")
-        serie_final = resultado["serie_final"]
-        if serie_final:
-            st.code(" ".join(str(x) for x in serie_final), language="text")
-            st.success("Série final gerada com sucesso.")
-        else:
-            st.warning("Não foi possível gerar a série final a partir do leque.")
-
-        st.session_state["ultimo_pipeline"] = {
-            "idx_alvo": int(idx_alvo),
-            "resultado": resultado,
-        }
-
-
-# ============================================================
-# PAINEL 3 — MONITOR DE RISCO (k & k*)
-# ============================================================
-
-def painel_monitor_risco() -> None:
-    st.markdown("## 🚨 Monitor de Risco (k & k*)")
-
-    df = st.session_state.get("df")
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
-        return
-
-    desc_k, desc_k_star = avaliar_risco_k(df)
-
-    st.markdown("### Visão geral do risco")
-    st.markdown(desc_k)
-    st.markdown("")
-    st.markdown(desc_k_star)
-
-    st.markdown("---")
-    st.markdown("### Distribuição de k no histórico")
-    st.dataframe(df[["id", "k"]].reset_index(drop=True))
-
-
-# ============================================================
-# PAINEL 4 — MODO TURBO++ — PAINEL COMPLETO
-# ============================================================
-
-def painel_modo_turbo_completo() -> None:
-    st.markdown("## 🚀 Modo TURBO++ — Painel Completo")
-
-    df = st.session_state.get("df")
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
-        return
-
-    ultimo = st.session_state.get("ultimo_pipeline")
-    if not ultimo:
-        st.info(
-            "Execute primeiro o painel '🔍 Pipeline V14-FLEX (TURBO++)' "
-            "para popular este modo."
-        )
-        return
-
-    resultado = ultimo["resultado"]
-
-    st.markdown(f"### Série alvo: **{resultado['id_alvo']}**")
-    st.markdown(f"Passageiros alvo: **{resultado['passageiros_alvo']}**")
-    st.markdown(f"k alvo: **{resultado['k_alvo']}**")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("#### Leque ORIGINAL (IPF)")
-        st.code(" ".join(str(x) for x in resultado["leque_original"]), language="text")
-
-        st.markdown("#### Leque CORRIGIDO (IPO)")
-        st.code(" ".join(str(x) for x in resultado["leque_corrigido"]), language="text")
-
-    with col2:
-        st.markdown("#### Leque MISTO (S6 Profundo)")
-        st.code(" ".join(str(x) for x in resultado["leque_misto"]), language="text")
-
-        st.markdown("#### Núcleo TURBO++ FLEX (Leque final)")
-        st.code(" ".join(str(x) for x in resultado["leque_final"]), language="text")
-
-    st.markdown("---")
-    st.markdown("### 🎯 Previsão Final TURBO++ FLEX (Modo E)")
-    serie_final = resultado["serie_final"]
-    if serie_final:
-        st.code(" ".join(str(x) for x in serie_final), language="text")
-    else:
-        st.warning("Série final não disponível.")
-
-    st.markdown("---")
-    st.markdown("### Contexto de risco")
-    st.markdown(resultado["desc_k"])
-    st.markdown("")
-    st.markdown(resultado["desc_k_star"])
-
-
-# ============================================================
-# FUNÇÃO DE ACERTOS (REAPROVEITADA)
-# ============================================================
-
-def calcular_acertos(p_real: List[int], p_prev: List[int]) -> int:
-    return len(set(p_real) & set(p_prev))
-
-
-# ============================================================
-# PAINEL 5 — MODO REPLAY AUTOMÁTICO DO HISTÓRICO
-# ============================================================
-
-def painel_modo_replay() -> None:
-    st.markdown("## 📅 Modo Replay Automático do Histórico")
-
-    df = st.session_state.get("df")
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
-        return
-
-    st.markdown(
-        "Neste modo, o V14-FLEX REPLAY simula previsões ao longo do histórico "
-        "e mede os acertos de forma empírica."
-    )
-
-    if len(df) < 3:
-        st.warning("Histórico muito curto para replay automático.")
-        return
-
-    idx_min = 2
-    idx_max = len(df) - 1
-
-    col1, col2 = st.columns(2)
-    with col1:
-        inicio = st.number_input(
-            "Índice inicial para replay (previsão para a próxima série):",
-            min_value=idx_min,
-            max_value=idx_max,
-            value=idx_min,
-            step=1,
-        )
-    with col2:
-        fim = st.number_input(
-            "Índice final para replay:",
-            min_value=inicio,
-            max_value=idx_max,
-            value=idx_max,
-            step=1,
-        )
-
-    if st.button("Executar Replay Automático"):
-        resultados = []
-        total = 0
-
-        with st.spinner("Executando replay ao longo do histórico..."):
-            for idx_prev in range(int(inicio), int(fim) + 1):
-                # previsão para série idx_prev usando contexto até idx_prev-1
-                resultado = executar_pipeline_v14_flex(df, idx_prev - 1)
-                if not resultado:
-                    continue
-
-                real_row = df.iloc[idx_prev - 1]
-                passageiros_reais = list(real_row["passageiros"])
-                serie_prev = resultado["serie_final"]
-                acertos = calcular_acertos(passageiros_reais, serie_prev)
-
-                resultados.append(
-                    {
-                        "idx_prev": idx_prev - 1,
-                        "idx_real": idx_prev,
-                        "id_prev": resultado["id_alvo"],
-                        "id_real": real_row["id"],
-                        "prev": serie_prev,
-                        "real": passageiros_reais,
-                        "acertos": acertos,
-                    }
-                )
-                total += 1
-
-        if not resultados:
-            st.error("Replay não gerou resultados.")
-            return
-
-        df_res = pd.DataFrame(resultados)
-        st.session_state["replay_resultados"] = df_res
-
-        st.success(f"Replay concluído com {total} previsões.")
-        st.markdown("### Amostra de resultados do Replay")
-        st.dataframe(df_res.head(50))
-
-        st.markdown("---")
-        st.markdown("### Estatísticas rápidas")
-        media_acertos = float(df_res["acertos"].mean())
-        st.markdown(f"**Média de acertos por série:** {media_acertos:.2f}")
-
-        for n in [2, 3, 4, 5, 6]:
-            pct = 100 * float((df_res["acertos"] >= n).mean())
-            st.markdown(f"Séries com **≥{n} acertos**: {pct:.1f}%")
-
-
-# ============================================================
-# PAINEL 6 — TESTES DE CONFIABILIDADE (EMPÍRICO)
-# ============================================================
-
-def painel_testes_confiabilidade() -> None:
-    st.markdown("## 🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)")
-
-    df_replay = st.session_state.get("replay_resultados")
-    if df_replay is None or df_replay.empty:
-        st.info(
-            "Execute primeiro o '📅 Modo Replay Automático do Histórico' "
-            "para gerar dados de backtest."
-        )
-        return
-
-    st.markdown("### Visão geral dos resultados do Replay")
-    st.dataframe(df_replay)
-
-    st.markdown("---")
-    st.markdown("### Métricas de confiabilidade empírica")
-
-    media_acertos = float(df_replay["acertos"].mean())
-    st.markdown(f"**Média de acertos por série:** {media_acertos:.2f}")
-
-    for n in [2, 3, 4, 5, 6]:
-        pct = 100 * float((df_replay["acertos"] >= n).mean())
-        st.markdown(f"- Séries com **≥{n} acertos**: {pct:.1f}%")
-
-    if media_acertos < 2.0:
-        nivel = "Baixa"
-        cor = "🔴"
-    elif media_acertos < 3.5:
-        nivel = "Intermediária"
-        cor = "🟡"
-    else:
-        nivel = "Alta"
-        cor = "🟢"
-
-    st.markdown("---")
-    st.markdown(f"### {cor} Nível de confiabilidade empírica: **{nivel}**")
-    st.markdown(
-        "Este painel usa apenas os resultados do Replay (backtest interno) como base "
-        "para a confiabilidade. Módulos QDS / Backtest avançado / Monte Carlo "
-        "podem ser acoplados futuramente em cima destas métricas."
-    )
-
-
-# ============================================================
-# PAINEL 7 — SÉRIES ALTERNATIVAS INTELIGENTES V14-FLEX
-# ============================================================
-
-def painel_series_alternativas_inteligentes() -> None:
-    st.markdown("## 🎛 Séries Alternativas Inteligentes V14-FLEX")
-
-    df = st.session_state.get("df")
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
-        return
-
-    ultimo = st.session_state.get("ultimo_pipeline")
-    if not ultimo or "resultado" not in ultimo:
-        st.info(
-            "Execute primeiro o painel '🔍 Pipeline V14-FLEX (TURBO++)' "
-            "para gerar o leque final e a série principal."
-        )
-        return
-
-    resultado = ultimo["resultado"]
-    leque_final = resultado.get("leque_final", [])
-    serie_principal = resultado.get("serie_final", [])
-
-    if not leque_final or not serie_principal:
-        st.warning("Não há leque final ou série principal disponíveis.")
-        return
-
-    series_alt = gerar_series_alternativas_inteligentes(leque_final, serie_principal)
-    if not series_alt:
-        st.warning("Não foi possível gerar séries alternativas.")
-        return
-
-    modo = st.radio(
-        "Selecione o modo de visualização:",
-        ["🔹 Modo Automático", "🧪 Modo Avançado por Confiabilidade"],
-    )
-
-    st.markdown("### Contexto atual da estrada")
-    st.markdown(resultado.get("desc_k", ""))
-    st.markdown("")
-    st.markdown(resultado.get("desc_k_star", ""))
-
-    st.markdown("---")
-
-    if modo == "🔹 Modo Automático":
-        st.markdown("### Séries sugeridas automaticamente pelo motor V14-FLEX")
-
-        for s in series_alt:
-            conf = s["confiabilidade"]
-            serie = s["serie"]
-            if not serie:
-                continue
-
-            with st.expander(f"{s['nome']}"):
-                st.code(" ".join(str(x) for x in serie), language="text")
-                st.markdown(f"**Estilo:** {s['descricao']}")
-                st.markdown(
-                    f"**Confiabilidade estimada:** {conf['nivel']} "
-                    f"(~{conf['prob']*100:.0f}%)"
-                )
-                st.markdown(f"**Acertos prováveis:** {conf['faixa_acertos']}")
-                st.markdown(
-                    "Obs.: estimativas baseadas em heurísticas internas do V14-FLEX, "
-                    "levando em conta o leque final e o regime atual."
-                )
-    else:
-        st.markdown("### 🧪 Modo Avançado por Confiabilidade")
-
-        conf_desejada = st.slider(
-            "Confiabilidade desejada (estimativa aproximada):",
-            min_value=50,
-            max_value=95,
-            value=75,
-            step=1,
-            help=(
-                "O sistema tentará selecionar séries cuja confiabilidade heurística "
-                "seja próxima ou acima deste valor."
-            ),
-        )
-
-        max_series = st.slider(
-            "Número máximo de séries a exibir:",
+            "Índice alvo (1 = primeira série):",
             min_value=1,
-            max_value=10,
-            value=min(5, len(series_alt)),
+            max_value=len(df),
+            value=len(df),
             step=1,
         )
+    with c2:
+        n_final = st.slider(
+            "Quantidade de séries de saída (Top N):",
+            min_value=5,
+            max_value=80,
+            value=25,
+            step=5,
+        )
 
-        if st.button("Calcular séries recomendadas"):
-            alvo = conf_desejada / 100.0
-
-            ordenadas = sorted(
-                series_alt,
-                key=lambda s: abs(s["confiabilidade"]["prob"] - alvo),
+    if st.button("Executar Pipeline ULTRA REAL"):
+        with st.spinner("Rodando IPF/IPO + S6 + Micro-Leque + Monte Carlo Profundo..."):
+            barometro = calcular_barometro_ultra(df)
+            kstar_info = calcular_kstar_ultra(df, cols_pass, col_k)
+            df_prev = gerar_previsoes_ultra_real(
+                df,
+                idx_alvo,
+                n_final,
+                barometro,
+                kstar_info,
             )
 
-            selecionadas = []
-            for s in ordenadas:
-                if len(selecionadas) >= max_series:
-                    break
-                selecionadas.append(s)
+        if df_prev.empty:
+            st.error("Não foi possível gerar previsões.")
+        else:
+            st.success("Pipeline ULTRA executado com sucesso.")
 
-            if not selecionadas:
-                st.warning("Nenhuma série pôde ser selecionada para esse nível.")
-                return
-
-            probs = [s["confiabilidade"]["prob"] for s in selecionadas]
-            prob_media = sum(probs) / len(probs)
-
-            st.markdown(
-                f"**Séries selecionadas:** {len(selecionadas)} "
-                f"(confiabilidade média ~{prob_media*100:.0f}%)."
-            )
-            st.markdown(
-                "As séries abaixo são as mais alinhadas com o nível de confiabilidade "
-                "solicitado, dentro das heurísticas internas do V14-FLEX."
+            df_view = df_prev.copy()
+            df_view["series_str"] = df_view["series"].apply(
+                lambda s: " ".join(str(x) for x in s)
             )
 
-            st.markdown("---")
+            st.markdown("### 🎯 Saída ULTRA — Séries de Previsão (Top N)")
+            st.dataframe(
+                df_view[
+                    ["rank", "series_str", "score", "disp", "corr", "reg_factor", "k_factor"]
+                ],
+                use_container_width=True,
+            )
 
-            for s in selecionadas:
-                conf = s["confiabilidade"]
-                serie = s["serie"]
-                if not serie:
-                    continue
-
-                with st.expander(f"{s['nome']}"):
-                    st.code(" ".join(str(x) for x in serie), language="text")
-                    st.markdown(f"**Estilo:** {s['descricao']}")
-                    st.markdown(
-                        f"**Confiabilidade estimada:** {conf['nivel']} "
-                        f"(~{conf['prob']*100:.0f}%)"
-                    )
-                    st.markdown(f"**Acertos prováveis:** {conf['faixa_acertos']}")
+            melhor = df_prev.iloc[0]["series"]
+            st.markdown("### 🏁 Previsão Principal")
+            st.code(" ".join(str(x) for x in melhor), language="text")
 
 
-# ============================================================
-# PAINEL 8 — TESTE AVANÇADO DAS SÉRIES ALTERNATIVAS (Principal + A–E)
-# ============================================================
+def painel_monitor_risco():
+    """
+    Painel 3 — Monitor de Risco (Barômetro + k*)
+    Mostra:
+      - estatísticas de k
+      - Barômetro ULTRA
+      - k* ULTRA (sentinela preditivo)
+    """
+    st.markdown("## 🚨 Monitor de Risco — Barômetro + k* ULTRA")
 
-def painel_teste_avancado_series_alternativas() -> None:
-    st.markdown("## 📊 Teste Avançado das Séries Alternativas (Principal + A–E)")
-
-    df = st.session_state.get("df")
+    df = st.session_state.get("df", None)
     if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
-        return
+        st.warning("Carregue o histórico primeiro.")
+        st.stop()
 
-    if len(df) < 3:
-        st.warning("Histórico muito curto para testes avançados.")
-        return
+    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
 
-    st.markdown(
-        "Este painel executa o pipeline V14-FLEX ao longo do histórico e, "
-        "para cada ponto, gera a Série Principal (Modo E) e as alternativas "
-        "(A–E), medindo os acertos de cada uma frente à série real."
-    )
+    dist_k = calcular_distribuicao_k(df)
+    barometro = calcular_barometro_ultra(df)
+    kstar_info = calcular_kstar_ultra(df, cols_pass, col_k)
 
-    idx_min = 2
-    idx_max = len(df) - 1
-
-    col1, col2 = st.columns(2)
-    with col1:
-        inicio = st.number_input(
-            "Índice inicial para teste (previsão para a próxima série):",
-            min_value=idx_min,
-            max_value=idx_max,
-            value=idx_min,
-            step=1,
+    # Estatísticas de k
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric(
+            "Média de k",
+            f"{dist_k['media']:.2f}" if dist_k["media"] is not None else "N/A",
         )
-    with col2:
-        fim = st.number_input(
-            "Índice final para teste:",
-            min_value=inicio,
-            max_value=idx_max,
-            value=idx_max,
-            step=1,
+    with c2:
+        st.metric(
+            "Desvio padrão de k",
+            f"{dist_k['std']:.2f}" if dist_k["std"] is not None else "N/A",
         )
+    with c3:
+        st.metric("Nº de séries", len(df))
 
-    if st.button("Executar Teste Avançado A–E"):
-        resultados = []
-        total = 0
-
-        with st.spinner("Executando teste avançado ao longo do histórico..."):
-            for idx_prev in range(int(inicio), int(fim) + 1):
-                # pipeline para previsão da série idx_prev usando contexto até idx_prev-1
-                resultado = executar_pipeline_v14_flex(df, idx_prev - 1)
-                if not resultado:
-                    continue
-
-                leque_final = resultado.get("leque_final", [])
-                serie_principal = resultado.get("serie_final", [])
-                if not leque_final or not serie_principal:
-                    continue
-
-                series_alt = gerar_series_alternativas_inteligentes(
-                    leque_final,
-                    serie_principal,
-                )
-                if not series_alt:
-                    continue
-
-                real_row = df.iloc[idx_prev - 1]
-                passageiros_reais = list(real_row["passageiros"])
-
-                linha_resultado: Dict[str, Any] = {
-                    "idx_prev": idx_prev - 1,
-                    "idx_real": idx_prev,
-                    "id_real": real_row["id"],
-                    "passageiros_reais": passageiros_reais,
-                }
-
-                for s in series_alt:
-                    nome = s["nome"]
-                    serie = s["serie"]
-                    acertos = calcular_acertos(passageiros_reais, serie)
-                    linha_resultado[f"acertos_{nome}"] = acertos
-
-                resultados.append(linha_resultado)
-                total += 1
-
-        if not resultados:
-            st.error("Teste avançado não gerou resultados.")
-            return
-
-        df_res = pd.DataFrame(resultados)
-        st.session_state["teste_avancado_series"] = df_res
-
-        st.success(f"Teste avançado concluído com {total} previsões.")
-        st.markdown("### Amostra de resultados (Primeiras linhas)")
-        st.dataframe(df_res.head(50))
-
-        # Métricas agregadas por série
-        st.markdown("---")
-        st.markdown("### Métricas agregadas por série alternativa")
-
-        colunas_acertos = [
-            c for c in df_res.columns if c.startswith("acertos_")
-        ]
-        if not colunas_acertos:
-            st.warning("Nenhuma coluna de acertos encontrada.")
-            return
-
-        linhas_metricas = []
-        for col in colunas_acertos:
-            media = float(df_res[col].mean())
-            freq_ge2 = 100 * float((df_res[col] >= 2).mean())
-            freq_ge3 = 100 * float((df_res[col] >= 3).mean())
-            freq_ge4 = 100 * float((df_res[col] >= 4).mean())
-            linhas_metricas.append(
-                {
-                    "Série": col.replace("acertos_", ""),
-                    "Média de acertos": round(media, 2),
-                    "≥2 acertos (%)": round(freq_ge2, 1),
-                    "≥3 acertos (%)": round(freq_ge3, 1),
-                    "≥4 acertos (%)": round(freq_ge4, 1),
-                }
-            )
-
-        df_metricas = pd.DataFrame(linhas_metricas).sort_values(
-            by="Média de acertos", ascending=False
-        )
-        st.dataframe(df_metricas.reset_index(drop=True))
-
-        st.markdown(
-            "Estas métricas mostram, ao longo do intervalo analisado, "
-            "qual série (Principal, A, B, C, D, E) apresentou melhor desempenho "
-            "em termos de acertos médios e frequência de acertos mais altos."
-        )
-
-
-# ============================================================
-# PAINEL 9 — MODO ADAPTATIVO V14-FLEX (Saída Recomendada)
-# ============================================================
-
-def painel_modo_adaptativo_v14() -> None:
-    st.markdown("## 🎯 Modo Adaptativo V14-FLEX — Saída Recomendada")
-
-    df = st.session_state.get("df")
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
-        return
-
-    ultimo = st.session_state.get("ultimo_pipeline")
-    if not ultimo or "resultado" not in ultimo:
-        st.info(
-            "Execute primeiro o painel '🔍 Pipeline V14-FLEX (TURBO++)' "
-            "para gerar o leque final e a série principal."
-        )
-        return
-
-    resultado = ultimo["resultado"]
-    leque_final = resultado.get("leque_final", [])
-    serie_principal = resultado.get("serie_final", [])
-
-    if not leque_final or not serie_principal:
-        st.warning("Não há leque final ou série principal disponíveis.")
-        return
-
-    # Gera séries alternativas
-    series_alt = gerar_series_alternativas_inteligentes(leque_final, serie_principal)
-    if not series_alt:
-        st.warning("Não foi possível gerar séries alternativas.")
-        return
-
-    # Calcula risco k* global (histórico)
-    risco_pct = calcular_risco_pct_global(df)
-
-    if risco_pct >= 60:
-        regime = "Alta turbulência"
-        cor = "🔴"
-        recomendadas_nomes = [
-            "Série A — Conservadora",
-            "Série Principal (Modo E)",
-            "Série E — Anti-SelfBias",
-        ]
-        comentario = (
-            "Ambiente turbulento: priorizar estabilidade (A), núcleo estrutural (Principal) "
-            "e quebra de viés (E)."
-        )
-    elif risco_pct >= 30:
-        regime = "Ruído moderado"
-        cor = "🟡"
-        recomendadas_nomes = [
-            "Série Principal (Modo E)",
-            "Série B — Intermediária Estruturada",
-            "Série D — Cluster Puro",
-        ]
-        comentario = (
-            "Ambiente com ruído moderado: equilibrar núcleo (Principal), estrutura intermediária (B) "
-            "e cluster dominante (D)."
-        )
+    st.markdown("### 🔢 Distribuição de k")
+    if dist_k["freq"]:
+        df_freq = pd.DataFrame(
+            [{"k": k, "freq": v} for k, v in dist_k["freq"].items()]
+        ).sort_values("k")
+        st.dataframe(df_freq, use_container_width=True)
     else:
-        regime = "Baixa turbulência"
-        cor = "🟢"
-        recomendadas_nomes = [
-            "Série Principal (Modo E)",
-            "Série A — Conservadora",
-        ]
-        comentario = (
-            "Ambiente estável: foco em núcleo bem estruturado (Principal) e série conservadora (A)."
+        st.info("Não há dados suficientes para estatísticas de k.")
+
+    st.markdown("---")
+    # Barômetro ULTRA
+    st.markdown("### 🌡️ Barômetro ULTRA — Clima da Estrada")
+    b1, b2, b3, b4 = st.columns(4)
+    with b1:
+        st.metric("Regime", barometro["estado"])
+    with b2:
+        st.metric("Score de regime (0–1)", barometro["score"])
+    with b3:
+        st.metric("Volatilidade local", f"{barometro['vol_local']:.2f}")
+    with b4:
+        st.metric("Dispersão média", f"{barometro['dispersao']:.2f}")
+
+    st.markdown("---")
+    # k* ULTRA
+    st.markdown("### 🧭 k* ULTRA — Sentinela Preditivo")
+    if kstar_info["kstar"] is not None:
+        st.metric("k* (0–1)", kstar_info["kstar"])
+    st.info(kstar_info["texto"])
+
+
+def painel_turbo_adaptativo():
+    """
+    Painel 4 — Modo TURBO++ Adaptativo
+    Reúne:
+      - estado da estrada (Barômetro + k*)
+      - IDX ULTRA do alvo
+      - Leque ULTRA + Monte Carlo Profundo
+      - Previsão final TURBO++
+    """
+    st.markdown("## 🚀 Modo TURBO++ Adaptativo — Painel Completo")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro.")
+        st.stop()
+
+    cols_pass, col_id, col_k = detectar_colunas_passageiros(df)
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        idx_alvo = st.number_input(
+            "Índice alvo (1 = primeira série):",
+            min_value=1,
+            max_value=len(df),
+            value=len(df),
+            step=1,
+        )
+    with c2:
+        n_final = st.slider(
+            "Nº de séries na saída ULTRA:",
+            min_value=10,
+            max_value=80,
+            value=30,
+            step=5,
+        )
+    with c3:
+        mostra_idx = st.checkbox(
+            "Mostrar IDX completo (núcleo de similaridade)",
+            value=True,
         )
 
-    st.markdown(
-        f"{cor} **Regime adaptativo detectado:** {regime} "
-        f"(k* ≈ {risco_pct}%)"
+    if st.button("Rodar TURBO++ Adaptativo"):
+        with st.spinner("Executando TURBO++ ULTRA..."):
+            barometro = calcular_barometro_ultra(df)
+            kstar_info = calcular_kstar_ultra(df, cols_pass, col_k)
+            rank_idx = idx_ultra_avancado(df, idx_alvo) if mostra_idx else pd.DataFrame()
+            df_prev = gerar_previsoes_ultra_real(
+                df,
+                idx_alvo,
+                n_final,
+                barometro,
+                kstar_info,
+            )
+
+        if df_prev.empty:
+            st.error("Não foi possível gerar previsões.")
+            st.stop()
+
+        st.success("Modo TURBO++ executado.")
+
+        # 1) Estado da estrada
+        st.markdown("### 1️⃣ Estado da Estrada (Barômetro + k*)")
+        a1, a2, a3 = st.columns(3)
+        with a1:
+            st.metric("Regime", barometro["estado"])
+        with a2:
+            st.metric("Score de regime", barometro["score"])
+        with a3:
+            if kstar_info["kstar"] is not None:
+                st.metric("k* (0–1)", kstar_info["kstar"])
+            else:
+                st.metric("k* (0–1)", "N/A")
+        st.info(kstar_info["texto"])
+
+        st.markdown("---")
+
+        # 2) IDX ULTRA
+        if mostra_idx and not rank_idx.empty:
+            st.markdown("### 2️⃣ IDX ULTRA — Núcleo de Similaridade")
+            st.dataframe(rank_idx.head(30), use_container_width=True)
+
+        st.markdown("---")
+
+        # 3) Leque ULTRA + Monte Carlo Profundo
+        st.markdown("### 3️⃣ Leque ULTRA + Monte Carlo Profundo — Saída Final")
+        df_view = df_prev.copy()
+        df_view["series_str"] = df_view["series"].apply(
+            lambda s: " ".join(str(x) for x in s)
+        )
+
+        st.dataframe(
+            df_view[
+                ["rank", "series_str", "score", "disp", "corr", "reg_factor", "k_factor"]
+            ],
+            use_container_width=True,
+        )
+
+        melhor = df_prev.iloc[0]["series"]
+        st.markdown("### 🎯 Previsão Final TURBO++")
+        st.code(" ".join(str(x) for x in melhor), language="text")
+
+
+def painel_replay_ultra():
+    """
+    Painel 5 — Replay Automático ULTRA
+    Mostra o que o motor teria feito passo a passo no histórico.
+    """
+    st.markdown("## 📅 Replay Automático ULTRA — Passo a Passo")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro.")
+        st.stop()
+
+    n_final = st.slider(
+        "Nº de séries na saída ULTRA (por passo do replay):",
+        min_value=5,
+        max_value=40,
+        value=15,
+        step=5,
     )
-    st.markdown(comentario)
 
-    st.markdown("---")
-    st.markdown("### Séries recomendadas automaticamente para este regime")
+    if st.button("Rodar Replay ULTRA"):
+        with st.spinner("Executando Replay passo a passo..."):
+            df_rep = gerar_replay_ultra(df, n_final=n_final)
 
-    # Índice rápido por nome
-    series_por_nome = {s["nome"]: s for s in series_alt}
+        if df_rep.empty:
+            st.error("Replay não produziu resultados.")
+        else:
+            st.success("Replay executado.")
+            st.dataframe(df_rep.head(100), use_container_width=True)
 
-    for nome in recomendadas_nomes:
-        s = series_por_nome.get(nome)
-        if not s:
-            continue
-        conf = s["confiabilidade"]
-        serie = s["serie"]
-        if not serie:
-            continue
+            media_ac = float(df_rep["acertos"].mean())
+            max_ac = int(df_rep["acertos"].max())
+            n_casos = len(df_rep)
 
-        with st.expander(f"{nome} — RECOMENDADA"):
-            st.code(" ".join(str(x) for x in serie), language="text")
-            st.markdown(f"**Estilo:** {s['descricao']}")
+            r1, r2, r3 = st.columns(3)
+            with r1:
+                st.metric("Média de acertos", f"{media_ac:.2f}")
+            with r2:
+                st.metric("Máximo de acertos", max_ac)
+            with r3:
+                st.metric("Nº de casos avaliados", n_casos)
+
+
+def painel_qds_backtest():
+    """
+    Painel 6 — Confiabilidade — QDS / Backtest
+    Calcula QDS REAL ULTRA e mostra interpretação.
+    """
+    st.markdown("## 🧪 Confiabilidade — QDS REAL / Backtest REAL")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro.")
+        st.stop()
+
+    horizonte = st.slider(
+        "Horizonte para QDS / Backtest (últimas N séries):",
+        min_value=20,
+        max_value=250,
+        value=80,
+        step=10,
+    )
+
+    n_final = st.slider(
+        "Nº de séries na saída ULTRA (para cada teste):",
+        min_value=5,
+        max_value=40,
+        value=20,
+        step=5,
+    )
+
+    if st.button("Rodar QDS REAL / Backtest REAL"):
+        with st.spinner("Calculando QDS e Backtest ULTRA..."):
+            info = calcular_qds_real(df, horizonte=horizonte, n_final=n_final)
+
+        if info["n_casos"] == 0:
+            st.error("Não foi possível calcular QDS / Backtest (poucos casos válidos).")
+        else:
+            st.success("QDS / Backtest calculados.")
+
+            q1, q2, q3 = st.columns(3)
+            with q1:
+                st.metric(
+                    "QDS (0–1)",
+                    info["qds"] if info["qds"] is not None else "N/A",
+                )
+            with q2:
+                st.metric(
+                    "Média de acertos",
+                    f"{info['media_acertos']:.2f}",
+                )
+            with q3:
+                st.metric(
+                    "Nº de casos avaliados",
+                    info["n_casos"],
+                )
+
             st.markdown(
-                f"**Confiabilidade estimada:** {conf['nivel']} "
-                f"(~{conf['prob']*100:.0f}%)"
-            )
-            st.markdown(f"**Acertos prováveis:** {conf['faixa_acertos']}")
-            st.markdown(
-                "Marcada como recomendada pelo modo adaptativo V14-FLEX "
-                "para o regime atual da estrada."
+                """
+                **Leitura sugerida do QDS:**
+                - QDS > 0.70 → motor extremamente aderente ao histórico recente.
+                - QDS entre 0.50 e 0.70 → aderência boa, mas com ruído.
+                - QDS entre 0.30 e 0.50 → regime de atenção / necessidade de ajuste fino.
+                - QDS < 0.30 → baixa aderência; revisar parâmetros, regime ou janela.
+                """
             )
 
-    st.markdown("---")
-    st.markdown("### Outras séries disponíveis (visão completa)")
+# ============================================================
+# 16. FUNÇÃO PRINCIPAL (main)
+# ============================================================
 
-    for s in series_alt:
-        if s["nome"] in recomendadas_nomes:
-            continue
-        conf = s["confiabilidade"]
-        serie = s["serie"]
-        if not serie:
-            continue
+def main():
+    """
+    Função principal do app Streamlit.
+    Define o layout geral, navegação lateral e chama os painéis.
+    """
+    st.title("🚗 Predict Cars V14-FLEX ULTRA REAL (TURBO++)")
+    st.caption(
+        "Versão FLEX ULTRA REAL — todos os módulos refinados "
+        "integrados ao Barômetro, k*, IDX, S6, Micro-Leque, Monte Carlo e QDS."
+    )
 
-        with st.expander(f"{s['nome']}"):
-            st.code(" ".join(str(x) for x in serie), language="text")
-            st.markdown(f"**Estilo:** {s['descricao']}")
-            st.markdown(
-                f"**Confiabilidade estimada:** {conf['nivel']} "
-                f"(~{conf['prob']*100:.0f}%)"
-            )
-            st.markdown(f"**Acertos prováveis:** {conf['faixa_acertos']}")
+    # Inicializa DataFrame na sessão, se ainda não existir
+    if "df" not in st.session_state:
+        st.session_state["df"] = None
+
+    st.sidebar.header("Navegação")
+    painel = st.sidebar.radio(
+        "Escolha o painel:",
+        [
+            "📥 Histórico — Entrada",
+            "🔍 Pipeline V14-FLEX ULTRA",
+            "🚨 Monitor de Risco (Barômetro + k*)",
+            "🚀 Modo TURBO++ Adaptativo",
+            "📅 Replay Automático ULTRA",
+            "🧪 Confiabilidade — QDS / Backtest",
+        ],
+    )
+
+    if painel == "📥 Histórico — Entrada":
+        painel_historico_entrada()
+    elif painel == "🔍 Pipeline V14-FLEX ULTRA":
+        painel_pipeline_ultra()
+    elif painel == "🚨 Monitor de Risco (Barômetro + k*)":
+        painel_monitor_risco()
+    elif painel == "🚀 Modo TURBO++ Adaptativo":
+        painel_turbo_adaptativo()
+    elif painel == "📅 Replay Automático ULTRA":
+        painel_replay_ultra()
+    elif painel == "🧪 Confiabilidade — QDS / Backtest":
+        painel_qds_backtest()
 
 
 # ============================================================
-# ROTEADOR PRINCIPAL DE PAINÉIS
+# 17. PONTO DE ENTRADA
 # ============================================================
 
-painel = st.radio(
-    "Escolha o painel:",
-    [
-        "📥 Histórico — Entrada",
-        "🔍 Pipeline V14-FLEX (TURBO++)",
-        "🚨 Monitor de Risco (k & k*)",
-        "🚀 Modo TURBO++ — Painel Completo",
-        "📅 Modo Replay Automático do Histórico",
-        "🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)",
-        "🎛 Séries Alternativas Inteligentes V14-FLEX",
-        "📊 Teste Avançado das Séries Alternativas (Principal + A–E)",
-        "🎯 Modo Adaptativo V14-FLEX (Saída Recomendada)",
-    ],
-)
-
-if painel == "📥 Histórico — Entrada":
-    painel_historico_entrada()
-elif painel == "🔍 Pipeline V14-FLEX (TURBO++)":
-    painel_pipeline_v14_flex()
-elif painel == "🚨 Monitor de Risco (k & k*)":
-    painel_monitor_risco()
-elif painel == "🚀 Modo TURBO++ — Painel Completo":
-    painel_modo_turbo_completo()
-elif painel == "📅 Modo Replay Automático do Histórico":
-    painel_modo_replay()
-elif painel == "🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)":
-    painel_testes_confiabilidade()
-elif painel == "🎛 Séries Alternativas Inteligentes V14-FLEX":
-    painel_series_alternativas_inteligentes()
-elif painel == "📊 Teste Avançado das Séries Alternativas (Principal + A–E)":
-    painel_teste_avancado_series_alternativas()
-elif painel == "🎯 Modo Adaptativo V14-FLEX (Saída Recomendada)":
-    painel_modo_adaptativo_v14()
+if __name__ == "__main__":
+    main()
