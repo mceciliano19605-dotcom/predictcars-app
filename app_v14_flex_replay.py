@@ -506,12 +506,12 @@ def montar_previsao_turbo_ultra(
     import pandas as pd
     import streamlit as st
 
-    progresso = st.progress(0)           # barra de progresso
-    status = st.empty()                  # texto de status
+    progresso = st.progress(0)
+    status = st.empty()
 
-    # ---------------------------------------------
-    # ETAPA 1 — Gerar S6 Profundo
-    # ---------------------------------------------
+    # ============================================================
+    # ETAPA 1: S6 PROFUNDO ULTRA
+    # ============================================================
     progresso.progress(5)
     status.write("🔧 Gerando S6 Profundo ULTRA...")
 
@@ -523,8 +523,8 @@ def montar_previsao_turbo_ultra(
     )
 
     if df_s6 is None or df_s6.empty:
-        st.error("S6 Profundo falhou ao gerar séries.")
-        return None
+        st.error("S6 Profundo ULTRA não gerou dados.")
+        return pd.DataFrame()
 
     df_s6 = df_s6.copy()
     df_s6["score_s6"] = df_s6["score"].astype(float)
@@ -532,11 +532,11 @@ def montar_previsao_turbo_ultra(
     df_s6["score_micro"] = 0.0
 
     progresso.progress(20)
-    status.write("🔧 S6 Profundo gerado com sucesso.")
+    status.write("🔧 S6 Profundo concluído.")
 
-    # ---------------------------------------------
-    # ETAPA 2 — Gerar Monte Carlo Profundo ULTRA
-    # ---------------------------------------------
+    # ============================================================
+    # ETAPA 2: MONTE CARLO PROFUNDO ULTRA
+    # ============================================================
     progresso.progress(25)
     status.write("🎲 Executando Monte Carlo Profundo ULTRA...")
 
@@ -548,8 +548,8 @@ def montar_previsao_turbo_ultra(
     )
 
     if df_mc is None or df_mc.empty:
-        st.error("Monte Carlo Profundo não gerou resultados.")
-        return None
+        st.error("Monte Carlo Profundo ULTRA não gerou dados.")
+        return pd.DataFrame()
 
     df_mc = df_mc.copy()
     df_mc["score_s6"] = 0.0
@@ -557,21 +557,19 @@ def montar_previsao_turbo_ultra(
     df_mc["score_micro"] = 0.0
 
     progresso.progress(55)
-    status.write("🎲 Monte Carlo Profundo concluído.")
+    status.write("🎲 Monte Carlo concluído.")
 
-    # ---------------------------------------------
-    # ETAPA 3 — Gerar Micro-Leque ULTRA
-    # ---------------------------------------------
+    # ============================================================
+    # ETAPA 3: MICRO-LEQUE ULTRA
+    # ============================================================
     progresso.progress(60)
     status.write("🪶 Gerando Micro-Leque ULTRA...")
 
-    df_micro = gerar_micro_leque_ultra(
-        df,
-        idx_alvo=idx_alvo,
-    )
+    df_micro = gerar_micro_leque_ultra(df, idx_alvo=idx_alvo)
 
     if df_micro is None or df_micro.empty:
         df_micro = pd.DataFrame(columns=["series", "score"])
+
     df_micro = df_micro.copy()
     df_micro["score_s6"] = 0.0
     df_micro["score_mc"] = 0.0
@@ -580,17 +578,17 @@ def montar_previsao_turbo_ultra(
     progresso.progress(70)
     status.write("🪶 Micro-Leque pronto.")
 
-    # ---------------------------------------------
-    # ETAPA 4 — Unificação das tabelas
-    # ---------------------------------------------
+    # ============================================================
+    # ETAPA 4: UNIFICAÇÃO
+    # ============================================================
     progresso.progress(75)
-    status.write("🔗 Unificando tabelas...")
+    status.write("🔗 Unificando resultados...")
 
     df_all = pd.concat([df_s6, df_mc, df_micro], ignore_index=True)
 
-    # ---------------------------------------------
-    # ETAPA 5 — NORMALIZAÇÃO DAS SÉRIES (CORREÇÃO DO ERRO)
-    # ---------------------------------------------
+    # ============================================================
+    # ETAPA 5: NORMALIZAÇÃO DAS SÉRIES
+    # ============================================================
     progresso.progress(80)
     status.write("🧩 Normalizando séries...")
 
@@ -599,11 +597,11 @@ def montar_previsao_turbo_ultra(
             return tuple()
         if isinstance(s, str):
             try:
-                valores = [int(x) for x in s.replace(",", " ").split() if x.isdigit()]
-                return tuple(valores)
+                vals = [int(x) for x in s.replace(",", " ").split() if x.isdigit()]
+                return tuple(vals)
             except:
                 return tuple()
-        if isinstance(s, (list, tuple, np.ndarray)):
+        if isinstance(s, (tuple, list, np.ndarray)):
             try:
                 return tuple(int(x) for x in s)
             except:
@@ -611,15 +609,15 @@ def montar_previsao_turbo_ultra(
         return tuple()
 
     df_all["series"] = df_all["series"].apply(normalizar_serie)
-    df_all = df_all[df_all["series"].apply(lambda x: len(x) > 0)]
+    df_all = df_all[df_all["series"].apply(lambda x: len(x) > 0)].copy()
 
-    progresso.progress(85)
+    progresso.progress(90)
     status.write("🧩 Séries normalizadas.")
 
-    # ---------------------------------------------
-    # ETAPA 6 — FUSÃO ULTRA
-    # ---------------------------------------------
-    progresso.progress(90)
+    # ============================================================
+    # ETAPA 6: FUSÃO FINAL ULTRA
+    # ============================================================
+    progresso.progress(95)
     status.write("⚖️ Aplicando fusão ULTRA...")
 
     df_fusao = (
@@ -646,6 +644,7 @@ def montar_previsao_turbo_ultra(
     status.write("✨ Fusão ULTRA concluída.")
 
     return df_fusao
+
 
 
 
