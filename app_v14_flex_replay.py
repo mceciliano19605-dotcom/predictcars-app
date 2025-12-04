@@ -689,15 +689,16 @@ def executar_pipeline_turbo_ultra_para_replay(
     df_turbo = montar_previsao_turbo_ultra(
         df,
         idx_alvo=idx_alvo,
-        n_series_saida=params["n_series_saida"],
-        window_s6=params["window_s6"],
-        window_mc=params["window_mc"],
+        n_s6=params["n_series_saida"],
+        janela_s6=params["window_s6"],
+        janela_mc=params["window_mc"],
         n_sim_mc=params["n_sim_mc"],
-        incluir_micro_leque=params["incluir_micro_leque"],
         peso_s6=params["peso_s6"],
         peso_mc=params["peso_mc"],
         peso_micro=params["peso_micro"],
     )
+
+
 
     if df_turbo is None or df_turbo.empty:
         return {"ok": False, "df": pd.DataFrame(), "serie_top1": None}
