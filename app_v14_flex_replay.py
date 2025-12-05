@@ -1,9 +1,18 @@
 # app_v14_flex_replay.py
 # Predict Cars V14-FLEX ULTRA REAL (TURBO++)
-# Versão COMPLETA e FINAL — sem simplificações
-# Inclui: Entrada FLEX, Barômetro ULTRA, k*, IDX ULTRA, IPF/IPO,
-# S6 Profundo ULTRA, Micro-Leque ULTRA, Monte Carlo ULTRA (patch),
-# Fusão ULTRA, Replay LIGHT, Replay ULTRA, QDS REAL, Modo TURBO++ ULTRA.
+# Versão COMPLETA — sem simplificações
+# - Entrada FLEX (n variável de passageiros, detecção automática de k)
+# - Barômetro ULTRA REAL
+# - k* ULTRA REAL
+# - IDX ULTRA
+# - IPF / IPO / IPO ASB
+# - S6 Profundo ULTRA
+# - Micro-Leque ULTRA
+# - Monte Carlo Profundo ULTRA (versão robusta, sem np.unique nas séries)
+# - Fusão ULTRA
+# - QDS REAL + Backtest REAL
+# - Replay LIGHT / Replay ULTRA
+# - Modo TURBO++ ULTRA
 
 import itertools
 from dataclasses import dataclass
@@ -24,12 +33,14 @@ st.set_page_config(
 st.markdown(
     """
 # Predict Cars V14-FLEX REPLAY — ULTRA REAL (TURBO++)
+
 Versão FLEX: número **variável** de passageiros + Modo TURBO++ ULTRA + Replay + QDS/Backtest/Monte Carlo.
 """
 )
 
+
 # -------------------------------------------------------------------
-# DATACLASSES AUXILIARES
+# DATACLASSES
 # -------------------------------------------------------------------
 
 @dataclass
@@ -39,17 +50,20 @@ class BarometroEstado:
     media_k: float
     msg: str
 
+
 @dataclass
 class KStarEstado:
     k_star_pct: float
     estado: str
     msg: str
 
+
 @dataclass
 class IDXInfo:
     pesos_posicionais: np.ndarray
     freq_global: Dict[int, float]
     freq_posicional: Dict[int, Dict[int, float]]  # pos -> {valor: freq}
+
 
 @dataclass
 class IPFIPOInfo:
@@ -59,19 +73,29 @@ class IPFIPOInfo:
 
 
 # -------------------------------------------------------------------
-# SUPORTE BÁSICO
+# SUPORTE BÁSICO / HISTÓRICO FLEX
 # -------------------------------------------------------------------
 
 def detectar_num_passageiros(df_raw: pd.DataFrame) -> int:
+    """
+    Detecta automaticamente o número de passageiros:
+    - primeira coluna: ID
+    - última coluna: k
+    - colunas intermediárias: passageiros
+    """
     if df_raw.shape[1] < 3:
-        raise ValueError("Histórico inválido.")
-    return df_raw.shape[1] - 2  # ID + passageiros + k
+        raise ValueError("Histórico inválido: são necessárias pelo menos 3 colunas.")
+    return df_raw.shape[1] - 2
 
 
 def preparar_historico_v14_flex(df_raw: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normaliza o histórico para o formato:
+    ['ID', 'P1'..'Pn', 'k'] com n variável.
+    """
     df = df_raw.dropna(axis=1, how="all").copy()
     if df.shape[1] < 3:
-        raise ValueError("Histórico inválido após limpeza.")
+        raise ValueError("Histórico inválido após limpeza: precisa de ID + passageiros + k.")
 
     n_pass = detectar_num_passageiros(df)
     colunas = ["ID"] + [f"P{i+1}" for i in range(n_pass)] + ["k"]
@@ -102,130 +126,160 @@ def obter_faixa_numerica(df: pd.DataFrame) -> Tuple[int, int]:
 
 
 # -------------------------------------------------------------------
-# BARÔMETRO ULTRA REAL
+# BARÔMETRO ULTRA REAL (ESTADO DA ESTRADA)
 # -------------------------------------------------------------------
 
 def analisar_barometro_ultra(df: pd.DataFrame, janela: int = 40) -> BarometroEstado:
     k_series = df["k"].astype(float)
     if len(k_series) < 5:
-        return BarometroEstado("indefinido", np.nan, np.nan, "Histórico curto.")
+        return BarometroEstado("indefinido", np.nan, np.nan, "Histórico muito curto para diagnóstico.")
 
     recent = k_series.iloc[-min(janela, len(k_series)):]
     media_k = float(recent.mean())
     vol_k = float(recent.std(ddof=0))
 
     if vol_k < 0.5 and media_k < 0.5:
-        return BarometroEstado("estavel", vol_k, media_k,
-            "🟢 Estrada estável — poucos guardas acertando o carro.")
+        regime = "estavel"
+        msg = "🟢 Estrada estável — poucos guardas acertando exatamente o carro."
     elif vol_k < 1.0 and media_k < 1.5:
-        return BarometroEstado("transicao", vol_k, media_k,
-            "🟡 Transição — guardas começando a acertar.")
+        regime = "transicao"
+        msg = "🟡 Estrada em transição — guardas começando a acertar."
     elif vol_k < 2.0 or media_k < 3.0:
-        return BarometroEstado("turbulento", vol_k, media_k,
-            "🟠 Turbulência — blocos previsíveis surgindo.")
+        regime = "turbulento"
+        msg = "🟠 Estrada turbulenta — blocos previsíveis surgindo."
     else:
-        return BarometroEstado("ruptura", vol_k, media_k,
-            "🔴 Ruptura — forte repetição de padrões.")
+        regime = "ruptura"
+        msg = "🔴 Ruptura estrutural — concentração forte de carros previsíveis."
+
+    return BarometroEstado(regime, vol_k, media_k, msg)
 
 
 # -------------------------------------------------------------------
-# k* ULTRA REAL
+# k* ULTRA REAL (SENTINELA DOS GUARDAS)
 # -------------------------------------------------------------------
 
 def calcular_kstar_ultra(df: pd.DataFrame, janela: int = 80) -> KStarEstado:
-    k_series = df["k"].astype(float)
-    recent = k_series.iloc[-min(janela, len(k_series)):]
-    pct = float((recent > 0).mean())
-    media = float(recent.mean())
+    if "k" not in df.columns:
+        return KStarEstado(np.nan, "indefinido", "Histórico sem coluna k.")
 
-    k_star_pct = pct * (1 + media / max(1, recent.max()))
+    k_series = df["k"].astype(float)
+    if len(k_series) == 0:
+        return KStarEstado(np.nan, "indefinido", "Histórico vazio para k*.")
+
+    recent = k_series.iloc[-min(janela, len(k_series)):]
+    pct_k_pos = float((recent > 0).mean())
+    media_k = float(recent.mean())
+    k_star_pct = pct_k_pos * (1.0 + media_k / max(1.0, recent.max()))
 
     if k_star_pct < 0.20:
-        return KStarEstado(k_star_pct, "estavel", "🟢 k*: ambiente estável.")
+        estado = "estavel"
+        msg = "🟢 k*: Ambiente estável — poucos guardas acertando exatamente."
     elif k_star_pct < 0.50:
-        return KStarEstado(k_star_pct, "atencao", "🟡 k*: pré-ruptura.")
+        estado = "atencao"
+        msg = "🟡 k*: Pré-ruptura — guardas começando a formar blocos previsíveis."
     else:
-        return KStarEstado(k_star_pct, "critico", "🔴 k*: ambiente crítico.")
+        estado = "critico"
+        msg = "🔴 k*: Ambiente crítico — forte concentração de padrões repetidos."
+
+    return KStarEstado(k_star_pct, estado, msg)
 
 
 # -------------------------------------------------------------------
-# IDX ULTRA
+# IDX ULTRA — NÚCLEO PONDERADO
 # -------------------------------------------------------------------
 
 def construir_idx_ultra(df: pd.DataFrame) -> IDXInfo:
     mat = extrair_series_passageiros(df)
     n_series, n_pass = mat.shape
 
+    # Frequência global (entre todas posições)
     valores, cont = np.unique(mat, return_counts=True)
-    freq_global = {int(v): float(c) / (n_series * n_pass) for v, c in zip(valores, cont)}
+    freq_global = {int(v): float(c) / float(n_series * n_pass) for v, c in zip(valores, cont)}
 
-    freq_pos = {}
+    # Frequência posicional
+    freq_posicional: Dict[int, Dict[int, float]] = {}
     for pos in range(n_pass):
         col = mat[:, pos]
         v, c = np.unique(col, return_counts=True)
-        freq_pos[pos] = {int(vv): float(cc) / len(col) for vv, cc in zip(v, c)}
+        total = float(len(col))
+        freq_posicional[pos] = {int(vv): float(cc) / total for vv, cc in zip(v, c)}
 
-    pesos = np.linspace(0.8, 1.2, n_pass)
-    pesos = pesos / pesos.sum()
+    # Pesos posicionais (últimas posições ligeiramente mais pesadas)
+    base = np.linspace(0.8, 1.2, n_pass)
+    pesos = base / base.sum()
 
-    return IDXInfo(pesos, freq_global, freq_pos)
+    return IDXInfo(pesos_posicionais=pesos, freq_global=freq_global, freq_posicional=freq_posicional)
 
 
 # -------------------------------------------------------------------
-# IPF / IPO / IPO ASB
+# IPF / IPO / IPO ASB ULTRA
 # -------------------------------------------------------------------
 
-def _top_valores(freq: Dict[int, float], n: int) -> List[int]:
-    return [v for v, _ in sorted(freq.items(), key=lambda x: x[1], reverse=True)[:n]]
+def _top_valores_por_freq(freq_dict: Dict[int, float], n_top: int) -> List[int]:
+    return [v for v, _ in sorted(freq_dict.items(), key=lambda x: x[1], reverse=True)[:n_top]]
 
 
-def construir_ipf_ipo_ultra(df: pd.DataFrame, idx: IDXInfo, n_top_global=20) -> IPFIPOInfo:
+def construir_ipf_ipo_ultra(
+    df: pd.DataFrame,
+    idx_info: IDXInfo,
+    n_top_global: int = 20,
+) -> IPFIPOInfo:
+    """
+    - IPF: mediana estrutural por posição
+    - IPO: combinação de frequências globais/posicionais
+    - IPO ASB: Anti-SelfBias (variação leve controlada pelos pesos)
+    """
     mat = extrair_series_passageiros(df)
     n_series, n_pass = mat.shape
 
+    # IPF: mediana por posição
     ipf = [int(np.median(mat[:, pos])) for pos in range(n_pass)]
 
-    top_glob = _top_valores(idx.freq_global, n_top_global)
+    # IPO: usa frequências globais e posicionais
+    top_glob = _top_valores_por_freq(idx_info.freq_global, n_top_global)
 
     ipo = []
     for pos in range(n_pass):
-        fpos = idx.freq_posicional.get(pos, {})
+        fpos = idx_info.freq_posicional.get(pos, {})
         if not fpos:
             ipo.append(ipf[pos])
             continue
 
-        melhor = None
-        melhor_score = -1
-        for val, f_val in fpos.items():
-            f_glob = idx.freq_global.get(val, 0)
+        melhor_val = None
+        melhor_score = -1.0
+        for valor, f_val in fpos.items():
+            f_glob = idx_info.freq_global.get(valor, 0.0)
             score = 0.6 * f_val + 0.4 * f_glob
-            if val in top_glob:
+            if valor in top_glob:
                 score *= 1.1
             if score > melhor_score:
-                melhor = val
                 melhor_score = score
-        ipo.append(int(melhor))
+                melhor_val = valor
 
-    # IPO Anti-SelfBias
+        if melhor_val is None:
+            melhor_val = ipf[pos]
+        ipo.append(int(melhor_val))
+
+    # IPO ASB — empurra levemente contra o próprio cluster dominante
     min_val, max_val = obter_faixa_numerica(df)
     ipo_asb = []
     for pos, val in enumerate(ipo):
-        peso = idx.pesos_posicionais[pos]
-        desloc = 1 if peso < np.median(idx.pesos_posicionais) else -1
+        peso = idx_info.pesos_posicionais[pos]
+        desloc = 1 if peso < np.median(idx_info.pesos_posicionais) else -1
         novo = val + desloc
-        novo = min(max(novo, min_val), max_val)
-        ipo_asb.append(novo)
+        novo = max(min_val, min(max_val, novo))
+        ipo_asb.append(int(novo))
 
-    return IPFIPOInfo(ipf, ipo, ipo_asb)
+    return IPFIPOInfo(ipf=ipf, ipo=ipo, ipo_asb=ipo_asb)
 # -------------------------------------------------------------------
-# S6 PROFUNDO ULTRA
+# S6 PROFUNDO ULTRA — GERADOR DETERMINÍSTICO
 # -------------------------------------------------------------------
 
 def _score_serie_idx(serie: List[int], idx_info: IDXInfo) -> float:
     score = 0.0
-    for pos, val in enumerate(serie):
-        fglob = idx_info.freq_global.get(int(val), 0.0)
-        fpos = idx_info.freq_posicional.get(pos, {}).get(int(val), 0.0)
+    for pos, valor in enumerate(serie):
+        fglob = idx_info.freq_global.get(int(valor), 0.0)
+        fpos = idx_info.freq_posicional.get(pos, {}).get(int(valor), 0.0)
         w = idx_info.pesos_posicionais[pos]
         score += w * (0.7 * fpos + 0.3 * fglob)
     return score
@@ -237,18 +291,18 @@ def gerar_s6_profundo_ultra(
     ipf_ipo: IPFIPOInfo,
     n_series: int = 60,
 ) -> pd.DataFrame:
-
     mat = extrair_series_passageiros(df)
     n_pass = mat.shape[1]
     min_val, max_val = obter_faixa_numerica(df)
 
-    bases = [
+    # Candidatos básicos (IPF, IPO, IPO ASB)
+    base_candidates: List[List[int]] = [
         ipf_ipo.ipf,
         ipf_ipo.ipo,
         ipf_ipo.ipo_asb,
     ]
 
-    # Variações estruturais
+    # Variações em torno dos núcleos
     for base in [ipf_ipo.ipf, ipf_ipo.ipo, ipf_ipo.ipo_asb]:
         for pos in range(n_pass):
             for delta in (-1, 1):
@@ -256,11 +310,12 @@ def gerar_s6_profundo_ultra(
                 nv = nova[pos] + delta
                 if min_val <= nv <= max_val:
                     nova[pos] = nv
-                    bases.append(nova)
+                    base_candidates.append(nova)
 
+    # Remover duplicados
     unicas = []
     vistos = set()
-    for s in bases:
+    for s in base_candidates:
         t = tuple(int(x) for x in s)
         if t not in vistos:
             vistos.add(t)
@@ -268,18 +323,63 @@ def gerar_s6_profundo_ultra(
 
     registros = []
     for s in unicas:
-        registros.append({
-            "series": s,
-            "score_s6": _score_serie_idx(s, idx_info),
-            "origem": "S6",
-        })
+        registros.append(
+            {
+                "series": s,
+                "score_s6": _score_serie_idx(s, idx_info),
+                "origem": "S6",
+            }
+        )
 
     df_s6 = pd.DataFrame(registros).sort_values("score_s6", ascending=False)
     return df_s6.head(n_series).reset_index(drop=True)
 
 
 # -------------------------------------------------------------------
-# MICRO-LEQUE ULTRA
+# NORMALIZAÇÃO SEGURA DA COLUNA "series"
+# -------------------------------------------------------------------
+
+def normalizar_coluna_series(df_flat: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normaliza 'series' para tuplas hashable:
+    - Aceita lista, tupla, np.array ou string com números.
+    - Remove linhas sem série válida.
+    """
+    if "series" not in df_flat.columns:
+        return df_flat
+
+    def _to_tuple(x: Any) -> Optional[Tuple[int, ...]]:
+        if x is None:
+            return None
+
+        if isinstance(x, (list, tuple, np.ndarray)):
+            vals = list(x)
+        else:
+            try:
+                s = str(x)
+            except Exception:
+                return None
+            tokens = s.replace(",", " ").split()
+            vals = []
+            for t in tokens:
+                try:
+                    vals.append(int(t))
+                except Exception:
+                    continue
+
+        vals = [int(v) for v in vals]
+        if not vals:
+            return None
+        return tuple(vals)
+
+    df = df_flat.copy()
+    df["series"] = df["series"].apply(_to_tuple)
+    df = df[df["series"].notna()].copy()
+    return df
+
+
+# -------------------------------------------------------------------
+# MICRO-LEQUE ULTRA — VIZINHANÇA FINA
 # -------------------------------------------------------------------
 
 def gerar_micro_leque_ultra(
@@ -288,7 +388,6 @@ def gerar_micro_leque_ultra(
     raio: int = 2,
     max_por_base: int = 10,
 ) -> pd.DataFrame:
-
     if df_s6.empty:
         return pd.DataFrame(columns=["series", "score_micro", "origem"])
 
@@ -301,12 +400,14 @@ def gerar_micro_leque_ultra(
             base = list(base)
         n_pass = len(base)
 
-        # Núcleo do micro-leque
-        registros.append({
-            "series": list(base),
-            "score_micro": float(n_pass),
-            "origem": "MicroLeque",
-        })
+        # núcleo
+        registros.append(
+            {
+                "series": list(base),
+                "score_micro": float(n_pass),
+                "origem": "MicroLeque",
+            }
+        )
 
         count = 0
         for pos in range(n_pass):
@@ -317,11 +418,13 @@ def gerar_micro_leque_ultra(
                 nv = nova[pos] + delta
                 if min_val <= nv <= max_val:
                     nova[pos] = nv
-                    registros.append({
-                        "series": nova,
-                        "score_micro": float(n_pass - abs(delta)),
-                        "origem": "MicroLeque",
-                    })
+                    registros.append(
+                        {
+                            "series": nova,
+                            "score_micro": float(n_pass - abs(delta)),
+                            "origem": "MicroLeque",
+                        }
+                    )
                     count += 1
                     if count >= max_por_base:
                         break
@@ -343,7 +446,7 @@ def gerar_micro_leque_ultra(
 
 
 # -------------------------------------------------------------------
-# MONTE CARLO PROFUNDO ULTRA (COM PATCH DEFINITIVO)
+# MONTE CARLO PROFUNDO ULTRA — VERSÃO ROBUSTA (SEM np.unique NAS SÉRIES)
 # -------------------------------------------------------------------
 
 def simular_monte_carlo_ultra(
@@ -351,7 +454,11 @@ def simular_monte_carlo_ultra(
     janela_mc: int = 40,
     n_sim: int = 500,
 ) -> pd.DataFrame:
-
+    """
+    Monte Carlo Profundo ULTRA — versão robusta:
+    - Usa dicionário Python para contar frequência das séries simuladas.
+    - Evita completamente np.unique em listas de séries.
+    """
     if df_hist.empty:
         return pd.DataFrame(columns=["series", "score_mc", "origem"])
 
@@ -361,118 +468,77 @@ def simular_monte_carlo_ultra(
     janela_real = min(janela_mc, len(df_hist))
     df_recent = df_hist.iloc[-janela_real:]
 
-    # Distribuições empíricas por posição
-    dist_pos = {pos: df_recent[col].to_numpy(dtype=int) for pos, col in enumerate(cols)}
+    # Distribuição empírica por posição (listas puras de ints)
+    dist_pos: Dict[int, List[int]] = {}
+    for pos, col in enumerate(cols):
+        valores = df_recent[col].dropna().astype(int).tolist()
+        dist_pos[pos] = valores
 
     rng = np.random.default_rng(seed=42)
-    simulacoes = []
+    contagens: Dict[Tuple[int, ...], int] = {}
 
     for _ in range(n_sim):
-        serie = []
+        serie_vals: List[int] = []
         for pos in range(n_pass):
-            valores = dist_pos[pos]
+            valores = dist_pos.get(pos, [])
+            if not valores:
+                val = 0
+            else:
+                idx_rand = rng.integers(0, len(valores))
+                val = int(valores[int(idx_rand)])
+            serie_vals.append(val)
 
-            # Se não há valores, preencher com zero
-            if len(valores) == 0:
-                serie.append(0)
-                continue
+        t = tuple(serie_vals)
+        contagens[t] = contagens.get(t, 0) + 1
 
-            val = rng.choice(valores)
+    if not contagens:
+        return pd.DataFrame(columns=["series", "score_mc", "origem"])
 
-            # PATCH — garantir que val nunca seja numpy 0D / array
-            if isinstance(val, np.ndarray):
-                try:
-                    val = val.item()
-                except Exception:
-                    val = int(val.astype(int))
-
-            serie.append(int(val))
-
-        simulacoes.append(tuple(int(v) for v in serie))
-
-    valores, cont = np.unique(simulacoes, return_counts=True)
+    total = float(sum(contagens.values()))
     registros = []
-    total = float(len(simulacoes))
-
-    for serie, freq in zip(valores, cont):
-        registros.append({
-            "series": list(serie),
-            "score_mc": float(freq) / total,
-            "origem": "MonteCarlo",
-        })
+    for serie_tuple, freq in contagens.items():
+        registros.append(
+            {
+                "series": list(serie_tuple),
+                "score_mc": float(freq) / total,
+                "origem": "MonteCarlo",
+            }
+        )
 
     df_mc = pd.DataFrame(registros)
-    return df_mc.sort_values("score_mc", ascending=False).reset_index(drop=True)
+    df_mc = df_mc.sort_values("score_mc", ascending=False).reset_index(drop=True)
+    return df_mc
 
 
 # -------------------------------------------------------------------
-# NORMALIZAÇÃO SEGURA DE 'series'
-# -------------------------------------------------------------------
-
-def normalizar_coluna_series(df_flat: pd.DataFrame) -> pd.DataFrame:
-    if "series" not in df_flat.columns:
-        return df_flat
-
-    def _to_tuple(x):
-        if x is None:
-            return None
-
-        if isinstance(x, (list, tuple, np.ndarray)):
-            vals = list(x)
-        else:
-            try:
-                s = str(x)
-            except Exception:
-                return None
-            tokens = s.replace(",", " ").split()
-            vals = []
-            for t in tokens:
-                try:
-                    vals.append(int(t))
-                except:
-                    pass
-
-        vals = [int(v) for v in vals]
-        if not vals:
-            return None
-        return tuple(vals)
-
-    df = df_flat.copy()
-    df["series"] = df["series"].apply(_to_tuple)
-    return df[df["series"].notna()].copy()
-
-
-# -------------------------------------------------------------------
-# FUSÃO ULTRA (S6 + MC + MICRO-LEQUE)
+# FUSÃO ULTRA — S6 + MONTE CARLO + MICRO-LEQUE
 # -------------------------------------------------------------------
 
 def fundir_leques_ultra(
     df_s6: pd.DataFrame,
     df_mc: pd.DataFrame,
     df_micro: pd.DataFrame,
-    peso_s6: float,
-    peso_mc: float,
-    peso_micro: float,
+    peso_s6: float = 0.5,
+    peso_mc: float = 0.3,
+    peso_micro: float = 0.2,
 ) -> pd.DataFrame:
-
     frames = []
 
     if df_s6 is not None and not df_s6.empty:
         frames.append(df_s6[["series", "score_s6", "origem"]])
-
     if df_mc is not None and not df_mc.empty:
         frames.append(df_mc[["series", "score_mc", "origem"]])
-
     if df_micro is not None and not df_micro.empty:
         frames.append(df_micro[["series", "score_micro", "origem"]])
 
     if not frames:
-        return pd.DataFrame(columns=["series", "score_final"])
+        return pd.DataFrame(columns=["series", "score_final", "score_s6", "score_mc", "score_micro"])
 
     df_all = pd.concat(frames, ignore_index=True)
     df_all = normalizar_coluna_series(df_all)
+    if df_all.empty:
+        return pd.DataFrame(columns=["series", "score_final", "score_s6", "score_mc", "score_micro"])
 
-    # Garantir colunas
     for c in ["score_s6", "score_mc", "score_micro"]:
         if c not in df_all.columns:
             df_all[c] = 0.0
@@ -487,12 +553,13 @@ def fundir_leques_ultra(
     )
 
     agg["score_final"] = (
-        peso_s6 * agg["score_s6"]
-        + peso_mc * agg["score_mc"]
-        + peso_micro * agg["score_micro"]
+        peso_s6 * agg["score_s6"].fillna(0.0)
+        + peso_mc * agg["score_mc"].fillna(0.0)
+        + peso_micro * agg["score_micro"].fillna(0.0)
     )
 
-    return agg.sort_values("score_final", ascending=False).reset_index(drop=True)
+    agg = agg.sort_values("score_final", ascending=False).reset_index(drop=True)
+    return agg
 # -------------------------------------------------------------------
 # MODO TURBO++ ULTRA — NÚCLEO (COM RETROCOMPATIBILIDADE)
 # -------------------------------------------------------------------
@@ -513,49 +580,42 @@ def montar_previsao_turbo_ultra(
 ) -> pd.DataFrame:
     """
     Núcleo do Modo TURBO++ ULTRA:
-
-    - Constrói IDX ULTRA
-    - Constrói IPF / IPO / IPO ASB
-    - Gera S6 Profundo ULTRA
-    - Gera Monte Carlo Profundo ULTRA
-    - Gera Micro-Leque ULTRA (opcional)
-    - Realiza Fusão ULTRA (S6 + MC + Micro-Leque)
+    - IDX ULTRA
+    - IPF / IPO / IPO ASB
+    - S6 Profundo ULTRA
+    - Monte Carlo Profundo ULTRA
+    - Micro-Leque ULTRA (opcional)
+    - Fusão ULTRA
 
     Retrocompatibilidade:
-    Aceita parâmetros antigos via **kwargs:
     - n_series_saida      -> n_s6
     - window_s6           -> janela_s6
     - window_mc           -> janela_mc
     - incluir_micro_leque -> usar_micro_leque
     """
-
-    # ---------------- RETROCOMPATIBILIDADE ----------------
+    # Retrocompat
     if n_s6 is None:
         n_s6 = kwargs.get("n_series_saida", 60)
-
     if "window_s6" in kwargs:
         try:
             janela_s6 = int(kwargs["window_s6"])
         except Exception:
             pass
-
     if "window_mc" in kwargs:
         try:
             janela_mc = int(kwargs["window_mc"])
         except Exception:
             pass
-
     if "incluir_micro_leque" in kwargs:
         try:
             usar_micro_leque = bool(kwargs["incluir_micro_leque"])
         except Exception:
             pass
 
-    # ---------------- BARRA DE PROGRESSO ----------------
+    # Barra de progresso
     progress_bar = st.progress(0)
     status_text = st.empty()
 
-    # ---------------- PIPELINE ULTRA ----------------
     try:
         status_text.text("Etapa 1/4 — Construindo IDX ULTRA...")
         progress_bar.progress(5)
@@ -594,7 +654,7 @@ def montar_previsao_turbo_ultra(
         else:
             df_micro = pd.DataFrame(columns=["series", "score_micro", "origem"])
 
-        status_text.text("Fusão ULTRA — S6 + MC + Micro-Leque...")
+        status_text.text("Fusão ULTRA — S6 + Monte Carlo + Micro-Leque...")
         progress_bar.progress(90)
         df_fusao = fundir_leques_ultra(
             df_s6=df_s6,
@@ -607,9 +667,7 @@ def montar_previsao_turbo_ultra(
 
         progress_bar.progress(100)
         status_text.text("Fusão concluída.")
-
     finally:
-        # Mantém a barra cheia ao final
         try:
             progress_bar.progress(100)
         except Exception:
@@ -619,16 +677,13 @@ def montar_previsao_turbo_ultra(
         return pd.DataFrame(columns=["series", "score_final", "score_s6", "score_mc", "score_micro"])
 
     df_out = df_fusao.copy()
-    if output_mode == "top":
+    if output_mode in ("top", "detalhado"):
         return df_out
-    elif output_mode == "detalhado":
-        return df_out
-    else:
-        return df_out
+    return df_out
 
 
 # -------------------------------------------------------------------
-# QDS REAL + BACKTEST REAL
+# QDS REAL / BACKTEST REAL
 # -------------------------------------------------------------------
 
 def calcular_qds_real(
@@ -639,13 +694,6 @@ def calcular_qds_real(
     janela_mc: int = 40,
     n_sim_mc: int = 400,
 ) -> Dict[str, Any]:
-    """
-    QDS REAL / Backtest:
-    - Anda pela estrada no passado (janela horizonte_teste).
-    - Para cada ponto i, roda o Modo TURBO++ ULTRA usando apenas as séries até i.
-    - Verifica se a série i+1 estaria entre as Top-n_top previsões.
-    """
-
     if len(df_hist) < horizonte_teste + 5:
         return {
             "taxa_acerto": float("nan"),
@@ -693,8 +741,8 @@ def calcular_qds_real(
 
         df_pred_norm = normalizar_coluna_series(df_pred)
         candidatos = df_pred_norm["series"].head(n_top).tolist()
-
         hit = int(alvo_tuple in candidatos)
+
         hits.append(hit)
         idx_testados.append(i)
 
@@ -720,10 +768,6 @@ def calcular_qds_real(
 # -------------------------------------------------------------------
 
 def resumo_replay_light(df_hist: pd.DataFrame, idx: int) -> Dict[str, Any]:
-    """
-    Replay LIGHT:
-    - Mostra série alvo, k, e o estado local da estrada.
-    """
     if idx < 0 or idx >= len(df_hist):
         raise IndexError("Índice fora do histórico.")
 
@@ -760,13 +804,6 @@ def executar_replay_ultra(
     fim: int,
     n_top: int = 10,
 ) -> Dict[str, Any]:
-    """
-    Replay ULTRA:
-    - Percorre do índice 'inicio' até 'fim'.
-    - Para cada i, roda TURBO++ ULTRA com histórico até i.
-    - Verifica se a série i+1 estaria entre as Top-n_top.
-    """
-
     if inicio < 1:
         inicio = 1
     if fim >= len(df_hist) - 1:
@@ -815,8 +852,8 @@ def executar_replay_ultra(
 
         df_pred_norm = normalizar_coluna_series(df_pred)
         candidatos = df_pred_norm["series"].head(n_top).tolist()
-
         hit = int(alvo_tuple in candidatos)
+
         hits.append(hit)
         idxs.append(i)
 
@@ -832,7 +869,7 @@ if "df" not in st.session_state:
 
 
 # -------------------------------------------------------------------
-# SIDEBAR — NAVEGAÇÃO E PARÂMETROS GLOBAIS
+# SIDEBAR — NAVEGAÇÃO + PARÂMETROS GLOBAIS
 # -------------------------------------------------------------------
 
 with st.sidebar:
@@ -880,7 +917,6 @@ if painel == "📥 Histórico — Entrada":
         ["Enviar arquivo CSV", "Copiar e colar o histórico"],
     )
 
-    # Upload CSV
     if opc == "Enviar arquivo CSV":
         file = st.file_uploader("Selecione o arquivo CSV:", type=["csv"])
         if file is not None:
@@ -893,8 +929,6 @@ if painel == "📥 Histórico — Entrada":
                 st.dataframe(df.head(20))
             except Exception as e:
                 st.error(f"Erro ao carregar CSV: {e}")
-
-    # Copiar/colar histórico
     else:
         texto = st.text_area(
             "Cole o histórico bruto (com cabeçalho):",
@@ -914,7 +948,6 @@ if painel == "📥 Histórico — Entrada":
             except Exception as e:
                 st.error(f"Erro ao processar histórico colado: {e}")
 
-    # Resumo atual
     if st.session_state.get("df") is not None:
         df = st.session_state["df"]
         st.markdown("### Resumo do histórico atual")
@@ -1047,7 +1080,6 @@ if painel == "🚀 Modo TURBO++ ULTRA — Painel Completo":
         st.stop()
 
     st.markdown("### Parâmetros específicos do TURBO++ ULTRA")
-
     n_saida = st.slider("N° de séries na saída (Top-N final)", 10, 200, 60, step=5)
     usar_micro = st.checkbox("Incluir Micro-Leque ULTRA na fusão", value=True)
 
@@ -1065,15 +1097,14 @@ if painel == "🚀 Modo TURBO++ ULTRA — Painel Completo":
                 peso_s6=peso_s6_global,
                 peso_mc=peso_mc_global,
                 peso_micro=peso_micro_global,
-                incluir_micro_leque=usar_micro,   # retrocompatível
-                n_series_saida=n_s6_global,       # retrocompatível
+                incluir_micro_leque=usar_micro,  # retrocompatibilidade
+                n_series_saida=n_s6_global,      # retrocompatibilidade
             )
 
         if df_turbo is None or df_turbo.empty:
             st.error("Modo TURBO++ ULTRA não retornou séries de previsão.")
         else:
             st.success("Modo TURBO++ ULTRA executado com sucesso.")
-
             df_view = df_turbo.copy().head(n_saida)
             st.markdown("### 🎯 Séries de Previsão — Top-N (TURBO++ ULTRA)")
             st.dataframe(df_view)
@@ -1112,7 +1143,6 @@ if painel == "📅 Modo Replay Automático do Histórico":
 
     col1, col2 = st.columns(2)
 
-    # Replay LIGHT
     with col1:
         st.markdown("### Replay LIGHT")
         idx_light = st.number_input(
@@ -1136,7 +1166,6 @@ if painel == "📅 Modo Replay Automático do Histórico":
             except Exception as e:
                 st.error(f"Erro no Replay LIGHT: {e}")
 
-    # Replay ULTRA
     with col2:
         st.markdown("### Replay ULTRA — Backtest focal")
         inicio = st.number_input(
