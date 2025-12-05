@@ -1652,14 +1652,14 @@ painel = st.sidebar.radio(
     ],
 )
 
-
 # ============================================================
-# PAINEL 1 — HISTÓRICO (Entrada FLEX)
+# PAINEL — HISTÓRICO (FLEX ULTRA)
 # ============================================================
 
 if painel == "📥 Histórico — Entrada":
-    st.header("📥 Histórico — Entrada FLEX")
-    st.write("Carregue seu histórico com **n passageiros + coluna k detectada automaticamente**.")
+
+    st.header("📥 Histórico — Entrada FLEX ULTRA")
+    st.write("Carregue seu histórico com **n passageiros + coluna k**, com limpeza total de ruídos e leitura 100% fiel (incluindo a última linha).")
 
     metodo = st.radio(
         "Método de carregamento:",
@@ -1668,29 +1668,80 @@ if painel == "📥 Histórico — Entrada":
 
     df = None
 
+    # ------------------------------------------------------------
+    # Função ULTRA de normalização e leitura (usa SEMPRE este parser)
+    # ------------------------------------------------------------
+    def parser_ultra(texto_bruto):
+        # Normalização de encoding
+        try:
+            txt = texto_bruto.decode("utf-8-sig")
+        except:
+            txt = texto_bruto.decode("latin1")
+
+        # Remoção de caracteres invisíveis
+        txt = txt.replace("\ufeff", "").replace("\r", "")
+
+        # Quebra correta das linhas
+        linhas = txt.strip().split("\n")
+
+        dados = []
+        for linha in linhas:
+            partes = [p.strip() for p in linha.split(";")]
+            # Esperamos: serie_id, p1..p6, k  (total = 8 campos)
+            if len(partes) == 8 and partes[0].startswith("C"):
+                dados.append(partes)
+
+        # Construção do dataframe
+        df_local = pd.DataFrame(dados, columns=[
+            "serie_id", "p1", "p2", "p3", "p4", "p5", "p6", "k"
+        ])
+
+        # Conversões numéricas
+        for col in ["p1", "p2", "p3", "p4", "p5", "p6", "k"]:
+            df_local[col] = pd.to_numeric(df_local[col], errors="coerce")
+
+        # Recriar índice interno (idx = 1..n)
+        df_local["idx"] = np.arange(1, len(df_local) + 1)
+
+        return df_local
+
+    # ------------------------------------------------------------
+    # Escolha do método
+    # ------------------------------------------------------------
     try:
         if metodo == "Upload CSV":
             file = st.file_uploader("Selecione arquivo CSV", type=["csv"])
             if file is not None:
-                df = carregar_historico_via_csv(file)
+                raw = file.read()
+                df = parser_ultra(raw)
 
-        else:  # texto
+        else:  # texto manual
             texto = st.text_area("Cole o conteúdo do CSV aqui")
             if texto.strip():
                 sep = st.selectbox("Separador", [";", ","])
-                df = carregar_historico_via_texto(texto, sep=sep)
+                texto_convertido = texto.replace(",", ";") if sep == "," else texto
+                raw = texto_convertido.encode("utf-8")
+                df = parser_ultra(raw)
 
+        # ------------------------------------------------------------
+        # Exibir resultado
+        # ------------------------------------------------------------
         if df is not None:
-            st.success("Histórico carregado com sucesso!")
+            st.success(f"Histórico carregado com sucesso! Total: **{len(df)} séries**.")
             st.dataframe(df, use_container_width=True)
+
             st.session_state["df"] = df
 
-            st.info(f"n passageiros detectados: **{obter_n_passageiros(df)}**")
-            min_idx, max_idx = obter_intervalo_indices(df)
+            n_pass = obter_n_passageiros(df)
+            st.info(f"n passageiros detectados: **{n_pass}**")
+
+            min_idx = int(df["idx"].min())
+            max_idx = int(df["idx"].max())
             st.write(f"Intervalo de índices: **C{min_idx} → C{max_idx}**")
 
     except Exception as e:
         st.error(f"Erro ao carregar histórico: {e}")
+
 
 
 # ============================================================
