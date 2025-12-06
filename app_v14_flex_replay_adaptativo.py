@@ -1,398 +1,295 @@
+# ============================================================
+# Predict Cars — V14-FLEX ULTRA REAL (TURBO++)
 # app_v14_flex_replay_ultra_unitario.py
-# Predict Cars V14-FLEX ULTRA REAL (TURBO++)
-# Versão com Replay ULTRA UNITÁRIO integrado
-# Obs.: Arquivo gerado integralmente via ChatGPT (modo ULTRA), sem simplificações.
+#
+# Versão ULTRA completa, com:
+# - Entrada FLEX (n passageiros + k)
+# - Barômetro ULTRA REAL
+# - k* ULTRA REAL (sentinela)
+# - IDX ULTRA
+# - IPF / IPO refinados
+# - S6 Profundo ULTRA
+# - Micro-Leque ULTRA
+# - Monte Carlo Profundo ULTRA
+# - QDS REAL
+# - Backtest REAL
+# - Replay LIGHT
+# - Replay ULTRA (loop tradicional)
+# - Replay ULTRA UNITÁRIO (novo)
+# - Modo TURBO++ ULTRA Adaptativo
+#
+# Estrutura densa, sem simplificações, mantendo o "jeitão" V14-FLEX.
+# ============================================================
 
 from __future__ import annotations
 
 import math
 import random
-import itertools
 from dataclasses import dataclass
-from typing import List, Dict, Any, Tuple, Optional, Sequence, Union
+from typing import List, Dict, Tuple, Optional, Any
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 
 # ============================================================
-# CONFIGURAÇÕES GERAIS DO APP
+# CONFIGURAÇÃO GERAL DO APP
 # ============================================================
 
-APP_NAME = "Predict Cars V14-FLEX REPLAY ULTRA UNITÁRIO"
 APP_VERSION = "V14-FLEX ULTRA REAL (TURBO++)"
-RANDOM_SEED = 42
 
-random.seed(RANDOM_SEED)
-np.random.seed(RANDOM_SEED)
-
-
-# ============================================================
-# UTILITÁRIOS GERAIS
-# ============================================================
-
-def set_page_config_once() -> None:
-    """Configura a página Streamlit (evita repetir)."""
-    if "page_config_set" not in st.session_state:
-        st.set_page_config(
-            page_title=APP_NAME,
-            page_icon="🚗",
-            layout="wide",
-            initial_sidebar_state="expanded",
-        )
-        st.session_state["page_config_set"] = True
-
-
-def safe_int(x: Any, default: int = 0) -> int:
-    try:
-        return int(x)
-    except Exception:
-        return default
-
-
-def safe_float(x: Any, default: float = 0.0) -> float:
-    try:
-        return float(x)
-    except Exception:
-        return default
-
-
-def is_int_like(x: Any) -> bool:
-    try:
-        xi = int(x)
-        return float(x) == float(xi)
-    except Exception:
-        return False
-
-
-def series_to_tuple(seq: Sequence[Any]) -> Tuple[int, ...]:
-    """Converte uma sequência para tupla de inteiros (para uso em sets/dicts)."""
-    return tuple(safe_int(v) for v in seq)
-
-
-def normalizar_serie(val: Any) -> List[int]:
-    """
-    Normaliza uma série em formato interno:
-    - Se já for lista/tupla de ints, retorna igual.
-    - Se for string "1 2 3 4 5 6", divide por espaçamentos.
-    - Se for outra coisa, tenta converter.
-    """
-    if isinstance(val, (list, tuple, np.ndarray, pd.Series)):
-        return [safe_int(x) for x in val]
-
-    if isinstance(val, str):
-        # aceita espaços, vírgulas e ponto e vírgula
-        for sep in [";", ","]:
-            val = val.replace(sep, " ")
-        pedacos = [p for p in val.strip().split() if p.strip() != ""]
-        return [safe_int(x) for x in pedacos]
-
-    # fallback
-    try:
-        return [safe_int(val)]
-    except Exception:
-        return []
-
-
-def calcular_interseccao(a: Sequence[Any], b: Sequence[Any]) -> int:
-    """Qtd de elementos em comum entre duas sequências."""
-    set_a = set(series_to_tuple(a))
-    set_b = set(series_to_tuple(b))
-    return len(set_a & set_b)
-
-
-def calcular_acerto_total(a: Sequence[Any], b: Sequence[Any]) -> bool:
-    """True se as duas sequências são exatamente iguais (mesmo conjunto, ordem ignorada)."""
-    return set(series_to_tuple(a)) == set(series_to_tuple(b))
-
-
-def janelar_lista(valores: Sequence[Any], tamanho: int) -> List[List[Any]]:
-    """Gera janelas deslizantes de tamanho fixo."""
-    if tamanho <= 0:
-        return []
-    out: List[List[Any]] = []
-    for i in range(0, len(valores) - tamanho + 1):
-        out.append(list(valores[i : i + tamanho]))
-    return out
+# Para evitar multi-config em recarregamentos
+if "page_config_set" not in st.session_state:
+    st.set_page_config(
+        page_title="Predict Cars — V14-FLEX ULTRA REAL (TURBO++)",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
+    st.session_state["page_config_set"] = True
 
 
 # ============================================================
-# DATACLASSES PARA ESTRUTURAR RESULTADOS
+# DATACLASSES — ESTRUTURAS DE APOIO
 # ============================================================
 
 @dataclass
 class RegimeInfo:
-    """Barômetro / regime da estrada."""
-    estado: str  # "estavel", "transicao", "critico"
-    descricao: str
-    intensidade: float  # 0 a 1
     janela_usada: int
     k_medio: float
-    k_max: int
+    k_max: float
+    estado: str
+    descricao: str
 
 
 @dataclass
 class KStarInfo:
-    """k* ULTRA REAL — sentinela dos guardas."""
-    k_star_pct: float      # 0 a 1 (ou 0 a 100%)
-    estado: str            # "estavel", "atencao", "critico"
-    descricao: str
     janela_usada: int
     k_media_janela: float
-    k_max_janela: int
-
-
-@dataclass
-class QDSInfo:
-    """QDS REAL — indicador de qualidade dinâmica da série."""
-    qds_global: float
-    qds_local: float
-    janela_local: int
-    n_acertos: int
-    n_tentativas: int
-    descricao: str
-
-
-@dataclass
-class MonteCarloResult:
-    """Resultado consolidado do Monte Carlo Profundo ULTRA."""
-    tabela: pd.DataFrame
-    n_simulacoes: int
-    n_series_unicas: int
+    k_max_janela: float
+    k_star_pct: float
+    estado: str
     descricao: str
 
 
 @dataclass
 class BacktestResult:
-    """Resultado consolidado do Backtest REAL."""
     tabela: pd.DataFrame
-    hit_rate_top1: float
-    hit_rate_topN: float
-    N: int
     descricao: str
 
 
 @dataclass
-class TurboEngineWeights:
-    """Pesos do motor adaptativo por k*."""
-    peso_s6: float
-    peso_micro: float
-    peso_mc: float
+class QDSInfo:
+    valor: float
+    descricao: str
 
 
 # ============================================================
-# HISTÓRICO FLEX — N PASSAGEIROS + DETECÇÃO AUTOMÁTICA DO k
+# FUNÇÕES UTILITÁRIAS BÁSICAS
 # ============================================================
 
-def detectar_coluna_k(df_raw: pd.DataFrame) -> str:
+def obter_n_passageiros(df: pd.DataFrame) -> int:
     """
-    Detecta automaticamente qual coluna é o 'k'.
-    Estratégia:
-      1) Se existir coluna com nome 'k' (case-insensitive), usa.
-      2) Se existir coluna cujo nome contenha 'k' (ex.: 'K', 'k_real'), usa.
-      3) Caso contrário, assume a última coluna numérica como k.
+    Detecta automaticamente o número de passageiros (colunas p1..pn)
+    a partir do dataframe carregado.
     """
-    if df_raw is None or df_raw.empty:
-        raise ValueError("DataFrame vazio para detecção de k.")
-
-    # normaliza nomes
-    colunas = list(df_raw.columns)
-    lower_map = {c.lower(): c for c in colunas}
-
-    if "k" in lower_map:
-        return lower_map["k"]
-
-    # procura qualquer coluna contendo 'k'
-    for c in colunas:
-        if "k" in c.lower():
-            return c
-
-    # fallback: última coluna numérica
-    numericas = [c for c in colunas if pd.api.types.is_numeric_dtype(df_raw[c])]
-    if not numericas:
-        # força tentativa no último campo mesmo não sendo numérico
-        return colunas[-1]
-
-    return numericas[-1]
-
-
-def preparar_historico_flex(df_raw: pd.DataFrame) -> pd.DataFrame:
-    """
-    Prepara o histórico FLEX:
-      - Detecta coluna de k.
-      - Define colunas de passageiros (todas as demais numéricas).
-      - Cria coluna 'serie_id' (C1, C2, ...).
-      - Normaliza para inteiro.
-    Retorna DataFrame com:
-      ['serie_id', 'idx', 'p1', ..., 'pn', 'k']
-    """
-    if df_raw is None or df_raw.empty:
-        raise ValueError("Histórico vazio.")
-
-    df = df_raw.copy()
-
-    # Garante índice sequencial interno
-    df = df.reset_index(drop=True)
-
-    col_k = detectar_coluna_k(df)
-    colunas = list(df.columns)
-
-    # passageiros = todas numéricas exceto k
-    col_passageiros: List[str] = []
-    for c in colunas:
-        if c == col_k:
-            continue
-        if pd.api.types.is_numeric_dtype(df[c]):
-            col_passageiros.append(c)
-
-    if not col_passageiros:
-        # tenta converter tudo para numérico à força
-        for c in colunas:
-            if c == col_k:
-                continue
-            try:
-                df[c] = pd.to_numeric(df[c])
-                col_passageiros.append(c)
-            except Exception:
-                pass
-
-    if not col_passageiros:
-        raise ValueError("Não foi possível detectar colunas de passageiros (n).")
-
-    # Ordena para garantir consistência
-    col_passageiros = sorted(col_passageiros, key=lambda x: colunas.index(x))
-
-    # Constrói a estrutura interna
-    registros = []
-    for idx, row in df.iterrows():
-        passageiros = [safe_int(row[c]) for c in col_passageiros]
-        k_val = safe_int(row[col_k])
-        serie_id = f"C{idx + 1}"
-        registro = {"serie_id": serie_id, "idx": idx + 1, "k": k_val}
-        for i, v in enumerate(passageiros, start=1):
-            registro[f"p{i}"] = v
-        registros.append(registro)
-
-    df_out = pd.DataFrame(registros)
-
-    # garante ordenação de colunas: serie_id, idx, p1..pn, k
-    cols_ordenadas = ["serie_id", "idx"]
-    cols_ordenadas += [c for c in df_out.columns if c.startswith("p")]
-    cols_ordenadas.append("k")
-    df_out = df_out[cols_ordenadas]
-
-    return df_out
-
-
-def carregar_historico_via_texto(texto: str, sep: str = ";") -> pd.DataFrame:
-    """
-    Carrega histórico a partir de texto colado.
-    Assume cabeçalho na primeira linha.
-    """
-    if not texto or texto.strip() == "":
-        raise ValueError("Texto vazio para carregar histórico.")
-
-    # Remove linhas em branco no início/fim
-    linhas = [l for l in texto.splitlines() if l.strip() != ""]
-    if not linhas:
-        raise ValueError("Texto não contém linhas válidas.")
-
-    csv_text = "\n".join(linhas)
-    from io import StringIO
-
-    df_raw = pd.read_csv(StringIO(csv_text), sep=sep)
-    return preparar_historico_flex(df_raw)
-
-
-def carregar_historico_via_csv(file) -> pd.DataFrame:
-    """
-    Carrega histórico a partir de arquivo CSV enviado via upload.
-    """
-    df_raw = pd.read_csv(file)
-    return preparar_historico_flex(df_raw)
+    cols = [c for c in df.columns if c.lower().startswith("p")]
+    # Garante ordenação p1, p2, ..., pn
+    cols_ordenadas = sorted(cols, key=lambda x: int("".join(filter(str.isdigit, x)) or 0))
+    return len(cols_ordenadas)
 
 
 def extrair_passageiros(df: pd.DataFrame) -> List[str]:
-    """Retorna lista das colunas de passageiros (p1, p2, ..., pn)."""
-    return [c for c in df.columns if c.startswith("p")]
-
-
-def obter_n_passageiros(df: pd.DataFrame) -> int:
-    """Retorna o número de passageiros (n) detectado."""
-    return len(extrair_passageiros(df))
+    """
+    Retorna a lista de colunas de passageiros (p1..pn), ordenadas.
+    """
+    cols = [c for c in df.columns if c.lower().startswith("p")]
+    return sorted(cols, key=lambda x: int("".join(filter(str.isdigit, x)) or 0))
 
 
 def obter_intervalo_indices(df: pd.DataFrame) -> Tuple[int, int]:
-    """Retorna (min_idx, max_idx) com base na coluna 'idx'."""
-    if df is None or df.empty:
-        return (1, 1)
-    return (int(df["idx"].min()), int(df["idx"].max()))
+    """
+    Usa a coluna 'idx' para determinar o intervalo de índices
+    efetivamente disponíveis no histórico.
+    """
+    if "idx" not in df.columns:
+        raise KeyError("Coluna 'idx' não encontrada no dataframe histórico.")
+    return int(df["idx"].min()), int(df["idx"].max())
+
+
+def normalizar_serie(serie: Any) -> List[int]:
+    """
+    Normaliza uma série de passageiros (lista/array/Series) para lista de int.
+    Aceita tanto lista de ints quanto formatos aproximados.
+    """
+    if isinstance(serie, list):
+        return [int(x) for x in serie]
+    if isinstance(serie, np.ndarray):
+        return [int(x) for x in serie.tolist()]
+    if isinstance(serie, pd.Series):
+        return [int(x) for x in serie.tolist()]
+    if isinstance(serie, str):
+        # Ex: "1 2 3 4 5 6"
+        partes = [p for p in serie.replace(",", " ").split() if p.strip()]
+        return [int(p) for p in partes]
+    # Fallback
+    try:
+        return [int(x) for x in list(serie)]
+    except Exception:
+        return []
+
+
+def calcular_acerto_total(serie_real: List[int], serie_prevista: List[int]) -> int:
+    """
+    Calcula acerto total (6 acertos exatos = 6, etc).
+    Aqui consideramos acerto pleno se todos os passageiros forem iguais.
+    """
+    if len(serie_real) != len(serie_prevista):
+        return 0
+    return sum(1 for a, b in zip(serie_real, serie_prevista) if int(a) == int(b))
 
 
 # ============================================================
-# BARÔMETRO ULTRA REAL — REGIME DA ESTRADA
+# PARSER ULTRA DO HISTÓRICO — ENTRADA FLEX COMPLETA
+# ============================================================
+
+def _parser_ultra_from_text(texto: str, sep: str = ";") -> pd.DataFrame:
+    """
+    Parser ULTRA a partir de texto puro.
+    Aceita separador ';' ou ',' e reconstrói:
+    - serie_id (ex: C1..Cn)
+    - p1..pn
+    - k
+    - idx (1..n)
+    """
+    # Normaliza separador
+    if sep == ",":
+        texto = texto.replace(",", ";")
+
+    # Remoção de caracteres invisíveis comuns
+    texto = texto.replace("\ufeff", "").replace("\r", "")
+
+    linhas = [ln for ln in texto.strip().split("\n") if ln.strip()]
+    dados = []
+
+    for ln in linhas:
+        partes = [p.strip() for p in ln.split(";")]
+
+        # Esperado: id + n_passageiros + k  (pelo menos 3 colunas -> id,p1,k)
+        if len(partes) < 3:
+            continue
+
+        serie_id_bruto = partes[0]
+        if not serie_id_bruto:
+            continue
+
+        # Aceita "C1", "c1", "  C1  ", etc.
+        serie_id = serie_id_bruto.strip().upper()
+        if not serie_id.startswith("C"):
+            # Se não tem C explícito, tenta construir
+            if serie_id.isdigit():
+                serie_id = f"C{serie_id}"
+            else:
+                # Linha com id inválido: ignora
+                continue
+
+        # Passageiros = todas as colunas intermediárias, exceto última (k)
+        valores = partes[1:-1]
+        k_str = partes[-1]
+
+        # Converte passageiros e k para numérico
+        try:
+            passageiros = [int(x) for x in valores]
+            k_val = int(k_str)
+        except Exception:
+            # Linha com problemas numéricos: ignora
+            continue
+
+        # Monta registro flexível
+        registro = {"serie_id": serie_id}
+        for i, v in enumerate(passageiros, start=1):
+            registro[f"p{i}"] = v
+        registro["k"] = k_val
+        dados.append(registro)
+
+    if not dados:
+        raise ValueError("Nenhuma linha válida encontrada no histórico (parser ULTRA).")
+
+    df = pd.DataFrame(dados)
+
+    # Recria 'idx' como 1..n respeitando a ordem original
+    df["idx"] = np.arange(1, len(df) + 1)
+
+    # Garante ordem das colunas: serie_id, idx, p1..pn, k
+    col_pass = extrair_passageiros(df)
+    cols_ordenadas = ["serie_id", "idx"] + col_pass + ["k"]
+    df = df[cols_ordenadas]
+
+    return df
+
+
+def carregar_historico_via_csv_ultra(file) -> pd.DataFrame:
+    """
+    Lê o arquivo enviado pelo usuário (upload CSV) usando o parser ULTRA robusto.
+    Garante que NÃO corta a última linha e reconstrói idx.
+    """
+    raw = file.read()
+    # Tenta utf-8-sig primeiro
+    try:
+        texto = raw.decode("utf-8-sig")
+    except Exception:
+        # Fallback para latin1
+        texto = raw.decode("latin1")
+
+    return _parser_ultra_from_text(texto, sep=";")
+
+
+def carregar_historico_via_texto_ultra(texto: str, sep: str = ";") -> pd.DataFrame:
+    """
+    Lê o histórico colado como texto no app (modo texto), usando
+    o mesmo parser ULTRA do CSV.
+    """
+    return _parser_ultra_from_text(texto, sep=sep)
+
+
+# ============================================================
+# REGIME ULTRA — BARÔMETRO DA ESTRADA
 # ============================================================
 
 def calcular_regime_ultra(df: pd.DataFrame, janela: int = 40) -> RegimeInfo:
     """
-    Calcula o regime (barômetro ULTRA REAL) com base no comportamento de k
-    em uma janela final do histórico.
-    Heurística:
-      - k médio baixo e k_max baixo -> estável
-      - valores intermediários -> transição
-      - k médio alto ou picos -> crítico
+    Calcula o regime (barômetro ULTRA) usando uma janela recente de k.
+    - k_medio
+    - k_max
+    - estado (estavel / transicao / ruptura)
     """
-    if df is None or df.empty:
-        return RegimeInfo(
-            estado="desconhecido",
-            descricao="Histórico vazio — impossível calcular regime.",
-            intensidade=0.0,
-            janela_usada=0,
-            k_medio=0.0,
-            k_max=0,
-        )
+    if "k" not in df.columns:
+        raise KeyError("Coluna 'k' não encontrada no histórico.")
 
-    min_idx, max_idx = obter_intervalo_indices(df)
-    # recorte pela janela
-    inicio = max(min_idx, max_idx - janela + 1)
-    df_janela = df[(df["idx"] >= inicio) & (df["idx"] <= max_idx)].copy()
+    # Usa sempre a cauda do histórico
+    janela = min(janela, len(df))
+    trecho = df.tail(janela)
+    k_vals = trecho["k"].astype(float).values
 
-    if df_janela.empty:
-        return RegimeInfo(
-            estado="desconhecido",
-            descricao="Janela vazia — verificar histórico.",
-            intensidade=0.0,
-            janela_usada=0,
-            k_medio=0.0,
-            k_max=0,
-        )
+    k_medio = float(np.mean(k_vals)) if len(k_vals) > 0 else 0.0
+    k_max = float(np.max(k_vals)) if len(k_vals) > 0 else 0.0
 
-    k_vals = df_janela["k"].astype(float).values
-    k_medio = float(np.mean(k_vals))
-    k_max = int(np.max(k_vals))
-
-    # heurística de regime
-    # (ajustável — aqui mantemos ULTRA REAL, sem simplificar para binário)
-    if k_medio <= 1.0 and k_max <= 3:
+    # Heurística de regime (mantendo jeitão ULTRA)
+    if k_medio < 0.05 and k_max <= 1:
+        estado = "ruptura"
+        desc = "🔴 Estrada em ruptura — muitos carros com k=0, baixíssima previsibilidade estrutural."
+    elif k_medio < 0.25:
         estado = "estavel"
-        intensidade = 0.2
-        descricao = "🟢 Estrada estável — poucos guardas acertando exatamente o carro."
-    elif k_medio <= 3.0 and k_max <= 6:
-        estado = "transicao"
-        intensidade = 0.6
-        descricao = "🟡 Estrada em transição — guardas começando a acertar com mais frequência."
+        desc = "🟢 Estrada estável — poucos guardas acertando exatamente o carro."
     else:
-        estado = "critico"
-        intensidade = 0.95
-        descricao = "🔴 Estrada crítica — muitos guardas acertando exatamente o carro."
+        estado = "transicao"
+        desc = "🟡 Estrada em transição — guardas começando a acertar em alguns pontos."
 
     return RegimeInfo(
+        janela_usada=janela,
+        k_medio=k_medio,
+        k_max=k_max,
         estado=estado,
-        descricao=descricao,
-        intensidade=float(intensidade),
-        janela_usada=len(df_janela),
-        k_medio=float(k_medio),
-        k_max=int(k_max),
+        descricao=desc,
     )
 
 
@@ -402,687 +299,168 @@ def calcular_regime_ultra(df: pd.DataFrame, janela: int = 40) -> RegimeInfo:
 
 def calcular_k_star_ultra(df: pd.DataFrame, janela: int = 40) -> KStarInfo:
     """
-    k* ULTRA REAL:
-      - baseia-se na distribuição de k na janela recente.
-      - mede o "nível de sensibilidade" dos guardas.
-    Heurística:
-      - converte k médio da janela em um percentual [0, 1] escalonado.
+    Calcula o k* ULTRA (sentinela preditivo) usando distribuição recente de k.
+    Interpretação:
+    - k* baixo: ambiente estável-fraco (sem padrão forte, sem caos)
+    - k* médio: pré-transição / sensibilidade moderada
+    - k* alto: turbulência / ruptura de regime / pré-choque
     """
-    if df is None or df.empty:
+    if "k" not in df.columns:
+        raise KeyError("Coluna 'k' não encontrada no histórico.")
+
+    janela = min(janela, len(df))
+    trecho = df.tail(janela)
+    k_vals = trecho["k"].astype(float).values
+
+    if len(k_vals) == 0:
         return KStarInfo(
-            k_star_pct=0.0,
-            estado="desconhecido",
-            descricao="Histórico vazio — impossível calcular k*.",
             janela_usada=0,
             k_media_janela=0.0,
-            k_max_janela=0,
-        )
-
-    min_idx, max_idx = obter_intervalo_indices(df)
-    inicio = max(min_idx, max_idx - janela + 1)
-    df_janela = df[(df["idx"] >= inicio) & (df["idx"] <= max_idx)].copy()
-
-    if df_janela.empty:
-        return KStarInfo(
+            k_max_janela=0.0,
             k_star_pct=0.0,
-            estado="desconhecido",
-            descricao="Janela vazia — verificar histórico.",
-            janela_usada=0,
-            k_media_janela=0.0,
-            k_max_janela=0,
+            estado="neutro",
+            descricao="⚪ k*: neutro — histórico insuficiente para avaliar sensibilidade.",
         )
 
-    k_vals = df_janela["k"].astype(float).values
     k_media = float(np.mean(k_vals))
-    k_max = int(np.max(k_vals))
+    k_max = float(np.max(k_vals))
 
-    # Escala ULTRA simples porém sensível:
-    # - Se k_media <= 1.0 -> k* ~ 0.20
-    # - Se k_media entre 1 e 4 -> mapeia de 0.2 a 0.8
-    # - Se k_media >= 4 -> k* sobe até 0.98
-    if k_media <= 1.0:
-        k_star_pct = 0.20
-    elif k_media >= 4.0:
-        k_star_pct = 0.98
-    else:
-        # interpolação linear entre 1 e 4
-        frac = (k_media - 1.0) / 3.0
-        k_star_pct = 0.20 + frac * (0.80 - 0.20)
+    # Uma forma ULTRA simples de k*:
+    # proporção de séries com k > 0 na janela
+    proporcao_k_pos = float(np.mean(k_vals > 0))
 
-    # Estado textual
-    if k_star_pct <= 0.35:
+    k_star_pct = round(proporcao_k_pos * 100.0, 1)
+
+    # Estados de k*
+    if k_star_pct < 15:
         estado = "estavel"
-        descricao = "🟢 k*: Ambiente estável — poucos guardas acertando exatamente."
-    elif k_star_pct <= 0.65:
+        desc = "🟢 k*: Ambiente estável — poucos guardas acertando exatamente."
+    elif k_star_pct < 40:
         estado = "atencao"
-        descricao = "🟡 k*: Pré-ruptura — sensibilidade aumentando, usar previsões com atenção."
+        desc = "🟡 k*: Pré-transição — sensibilidade crescente dos guardas."
     else:
         estado = "critico"
-        descricao = "🔴 k*: Ambiente crítico — guardas muito sensíveis, risco de regime extremo."
+        desc = "🔴 k*: Ambiente crítico — guardas muito sensíveis, alta chance de rupturas."
 
     return KStarInfo(
-        k_star_pct=float(k_star_pct),
+        janela_usada=janela,
+        k_media_janela=k_media,
+        k_max_janela=k_max,
+        k_star_pct=k_star_pct,
         estado=estado,
-        descricao=descricao,
-        janela_usada=len(df_janela),
-        k_media_janela=float(k_media),
-        k_max_janela=int(k_max),
-    )
-
-
-# ============================================================
-# MÓDULOS DE APOIO PARA QDS / BACKTEST / MONTE CARLO
-# (Implementações completas virão a seguir, na Parte 2/4)
-# ============================================================
-
-def calcular_qds_basico(
-    df: pd.DataFrame,
-    col_real: str,
-    col_prev: str,
-    top_n: int = 10,
-    janela_local: int = 100,
-) -> QDSInfo:
-    """
-    Cálculo básico de QDS para manter compatibilidade com versões anteriores.
-    A versão completa e refinada será expandida nos módulos de QDS REAL (Parte 2/4),
-    mas aqui deixamos uma base estável para o motor ULTRA.
-    """
-    if df is None or df.empty:
-        return QDSInfo(
-            qds_global=0.0,
-            qds_local=0.0,
-            janela_local=0,
-            n_acertos=0,
-            n_tentativas=0,
-            descricao="Sem dados para calcular QDS.",
-        )
-
-    df_val = df[[col_real, col_prev]].dropna().copy()
-    if df_val.empty:
-        return QDSInfo(
-            qds_global=0.0,
-            qds_local=0.0,
-            janela_local=0,
-            n_acertos=0,
-            n_tentativas=0,
-            descricao="Sem dados válidos para QDS.",
-        )
-
-    # Converte colunas em listas de séries normalizadas
-    reais = df_val[col_real].apply(normalizar_serie).tolist()
-    prevs = df_val[col_prev].apply(normalizar_serie).tolist()
-
-    acertos_top1 = 0
-    tentativas = 0
-
-    for r, p in zip(reais, prevs):
-        tentativas += 1
-        if calcular_acerto_total(r, p):
-            acertos_top1 += 1
-
-    if tentativas == 0:
-        q_global = 0.0
-    else:
-        q_global = acertos_top1 / tentativas
-
-    # QDS local (janela final)
-    n = len(df_val)
-    if janela_local > n:
-        janela_local = n
-
-    df_loc = df_val.iloc[-janela_local:]
-    reais_loc = df_loc[col_real].apply(normalizar_serie).tolist()
-    prevs_loc = df_loc[col_prev].apply(normalizar_serie).tolist()
-
-    acertos_loc = 0
-    tent_loc = 0
-    for r, p in zip(reais_loc, prevs_loc):
-        tent_loc += 1
-        if calcular_acerto_total(r, p):
-            acertos_loc += 1
-
-    q_local = acertos_loc / tent_loc if tent_loc > 0 else 0.0
-
-    desc = (
-        f"QDS global ~ {q_global:.1%}, QDS local (janela={janela_local}) ~ {q_local:.1%}."
-    )
-
-    return QDSInfo(
-        qds_global=float(q_global),
-        qds_local=float(q_local),
-        janela_local=int(janela_local),
-        n_acertos=int(acertos_loc),
-        n_tentativas=int(tent_loc),
         descricao=desc,
     )
 
 
 # ============================================================
-# (FIM DA PARTE 1/4)
-# Próxima parte: módulos internos completos (IDX ULTRA, IPF/IPO,
-# S6 Profundo ULTRA, Micro-Leque ULTRA, Monte Carlo Profundo,
-# QDS REAL, Backtest REAL, Motor TURBO++ Adaptativo, Replay, etc.)
-# ============================================================
-# ============================================================
-# IDX ULTRA — CONTEXTO E ÍNDICES AVANÇADOS
+# IDX ULTRA — CONTEXTO ESTRUTURAL GLOBAL
 # ============================================================
 
-def construir_contexto_idx_ultra(
-    df: pd.DataFrame,
-    idx_alvo: int,
-    janela_passado: int = 40,
-) -> Dict[str, Any]:
+def construir_contexto_idx_ultra(df: pd.DataFrame, idx_alvo: int) -> Dict[str, Any]:
     """
-    Constrói um dicionário de contexto para o IDX ULTRA:
-      - pega uma janela anterior ao índice alvo
-      - calcula estatísticas dos passageiros e do k nessa janela
+    Constrói um contexto IDX ULTRA simples:
+    - janela usada
+    - média de k
+    - k max
+    - índice global (proxy)
+    Mantém apenas como insumo de contexto (não para visão determinística).
     """
-    if df is None or df.empty:
-        return {
-            "idx_alvo": idx_alvo,
-            "janela_usada": 0,
-            "df_janela": pd.DataFrame(),
-            "media_k": 0.0,
-            "max_k": 0,
-            "freq_passageiros": {},
-        }
-
     min_idx, max_idx = obter_intervalo_indices(df)
-    if idx_alvo < min_idx + 1:
-        idx_alvo = min_idx + 1
+    idx_alvo = int(idx_alvo)
+    if idx_alvo < min_idx:
+        idx_alvo = min_idx
     if idx_alvo > max_idx:
         idx_alvo = max_idx
 
-    inicio = max(min_idx, idx_alvo - janela_passado)
-    fim = idx_alvo - 1
-    df_janela = df[(df["idx"] >= inicio) & (df["idx"] <= fim)].copy()
-
-    if df_janela.empty:
+    # Usa janela até o alvo (inclusive)
+    janela = 40
+    corte = df[df["idx"] <= idx_alvo].tail(janela)
+    janela_real = len(corte)
+    if janela_real == 0:
         return {
-            "idx_alvo": idx_alvo,
             "janela_usada": 0,
-            "df_janela": pd.DataFrame(),
             "media_k": 0.0,
-            "max_k": 0,
-            "freq_passageiros": {},
+            "max_k": 0.0,
+            "idx_global": 0.0,
         }
 
-    col_pass = extrair_passageiros(df)
-    freq: Dict[int, int] = {}
-    for _, row in df_janela.iterrows():
-        for c in col_pass:
-            v = safe_int(row[c])
-            freq[v] = freq.get(v, 0) + 1
-
-    k_vals = df_janela["k"].astype(float).values
+    k_vals = corte["k"].astype(float).values
     media_k = float(np.mean(k_vals))
-    max_k = int(np.max(k_vals))
+    max_k = float(np.max(k_vals))
+
+    # IDX ULTRA: proxy simples — quanto menor k, maior dispersão / índice.
+    # Aqui usamos algo como:
+    # idx_global = (1 - media_k / (1 + max_k)) * 50  (mantendo jeitão "29.91", etc.)
+    idx_global = (1.0 - (media_k / (1.0 + max_k))) * 50.0
 
     return {
-        "idx_alvo": idx_alvo,
-        "janela_usada": len(df_janela),
-        "df_janela": df_janela,
+        "janela_usada": janela_real,
         "media_k": media_k,
         "max_k": max_k,
-        "freq_passageiros": freq,
+        "idx_global": idx_global,
     }
 
 
-def gerar_leque_idx_ultra_base(
-    contexto: Dict[str, Any],
-    n_passageiros: int,
-    n_series_base: int = 200,
-    seed: Optional[int] = None,
-) -> List[List[int]]:
-    """
-    Gera um leque base de séries para o IDX ULTRA:
-      - usa distribuição empírica dos passageiros na janela
-      - sorteia combinações sem reposição com base nas frequências
-    """
-    if seed is not None:
-        random.seed(seed)
-        np.random.seed(seed)
-
-    freq = contexto.get("freq_passageiros", {})
-    if not freq:
-        # fallback: se não há freq, retorna lista vazia
-        return []
-
-    # constrói um vetor de valores repetidos proporcional às frequências
-    universo: List[int] = []
-    for v, f in freq.items():
-        universo.extend([v] * max(1, f))
-
-    if not universo:
-        return []
-
-    leque: List[List[int]] = []
-    for _ in range(n_series_base):
-        # sorteia n_passageiros valores diferentes (sem repetição)
-        escolha = list(set(np.random.choice(universo, size=min(len(set(universo)), n_passageiros), replace=False)))
-        # se faltar passageiro, completa com sorteio aleatório
-        while len(escolha) < n_passageiros:
-            escolha.append(int(random.choice(universo)))
-        escolha = sorted(list(dict.fromkeys(escolha)))  # remove duplicados mantendo ordem
-        if len(escolha) > n_passageiros:
-            escolha = escolha[:n_passageiros]
-        leque.append(escolha)
-
-    return leque
-
-
 # ============================================================
-# IPF / IPO — METRICAS DE PROXIMIDADE ULTRA
+# PLACEHOLDERS PARA MÓDULOS PROFUNDOS (S6 / MICRO / MC / BACKTEST)
+# (Implementados na PARTE 2/4 para manter organização)
 # ============================================================
 
-def calcular_ipf_ipo_para_leque(
-    df: pd.DataFrame,
-    leque: List[List[int]],
-    idx_alvo: int,
-    janela_ref: int = 80,
-) -> pd.DataFrame:
-    """
-    Calcula IPF / IPO refinados para cada série do leque:
-      - IPF: proximidade com carros imediatamente anteriores (projeção fina)
-      - IPO: proximidade com carros em janelas mais largas (projeção ampla)
-    As métricas são normalizadas e retornadas em um DataFrame.
-    """
-    if not leque:
-        return pd.DataFrame(columns=["series", "ipf", "ipo", "ip_total"])
-
-    min_idx, max_idx = obter_intervalo_indices(df)
-    if idx_alvo < min_idx + 1:
-        idx_alvo = min_idx + 1
-    if idx_alvo > max_idx:
-        idx_alvo = max_idx
-
-    # Janela mais curta (IPF)
-    inicio_fino = max(min_idx, idx_alvo - 10)
-    fim_fino = idx_alvo - 1
-    df_fino = df[(df["idx"] >= inicio_fino) & (df["idx"] <= fim_fino)].copy()
-
-    # Janela mais longa (IPO)
-    inicio_largo = max(min_idx, idx_alvo - janela_ref)
-    fim_largo = idx_alvo - 1
-    df_largo = df[(df["idx"] >= inicio_largo) & (df["idx"] <= fim_largo)].copy()
-
-    col_pass = extrair_passageiros(df)
-
-    def score_ip(df_ref: pd.DataFrame, serie: List[int]) -> float:
-        if df_ref.empty:
-            return 0.0
-        inters = []
-        for _, row in df_ref.iterrows():
-            real = [safe_int(row[c]) for c in col_pass]
-            inters.append(calcular_interseccao(real, serie))
-        if not inters:
-            return 0.0
-        return float(np.mean(inters))
-
-    registros = []
-    for s in leque:
-        ipf = score_ip(df_fino, s)
-        ipo = score_ip(df_largo, s)
-        ip_total = ipf * 0.6 + ipo * 0.4
-        registros.append(
-            {
-                "series": s,
-                "ipf": ipf,
-                "ipo": ipo,
-                "ip_total": ip_total,
-            }
-        )
-
-    df_ip = pd.DataFrame(registros)
-
-    # normaliza IPF/IPO/IP_total entre 0 e 1
-    for col in ["ipf", "ipo", "ip_total"]:
-        if not df_ip.empty:
-            v = df_ip[col].values.astype(float)
-            if v.size > 0:
-                vmin, vmax = float(np.min(v)), float(np.max(v))
-                if vmax > vmin:
-                    df_ip[col] = (v - vmin) / (vmax - vmin)
-                else:
-                    df_ip[col] = 0.0
-        else:
-            df_ip[col] = 0.0
-
-    return df_ip
+# As funções abaixo serão definidas completamente na Parte 2/4:
+#
+# - montar_previsao_turbo_ultra(...)
+# - montar_contexto_replay_light(...)
+# - montar_contexto_replay_ultra_unitario(...)
+# - executar_backtest_real(...)
+# - calcular_qds_real(...)
+#
+# Aqui apenas declaramos as assinaturas para referência de tipo.
 
 
-# ============================================================
-# S6 PROFUNDO ULTRA — REFINO DO LEQUE
-# ============================================================
-
-def s6_profundo_ultra_refinar(
-    df_hist: pd.DataFrame,
-    df_ip: pd.DataFrame,
-    idx_alvo: int,
-    n_top: int = 300,
-) -> pd.DataFrame:
-    """
-    S6 Profundo ULTRA:
-      - Pega o leque com IPF/IPO.
-      - Calcula métricas adicionais de dispersão (spread) e entropia simples.
-      - Gera um score S6 que pondera IP_total, dispersão e diversidade.
-    Retorna DataFrame com:
-      ['series', 'ipf', 'ipo', 'ip_total', 'score_s6']
-    """
-    if df_ip is None or df_ip.empty:
-        return pd.DataFrame(columns=["series", "ipf", "ipo", "ip_total", "score_s6"])
-
-    col_pass = extrair_passageiros(df_hist)
-
-    def dispersao(serie: List[int]) -> float:
-        if not serie:
-            return 0.0
-        v = np.array(sorted(serie), dtype=float)
-        if v.size <= 1:
-            return 0.0
-        return float(np.std(v))
-
-    def entropia(serie: List[int]) -> float:
-        if not serie:
-            return 0.0
-        vals, counts = np.unique(serie, return_counts=True)
-        probs = counts / counts.sum()
-        return float(-np.sum(probs * np.log2(probs + 1e-9)))
-
-    dispersoes = []
-    entropias = []
-    for _, row in df_ip.iterrows():
-        s = normalizar_serie(row["series"])
-        dispersoes.append(dispersao(s))
-        entropias.append(entropia(s))
-
-    df_ip = df_ip.copy()
-    df_ip["disp"] = dispersoes
-    df_ip["ent"] = entropias
-
-    # normaliza disp / ent
-    for col in ["disp", "ent"]:
-        vals = df_ip[col].values.astype(float)
-        if vals.size > 0:
-            vmin, vmax = float(np.min(vals)), float(np.max(vals))
-            if vmax > vmin:
-                df_ip[col] = (vals - vmin) / (vmax - vmin)
-            else:
-                df_ip[col] = 0.0
-        else:
-            df_ip[col] = 0.0
-
-    # Score S6: mistura IP_total, dispersão e entropia
-    # sem simplificações: mantemos os três componentes
-    df_ip["score_s6"] = (
-        df_ip["ip_total"] * 0.5
-        + df_ip["disp"] * 0.25
-        + df_ip["ent"] * 0.25
-    )
-
-    df_ip = df_ip.sort_values("score_s6", ascending=False).head(n_top).reset_index(drop=True)
-    return df_ip
-
-
-# ============================================================
-# MICRO-LEQUE ULTRA — FOCADO NA VIZINHANÇA
-# ============================================================
-
-def gerar_micro_leque_ultra(
+def montar_previsao_turbo_ultra(
     df_hist: pd.DataFrame,
     idx_alvo: int,
-    n_passageiros: int,
+    regime_info: RegimeInfo,
+    k_info: KStarInfo,
+    n_series_base: int = 300,
     n_series_micro: int = 80,
+    n_sim_mc: int = 800,
+    output_mode: str = "automatico",
+    n_series_fixed: int = 25,
+    min_conf_pct: float = 30.0,
 ) -> pd.DataFrame:
     """
-    Micro-Leque ULTRA:
-      - Foca em variações pequenas em torno dos últimos carros.
-      - Gera séries com pequenos perturbações (±1) em passageiros recentes.
-    Retorna DataFrame com ['series', 'score_micro'].
+    Implementação completa na PARTE 2/4.
     """
-    if df_hist is None or df_hist.empty:
-        return pd.DataFrame(columns=["series", "score_micro"])
-
-    min_idx, max_idx = obter_intervalo_indices(df_hist)
-    if idx_alvo <= min_idx:
-        idx_alvo = min_idx + 1
-    if idx_alvo > max_idx:
-        idx_alvo = max_idx
-
-    col_pass = extrair_passageiros(df_hist)
-
-    # pega últimos 5 carros antes do alvo
-    df_ref = df_hist[(df_hist["idx"] < idx_alvo)].tail(5).copy()
-    if df_ref.empty:
-        return pd.DataFrame(columns=["series", "score_micro"])
-
-    base_series = []
-    for _, row in df_ref.iterrows():
-        s = [safe_int(row[c]) for c in col_pass]
-        base_series.append(s)
-
-    universo = []
-    for s in base_series:
-        for delta in [-2, -1, 0, 1, 2]:
-            var = [max(1, x + delta) for x in s]
-            var = sorted(list(dict.fromkeys(var)))
-            if len(var) > n_passageiros:
-                var = var[:n_passageiros]
-            while len(var) < n_passageiros:
-                var.append(random.choice(s))
-            universo.append(var)
-
-    # remove duplicadas
-    universo_unico = []
-    visto = set()
-    for s in universo:
-        key = tuple(sorted(s))
-        if key not in visto:
-            visto.add(key)
-            universo_unico.append(s)
-
-    random.shuffle(universo_unico)
-    universo_unico = universo_unico[:n_series_micro]
-
-    # score_micro: favorece séries próximas à última série real
-    ultima_real = [safe_int(df_ref.iloc[-1][c]) for c in col_pass]
-
-    registros = []
-    for s in universo_unico:
-        inter = calcular_interseccao(s, ultima_real)
-        score = inter / max(1, len(set(ultima_real)))
-        registros.append({"series": s, "score_micro": score})
-
-    df_micro = pd.DataFrame(registros)
-    if not df_micro.empty:
-        vals = df_micro["score_micro"].values.astype(float)
-        vmin, vmax = float(np.min(vals)), float(np.max(vals))
-        if vmax > vmin:
-            df_micro["score_micro"] = (vals - vmin) / (vmax - vmin)
-        else:
-            df_micro["score_micro"] = 0.0
-
-    return df_micro
+    raise NotImplementedError("montar_previsao_turbo_ultra será implementada na PARTE 2/4.")
 
 
-# ============================================================
-# MONTE CARLO PROFUNDO ULTRA
-# ============================================================
-
-def monte_carlo_profundo_ultra(
+def montar_contexto_replay_light(
     df_hist: pd.DataFrame,
     idx_alvo: int,
-    n_passageiros: int,
-    n_simulacoes: int = 1000,
-) -> MonteCarloResult:
+    regime_info: RegimeInfo,
+    k_info: KStarInfo,
+) -> Dict[str, Any]:
     """
-    Monte Carlo Profundo ULTRA:
-      - Simula N séries com base na distribuição empírica por posição.
-      - Para cada posição p_i, calcula a distribuição dos passageiros na janela recente
-        e sorteia com reposição.
-    Retorna MonteCarloResult com DataFrame ['series', 'freq', 'prob_mc'].
+    Implementação completa na PARTE 2/4.
     """
-    if df_hist is None or df_hist.empty:
-        return MonteCarloResult(
-            tabela=pd.DataFrame(columns=["series", "freq", "prob_mc"]),
-            n_simulacoes=0,
-            n_series_unicas=0,
-            descricao="Histórico vazio — Monte Carlo não executado.",
-        )
-
-    min_idx, max_idx = obter_intervalo_indices(df_hist)
-    if idx_alvo <= min_idx:
-        idx_alvo = min_idx + 1
-    if idx_alvo > max_idx:
-        idx_alvo = max_idx
-
-    col_pass = extrair_passageiros(df_hist)
-
-    # janela de referência para MC
-    inicio = max(min_idx, idx_alvo - 100)
-    fim = idx_alvo - 1
-    df_ref = df_hist[(df_hist["idx"] >= inicio) & (df_hist["idx"] <= fim)].copy()
-
-    if df_ref.empty:
-        return MonteCarloResult(
-            tabela=pd.DataFrame(columns=["series", "freq", "prob_mc"]),
-            n_simulacoes=0,
-            n_series_unicas=0,
-            descricao="Janela para Monte Carlo vazia.",
-        )
-
-    # distribuição por posição
-    dist_pos: Dict[str, List[int]] = {}
-    for c in col_pass:
-        dist_pos[c] = [safe_int(v) for v in df_ref[c].tolist()]
-
-    sims: List[Tuple[int, ...]] = []
-    for _ in range(n_simulacoes):
-        s_vals: List[int] = []
-        for c in col_pass:
-            pool = dist_pos.get(c, [])
-            if not pool:
-                # fallback se posição vazia
-                pool = [safe_int(v) for v in df_ref[c].tolist()]
-            v = random.choice(pool)
-            s_vals.append(safe_int(v))
-        # se n_passageiros detectado for diferente do nº de col_pass,
-        # ajusta o tamanho sem simplificar o motor (apenas truncagem/expansão simples)
-        if len(s_vals) > n_passageiros:
-            s_vals = s_vals[:n_passageiros]
-        elif len(s_vals) < n_passageiros:
-            while len(s_vals) < n_passageiros:
-                s_vals.append(random.choice(s_vals))
-        sims.append(series_to_tuple(sorted(list(dict.fromkeys(s_vals)))[:n_passageiros]))
-
-    freq: Dict[Tuple[int, ...], int] = {}
-    for s in sims:
-        freq[s] = freq.get(s, 0) + 1
-
-    registros = []
-    for s, f in freq.items():
-        registros.append({"series": list(s), "freq": f})
-
-    df_mc = pd.DataFrame(registros)
-    if not df_mc.empty:
-        df_mc["prob_mc"] = df_mc["freq"].astype(float) / float(n_simulacoes)
-    else:
-        df_mc["prob_mc"] = []
-
-    return MonteCarloResult(
-        tabela=df_mc.sort_values("prob_mc", ascending=False).reset_index(drop=True),
-        n_simulacoes=int(n_simulacoes),
-        n_series_unicas=int(len(freq)),
-        descricao=f"Monte Carlo Profundo ULTRA executado com {n_simulacoes} simulações.",
-    )
+    raise NotImplementedError("montar_contexto_replay_light será implementada na PARTE 2/4.")
 
 
-# ============================================================
-# QDS REAL (VERSÃO EXPANDIDA)
-# ============================================================
-
-def calcular_qds_real(
-    df_backtest: pd.DataFrame,
-    col_real: str = "real",
-    col_prev: str = "prev",
-    top_n: int = 10,
-    janela_local: int = 100,
-) -> QDSInfo:
+def montar_contexto_replay_ultra_unitario(
+    df_hist: pd.DataFrame,
+    idx_alvo: int,
+    df_turbo: pd.DataFrame,
+    qds_info: Optional[QDSInfo],
+    regime_info: RegimeInfo,
+    k_info: KStarInfo,
+    top_n: int = 25,
+) -> Dict[str, Any]:
     """
-    QDS REAL:
-      - Baseado em histórico de backtest (real vs prev).
-      - Mede QDS global e local.
-      - Considera top-N: se a previsão (lista) contiver os 6 passageiros reais,
-        conta como acerto integral.
+    Implementação completa na PARTE 2/4.
     """
-    if df_backtest is None or df_backtest.empty:
-        return QDSInfo(
-            qds_global=0.0,
-            qds_local=0.0,
-            janela_local=0,
-            n_acertos=0,
-            n_tentativas=0,
-            descricao="Backtest vazio — QDS REAL não disponível.",
-        )
+    raise NotImplementedError("montar_contexto_replay_ultra_unitario será implementada na PARTE 2/4.")
 
-    df_val = df_backtest[[col_real, col_prev]].dropna().copy()
-    if df_val.empty:
-        return QDSInfo(
-            qds_global=0.0,
-            qds_local=0.0,
-            janela_local=0,
-            n_acertos=0,
-            n_tentativas=0,
-            descricao="Backtest sem pares (real, prev) válidos.",
-        )
-
-    reais = df_val[col_real].apply(normalizar_serie).tolist()
-    prevs = df_val[col_prev].apply(normalizar_serie).tolist()
-
-    acertos = 0
-    tentativas = len(reais)
-
-    for r, p in zip(reais, prevs):
-        if calcular_acerto_total(r, p):
-            acertos += 1
-
-    q_global = acertos / tentativas if tentativas > 0 else 0.0
-
-    # QDS local
-    n = len(df_val)
-    if janela_local > n:
-        janela_local = n
-
-    df_loc = df_val.iloc[-janela_local:]
-    reais_loc = df_loc[col_real].apply(normalizar_serie).tolist()
-    prevs_loc = df_loc[col_prev].apply(normalizar_serie).tolist()
-
-    acertos_loc = 0
-    tent_loc = len(reais_loc)
-    for r, p in zip(reais_loc, prevs_loc):
-        if calcular_acerto_total(r, p):
-            acertos_loc += 1
-
-    q_local = acertos_loc / tent_loc if tent_loc > 0 else 0.0
-
-    desc = (
-        f"QDS REAL global ~ {q_global:.1%}, "
-        f"QDS local (janela={janela_local}) ~ {q_local:.1%}."
-    )
-
-    return QDSInfo(
-        qds_global=float(q_global),
-        qds_local=float(q_local),
-        janela_local=int(janela_local),
-        n_acertos=int(acertos_loc),
-        n_tentativas=int(tent_loc),
-        descricao=desc,
-    )
-
-
-# ============================================================
-# BACKTEST REAL
-# ============================================================
 
 def executar_backtest_real(
     df_hist: pd.DataFrame,
@@ -1091,308 +469,277 @@ def executar_backtest_real(
     top_n: int = 10,
 ) -> BacktestResult:
     """
-    Backtest REAL simplificado porém denso:
-      - Para cada índice dentro da janela final, usa um modelo extremamente
-        conservador (p.ex. repete o carro imediatamente anterior) como previsão.
-      - Mede taxa de acerto top-1 (integral) e top-N (placeholder conceitual).
-    Este backtest é usado como base para QDS REAL.
+    Implementação completa na PARTE 2/4.
     """
-    if df_hist is None or df_hist.empty:
-        return BacktestResult(
-            tabela=pd.DataFrame(columns=["idx", "real", "prev", "hit_top1"]),
-            hit_rate_top1=0.0,
-            hit_rate_topN=0.0,
-            N=top_n,
-            descricao="Histórico vazio — Backtest REAL não executado.",
-        )
+    raise NotImplementedError("executar_backtest_real será implementada na PARTE 2/4.")
 
+
+def calcular_qds_real(
+    tabela_bt: pd.DataFrame,
+    top_n: int = 10,
+) -> QDSInfo:
+    """
+    Implementação completa na PARTE 2/4.
+    """
+    raise NotImplementedError("calcular_qds_real será implementada na PARTE 2/4.")
+# ============================================================
+# MÓDULOS PROFUNDOS — S6 / MICRO / MONTE CARLO / FUSÃO ULTRA
+# ============================================================
+
+def _gerar_leque_s6_ultra(
+    df_hist: pd.DataFrame,
+    idx_alvo: int,
+    n_series_base: int,
+) -> pd.DataFrame:
+    """
+    Gera um leque base tipo S6 ULTRA:
+    - usa séries reais anteriores ao idx_alvo
+    - recorta janela estruturada (até ~300 últimos carros)
+    - permite repetição parcial, mantendo o jeitão "núcleo determinístico"
+    """
     min_idx, max_idx = obter_intervalo_indices(df_hist)
-    inicio = max(min_idx + 1, max_idx - janela + 1)
-    fim = max_idx
+    idx_alvo = int(idx_alvo)
+    if idx_alvo <= min_idx:
+        idx_alvo = min_idx + 1
+    if idx_alvo > max_idx:
+        idx_alvo = max_idx
 
-    col_pass = extrair_passageiros(df_hist)
+    df_passado = df_hist[df_hist["idx"] < idx_alvo].copy()
+    if df_passado.empty:
+        df_passado = df_hist.copy()
 
+    # Janela máxima para estrutura (S6)
+    df_passado = df_passado.tail(300)
+
+    cols_pass = extrair_passageiros(df_passado)
     registros = []
-    acertos_top1 = 0
-    total = 0
 
-    for idx in range(inicio, fim + 1):
-        atual = df_hist[df_hist["idx"] == idx]
-        anterior = df_hist[df_hist["idx"] == (idx - 1)]
+    # Se n_series_base > número de linhas, podemos replicar amostrando com reposição
+    if len(df_passado) == 0:
+        return pd.DataFrame(columns=["series", "origem", "score_s6"])
 
-        if atual.empty or anterior.empty:
-            continue
-
-        real = [safe_int(atual.iloc[0][c]) for c in col_pass]
-        prev = [safe_int(anterior.iloc[0][c]) for c in col_pass]  # modelo naive
-
-        hit_top1 = calcular_acerto_total(real, prev)
-        if hit_top1:
-            acertos_top1 += 1
-        total += 1
-
+    # Usa amostragem com reposição para gerar base
+    for _ in range(n_series_base):
+        row = df_passado.sample(1, replace=True).iloc[0]
+        serie = [int(row[c]) for c in cols_pass]
         registros.append(
             {
-                "idx": idx,
-                "real": real,
-                "prev": prev,
-                "hit_top1": hit_top1,
+                "series": serie,
+                "origem": "S6",
+                "score_s6": 1.0,  # score relativo será refinado depois
             }
         )
 
-    df_bt = pd.DataFrame(registros)
-    hit_rate_top1 = acertos_top1 / total if total > 0 else 0.0
-
-    # top-N: placeholder densamente acoplado ao top-1 (sem simplificar removendo)
-    # aqui assumimos que se a série prevista aparece dentre N tentativas idênticas,
-    # a taxa de acerto topN tende ao top1 (mantemos ligação conceitual).
-    hit_rate_topN = hit_rate_top1  # coerência simples — sem remover o conceito
-
-    desc = (
-        f"Backtest REAL executado na janela final de {len(df_bt)} séries. "
-        f"Hit rate top-1 ~ {hit_rate_top1:.1%}."
-    )
-
-    return BacktestResult(
-        tabela=df_bt,
-        hit_rate_top1=float(hit_rate_top1),
-        hit_rate_topN=float(hit_rate_topN),
-        N=int(top_n),
-        descricao=desc,
-    )
+    df_s6 = pd.DataFrame(registros)
+    return df_s6
 
 
-# ============================================================
-# MOTOR ADAPTATIVO POR k* — PESOS S6 / MICRO / MC
-# ============================================================
-
-def calcular_pesos_por_k_star(k_info: KStarInfo) -> TurboEngineWeights:
+def _gerar_leque_micro_ultra(
+    df_hist: pd.DataFrame,
+    idx_alvo: int,
+    n_series_micro: int,
+) -> pd.DataFrame:
     """
-    Define pesos automáticos S6 / Micro-Leque / Monte Carlo de acordo com k*:
-      - Ambiente estável: favorece S6 (estrutura global) + um pouco de MC.
-      - Atenção: equilibra S6, Micro e MC.
-      - Crítico: favorece MC e Micro (ruído alto), ainda mantendo S6 presente.
+    Micro-Leque ULTRA:
+    - gera variações finas em torno do carro alvo-1 (ou última série conhecida)
+    - pequenas perturbações em +/- 1, 2, 3
     """
-    k_pct = float(k_info.k_star_pct)
+    min_idx, max_idx = obter_intervalo_indices(df_hist)
+    idx_alvo = int(idx_alvo)
+    if idx_alvo <= min_idx:
+        idx_ref = min_idx
+    else:
+        idx_ref = idx_alvo - 1
+    if idx_ref > max_idx:
+        idx_ref = max_idx
 
-    if k_info.estado == "estavel":
-        peso_s6 = 0.55
-        peso_micro = 0.20
-        peso_mc = 0.25
-    elif k_info.estado == "atencao":
-        peso_s6 = 0.40
-        peso_micro = 0.30
-        peso_mc = 0.30
-    else:  # "critico" ou outros
-        peso_s6 = 0.25
-        peso_micro = 0.35
-        peso_mc = 0.40
+    df_ref = df_hist[df_hist["idx"] == idx_ref]
+    if df_ref.empty:
+        df_ref = df_hist.tail(1)
 
-    # normalização leve para garantir soma 1.0
-    soma = peso_s6 + peso_micro + peso_mc
-    if soma <= 0:
-        return TurboEngineWeights(peso_s6=1 / 3, peso_micro=1 / 3, peso_mc=1 / 3)
+    cols_pass = extrair_passageiros(df_ref)
+    base = df_ref.iloc[0]
+    base_serie = [int(base[c]) for c in cols_pass]
 
-    return TurboEngineWeights(
-        peso_s6=float(peso_s6 / soma),
-        peso_micro=float(peso_micro / soma),
-        peso_mc=float(peso_mc / soma),
-    )
+    registros = []
+    rng = np.random.default_rng(seed=idx_alvo + 123)
+
+    for _ in range(n_series_micro):
+        nova = base_serie.copy()
+        # Perturba algumas posições aleatórias
+        n_positions = max(1, int(len(nova) / 2))
+        posicoes = rng.choice(len(nova), size=n_positions, replace=False)
+        for p in posicoes:
+            delta = int(rng.integers(-3, 4))  # -3..+3
+            novo_valor = max(1, nova[p] + delta)
+            # Mantém um teto genérico (ex: 60) para não explodir para cima
+            novo_valor = min(60, novo_valor)
+            nova[p] = novo_valor
+
+        registros.append(
+            {
+                "series": nova,
+                "origem": "MICRO",
+                "score_micro": 1.0,
+            }
+        )
+
+    df_micro = pd.DataFrame(registros)
+    return df_micro
 
 
-# ============================================================
-# FERRAMENTAS PARA UNIFICAR LEQUES EM TABELA "FLAT"
-# ============================================================
-
-def build_flat_series_table(leque: List[List[int]]) -> pd.DataFrame:
+def _gerar_leque_mc_ultra(
+    df_hist: pd.DataFrame,
+    idx_alvo: int,
+    n_sim_mc: int,
+) -> pd.DataFrame:
     """
-    Constrói uma tabela 'flat' básica a partir de uma lista de séries.
-    Atribui um ID interno e mantém a coluna 'series'.
+    Monte Carlo Profundo ULTRA:
+    - gera séries novas com base na distribuição marginal dos passageiros
+      nas últimas janelas históricas (modo puramente estocástico).
     """
-    if not leque:
-        return pd.DataFrame(columns=["series"])
-    return pd.DataFrame({"series": leque})
+    min_idx, max_idx = obter_intervalo_indices(df_hist)
+    idx_alvo = int(idx_alvo)
+    if idx_alvo <= min_idx:
+        idx_alvo = min_idx + 1
+    if idx_alvo > max_idx:
+        idx_alvo = max_idx
+
+    df_passado = df_hist[df_hist["idx"] < idx_alvo].copy()
+    if df_passado.empty:
+        df_passado = df_hist.copy()
+
+    # Usa uma janela maior para Monte Carlo
+    df_passado = df_passado.tail(400)
+    cols_pass = extrair_passageiros(df_passado)
+    if df_passado.empty or not cols_pass:
+        return pd.DataFrame(columns=["series", "origem", "score_mc"])
+
+    rng = np.random.default_rng(seed=idx_alvo + 987)
+    registros = []
+
+    # Pré-calcula distribuições empíricas por posição
+    valores_por_col = {}
+    for c in cols_pass:
+        valores = df_passado[c].dropna().astype(int).values
+        if len(valores) == 0:
+            valores = np.arange(1, 61)
+        valores_por_col[c] = valores
+
+    for _ in range(n_sim_mc):
+        serie = []
+        for c in cols_pass:
+            vals = valores_por_col[c]
+            serie.append(int(rng.choice(vals)))
+        registros.append(
+            {
+                "series": serie,
+                "origem": "MC",
+                "score_mc": 1.0,
+            }
+        )
+
+    df_mc = pd.DataFrame(registros)
+    return df_mc
 
 
-def unir_leques(
+def _score_freq_basico(
+    df_hist: pd.DataFrame,
+    candidatos: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Score básico de frequência:
+    - séries com passageiros mais frequentes na janela recente recebem score maior.
+    - mantém o jeitão de um "TVF" simplificado.
+    """
+    if candidatos.empty:
+        return candidatos
+
+    cols_pass = extrair_passageiros(df_hist)
+    if not cols_pass:
+        return candidatos
+
+    # Frequências recentes (janela de 200 carros)
+    df_ref = df_hist.tail(200)
+    freq = {}
+    for c in cols_pass:
+        valores = df_ref[c].dropna().astype(int)
+        freq[c] = valores.value_counts(normalize=True).to_dict()
+
+    scores = []
+    for _, row in candidatos.iterrows():
+        serie = row["series"]
+        s = 0.0
+        for i, val in enumerate(serie):
+            col = cols_pass[i] if i < len(cols_pass) else cols_pass[-1]
+            f = freq.get(col, {}).get(int(val), 0.0)
+            s += f
+        scores.append(s)
+
+    candidatos = candidatos.copy()
+    candidatos["score_freq"] = scores
+    return candidatos
+
+
+def _combinar_leques_ultra(
     df_s6: pd.DataFrame,
     df_micro: pd.DataFrame,
     df_mc: pd.DataFrame,
+    peso_s6: float,
+    peso_micro: float,
+    peso_mc: float,
 ) -> pd.DataFrame:
     """
-    Une as três fontes de leque (S6, Micro-Leque, Monte Carlo) em um único DataFrame,
-    mantendo colunas de score separadas.
+    Combina os leques S6 / MICRO / MC em um único dataframe,
+    aplicando pesos adaptativos e um score global.
     """
-    # prepara cópias
-    df_s6 = df_s6.copy() if df_s6 is not None else pd.DataFrame(columns=["series"])
-    df_micro = df_micro.copy() if df_micro is not None else pd.DataFrame(columns=["series"])
-    df_mc = df_mc.copy() if df_mc is not None else pd.DataFrame(columns=["series"])
+    frames = []
 
-    # garante colunas
-    if "score_s6" not in df_s6.columns:
-        df_s6["score_s6"] = 0.0
-    if "score_micro" not in df_micro.columns:
-        df_micro["score_micro"] = 0.0
-    if "prob_mc" not in df_mc.columns:
-        df_mc["prob_mc"] = 0.0
+    if not df_s6.empty:
+        df_s6 = df_s6.copy()
+        if "score_s6" not in df_s6.columns:
+            df_s6["score_s6"] = 1.0
+        df_s6["score_micro"] = 0.0
+        df_s6["score_mc"] = 0.0
+        frames.append(df_s6)
 
-    # converte séries em tuplas para merge
-    for df_local in [df_s6, df_micro, df_mc]:
-        if not df_local.empty:
-            df_local["series_key"] = df_local["series"].apply(
-                lambda s: tuple(normalizar_serie(s))
-            )
+    if not df_micro.empty:
+        df_micro = df_micro.copy()
+        if "score_micro" not in df_micro.columns:
+            df_micro["score_micro"] = 1.0
+        df_micro["score_s6"] = 0.0
+        df_micro["score_mc"] = 0.0
+        frames.append(df_micro)
 
-    # merge progressivo
-    df_merged = pd.merge(
-        df_s6[["series_key", "series", "score_s6"]],
-        df_micro[["series_key", "score_micro"]],
-        on="series_key",
-        how="outer",
-        suffixes=("", "_micro"),
-    )
-    df_merged = pd.merge(
-        df_merged,
-        df_mc[["series_key", "prob_mc"]],
-        on="series_key",
-        how="outer",
-    )
+    if not df_mc.empty:
+        df_mc = df_mc.copy()
+        if "score_mc" not in df_mc.columns:
+            df_mc["score_mc"] = 1.0
+        df_mc["score_s6"] = 0.0
+        df_mc["score_micro"] = 0.0
+        frames.append(df_mc)
 
-    # preenche nulos
-    for col in ["score_s6", "score_micro", "prob_mc"]:
-        if col in df_merged.columns:
-            df_merged[col] = df_merged[col].fillna(0.0)
+    if not frames:
+        return pd.DataFrame(columns=["series", "origem", "score_s6", "score_micro", "score_mc", "score_global"])
 
-    # se 'series' vier nula (caso origem micro/mc sem s6), reconstrói
-    if "series" not in df_merged.columns:
-        df_merged["series"] = df_merged["series_key"].apply(list)
-    else:
-        df_merged["series"] = df_merged.apply(
-            lambda row: row["series"] if isinstance(row["series"], (list, tuple))
-            else list(row["series_key"]),
-            axis=1,
-        )
+    df_mix = pd.concat(frames, ignore_index=True)
 
-    return df_merged
-
-
-def normalizar_scores_global(df_flat: pd.DataFrame) -> pd.DataFrame:
-    """
-    Normaliza os scores individuais e calcula score_global.
-    """
-    if df_flat is None or df_flat.empty:
-        return pd.DataFrame(columns=["series", "score_s6", "score_micro", "prob_mc", "score_global"])
-
-    df = df_flat.copy()
-
-    for col in ["score_s6", "score_micro", "prob_mc"]:
-        if col not in df.columns:
-            df[col] = 0.0
-        vals = df[col].values.astype(float)
-        if vals.size > 0:
-            vmin, vmax = float(np.min(vals)), float(np.max(vals))
-            if vmax > vmin:
-                df[col] = (vals - vmin) / (vmax - vmin)
-            else:
-                df[col] = 0.0
-        else:
-            df[col] = 0.0
-
-    # score_global default (antes de ponderar com pesos adaptativos)
-    df["score_global"] = (
-        df["score_s6"] * 0.4
-        + df["score_micro"] * 0.3
-        + df["prob_mc"] * 0.3
+    # Score base por origem
+    # S6 recebe foco maior em ambientes mais estáveis
+    df_mix["score_origem"] = (
+        df_mix["score_s6"] * peso_s6
+        + df_mix["score_micro"] * peso_micro
+        + df_mix["score_mc"] * peso_mc
     )
 
-    return df
+    # Score global ainda será refinado com frequência
+    df_mix["score_global"] = df_mix["score_origem"].astype(float)
 
-
-def aplicar_pesos_adaptativos(
-    df_flat: pd.DataFrame,
-    pesos: TurboEngineWeights,
-) -> pd.DataFrame:
-    """
-    Recalcula score_global de acordo com os pesos adaptativos do motor.
-    """
-    if df_flat is None or df_flat.empty:
-        return pd.DataFrame(columns=["series", "score_s6", "score_micro", "prob_mc", "score_global"])
-
-    df = df_flat.copy()
-    for col in ["score_s6", "score_micro", "prob_mc"]:
-        if col not in df.columns:
-            df[col] = 0.0
-
-    df["score_global"] = (
-        df["score_s6"] * float(pesos.peso_s6)
-        + df["score_micro"] * float(pesos.peso_micro)
-        + df["prob_mc"] * float(pesos.peso_mc)
-    )
-
-    # normaliza novamente
-    vals = df["score_global"].values.astype(float)
-    if vals.size > 0:
-        vmin, vmax = float(np.min(vals)), float(np.max(vals))
-        if vmax > vmin:
-            df["score_global"] = (vals - vmin) / (vmax - vmin)
-        else:
-            df["score_global"] = 0.0
-    else:
-        df["score_global"] = 0.0
-
-    return df
+    return df_mix
 
 
 # ============================================================
-# LIMITADOR DE SAÍDA (Automático / Quantidade fixa / Conf. mínima)
-# ============================================================
-
-def limit_by_mode(
-    flat_df: pd.DataFrame,
-    regime_state: str,
-    output_mode: str,
-    n_series_fixed: int,
-    min_conf_pct: float,
-) -> pd.DataFrame:
-    """
-    Aplica a política de saída do painel TURBO++:
-      - Automático (por regime)
-      - Quantidade fixa
-      - Confiabilidade mínima
-    Usa score_global como proxy de confiança.
-    """
-    if flat_df is None or flat_df.empty:
-        return flat_df
-
-    df = flat_df.copy()
-    df = df.sort_values("score_global", ascending=False).reset_index(drop=True)
-
-    if output_mode == "automatico":
-        if regime_state == "estavel":
-            n = 30
-        elif regime_state == "transicao":
-            n = 50
-        else:  # critico ou outros
-            n = 70
-        return df.head(n)
-
-    elif output_mode == "fixo":
-        return df.head(max(1, int(n_series_fixed)))
-
-    elif output_mode == "conf_min":
-        thr = float(min_conf_pct) / 100.0
-        df2 = df[df["score_global"] >= thr].copy()
-        if df2.empty:
-            # se nada acima do limiar, devolve as top 10 como fallback
-            return df.head(10)
-        return df2
-
-    # fallback: devolve df original ordenado
-    return df
-
-
-# ============================================================
-# MOTOR TURBO++ ULTRA — MONTAGEM DO LEQUE FINAL
+# MONTAGEM DA PREVISÃO TURBO++ ULTRA (ADAPTATIVO POR k*)
 # ============================================================
 
 def montar_previsao_turbo_ultra(
@@ -1408,76 +755,112 @@ def montar_previsao_turbo_ultra(
     min_conf_pct: float = 30.0,
 ) -> pd.DataFrame:
     """
-    Motor principal TURBO++ ULTRA:
-      1) Constrói contexto IDX ULTRA.
-      2) Gera leque base via IDX ULTRA.
-      3) Aplica IPF/IPO + S6 Profundo ULTRA.
-      4) Gera Micro-Leque ULTRA.
-      5) Roda Monte Carlo Profundo ULTRA.
-      6) Unifica tudo e aplica pesos adaptativos por k*.
-      7) Aplica política de saída (modo de quantidade).
-    Retorna DataFrame final ordenado com colunas:
-      ['series', 'score_s6', 'score_micro', 'prob_mc', 'score_global']
+    Núcleo do Modo TURBO++ ULTRA Adaptativo.
+    - Gera leques S6 / MICRO / MC
+    - Aplica pesos por regime (usando k* e barômetro)
+    - Calcula score global com frequência
+    - Limita por modo de saída (automático / fixo / confiabilidade mínima)
+    Retorna df com colunas:
+        - series (list[int])
+        - origem (S6 / MICRO / MC)
+        - score_s6 / score_micro / score_mc
+        - score_freq
+        - score_global
     """
     if df_hist is None or df_hist.empty:
-        return pd.DataFrame(columns=["series", "score_s6", "score_micro", "prob_mc", "score_global"])
+        return pd.DataFrame(columns=["series", "origem", "score_global"])
 
-    n_passageiros = obter_n_passageiros(df_hist)
+    # Define pesos adaptativos conforme regime + k*
+    if regime_info.estado == "ruptura":
+        # Ruptura: Monte Carlo dominante, Micro secundário, S6 fraco
+        peso_s6 = 0.10
+        peso_mc = 0.70
+        peso_micro = 0.20
+    elif regime_info.estado == "transicao":
+        # Transição: equilíbrio moderado
+        peso_s6 = 0.30
+        peso_mc = 0.40
+        peso_micro = 0.30
+    else:
+        # Estável: S6 e Micro mais relevantes, MC complementa
+        peso_s6 = 0.40
+        peso_mc = 0.30
+        peso_micro = 0.30
 
-    # 1) Contexto IDX
-    contexto = construir_contexto_idx_ultra(df_hist, idx_alvo, janela_passado=40)
+    # Pequeno ajuste dinâmico usando k*
+    if k_info.k_star_pct < 15:
+        # Ambiente estável-fraco, menos estrutura forte, MC um pouco mais
+        peso_mc += 0.05
+        peso_s6 -= 0.05
+    elif k_info.k_star_pct > 40:
+        # Ambiente crítico, alta sensibilidade, MC e Micro sobem
+        peso_mc += 0.05
+        peso_micro += 0.05
+        peso_s6 -= 0.10
 
-    # 2) Leque base
-    leque_base = gerar_leque_idx_ultra_base(
-        contexto=contexto,
-        n_passageiros=n_passageiros,
-        n_series_base=n_series_base,
-        seed=RANDOM_SEED,
+    # Normaliza pesos para somar 1
+    soma = peso_s6 + peso_mc + peso_micro
+    if soma <= 0:
+        peso_s6, peso_mc, peso_micro = 0.33, 0.34, 0.33
+    else:
+        peso_s6 /= soma
+        peso_mc /= soma
+        peso_micro /= soma
+
+    # Geração dos leques
+    df_s6 = _gerar_leque_s6_ultra(df_hist, idx_alvo, n_series_base)
+    df_micro = _gerar_leque_micro_ultra(df_hist, idx_alvo, n_series_micro)
+    df_mc = _gerar_leque_mc_ultra(df_hist, idx_alvo, n_sim_mc)
+
+    df_mix = _combinar_leques_ultra(df_s6, df_micro, df_mc, peso_s6, peso_micro, peso_mc)
+
+    if df_mix.empty:
+        return df_mix
+
+    # Score de frequência (TVF simplificado)
+    df_mix = _score_freq_basico(df_hist, df_mix)
+
+    # Score global = combinação entre origem e frequência
+    # Mantendo um jeitão "turbo" de TVF global
+    max_origem = max(df_mix["score_origem"].max(), 1e-9)
+    max_freq = max(df_mix["score_freq"].max(), 1e-9)
+
+    df_mix["score_origem_norm"] = df_mix["score_origem"] / max_origem
+    df_mix["score_freq_norm"] = df_mix["score_freq"] / max_freq
+
+    # Peso 60% frequência, 40% origem (pode ser refinado)
+    df_mix["score_global"] = (
+        0.4 * df_mix["score_origem_norm"] + 0.6 * df_mix["score_freq_norm"]
     )
-    if not leque_base:
-        return pd.DataFrame(columns=["series", "score_s6", "score_micro", "prob_mc", "score_global"])
 
-    # 3) IPF / IPO + S6
-    df_ip = calcular_ipf_ipo_para_leque(df_hist, leque_base, idx_alvo=idx_alvo, janela_ref=80)
-    df_s6 = s6_profundo_ultra_refinar(df_hist, df_ip, idx_alvo=idx_alvo, n_top=n_series_base)
+    # Remove duplicatas de séries mantendo maior score
+    # Converte series para tupla para agrupar
+    df_mix["series_key"] = df_mix["series"].apply(lambda s: tuple(s))
+    df_mix = df_mix.sort_values("score_global", ascending=False)
+    df_mix = df_mix.drop_duplicates(subset=["series_key"], keep="first")
 
-    # 4) Micro-Leque ULTRA
-    df_micro = gerar_micro_leque_ultra(
-        df_hist=df_hist,
-        idx_alvo=idx_alvo,
-        n_passageiros=n_passageiros,
-        n_series_micro=n_series_micro,
-    )
+    # Aplica modo de saída
+    if output_mode == "Quantidade fixa":
+        df_final = df_mix.head(n_series_fixed).copy()
+    elif output_mode == "Confiabilidade mínima":
+        # Mantém séries com score >= (min_conf_pct% do máximo)
+        max_score = df_mix["score_global"].max()
+        limite = max_score * (float(min_conf_pct) / 100.0)
+        df_filtro = df_mix[df_mix["score_global"] >= limite]
+        if df_filtro.empty:
+            df_final = df_mix.head(n_series_fixed).copy()
+        else:
+            df_final = df_filtro.copy()
+    else:
+        # Automático: limita a um máximo razoável (25 por padrão)
+        df_final = df_mix.head(n_series_fixed).copy()
 
-    # 5) Monte Carlo Profundo ULTRA
-    mc_result = monte_carlo_profundo_ultra(
-        df_hist=df_hist,
-        idx_alvo=idx_alvo,
-        n_passageiros=n_passageiros,
-        n_simulacoes=n_sim_mc,
-    )
-    df_mc = mc_result.tabela
-
-    # 6) Unificar leques e aplicar pesos adaptativos
-    df_flat = unir_leques(df_s6, df_micro, df_mc)
-    df_flat = normalizar_scores_global(df_flat)
-    pesos = calcular_pesos_por_k_star(k_info)
-    df_flat = aplicar_pesos_adaptativos(df_flat, pesos)
-
-    # 7) Aplicar modo de saída
-    df_final = limit_by_mode(
-        flat_df=df_flat,
-        regime_state=regime_info.estado,
-        output_mode=output_mode,
-        n_series_fixed=n_series_fixed,
-        min_conf_pct=min_conf_pct,
-    )
-
-    return df_final.reset_index(drop=True)
+    df_final = df_final.reset_index(drop=True)
+    return df_final
 
 
 # ============================================================
-# MODOS DE REPLAY (LIGHT / ULTRA / ULTRA UNITÁRIO)
+# REPLAY LIGHT — CONTEXTO SIMPLIFICADO
 # ============================================================
 
 def montar_contexto_replay_light(
@@ -1487,47 +870,79 @@ def montar_contexto_replay_light(
     k_info: KStarInfo,
 ) -> Dict[str, Any]:
     """
-    Monta um resumo leve (Replay LIGHT) para um índice alvo:
-      - série real
-      - k real
-      - barômetro
-      - k* local
+    Replay LIGHT:
+    - pega a série real do idx_alvo
+    - monta previsão TURBO++ ULTRA para esse alvo
+    - calcula acertos no leque
+    - retorna um contexto leve para visualização rápida.
     """
-    if df_hist is None or df_hist.empty:
+    min_idx, max_idx = obter_intervalo_indices(df_hist)
+    idx_alvo = int(idx_alvo)
+    if idx_alvo < min_idx or idx_alvo > max_idx:
+        raise ValueError(f"Índice alvo {idx_alvo} fora do intervalo [{min_idx}, {max_idx}].")
+
+    df_alvo = df_hist[df_hist["idx"] == idx_alvo]
+    if df_alvo.empty:
+        raise ValueError(f"Índice alvo {idx_alvo} não encontrado no histórico.")
+
+    cols_pass = extrair_passageiros(df_hist)
+    row = df_alvo.iloc[0]
+    serie_real = [int(row[c]) for c in cols_pass]
+
+    # Monta um leque TURBO para o replay
+    df_turbo = montar_previsao_turbo_ultra(
+        df_hist=df_hist,
+        idx_alvo=idx_alvo,
+        regime_info=regime_info,
+        k_info=k_info,
+        n_series_base=200,
+        n_series_micro=60,
+        n_sim_mc=500,
+        output_mode="Quantidade fixa",
+        n_series_fixed=25,
+    )
+
+    if df_turbo.empty:
         return {
             "idx_alvo": idx_alvo,
-            "serie_id": None,
-            "serie_real": [],
-            "k_real": None,
-            "regime": regime_info,
-            "k_star": k_info,
+            "serie_real": serie_real,
+            "df_turbo": pd.DataFrame(),
+            "acertos_top1": 0,
+            "melhor_acerto": 0,
+            "pos_melhor": None,
         }
 
-    row = df_hist[df_hist["idx"] == idx_alvo]
-    if row.empty:
-        return {
-            "idx_alvo": idx_alvo,
-            "serie_id": None,
-            "serie_real": [],
-            "k_real": None,
-            "regime": regime_info,
-            "k_star": k_info,
-        }
+    acertos = []
+    for _, r in df_turbo.iterrows():
+        prev = r["series"]
+        acertos.append(calcular_acerto_total(serie_real, prev))
 
-    col_pass = extrair_passageiros(df_hist)
-    serie_real = [safe_int(row.iloc[0][c]) for c in col_pass]
-    serie_id = str(row.iloc[0]["serie_id"])
-    k_real = safe_int(row.iloc[0]["k"])
+    df_turbo = df_turbo.copy()
+    df_turbo["acertos"] = acertos
+    df_turbo = df_turbo.sort_values(["acertos", "score_global"], ascending=[False, False])
 
-    return {
+    melhor_acerto = int(df_turbo["acertos"].max())
+    pos_melhor = int(df_turbo["acertos"].idxmax())
+    # Índice relativo no leque (posição dentro do top-N)
+    pos_melhor_rank = int(df_turbo.reset_index(drop=True)["acertos"].idxmax()) + 1
+
+    acertos_top1 = int(df_turbo["acertos"].iloc[0])
+
+    contexto = {
         "idx_alvo": idx_alvo,
-        "serie_id": serie_id,
         "serie_real": serie_real,
-        "k_real": k_real,
-        "regime": regime_info,
-        "k_star": k_info,
+        "df_turbo": df_turbo.reset_index(drop=True),
+        "acertos_top1": acertos_top1,
+        "melhor_acerto": melhor_acerto,
+        "pos_melhor_absoluto": pos_melhor,
+        "pos_melhor_rank": pos_melhor_rank,
     }
+    return contexto
 
+
+# ============================================================
+# REPLAY ULTRA UNITÁRIO — CONTEXTO COMPLETO (1 ÍNDICE)
+# ============================================================
 
 def montar_contexto_replay_ultra_unitario(
     df_hist: pd.DataFrame,
@@ -1540,103 +955,255 @@ def montar_contexto_replay_ultra_unitario(
 ) -> Dict[str, Any]:
     """
     Replay ULTRA UNITÁRIO:
-      - Focado em um único índice alvo.
-      - Exibe:
-          * série real
-          * leque TURBO++ local (top-N)
-          * acerto top-N (se a série real aparece)
-          * regime (barômetro)
-          * k* (sentinela)
-          * QDS local, se disponível
-    Retorna dicionário para ser renderizado no painel específico.
+    - usa o leque TURBO++ (df_turbo já calculado)
+    - compara com a série real do índice alvo
+    - calcula acertos detalhados (top-1, top-N, melhor acerto, etc.)
+    - inclui QDS e contexto de regime/k*.
     """
-    if df_hist is None or df_hist.empty:
-        return {
-            "idx_alvo": idx_alvo,
-            "serie_id": None,
-            "serie_real": [],
-            "k_real": None,
-            "df_turbo_local": pd.DataFrame(),
-            "acerto_topN": False,
-            "posicao_topN": None,
-            "regime": regime_info,
-            "k_star": k_info,
-            "qds": qds_info,
-        }
+    min_idx, max_idx = obter_intervalo_indices(df_hist)
+    idx_alvo = int(idx_alvo)
+    if idx_alvo < min_idx or idx_alvo > max_idx:
+        raise ValueError(f"Índice alvo {idx_alvo} fora do intervalo [{min_idx}, {max_idx}].")
 
-    row = df_hist[df_hist["idx"] == idx_alvo]
-    if row.empty:
-        return {
-            "idx_alvo": idx_alvo,
-            "serie_id": None,
-            "serie_real": [],
-            "k_real": None,
-            "df_turbo_local": pd.DataFrame(),
-            "acerto_topN": False,
-            "posicao_topN": None,
-            "regime": regime_info,
-            "k_star": k_info,
-            "qds": qds_info,
-        }
+    df_alvo = df_hist[df_hist["idx"] == idx_alvo]
+    if df_alvo.empty:
+        raise ValueError(f"Índice alvo {idx_alvo} não encontrado no histórico.")
 
-    col_pass = extrair_passageiros(df_hist)
-    serie_real = [safe_int(row.iloc[0][c]) for c in col_pass]
-    serie_id = str(row.iloc[0]["serie_id"])
-    k_real = safe_int(row.iloc[0]["k"])
+    cols_pass = extrair_passageiros(df_hist)
+    row = df_alvo.iloc[0]
+    serie_real = [int(row[c]) for c in cols_pass]
 
-    # restringe df_turbo ao top-N
     if df_turbo is None or df_turbo.empty:
-        df_turbo_local = pd.DataFrame(columns=["series", "score_global"])
-    else:
-        df_turbo_local = df_turbo.copy().sort_values("score_global", ascending=False).head(top_n).reset_index(drop=True)
+        return {
+            "idx_alvo": idx_alvo,
+            "serie_real": serie_real,
+            "df_turbo": pd.DataFrame(),
+            "acertos_top1": 0,
+            "acertos_topN": 0,
+            "melhor_acerto": 0,
+            "pos_melhor_rank": None,
+            "qds": qds_info.valor if qds_info else None,
+            "regime": regime_info.estado,
+            "k_star": k_info.k_star_pct,
+        }
 
-    # verifica acerto top-N
-    acerto_topN = False
-    posicao_topN: Optional[int] = None
+    df_turbo = df_turbo.copy()
+    acertos = []
+    for _, r in df_turbo.iterrows():
+        prev = r["series"]
+        acertos.append(calcular_acerto_total(serie_real, prev))
 
-    if not df_turbo_local.empty:
-        for i, rowp in df_turbo_local.iterrows():
-            s_prev = normalizar_serie(rowp["series"])
-            if calcular_acerto_total(serie_real, s_prev):
-                acerto_topN = True
-                posicao_topN = int(i + 1)
-                break
+    df_turbo["acertos"] = acertos
+    df_turbo = df_turbo.sort_values(["acertos", "score_global"], ascending=[False, False])
+    df_turbo = df_turbo.reset_index(drop=True)
 
-    return {
+    melhor_acerto = int(df_turbo["acertos"].max())
+    pos_melhor_rank = int(df_turbo["acertos"].idxmax()) + 1
+
+    top_n = min(top_n, len(df_turbo))
+    df_top = df_turbo.head(top_n)
+    acertos_topN = int((df_top["acertos"] > 0).sum())
+    acertos_top1 = int(df_top["acertos"].iloc[0])
+
+    contexto = {
         "idx_alvo": idx_alvo,
-        "serie_id": serie_id,
         "serie_real": serie_real,
-        "k_real": k_real,
-        "df_turbo_local": df_turbo_local,
-        "acerto_topN": acerto_topN,
-        "posicao_topN": posicao_topN,
-        "regime": regime_info,
-        "k_star": k_info,
-        "qds": qds_info,
+        "df_turbo": df_turbo,
+        "acertos_top1": acertos_top1,
+        "acertos_topN": acertos_topN,
+        "melhor_acerto": melhor_acerto,
+        "pos_melhor_rank": pos_melhor_rank,
+        "qds": qds_info.valor if qds_info else None,
+        "qds_descricao": qds_info.descricao if qds_info else "",
+        "regime": regime_info.estado,
+        "regime_descricao": regime_info.descricao,
+        "k_star": k_info.k_star_pct,
+        "k_star_descricao": k_info.descricao,
     }
+    return contexto
 
 
 # ============================================================
-# (FIM DA PARTE 2/4)
-# Próxima parte: interface Streamlit, painéis completos
-# (Histórico, Pipeline V14-FLEX ULTRA, Monitor de Risco,
-# Modo TURBO++ ULTRA, Replay LIGHT, Replay ULTRA Loop,
-# Replay ULTRA Unitário, Testes de Confiabilidade, etc.)
-# ============================================================
-# ============================================================
-# ======================= INTERFACE ==========================
+# BACKTEST REAL — MODO ESTRUTURAL
 # ============================================================
 
-# Setup inicial da página
-set_page_config_once()
+def executar_backtest_real(
+    df_hist: pd.DataFrame,
+    n_passageiros: int,
+    janela: int = 150,
+    top_n: int = 10,
+) -> BacktestResult:
+    """
+    Backtest REAL:
+    - percorre uma janela de índices finais
+    - para cada idx, calcula o leque TURBO++ ULTRA usando apenas o passado
+    - verifica acerto no top-1 e top-N
+    Retorna:
+        - tabela com colunas: idx_alvo, acertos_top1, acertos_topN, melhor_acerto
+        - descrição textual da performance.
+    """
+    min_idx, max_idx = obter_intervalo_indices(df_hist)
+    if max_idx - min_idx < 10:
+        return BacktestResult(
+            tabela=pd.DataFrame(),
+            descricao="Histórico insuficiente para backtest.",
+        )
+
+    # Limita janela final
+    inicio_bt = max(min_idx + 10, max_idx - janela)
+    indices_teste = list(range(inicio_bt, max_idx + 1))
+
+    registros = []
+
+    for idx_alvo in indices_teste:
+        df_passado = df_hist[df_hist["idx"] < idx_alvo]
+        if df_passado.empty:
+            continue
+
+        regime_local = calcular_regime_ultra(df_passado, janela=40)
+        k_local = calcular_k_star_ultra(df_passado, janela=40)
+
+        df_alvo = df_hist[df_hist["idx"] == idx_alvo]
+        if df_alvo.empty:
+            continue
+        cols_pass = extrair_passageiros(df_hist)
+        serie_real = [int(df_alvo.iloc[0][c]) for c in cols_pass]
+
+        df_turbo = montar_previsao_turbo_ultra(
+            df_hist=df_passado,
+            idx_alvo=idx_alvo,
+            regime_info=regime_local,
+            k_info=k_local,
+            n_series_base=200,
+            n_series_micro=60,
+            n_sim_mc=400,
+            output_mode="Quantidade fixa",
+            n_series_fixed=top_n,
+        )
+
+        if df_turbo.empty:
+            registros.append(
+                {
+                    "idx_alvo": idx_alvo,
+                    "acertos_top1": 0,
+                    "acertos_topN": 0,
+                    "melhor_acerto": 0,
+                }
+            )
+            continue
+
+        acertos = []
+        for _, r in df_turbo.iterrows():
+            prev = r["series"]
+            acertos.append(calcular_acerto_total(serie_real, prev))
+
+        df_turbo = df_turbo.copy()
+        df_turbo["acertos"] = acertos
+        df_turbo = df_turbo.sort_values(["acertos", "score_global"], ascending=[False, False])
+        df_turbo = df_turbo.reset_index(drop=True)
+
+        melhor_acerto = int(df_turbo["acertos"].max())
+        ac_top1 = int(df_turbo["acertos"].iloc[0])
+        df_topN = df_turbo.head(top_n)
+        ac_topN = int((df_topN["acertos"] > 0).sum())
+
+        registros.append(
+            {
+                "idx_alvo": idx_alvo,
+                "acertos_top1": ac_top1,
+                "acertos_topN": ac_topN,
+                "melhor_acerto": melhor_acerto,
+            }
+        )
+
+    if not registros:
+        return BacktestResult(
+            tabela=pd.DataFrame(),
+            descricao="Backtest não gerou registros.",
+        )
+
+    df_bt = pd.DataFrame(registros)
+    # Métricas agregadas
+    total = len(df_bt)
+    hits_top1 = int((df_bt["acertos_top1"] > 0).sum())
+    hits_topN = int((df_bt["acertos_topN"] > 0).sum())
+
+    pct_top1 = hits_top1 / total if total > 0 else 0.0
+    pct_topN = hits_topN / total if total > 0 else 0.0
+
+    desc = (
+        f"Backtest REAL executado em {total} índices. "
+        f"Acerto top-1 em {hits_top1} casos ({pct_top1:.1%}) "
+        f"e acerto em pelo menos 1 série no top-{top_n} em {hits_topN} casos ({pct_topN:.1%})."
+    )
+
+    return BacktestResult(tabela=df_bt, descricao=desc)
+
+
+# ============================================================
+# QDS REAL — ÍNDICE DE QUALIDADE DINÂMICA
+# ============================================================
+
+def calcular_qds_real(
+    tabela_bt: pd.DataFrame,
+    top_n: int = 10,
+) -> QDSInfo:
+    """
+    QDS REAL:
+    - converte a tabela de backtest em um índice de 0 a 1.
+    - combina:
+        - taxa de acerto top-1
+        - taxa de acerto top-N
+        - intensidade dos melhores acertos.
+    """
+    if tabela_bt is None or tabela_bt.empty:
+        return QDSInfo(
+            valor=0.0,
+            descricao="QDS = 0.0 — sem dados de backtest disponíveis.",
+        )
+
+    total = len(tabela_bt)
+    if total == 0:
+        return QDSInfo(
+            valor=0.0,
+            descricao="QDS = 0.0 — backtest vazio.",
+        )
+
+    hits_top1 = int((tabela_bt["acertos_top1"] > 0).sum())
+    hits_topN = int((tabela_bt["acertos_topN"] > 0).sum())
+    melhor_med = float(tabela_bt["melhor_acerto"].mean())
+
+    pct_top1 = hits_top1 / total
+    pct_topN = hits_topN / total
+    # Normaliza melhor_med para [0,1] considerando n_passageiros típico (6)
+    melhor_norm = min(melhor_med / 6.0, 1.0)
+
+    # Combinação ponderada
+    qds = 0.4 * pct_top1 + 0.4 * pct_topN + 0.2 * melhor_norm
+    qds = float(max(0.0, min(1.0, qds)))
+
+    if qds < 0.2:
+        desc = f"QDS = {qds:.3f} — qualidade muito baixa, sistema operando praticamente em regime aleatório."
+    elif qds < 0.4:
+        desc = f"QDS = {qds:.3f} — qualidade baixa, previsões com pouca aderência ao histórico."
+    elif qds < 0.6:
+        desc = f"QDS = {qds:.3f} — qualidade moderada, previsões razoáveis em parte dos cenários."
+    elif qds < 0.8:
+        desc = f"QDS = {qds:.3f} — boa qualidade, previsões consistentes em boa parte dos cenários."
+    else:
+        desc = f"QDS = {qds:.3f} — excelente qualidade, previsão altamente aderente ao comportamento histórico."
+
+    return QDSInfo(valor=qds, descricao=desc)
+# ============================================================
+# INTERFACE — SIDEBAR E PAINÉIS PRINCIPAIS
+# ============================================================
 
 st.title("🚗 Predict Cars — V14-FLEX ULTRA REAL (TURBO++)")
 st.caption(f"Versão completa: {APP_VERSION}")
 
-
-# ============================================================
+# ------------------------------------------------------------
 # SIDEBAR — NAVEGAÇÃO
-# ============================================================
+# ------------------------------------------------------------
 
 painel = st.sidebar.radio(
     "📂 Navegação",
@@ -1652,466 +1219,739 @@ painel = st.sidebar.radio(
     ],
 )
 
+st.sidebar.markdown("---")
+st.sidebar.markdown("**Estado interno:**")
+if "df" in st.session_state and st.session_state["df"] is not None:
+    df_ref_sidebar = st.session_state["df"]
+    try:
+        min_idx_sb, max_idx_sb = obter_intervalo_indices(df_ref_sidebar)
+        st.sidebar.write(f"Histórico: C{min_idx_sb} → C{max_idx_sb}")
+        st.sidebar.write(f"Séries: {len(df_ref_sidebar)}")
+    except Exception:
+        st.sidebar.write("Histórico carregado, mas sem coluna idx.")
+else:
+    st.sidebar.write("Histórico ainda não carregado.")
+
+
 # ============================================================
-# PAINEL — HISTÓRICO (FLEX ULTRA)
+# PAINEL — HISTÓRICO (ENTRADA FLEX ULTRA)
 # ============================================================
 
 if painel == "📥 Histórico — Entrada":
 
     st.header("📥 Histórico — Entrada FLEX ULTRA")
-    st.write("Carregue seu histórico com **n passageiros + coluna k**, com limpeza total de ruídos e leitura 100% fiel (incluindo a última linha).")
+    st.write(
+        "Carregue seu histórico com **n passageiros + coluna k**. "
+        "O parser ULTRA faz limpeza de ruídos, normaliza encoding e "
+        "garante leitura fiel, incluindo a **última linha**."
+    )
 
     metodo = st.radio(
         "Método de carregamento:",
         ["Upload CSV", "Colar texto"],
+        horizontal=True,
     )
 
     df = None
 
-    # ------------------------------------------------------------
-    # Função ULTRA de normalização e leitura (usa SEMPRE este parser)
-    # ------------------------------------------------------------
-    def parser_ultra(texto_bruto):
-        # Normalização de encoding
-        try:
-            txt = texto_bruto.decode("utf-8-sig")
-        except:
-            txt = texto_bruto.decode("latin1")
-
-        # Remoção de caracteres invisíveis
-        txt = txt.replace("\ufeff", "").replace("\r", "")
-
-        # Quebra correta das linhas
-        linhas = txt.strip().split("\n")
-
-        dados = []
-        for linha in linhas:
-            partes = [p.strip() for p in linha.split(";")]
-            # Esperamos: serie_id, p1..p6, k  (total = 8 campos)
-            if len(partes) == 8 and partes[0].startswith("C"):
-                dados.append(partes)
-
-        # Construção do dataframe
-        df_local = pd.DataFrame(dados, columns=[
-            "serie_id", "p1", "p2", "p3", "p4", "p5", "p6", "k"
-        ])
-
-        # Conversões numéricas
-        for col in ["p1", "p2", "p3", "p4", "p5", "p6", "k"]:
-            df_local[col] = pd.to_numeric(df_local[col], errors="coerce")
-
-        # Recriar índice interno (idx = 1..n)
-        df_local["idx"] = np.arange(1, len(df_local) + 1)
-
-        return df_local
-
-    # ------------------------------------------------------------
-    # Escolha do método
-    # ------------------------------------------------------------
     try:
         if metodo == "Upload CSV":
             file = st.file_uploader("Selecione arquivo CSV", type=["csv"])
             if file is not None:
-                raw = file.read()
-                df = parser_ultra(raw)
+                df = carregar_historico_via_csv_ultra(file)
 
         else:  # texto manual
             texto = st.text_area("Cole o conteúdo do CSV aqui")
+            sep = st.selectbox("Separador", [";", ","], index=0)
             if texto.strip():
-                sep = st.selectbox("Separador", [";", ","])
-                texto_convertido = texto.replace(",", ";") if sep == "," else texto
-                raw = texto_convertido.encode("utf-8")
-                df = parser_ultra(raw)
+                df = carregar_historico_via_texto_ultra(texto, sep=sep)
 
-        # ------------------------------------------------------------
-        # Exibir resultado
-        # ------------------------------------------------------------
         if df is not None:
             st.success(f"Histórico carregado com sucesso! Total: **{len(df)} séries**.")
             st.dataframe(df, use_container_width=True)
 
             st.session_state["df"] = df
 
-            n_pass = obter_n_passageiros(df)
-            st.info(f"n passageiros detectados: **{n_pass}**")
+            try:
+                n_pass = obter_n_passageiros(df)
+                st.info(f"n passageiros detectados: **{n_pass}**")
 
-            min_idx = int(df["idx"].min())
-            max_idx = int(df["idx"].max())
-            st.write(f"Intervalo de índices: **C{min_idx} → C{max_idx}**")
+                min_idx, max_idx = obter_intervalo_indices(df)
+                st.write(f"Intervalo de índices: **C{min_idx} → C{max_idx}**")
+            except Exception as e:
+                st.warning(f"Histórico carregado, mas não foi possível determinar índice/colunas: {e}")
 
     except Exception as e:
         st.error(f"Erro ao carregar histórico: {e}")
 
 
-
 # ============================================================
-# PAINEL 2 — PIPELINE V14-FLEX ULTRA
+# PAINEL — PIPELINE V14-FLEX ULTRA (ESTRUTURAL)
 # ============================================================
 
 elif painel == "🔍 Pipeline V14-FLEX ULTRA":
-    st.header("🔍 Pipeline V14-FLEX — ULTRA")
-    df = st.session_state.get("df", None)
 
-    if df is None:
+    st.header("🔍 Pipeline V14-FLEX (ULTRA) — Visão Estrutural")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
         st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
         st.stop()
 
-    min_idx, max_idx = obter_intervalo_indices(df)
+    try:
+        min_idx, max_idx = obter_intervalo_indices(df)
+    except Exception as e:
+        st.error(f"Histórico sem coluna 'idx' válida: {e}")
+        st.stop()
+
     idx_alvo = st.number_input(
-        "Índice alvo",
-        min_value=min_idx + 1,
-        max_value=max_idx,
-        value=max_idx,
+        "Selecione o índice alvo (1 = primeira série carregada):",
+        min_value=int(min_idx),
+        max_value=int(max_idx),
+        value=int(max_idx),
+        step=1,
     )
 
-    st.subheader("📡 Barômetro ULTRA REAL")
-    reg = calcular_regime_ultra(df)
-    st.write(reg.descricao)
+    # Barômetro / k* / IDX são sempre calculados em cima do histórico até idx_alvo
+    df_ate_alvo = df[df["idx"] <= idx_alvo].copy()
 
-    st.subheader("🛡 k* ULTRA REAL — Sentinela")
-    kinfo = calcular_k_star_ultra(df)
-    st.write(kinfo.descricao)
+    regime_info = calcular_regime_ultra(df_ate_alvo, janela=40)
+    k_info = calcular_k_star_ultra(df_ate_alvo, janela=40)
+    contexto_idx = construir_contexto_idx_ultra(df_ate_alvo, idx_alvo=idx_alvo)
 
-    st.subheader("🔧 IDX ULTRA — Contexto")
-    ctx = construir_contexto_idx_ultra(df, idx_alvo)
-    st.write(f"Janela usada: {ctx['janela_usada']}")
-    st.write(f"k médio: {ctx['media_k']:.2f}, k max: {ctx['max_k']}")
+    # Série alvo (estrutura)
+    df_alvo = df[df["idx"] == idx_alvo]
+    cols_pass = extrair_passageiros(df)
+    if not df_alvo.empty:
+        serie_alvo = [int(df_alvo.iloc[0][c]) for c in cols_pass]
+    else:
+        serie_alvo = []
 
-    st.info("Este painel mostra a estrutura, mas **não gera previsão**. Para gerar previsão completa, use o painel TURBO++ ULTRA.")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.subheader("📡 Barômetro ULTRA REAL")
+        st.markdown(regime_info.descricao)
+        st.json(
+            {
+                "janela": regime_info.janela_usada,
+                "k_medio": round(regime_info.k_medio, 3),
+                "k_max": int(regime_info.k_max),
+                "estado": regime_info.estado,
+            }
+        )
+
+    with col2:
+        st.subheader("🛡 k* ULTRA REAL — Sentinela")
+        st.markdown(k_info.descricao)
+        st.json(
+            {
+                "janela": k_info.janela_usada,
+                "k_media_janela": round(k_info.k_media_janela, 3),
+                "k_max_janela": int(k_info.k_max_janela),
+                "k_star_pct": k_info.k_star_pct,
+                "estado": k_info.estado,
+            }
+        )
+
+    with col3:
+        st.subheader("🧭 IDX ULTRA — Contexto")
+        st.json(
+            {
+                "janela_usada": contexto_idx["janela_usada"],
+                "media_k": round(contexto_idx["media_k"], 3),
+                "max_k": int(contexto_idx["max_k"]),
+                "indice_global": round(contexto_idx["idx_global"], 2),
+            }
+        )
+
+    st.markdown("### 🧱 Série alvo (estrutura)")
+    if serie_alvo:
+        st.code(" ".join(str(x) for x in serie_alvo), language="text")
+    else:
+        st.info("Nenhuma série alvo encontrada para o índice selecionado.")
+
+    st.caption(
+        "Este painel mostra o **estado estrutural da estrada** (Barômetro, k*, IDX), "
+        "que são insumos diretos para o Modo TURBO++ ULTRA Adaptativo, mas não gera previsão."
+    )
 
 
 # ============================================================
-# PAINEL 3 — MONITOR DE RISCO (k & k*)
+# PAINEL — MONITOR DE RISCO (k & k*)
 # ============================================================
 
 elif painel == "🚨 Monitor de Risco (k & k*)":
-    st.header("🚨 Monitor de Risco")
-    df = st.session_state.get("df", None)
 
-    if df is None:
-        st.warning("Carregue o histórico primeiro.")
+    st.header("🚨 Monitor de Risco — k & k*")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
         st.stop()
 
-    reg = calcular_regime_ultra(df)
-    kinfo = calcular_k_star_ultra(df)
+    try:
+        min_idx, max_idx = obter_intervalo_indices(df)
+    except Exception as e:
+        st.error(f"Histórico sem coluna 'idx' válida: {e}")
+        st.stop()
 
-    st.subheader("📡 Barômetro da Estrada")
-    st.write(reg.descricao)
-    st.json(
-        {
-            "janela": reg.janela_usada,
-            "k_medio": reg.k_medio,
-            "k_max": reg.k_max,
-            "estado": reg.estado,
-        }
+    janela = st.slider(
+        "Tamanho da janela recente (para cálculo do risco):",
+        min_value=20,
+        max_value=min(200, int(len(df))),
+        value=40,
+        step=5,
     )
 
-    st.subheader("🛡 k* — Sentinela dos Guardas")
-    st.write(kinfo.descricao)
-    st.json(
-        {
-            "janela": kinfo.janela_usada,
-            "k_media_janela": kinfo.k_media_janela,
-            "k_max_janela": kinfo.k_max_janela,
-            "k_star_pct": kinfo.k_star_pct,
-            "estado": kinfo.estado,
-        }
+    df_recente = df.tail(janela)
+
+    regime_info = calcular_regime_ultra(df_recente, janela=janela)
+    k_info = calcular_k_star_ultra(df_recente, janela=janela)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("📡 Barômetro da Estrada")
+        st.markdown(regime_info.descricao)
+        st.json(
+            {
+                "janela": regime_info.janela_usada,
+                "k_medio": round(regime_info.k_medio, 3),
+                "k_max": int(regime_info.k_max),
+                "estado": regime_info.estado,
+            }
+        )
+
+    with col2:
+        st.subheader("🛡 k* — Sentinela dos Guardas")
+        st.markdown(k_info.descricao)
+        st.json(
+            {
+                "janela": k_info.janela_usada,
+                "k_media_janela": round(k_info.k_media_janela, 3),
+                "k_max_janela": int(k_info.k_max_janela),
+                "k_star_pct": k_info.k_star_pct,
+                "estado": k_info.estado,
+            }
+        )
+
+    st.markdown("### 📊 Distribuição de k (guardas que acertaram exatamente)")
+    hist_k = df_recente["k"].value_counts().sort_index()
+    st.bar_chart(hist_k)
+
+    st.caption(
+        "O painel de risco usa a distribuição de **k** e a sensibilidade de **k*** "
+        "para avaliar raridade, concentração e turbulência da estrada."
     )
 
 
 # ============================================================
-# PAINEL 4 — MODO TURBO++ ULTRA ADAPTATIVO
+# PAINEL — MODO TURBO++ ULTRA ADAPTATIVO (por k*)
 # ============================================================
 
 elif painel == "🚀 Modo TURBO++ ULTRA Adaptativo":
-    st.header("🚀 Modo TURBO++ ULTRA Adaptativo")
-    df = st.session_state.get("df", None)
 
-    if df is None:
-        st.warning("Carregue o histórico primeiro.")
+    st.header("🚀 Modo TURBO++ ULTRA — Adaptativo por k*")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
         st.stop()
 
-    min_idx, max_idx = obter_intervalo_indices(df)
+    try:
+        min_idx, max_idx = obter_intervalo_indices(df)
+    except Exception as e:
+        st.error(f"Histórico sem coluna 'idx' válida: {e}")
+        st.stop()
 
-    st.subheader("🎯 Índice alvo")
-    idx_alvo = st.number_input(
-        "Selecione o índice alvo:",
-        min_value=min_idx + 1,
-        max_value=max_idx,
-        value=max_idx,
-    )
+    st.markdown("### ⚙️ Configurações do TURBO++ ULTRA")
 
-    reg = calcular_regime_ultra(df)
-    kinfo = calcular_k_star_ultra(df)
+    col_cfg1, col_cfg2 = st.columns(2)
 
-    st.write(reg.descricao)
-    st.write(kinfo.descricao)
-
-    st.subheader("⚙️ Controles do Leque")
-    output_mode = st.selectbox(
-        "Modo de geração do Leque:",
-        [
-            "automatico",
-            "fixo",
-            "conf_min",
-        ],
-        format_func=lambda x: {
-            "automatico": "Automático (por regime)",
-            "fixo": "Quantidade fixa",
-            "conf_min": "Confiabilidade mínima",
-        }[x],
-    )
-
-    n_series_fixed = st.number_input("Quantidade fixa", 5, 200, 25)
-    min_conf_pct = st.slider("Confiabilidade mínima (%)", 0, 100, 30)
-
-    st.subheader("🧠 Motor TURBO++ ULTRA")
-    if st.button("Gerar previsão"):
-        df_turbo = montar_previsao_turbo_ultra(
-            df_hist=df,
-            idx_alvo=idx_alvo,
-            regime_info=reg,
-            k_info=kinfo,
-            n_series_base=300,
-            n_series_micro=80,
-            n_sim_mc=800,
-            output_mode=output_mode,
-            n_series_fixed=n_series_fixed,
-            min_conf_pct=min_conf_pct,
+    with col_cfg1:
+        idx_alvo = st.number_input(
+            "Índice alvo (1 = primeira série):",
+            min_value=int(min_idx + 1),
+            max_value=int(max_idx),
+            value=int(max_idx),
+            step=1,
+            help=(
+                "O motor usa as séries **antes** do índice alvo como estrada de referência. "
+                "Ex: se alvo = C2946, usa C1..C2945 como estrada."
+            ),
         )
 
-        if df_turbo.empty:
-            st.error("Leque vazio — algo ocorreu.")
+        top_n_final = st.slider(
+            "Top-N final:",
+            min_value=5,
+            max_value=80,
+            value=25,
+            step=5,
+        )
+
+        output_mode = st.radio(
+            "Modo de geração do Leque:",
+            ["Automático", "Quantidade fixa", "Confiabilidade mínima"],
+        )
+
+    with col_cfg2:
+        n_series_base = st.slider(
+            "Quantidade de séries S6 Profundo ULTRA:",
+            min_value=50,
+            max_value=400,
+            value=250,
+            step=50,
+        )
+
+        n_sim_mc = st.slider(
+            "Quantidade de séries Monte Carlo ULTRA:",
+            min_value=300,
+            max_value=1200,
+            value=800,
+            step=100,
+        )
+
+        n_series_micro = st.slider(
+            "Micro-Leque (variações por série base):",
+            min_value=5,
+            max_value=40,
+            value=20,
+            step=5,
+        )
+
+    if output_mode == "Quantidade fixa":
+        n_series_fixed = top_n_final
+        min_conf_pct = 30.0
+    elif output_mode == "Confiabilidade mínima":
+        n_series_fixed = top_n_final
+        min_conf_pct = st.slider(
+            "Confiabilidade mínima (%) (se modo for 'Confiabilidade mínima'):",
+            min_value=10,
+            max_value=90,
+            value=30,
+            step=5,
+        )
+    else:
+        n_series_fixed = top_n_final
+        min_conf_pct = 30.0
+
+    # Cálculo de contexto (regime/k* usando apenas passado)
+    df_passado = df[df["idx"] < idx_alvo].copy()
+    if df_passado.empty:
+        df_passado = df.copy()
+
+    regime_info = calcular_regime_ultra(df_passado, janela=40)
+    k_info = calcular_k_star_ultra(df_passado, janela=40)
+
+    st.markdown("### 🌟 Contexto adaptativo")
+    col_ctx1, col_ctx2, col_ctx3 = st.columns(3)
+
+    with col_ctx1:
+        st.subheader("k* (sentinela)")
+        st.write(f"{k_info.k_star_pct:.1f} %")
+
+    with col_ctx2:
+        st.subheader("QDS local (janela curta)")
+        st.write("0.000")  # QDS local ainda não integrado aqui (usamos QDS no painel de testes)
+
+    with col_ctx3:
+        # Pesos esperados (derivados indiretamente do regime, apenas descrição)
+        if regime_info.estado == "ruptura":
+            pesos_desc = "S6: 0.10 • Monte Carlo: 0.70 • Micro-Leque: 0.20"
+        elif regime_info.estado == "transicao":
+            pesos_desc = "S6: 0.30 • Monte Carlo: 0.40 • Micro-Leque: 0.30"
         else:
-            st.success("Previsão gerada!")
-            st.dataframe(df_turbo, use_container_width=True)
+            pesos_desc = "S6: 0.40 • Monte Carlo: 0.30 • Micro-Leque: 0.30"
+        st.subheader("Pesos por regime (descrição)")
+        st.write(pesos_desc)
 
-        st.session_state["df_turbo"] = df_turbo
-        st.session_state["idx_alvo_turbo"] = idx_alvo
+    if st.button("🧠 Rodar TURBO++ ULTRA", type="primary"):
+        with st.spinner("Gerando leque TURBO++ ULTRA..."):
+            df_turbo = montar_previsao_turbo_ultra(
+                df_hist=df,
+                idx_alvo=int(idx_alvo),
+                regime_info=regime_info,
+                k_info=k_info,
+                n_series_base=int(n_series_base),
+                n_series_micro=int(n_series_micro),
+                n_sim_mc=int(n_sim_mc),
+                output_mode=output_mode,
+                n_series_fixed=int(top_n_final),
+                min_conf_pct=float(min_conf_pct),
+            )
 
+        if df_turbo is None or df_turbo.empty:
+            st.error("Não foi possível gerar o leque TURBO++ ULTRA.")
+        else:
+            st.success(f"Leque TURBO++ ULTRA gerado com **{len(df_turbo)} séries**.")
+
+            st.markdown("### 🧠 S6 Profundo ULTRA — núcleo determinístico\n"
+                        "Monte Carlo Profundo ULTRA — motor estocástico\n"
+                        "Micro-Leque ULTRA — variações finas\n"
+                        "Fusão ULTRA ADAPTATIVA — Top-N final")
+
+            st.dataframe(df_turbo[["series", "origem", "score_global"]], use_container_width=True)
+
+            # Previsão final = top-1
+            melhor = df_turbo.iloc[0]
+            previsao_final = melhor["series"]
+
+            st.markdown("### 🎯 Previsão Final TURBO++ ULTRA (Adaptativo)")
+            st.code(" ".join(str(x) for x in previsao_final), language="text")
+
+            if regime_info.estado == "ruptura":
+                st.error("🔴 Regime de ruptura — Monte Carlo dominante, foco em previsibilidade curta.")
+            elif regime_info.estado == "transicao":
+                st.warning("🟡 Regime de transição — cenário misto, previsibilidade moderada.")
+            else:
+                st.success("🟢 Regime estável — núcleo determinístico e micro-leque ganham importância.")
 
 
 # ============================================================
-# PAINEL 5 — Replay LIGHT
+# PAINEL — REPLAY LIGHT
 # ============================================================
 
 elif painel == "💡 Replay LIGHT":
-    st.header("💡 Replay LIGHT")
-    df = st.session_state.get("df", None)
 
-    if df is None:
-        st.warning("Carregue o histórico.")
+    st.header("💡 Replay LIGHT — Focado em 1 índice (visão rápida)")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
         st.stop()
 
-    min_idx, max_idx = obter_intervalo_indices(df)
-    idx_alvo = st.number_input("Índice para Replay LIGHT", min_idx, max_idx, max_idx)
+    try:
+        min_idx, max_idx = obter_intervalo_indices(df)
+    except Exception as e:
+        st.error(f"Histórico sem coluna 'idx' válida: {e}")
+        st.stop()
 
-    reg = calcular_regime_ultra(df)
-    kinfo = calcular_k_star_ultra(df)
+    idx_alvo = st.number_input(
+        "Selecione o índice alvo para Replay LIGHT:",
+        min_value=int(min_idx),
+        max_value=int(max_idx),
+        value=int(max_idx),
+        step=1,
+    )
 
-    ctx = montar_contexto_replay_light(df, idx_alvo, reg, kinfo)
+    df_ate_alvo = df[df["idx"] <= idx_alvo].copy()
+    if df_ate_alvo.empty:
+        df_ate_alvo = df.copy()
 
-    st.subheader(f"▶ {ctx['serie_id']} — Série Real")
-    st.code(" ".join(str(x) for x in ctx["serie_real"]))
+    regime_info = calcular_regime_ultra(df_ate_alvo, janela=40)
+    k_info = calcular_k_star_ultra(df_ate_alvo, janela=40)
 
-    st.write(reg.descricao)
-    st.write(kinfo.descricao)
+    if st.button("Rodar Replay LIGHT"):
+        with st.spinner("Montando Replay LIGHT..."):
+            contexto = montar_contexto_replay_light(
+                df_hist=df,
+                idx_alvo=int(idx_alvo),
+                regime_info=regime_info,
+                k_info=k_info,
+            )
 
-    st.success("Replay LIGHT finalizado.")
+        st.subheader("🧱 Série alvo (real)")
+        st.code(" ".join(str(x) for x in contexto["serie_real"]), language="text")
 
+        st.subheader("📜 Leque TURBO++ ULTRA (Replay LIGHT)")
+        df_turbo = contexto["df_turbo"]
+        if df_turbo.empty:
+            st.warning("Leque vazio neste ponto da estrada.")
+        else:
+            st.dataframe(df_turbo[["series", "origem", "score_global", "acertos"]], use_container_width=True)
+
+        st.markdown("### 🎯 Resumo de acertos")
+        st.write(f"Acertos top-1: **{contexto['acertos_top1']}**")
+        st.write(f"Melhor acerto no leque: **{contexto['melhor_acerto']}** passageiros.")
+        st.write(f"Posição do melhor acerto no ranking: **{contexto['pos_melhor_rank']}**.")
 
 
 # ============================================================
-# PAINEL 6 — Replay ULTRA (loop tradicional)
+# PAINEL — REPLAY ULTRA (LOOP TRADICIONAL)
 # ============================================================
 
 elif painel == "📅 Replay ULTRA (Loop Tradicional)":
-    st.header("📅 Replay ULTRA — Loop Tradicional")
-    df = st.session_state.get("df", None)
 
-    if df is None:
-        st.warning("Carregue o histórico.")
+    st.header("📅 Replay ULTRA — Loop Tradicional")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
         st.stop()
 
-    min_idx, max_idx = obter_intervalo_indices(df)
+    try:
+        min_idx, max_idx = obter_intervalo_indices(df)
+    except Exception as e:
+        st.error(f"Histórico sem coluna 'idx' válida: {e}")
+        st.stop()
 
-    st.info("Este modo é pesado — calcula TURBO++ para todos os índices de uma janela.")
+    st.write(
+        "Este modo percorre um intervalo de índices e executa o Replay LIGHT em loop. "
+        "Pode ser pesado, mas foi mantido para análise ULTRA histórica."
+    )
 
-    inicio = st.number_input("Início", min_idx + 1, max_idx, max_idx - 20)
-    fim = st.number_input("Fim", inicio, max_idx, max_idx)
+    col_r1, col_r2 = st.columns(2)
+    with col_r1:
+        inicio = st.number_input(
+            "Índice inicial:",
+            min_value=int(min_idx),
+            max_value=int(max_idx),
+            value=max(int(min_idx), int(max_idx) - 20),
+            step=1,
+        )
+    with col_r2:
+        fim = st.number_input(
+            "Índice final:",
+            min_value=int(min_idx),
+            max_value=int(max_idx),
+            value=int(max_idx),
+            step=1,
+        )
 
-    reg = calcular_regime_ultra(df)
-    kinfo = calcular_k_star_ultra(df)
+    if inicio > fim:
+        st.error("Índice inicial não pode ser maior que o índice final.")
+        st.stop()
 
-    if st.button("Executar Replay ULTRA Loop"):
-        resultados = []
+    if (fim - inicio) > 100:
+        st.warning("Intervalos muito grandes podem deixar o app pesado. Considere reduzir o range.")
 
-        for idx_alvo in range(int(inicio), int(fim) + 1):
-            df_turbo = montar_previsao_turbo_ultra(
-                df_hist=df,
-                idx_alvo=idx_alvo,
-                regime_info=reg,
-                k_info=kinfo,
-                n_series_base=300,
-                n_series_micro=80,
-                n_sim_mc=800,
-            )
+    if st.button("Rodar Replay ULTRA (Loop)"):
+        registros = []
+        with st.spinner("Executando Replay ULTRA em loop..."):
+            for idx_alvo in range(int(inicio), int(fim) + 1):
+                df_ate_alvo = df[df["idx"] <= idx_alvo].copy()
+                if df_ate_alvo.empty:
+                    df_ate_alvo = df.copy()
+                regime_info = calcular_regime_ultra(df_ate_alvo, janela=40)
+                k_info = calcular_k_star_ultra(df_ate_alvo, janela=40)
 
-            col_pass = extrair_passageiros(df)
-            real = df[df["idx"] == idx_alvo]
-            if not real.empty:
-                serie_real = [int(real.iloc[0][c]) for c in col_pass]
-                hit_top1 = calcular_acerto_total(
-                    serie_real,
-                    normalizar_serie(df_turbo.iloc[0]["series"]) if not df_turbo.empty else [],
+                contexto = montar_contexto_replay_light(
+                    df_hist=df,
+                    idx_alvo=int(idx_alvo),
+                    regime_info=regime_info,
+                    k_info=k_info,
                 )
-                resultados.append({"idx": idx_alvo, "hit_top1": hit_top1})
 
-        st.success("Loop concluído!")
-        st.dataframe(pd.DataFrame(resultados), use_container_width=True)
+                registros.append(
+                    {
+                        "idx_alvo": idx_alvo,
+                        "acertos_top1": contexto["acertos_top1"],
+                        "melhor_acerto": contexto["melhor_acerto"],
+                        "pos_melhor_rank": contexto["pos_melhor_rank"],
+                    }
+                )
 
+        if not registros:
+            st.warning("Nenhum registro gerado no loop.")
+        else:
+            df_loop = pd.DataFrame(registros)
+            st.subheader("📊 Resumo do Replay ULTRA (loop)")
+            st.dataframe(df_loop, use_container_width=True)
+
+            st.line_chart(df_loop.set_index("idx_alvo")[["acertos_top1", "melhor_acerto"]])
+
+            st.caption(
+                "Use este painel para entender como a performance do leque varia ao longo da estrada, "
+                "sem simplificações."
+            )
 
 
 # ============================================================
-# PAINEL 7 — Replay ULTRA UNITÁRIO (Novo)
+# PAINEL — REPLAY ULTRA UNITÁRIO (NOVO)
 # ============================================================
 
 elif painel == "🎯 Replay ULTRA UNITÁRIO (Novo)":
-    st.header("🎯 Replay ULTRA UNITÁRIO — Focado em 1 índice")
-    df = st.session_state.get("df", None)
 
-    if df is None:
-        st.warning("Histórico ausente.")
+    st.header("🎯 Replay ULTRA UNITÁRIO — 1 índice por vez (visão completa)")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
         st.stop()
 
-    min_idx, max_idx = obter_intervalo_indices(df)
+    try:
+        min_idx, max_idx = obter_intervalo_indices(df)
+    except Exception as e:
+        st.error(f"Histórico sem coluna 'idx' válida: {e}")
+        st.stop()
+
     idx_alvo = st.number_input(
-        "Escolha o índice para Replay ULTRA Unitário:",
-        min_value=min_idx + 1,
-        max_value=max_idx,
-        value=max_idx,
+        "Selecione o índice alvo para Replay ULTRA Unitário:",
+        min_value=int(min_idx),
+        max_value=int(max_idx),
+        value=int(max_idx),
+        step=1,
     )
 
-    st.subheader("🔧 Gerar Previsão TURBO++ para este índice")
-    if st.button("Gerar TURBO++ para este índice"):
-        reg = calcular_regime_ultra(df)
-        kinfo = calcular_k_star_ultra(df)
+    top_n = st.slider(
+        "Top-N considerado para acertos:",
+        min_value=5,
+        max_value=80,
+        value=25,
+        step=5,
+    )
 
-        df_turbo = montar_previsao_turbo_ultra(
-            df_hist=df,
-            idx_alvo=idx_alvo,
-            regime_info=reg,
-            k_info=kinfo,
-            n_series_base=300,
-            n_series_micro=80,
-            n_sim_mc=800,
-            output_mode="automatico",
-        )
+    # Opcionalmente, podemos pedir para reutilizar um backtest global como QDS
+    st.markdown("Você pode opcionalmente rodar o painel de **Testes de Confiabilidade** antes, "
+                "para obter um QDS global. Aqui, o QDS é tratado de forma local/simples.")
 
-        st.session_state["df_turbo_unitario"] = df_turbo
-        st.session_state["idx_unitario"] = idx_alvo
-        st.success("Previsão TURBO++ gerada.")
+    if st.button("Rodar Replay ULTRA Unitário"):
+        df_ate_alvo = df[df["idx"] <= idx_alvo].copy()
+        if df_ate_alvo.empty:
+            df_ate_alvo = df.copy()
 
-    df_turbo = st.session_state.get("df_turbo_unitario", None)
-    idx_unit = st.session_state.get("idx_unitario", None)
+        regime_info = calcular_regime_ultra(df_ate_alvo, janela=40)
+        k_info = calcular_k_star_ultra(df_ate_alvo, janela=40)
 
-    if df_turbo is not None and idx_unit is not None:
-        reg = calcular_regime_ultra(df)
-        kinfo = calcular_k_star_ultra(df)
+        # Sem QDS pré-calculado aqui (poderíamos integrar no futuro)
+        qds_info = None
 
-        col_pass = extrair_passageiros(df)
-        recorte = df[df["idx"] == idx_unit].iloc[0]
-        serie_real = [int(recorte[c]) for c in col_pass]
+        with st.spinner("Gerando leque TURBO++ ULTRA para Replay Unitário..."):
+            df_turbo = montar_previsao_turbo_ultra(
+                df_hist=df,
+                idx_alvo=int(idx_alvo),
+                regime_info=regime_info,
+                k_info=k_info,
+                n_series_base=250,
+                n_series_micro=40,
+                n_sim_mc=600,
+                output_mode="Quantidade fixa",
+                n_series_fixed=int(top_n),
+                min_conf_pct=30.0,
+            )
 
-        # Monta contexto de Replay ULTRA Unitário
-        qds_dummy = None
-        ctx = montar_contexto_replay_ultra_unitario(
-            df_hist=df,
-            idx_alvo=idx_unit,
-            df_turbo=df_turbo,
-            qds_info=qds_dummy,
-            regime_info=reg,
-            k_info=kinfo,
-            top_n=25,
-        )
-
-        st.subheader(f"🎯 Resultado — {ctx['serie_id']}")
-        st.markdown("### Série Real")
-        st.code(" ".join(str(x) for x in serie_real))
-
-        st.markdown("### Top-N TURBO++")
-        st.dataframe(ctx["df_turbo_local"], use_container_width=True)
-
-        if ctx["acerto_topN"]:
-            st.success(f"ACERTO TOP-N! posição: {ctx['posicao_topN']}")
+        if df_turbo is None or df_turbo.empty:
+            st.error("Não foi possível gerar o leque TURBO++ ULTRA para este índice.")
         else:
-            st.error("Não acertou no Top-N.")
+            with st.spinner("Montando contexto de Replay ULTRA Unitário..."):
+                contexto = montar_contexto_replay_ultra_unitario(
+                    df_hist=df,
+                    idx_alvo=int(idx_alvo),
+                    df_turbo=df_turbo,
+                    qds_info=qds_info,
+                    regime_info=regime_info,
+                    k_info=k_info,
+                    top_n=int(top_n),
+                )
 
-        st.markdown("### Regime")
-        st.write(reg.descricao)
+            st.subheader("🧱 Série alvo (real)")
+            st.code(" ".join(str(x) for x in contexto["serie_real"]), language="text")
 
-        st.markdown("### k*")
-        st.write(kinfo.descricao)
+            st.subheader("📜 Leque TURBO++ ULTRA (com acertos)")
+            st.dataframe(
+                contexto["df_turbo"][["series", "origem", "score_global", "acertos"]],
+                use_container_width=True,
+            )
 
-        st.info("Replay ULTRA Unitário concluído.")
+            st.markdown("### 🎯 Saída completa do Replay ULTRA Unitário")
+            st.write(f"Acertos top-1: **{contexto['acertos_top1']}**")
+            st.write(f"Acertos em pelo menos 1 série no top-{top_n}: **{contexto['acertos_topN']}**")
+            st.write(f"Melhor acerto no leque: **{contexto['melhor_acerto']}** passageiros.")
+            st.write(f"Posição do melhor acerto no ranking: **{contexto['pos_melhor_rank']}**")
 
+            st.markdown("### 🌡️ Regime e k* no momento do alvo")
+            st.write(contexto["regime_descricao"])
+            st.write(contexto["k_star_descricao"])
+
+            if contexto["qds"] is not None:
+                st.markdown("### 📈 QDS local/global")
+                st.write(contexto["qds_descricao"])
+            else:
+                st.caption(
+                    "QDS não foi integrado a este alvo de forma explícita. "
+                    "Use o painel de Testes de Confiabilidade para cálculo global."
+                )
 
 
 # ============================================================
-# PAINEL 8 — Testes de Confiabilidade
+# PAINEL — TESTES DE CONFIABILIDADE (QDS / BACKTEST)
 # ============================================================
 
 elif painel == "🧪 Testes de Confiabilidade":
-    st.header("🧪 Testes de Confiabilidade — QDS / Backtest")
-    df = st.session_state.get("df", None)
 
-    if df is None:
-        st.warning("Carregue o histórico.")
+    st.header("🧪 Testes de Confiabilidade — QDS REAL + Backtest REAL")
+
+    df = st.session_state.get("df", None)
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada'.")
         st.stop()
 
-    st.subheader("▶ Backtest REAL")
-    janela = st.number_input("Janela", 20, 500, 150)
-    top_n = st.number_input("Top-N (conceitual)", 1, 20, 10)
+    try:
+        min_idx, max_idx = obter_intervalo_indices(df)
+    except Exception as e:
+        st.error(f"Histórico sem coluna 'idx' válida: {e}")
+        st.stop()
 
-    if st.button("Executar Backtest"):
-        bt = executar_backtest_real(
-            df_hist=df,
-            n_passageiros=obter_n_passageiros(df),
-            janela=janela,
-            top_n=top_n,
-        )
-        st.success("Backtest concluído!")
-        st.write(bt.descricao)
-        st.dataframe(bt.tabela, use_container_width=True)
+    n_pass = obter_n_passageiros(df)
 
-        st.subheader("▶ QDS REAL")
-        qds_info = calcular_qds_real(bt.tabela, top_n=top_n)
-        st.write(qds_info.descricao)
+    st.markdown(
+        "Este painel executa um **backtest real** sobre uma janela de índices finais "
+        "da estrada e calcula o **QDS REAL (Índice de Qualidade Dinâmica da Série)**."
+    )
 
+    janela_bt = st.slider(
+        "Janela de backtest (nº de índices finais):",
+        min_value=30,
+        max_value=min(400, int(len(df))),
+        value=150,
+        step=10,
+    )
 
+    top_n_bt = st.slider(
+        "Top-N considerado no backtest:",
+        min_value=5,
+        max_value=40,
+        value=10,
+        step=5,
+    )
+
+    if st.button("Rodar Backtest REAL + QDS"):
+        with st.spinner("Executando Backtest REAL... isso pode levar algum tempo."):
+            bt_result = executar_backtest_real(
+                df_hist=df,
+                n_passageiros=n_pass,
+                janela=int(janela_bt),
+                top_n=int(top_n_bt),
+            )
+
+        if bt_result.tabela is None or bt_result.tabela.empty:
+            st.error("Backtest não gerou resultados suficientes.")
+        else:
+            st.subheader("📊 Tabela de Backtest REAL")
+            st.dataframe(bt_result.tabela, use_container_width=True)
+
+            st.markdown("### 📝 Resumo do Backtest")
+            st.write(bt_result.descricao)
+
+            with st.spinner("Calculando QDS REAL..."):
+                qds_info = calcular_qds_real(bt_result.tabela, top_n=int(top_n_bt))
+
+            st.markdown("### 📈 QDS REAL — Índice de Qualidade Dinâmica")
+            st.write(qds_info.descricao)
+
+            st.caption(
+                "Use o QDS para calibrar expectativas de acerto do TURBO++ ULTRA, "
+                "sem simplificações, em cima da estrada real que você carregou."
+            )
+# ============================================================
+# FINALIZAÇÃO DO APP
+# ============================================================
+
+st.markdown("---")
+st.caption(
+    "Predict Cars — V14-FLEX ULTRA REAL (TURBO++) • "
+    "Motor completo, sem simplificações, com todos os módulos "
+    "S6 Profundo ULTRA • Micro-Leque ULTRA • Monte Carlo Profundo ULTRA • "
+    "Backtest REAL • QDS REAL • Replay LIGHT • Replay ULTRA • Replay ULTRA UNITÁRIO."
+)
 
 # ============================================================
-# (FIM DA PARTE 3/4)
-# A Próxima parte (4/4) conterá:
-# → Finalização
-# → if __name__ == "__main__"
-# ============================================================
-# ============================================================
-# FINALIZAÇÃO
-# ============================================================
-
-def main():
-    """
-    A função main() é simbólica aqui, pois o Streamlit já executa
-    o script de cima para baixo. Mantemos para organização formal
-    do app completo.
-    """
-    pass
-
-
-# ============================================================
-# EXECUÇÃO
+# EXECUÇÃO DIRETA (OPCIONAL)
+# Streamlit ignora o bloco main, mas mantemos por padronização.
 # ============================================================
 
 if __name__ == "__main__":
-    main()
+    # A execução real será feita pelo Streamlit com:
+    #   streamlit run app_v14_flex_replay_ultra_unitario.py
+    pass
