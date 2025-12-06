@@ -10,7 +10,7 @@ import streamlit as st
 # ============================================================
 
 st.set_page_config(
-    page_title="Predict Cars V15.2-HÍBRIDO — QDS REAL",
+    page_title="Predict Cars V15.3-HÍBRIDO — Backtest REAL por QDS",
     layout="wide",
 )
 
@@ -22,14 +22,17 @@ def init_session_state() -> None:
     """Inicializa chaves principais na sessão, se ainda não existirem."""
     defaults = {
         "df": None,              # histórico original
-        "df_limpo": None,        # histórico pós-tratamento de ruído Tipo A (V15.1)
+        "df_limpo": None,        # histórico pós-tratamento de ruído Tipo A
         "n_passageiros": None,
         "fonte_historico": None,
         "historico_texto_bruto": "",
         "historico_csv_nome": None,
         "ruido_stats": None,     # métricas antes/depois do tratamento de ruído
-        "qds_stats": None,       # métricas de QDS REAL (V15.2)
+        "qds_stats": None,       # métricas agregadas de QDS REAL
         "qds_config": None,      # parâmetros usados pelo QDS
+        "df_qds": None,          # tabela completa de QDS por série
+        "backtest_stats": None,  # métricas agregadas de backtest REAL
+        "df_backtest": None,     # detalhe do backtest por ponto
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -234,8 +237,8 @@ init_session_state()
 # ============================================================
 
 st.markdown(
-    """# 🚗 Predict Cars V15.2-HÍBRIDO — QDS REAL
-Núcleo V14-FLEX ULTRA + Modo TURBO++ ULTRA Anti-Ruído + Ruído Tipo A/B + QDS REAL + Replay LIGHT/ULTRA + k & k*.
+    """# 🚗 Predict Cars V15.3-HÍBRIDO — Backtest REAL por QDS
+Núcleo V14-FLEX ULTRA + Modo TURBO++ ULTRA Anti-Ruído + Ruído Tipo A/B + QDS REAL + Backtest REAL por trecho de QDS.
 """
 )
 
@@ -254,16 +257,17 @@ with st.sidebar:
     painel = st.radio(
         "Escolha o painel:",
         (
-            "📥 Histórico — Entrada FLEX ULTRA (V15.2-HÍBRIDO)",
-            "🔍 Pipeline V14-FLEX ULTRA (V15.2)",
-            "📈 QDS REAL — Qualidade Dinâmica da Estrada (V15.2)",
-            "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.2)",
+            "📥 Histórico — Entrada FLEX ULTRA (V15.3-HÍBRIDO)",
+            "🔍 Pipeline V14-FLEX ULTRA (V15.3)",
+            "📈 QDS REAL — Qualidade Dinâmica da Estrada (V15.3)",
+            "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.3)",
             "💡 Replay LIGHT",
             "📅 Replay ULTRA",
             "🎯 Replay ULTRA Unitário",
             "🚨 Monitor de Risco (k & k*)",
-            "📊 Ruído Condicional (V15.2)",
-            "🧹 Tratamento de Ruído Tipo A+B (V15.2)",
+            "📊 Ruído Condicional (V15.3)",
+            "🧹 Tratamento de Ruído Tipo A+B (V15.3)",
+            "📉 Backtest REAL por QDS (V15.3)",
             "🧪 Testes de Confiabilidade REAL",
         ),
     )
@@ -277,13 +281,15 @@ with st.sidebar:
             st.caption("✔ Histórico pós-tratamento de ruído (Tipo A) em uso.")
         if st.session_state.get("qds_stats", None) is not None:
             st.caption("✔ QDS REAL já calculado para este histórico.")
+        if st.session_state.get("backtest_stats", None) is not None:
+            st.caption("✔ Backtest REAL já executado (V15.3).")
 
 
 # ============================================================
-# PAINEL 1 — HISTÓRICO (ENTRADA FLEX ULTRA) V15.2
+# PAINEL 1 — HISTÓRICO (ENTRADA FLEX ULTRA) V15.3
 # ============================================================
 
-if painel == "📥 Histórico — Entrada FLEX ULTRA (V15.2-HÍBRIDO)":
+if painel == "📥 Histórico — Entrada FLEX ULTRA (V15.3-HÍBRIDO)":
     st.markdown("## 📥 Histórico — Entrada FLEX ULTRA (arquivo + texto)")
     st.markdown(
         """Use **uma ou ambas** as formas de entrada abaixo.  
@@ -304,7 +310,7 @@ Se você usar as duas, poderá escolher qual será a fonte principal do históri
         arquivo_csv = st.file_uploader(
             "Selecione o arquivo de histórico (.csv)",
             type=["csv"],
-            key="uploader_v152_csv",
+            key="uploader_v153_csv",
         )
 
         if arquivo_csv is not None:
@@ -332,7 +338,7 @@ Se você usar as duas, poderá escolher qual será a fonte principal do históri
             if st.button(
                 "Processar texto",
                 type="primary",
-                key="btn_processar_texto_v152",
+                key="btn_processar_texto_v153",
             ):
                 try:
                     df_texto = parse_texto_historico(texto_hist)
@@ -383,6 +389,9 @@ Se você usar as duas, poderá escolher qual será a fonte principal do históri
             st.session_state["ruido_stats"] = None
             st.session_state["qds_stats"] = None
             st.session_state["qds_config"] = None
+            st.session_state["df_qds"] = None
+            st.session_state["backtest_stats"] = None
+            st.session_state["df_backtest"] = None
 
             cols_pass = [c for c in df_final.columns if c.startswith("n")]
             st.session_state["n_passageiros"] = len(cols_pass)
@@ -403,13 +412,13 @@ Se você usar as duas, poderá escolher qual será a fonte principal do históri
 
     st.markdown(
         """> Após definir o histórico principal, use os outros painéis na barra lateral  
-> para executar o **Pipeline V14-FLEX ULTRA (V15.2)**, **QDS REAL**,  
-> **TURBO++ ULTRA Anti-Ruído**, **Replay LIGHT/ULTRA**,  
+> para executar o **Pipeline V14-FLEX ULTRA (V15.3)**, **QDS REAL**,  
+> **TURBO++ ULTRA Anti-Ruído**, **Replays**, **Backtest REAL por QDS**,  
 > **Monitor de Risco**, **Ruído Condicional** e **Tratamento de Ruído Tipo A+B**.
 """
 )
 # ============================================================
-# PARTE 2/4 — PIPELINE, CLIMA, k*, S1–S5, LEQUES BASE
+# PARTE 2/4 — PIPELINE, CLIMA, k*, S1–S5, LEQUES BASE, QDS
 # ============================================================
 
 # ------------------------------------------------------------
@@ -447,7 +456,7 @@ def selecionar_janela(df: pd.DataFrame, janela: int = 40) -> pd.DataFrame:
 
 
 # ------------------------------------------------------------
-# BARÔMETRO LOCAL / CLIMA — V14-FLEX ULTRA (base para V15.2)
+# BARÔMETRO LOCAL / CLIMA — V14-FLEX ULTRA (base V15.3)
 # ------------------------------------------------------------
 
 def calcular_barometro(df_janela: pd.DataFrame) -> dict:
@@ -477,7 +486,7 @@ def calcular_barometro(df_janela: pd.DataFrame) -> dict:
 
 
 # ------------------------------------------------------------
-# k* LOCAL — SENTINELA (V15.2, baseado no barômetro)
+# k* LOCAL — SENTINELA (V15.3, baseado no barômetro + sensibilidade V15)
 # ------------------------------------------------------------
 
 def avaliar_k_estrela(barometro: dict) -> Tuple[str, str]:
@@ -490,7 +499,7 @@ def avaliar_k_estrela(barometro: dict) -> Tuple[str, str]:
     media_dif = barometro["media_diferenca"]
     pct_k_pos = barometro["pct_k_positivo"]
 
-    # Sensibilidade V15.2 (ligeiramente mais rígida que V15.1)
+    # Sensibilidade V15.3 (mantém o jeitão V15.2, podendo ser ajustada para backtest)
     if pct_k_pos > 20 or media_dif > 20:
         return "critico", "🔴 k*: Ambiente crítico — turbulência forte e guardas acertando em excesso."
     elif pct_k_pos > 8 or media_dif > 10:
@@ -525,7 +534,7 @@ def detectar_regime(df: pd.DataFrame) -> Tuple[str, str, dict, Tuple[str, str]]:
 
 
 # ------------------------------------------------------------
-# S1–S5 DO PIPELINE V14-FLEX ULTRA (núcleo leve, mesmo jeitão V15.1)
+# S1–S5 DO PIPELINE V14-FLEX ULTRA (núcleo leve, mesmo jeitão V15.2/V15.3)
 # ------------------------------------------------------------
 
 def etapa_s1(df: pd.DataFrame) -> pd.DataFrame:
@@ -586,8 +595,9 @@ def gerar_series_base(
 ) -> List[List[int]]:
     """Gera o leque ORIGINAL baseado nas faixas S1–S5.
 
-    Mantém o mesmo jeitão do V15.1: usa as faixas (faixa_min/faixa_max)
-    para amostrar valores por passageiro.
+    Mantém o mesmo jeitão do V15.2:
+      - usa as faixas (faixa_min/faixa_max)
+      - amostra valores para cada passageiro
     """
     faixas = executar_s1_a_s5(df)
     cols_pass = [c for c in df.columns if c.startswith("n")]
@@ -621,7 +631,7 @@ def gerar_leque_corrigido(
 ) -> List[List[int]]:
     """Gera o leque CORRIGIDO usando média + desvio global simples.
 
-    Mantém o mesmo jeitão do V15.1:
+    Mantém o mesmo jeitão do V15.2:
       - usa média global e desvio global dos passageiros
       - gera séries em torno desses valores
     """
@@ -673,7 +683,7 @@ def build_flat_series_table(leque: List[List[int]]) -> pd.DataFrame:
 
 
 # ============================================================
-# NÚCLEO QDS REAL — FUNÇÕES BÁSICAS (V15.2)
+# NÚCLEO QDS REAL — FUNÇÕES BÁSICAS (V15.3, reaproveitando V15.2)
 # ============================================================
 
 def calcular_qds_estrada(
@@ -806,12 +816,12 @@ def calcular_qds_estrada(
 
 
 # ============================================================
-# PAINEL 2 — Pipeline V14-FLEX ULTRA (V15.2)
+# PAINEL 2 — Pipeline V14-FLEX ULTRA (V15.3)
 # ============================================================
 
-if painel == "🔍 Pipeline V14-FLEX ULTRA (V15.2)":
+if painel == "🔍 Pipeline V14-FLEX ULTRA (V15.3)":
 
-    st.markdown("## 🔍 Pipeline V14-FLEX ULTRA (V15.2)")
+    st.markdown("## 🔍 Pipeline V14-FLEX ULTRA (V15.3)")
 
     df = get_df_base()
     if df is None or df.empty:
@@ -834,11 +844,11 @@ if painel == "🔍 Pipeline V14-FLEX ULTRA (V15.2)":
     faixas = executar_s1_a_s5(df)
     st.dataframe(faixas)
 # ============================================================
-# PARTE 3/4 — AVALIAÇÃO (TVF + RUÍDO TIPO B), QDS REAL, TURBO
+# PARTE 3/4 — RUÍDO A/B, AVALIAÇÃO (TVF), QDS REAL, TURBO++
 # ============================================================
 
 # ------------------------------------------------------------
-# TRATAMENTO DE RUÍDO TIPO A — (já usado no V15.1, reaproveitado aqui)
+# TRATAMENTO DE RUÍDO TIPO A — (mesmo núcleo V15.2)
 # ------------------------------------------------------------
 
 def calcular_metrica_ruido_global(df: pd.DataFrame) -> dict:
@@ -1020,7 +1030,7 @@ def limit_by_mode(
 
 
 # ------------------------------------------------------------
-# MONTAGEM COMPLETA DO LEQUE TURBO++ ULTRA (V15.2)
+# MONTAGEM COMPLETA DO LEQUE TURBO++ ULTRA (V15.3)
 # ------------------------------------------------------------
 
 def montar_previsao_turbo_ultra(
@@ -1073,18 +1083,19 @@ def contexto_k_previsao(k_estado: str) -> str:
 
 
 # ============================================================
-# PAINEL — 📈 QDS REAL — Qualidade Dinâmica da Estrada (V15.2)
+# PAINEL — 📈 QDS REAL — Qualidade Dinâmica da Estrada (V15.3)
 # ============================================================
 
-if painel == "📈 QDS REAL — Qualidade Dinâmica da Estrada (V15.2)":
+if painel == "📈 QDS REAL — Qualidade Dinâmica da Estrada (V15.3)":
 
-    st.markdown("## 📈 QDS REAL — Qualidade Dinâmica da Estrada (V15.2)")
+    st.markdown("## 📈 QDS REAL — Qualidade Dinâmica da Estrada (V15.3)")
     st.markdown(
         "Mede a **Qualidade Dinâmica da Série** ao longo da estrada, combinando:\n\n"
         "- dispersão local (diferença média entre séries)\n"
         "- percentual de k>0 na janela\n"
         "- k atual da série\n\n"
-        "Produz um score QDS (0–100) e classifica trechos como **PREMIUM / BOM / REGULAR / RUIM**."
+        "Produz um score QDS (0–100) e classifica trechos como **PREMIUM / BOM / REGULAR / RUIM**.\n"
+        "Este QDS será usado diretamente no **Backtest REAL por QDS (V15.3)**."
     )
 
     df_base = get_df_base()
@@ -1103,7 +1114,7 @@ if painel == "📈 QDS REAL — Qualidade Dinâmica da Estrada (V15.2)":
             step=5,
         )
 
-    if st.button("Calcular QDS REAL da estrada", type="primary", key="btn_qds_real_v152"):
+    if st.button("Calcular QDS REAL da estrada", type="primary", key="btn_qds_real_v153"):
         with st.spinner("Calculando QDS REAL ao longo da estrada..."):
             df_qds, stats = calcular_qds_estrada(df_base, window_tam=int(window_tam))
 
@@ -1129,13 +1140,14 @@ if painel == "📈 QDS REAL — Qualidade Dinâmica da Estrada (V15.2)":
         ult = df_qds.tail(200).copy()
         st.dataframe(ult)
 
-        with st.expander("Visualização simplificada do QDS (tabela completa)", expanded=False):
+        with st.expander("Visualização completa do QDS (tabela completa)", expanded=False):
             st.dataframe(df_qds)
 
         st.info(
             "Trechos **PREMIUM** indicam janelas onde o TURBO++ ULTRA tende a operar\n"
             "com maior consistência. Trechos **RUIM** indicam ambientes de baixa qualidade\n"
-            "da estrada, mesmo após tratamento de ruído."
+            "da estrada, mesmo após tratamento de ruído. O Backtest REAL usará essas faixas\n"
+            "para comparar a performance do motor por ambiente."
         )
     else:
         stats = st.session_state.get("qds_stats", None)
@@ -1157,19 +1169,20 @@ if painel == "📈 QDS REAL — Qualidade Dinâmica da Estrada (V15.2)":
         else:
             st.info(
                 "Configure a janela e clique em **'Calcular QDS REAL da estrada'** para "
-                "gerar o mapa de qualidade dinâmica."
+                "gerar o mapa de qualidade dinâmica. O Backtest REAL depende deste cálculo."
             )
 
 
 # ============================================================
-# PAINEL — 🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.2)
+# PAINEL — 🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.3)
 # ============================================================
 
-if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.2)":
+if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.3)":
 
-    st.markdown("## 🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.2)")
+    st.markdown("## 🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.3)")
     st.markdown(
-        "Núcleo V14-FLEX ULTRA + Leque ORIGINAL/CORRIGIDO/MISTO + TVF + k* adaptativo + Ruído Tipo B + QDS REAL (contexto)."
+        "Núcleo V14-FLEX ULTRA + Leque ORIGINAL/CORRIGIDO/MISTO + TVF + k* adaptativo + Ruído Tipo B.\n"
+        "Este é o mesmo motor que será usado no **Backtest REAL por QDS (V15.3)**."
     )
 
     df = get_df_base()
@@ -1202,7 +1215,7 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.2)":
                 "Quantidade fixa",
                 "Confiabilidade mínima",
             ),
-            key="turbo_modo_v152",
+            key="turbo_modo_v153",
         )
 
     with col_qtd:
@@ -1212,7 +1225,7 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.2)":
             max_value=200,
             value=25,
             step=1,
-            key="turbo_qtd_v152",
+            key="turbo_qtd_v153",
         )
 
     with col_conf:
@@ -1222,12 +1235,12 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.2)":
             max_value=100,
             value=30,
             step=1,
-            key="turbo_conf_v152",
+            key="turbo_conf_v153",
         )
 
     st.markdown("---")
 
-    if st.button("Gerar Leque TURBO++ ULTRA", type="primary", key="btn_turbo_v152"):
+    if st.button("Gerar Leque TURBO++ ULTRA", type="primary", key="btn_turbo_v153"):
         with st.spinner("Gerando leque TURBO++ ULTRA, avaliando TVF e ruído Tipo B..."):
             df_turbo = montar_previsao_turbo_ultra(
                 df_hist=df,
@@ -1266,7 +1279,7 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.2)":
             else:
                 st.warning("A coluna 'series' não foi encontrada no leque gerado.")
 # ============================================================
-# PARTE 4/4 — REPLAYS, RISCO, RUÍDO, TRATAMENTO A+B, CONFIABILIDADE
+# PARTE 4/4 — REPLAYS, RISCO, RUÍDO, BACKTEST REAL, CONFIABILIDADE
 # ============================================================
 
 # ============================================================
@@ -1278,7 +1291,7 @@ if painel == "💡 Replay LIGHT":
     st.markdown("## 💡 Replay LIGHT (com ruído Tipo B e QDS no contexto)")
     st.markdown(
         "Simula o que o TURBO++ ULTRA teria feito em um ponto específico do histórico "
-        "(já podendo usar df_limpo + usando o mesmo motor com TVF + ruído Tipo B)."
+        "(usando df_limpo, se existir, e o mesmo motor com TVF + ruído Tipo B)."
     )
 
     df_original = st.session_state.get("df", None)
@@ -1297,7 +1310,7 @@ if painel == "💡 Replay LIGHT":
         max_value=n_total,
         value=n_total,
         step=1,
-        key="replay_light_idx_v152",
+        key="replay_light_idx_v153",
     )
 
     col_modo, col_qtd, col_conf = st.columns([1.2, 0.9, 0.9])
@@ -1310,7 +1323,7 @@ if painel == "💡 Replay LIGHT":
                 "Quantidade fixa",
                 "Confiabilidade mínima",
             ),
-            key="replay_light_modo_v152",
+            key="replay_light_modo_v153",
         )
 
     with col_qtd:
@@ -1320,7 +1333,7 @@ if painel == "💡 Replay LIGHT":
             max_value=200,
             value=25,
             step=1,
-            key="replay_light_qtd_v152",
+            key="replay_light_qtd_v153",
         )
 
     with col_conf:
@@ -1330,10 +1343,10 @@ if painel == "💡 Replay LIGHT":
             max_value=100,
             value=30,
             step=1,
-            key="replay_light_conf_v152",
+            key="replay_light_conf_v153",
         )
 
-    if st.button("Rodar Replay LIGHT", key="btn_replay_light_v152"):
+    if st.button("Rodar Replay LIGHT", key="btn_replay_light_v153"):
         df_sub_base = df_base.iloc[:idx_alvo].copy()
         serie_id = df_sub_base.iloc[-1].get("serie_id", f"C{idx_alvo}")
         clima, k_estado, bar, (k_st, k_msg) = detectar_regime(df_sub_base)
@@ -1403,7 +1416,7 @@ if painel == "📅 Replay ULTRA":
             max_value=n_total,
             value=max(2, n_total - 10),
             step=1,
-            key="replay_ultra_ini_v152",
+            key="replay_ultra_ini_v153",
         )
     with col_b:
         idx_fim = st.number_input(
@@ -1412,7 +1425,7 @@ if painel == "📅 Replay ULTRA":
             max_value=n_total,
             value=n_total,
             step=1,
-            key="replay_ultra_fim_v152",
+            key="replay_ultra_fim_v153",
         )
 
     output_mode = st.radio(
@@ -1422,7 +1435,7 @@ if painel == "📅 Replay ULTRA":
             "Quantidade fixa",
             "Confiabilidade mínima",
         ),
-        key="replay_ultra_modo_v152",
+        key="replay_ultra_modo_v153",
     )
 
     n_series_fixed = st.number_input(
@@ -1431,7 +1444,7 @@ if painel == "📅 Replay ULTRA":
         max_value=200,
         value=15,
         step=1,
-        key="replay_ultra_qtd_v152",
+        key="replay_ultra_qtd_v153",
     )
 
     min_conf_pct = st.slider(
@@ -1440,10 +1453,10 @@ if painel == "📅 Replay ULTRA":
         max_value=100,
         value=30,
         step=1,
-        key="replay_ultra_conf_v152",
+        key="replay_ultra_conf_v153",
     )
 
-    if st.button("Rodar Replay ULTRA (intervalo)", key="btn_replay_ultra_v152"):
+    if st.button("Rodar Replay ULTRA (intervalo)", key="btn_replay_ultra_v153"):
         if idx_fim - idx_ini > 50:
             st.warning(
                 "Intervalo muito grande (mais de 50 pontos). "
@@ -1521,7 +1534,7 @@ if painel == "🎯 Replay ULTRA Unitário":
         max_value=n_total,
         value=n_total,
         step=1,
-        key="replay_ultra_unit_idx_v152",
+        key="replay_ultra_unit_idx_v153",
     )
 
     output_mode = st.radio(
@@ -1531,7 +1544,7 @@ if painel == "🎯 Replay ULTRA Unitário":
             "Quantidade fixa",
             "Confiabilidade mínima",
         ),
-        key="replay_ultra_unit_modo_v152",
+        key="replay_ultra_unit_modo_v153",
     )
 
     n_series_fixed = st.number_input(
@@ -1540,7 +1553,7 @@ if painel == "🎯 Replay ULTRA Unitário":
         max_value=200,
         value=20,
         step=1,
-        key="replay_ultra_unit_qtd_v152",
+        key="replay_ultra_unit_qtd_v153",
     )
 
     min_conf_pct = st.slider(
@@ -1549,10 +1562,10 @@ if painel == "🎯 Replay ULTRA Unitário":
         max_value=100,
         value=40,
         step=1,
-        key="replay_ultra_unit_conf_v152",
+        key="replay_ultra_unit_conf_v153",
     )
 
-    if st.button("Rodar Replay ULTRA Unitário", key="btn_replay_ultra_unit_v152"):
+    if st.button("Rodar Replay ULTRA Unitário", key="btn_replay_ultra_unit_v153"):
         df_sub = df.iloc[:idx_alvo].copy()
         serie_id = df_sub.iloc[-1].get("serie_id", f"C{idx_alvo}")
         clima, k_estado, bar, (k_st, k_msg) = detectar_regime(df_sub)
@@ -1660,12 +1673,12 @@ if painel == "🚨 Monitor de Risco (k & k*)":
 
 
 # ============================================================
-# PAINEL — 📊 Ruído Condicional (V15.2)
+# PAINEL — 📊 Ruído Condicional (V15.3)
 # ============================================================
 
-if painel == "📊 Ruído Condicional (V15.2)":
+if painel == "📊 Ruído Condicional (V15.3)":
 
-    st.markdown("## 📊 Ruído Condicional (V15.2)")
+    st.markdown("## 📊 Ruído Condicional (V15.3)")
     st.markdown(
         "Monitor para enxergar como a estrada reage a diferentes regimes, "
         "abrindo espaço para filtros anti-ruído condicionais ao ambiente.\n\n"
@@ -1723,16 +1736,16 @@ if painel == "📊 Ruído Condicional (V15.2)":
 
 
 # ============================================================
-# PAINEL — 🧹 Tratamento de Ruído Tipo A+B (V15.2)
+# PAINEL — 🧹 Tratamento de Ruído Tipo A+B (V15.3)
 # ============================================================
 
-if painel == "🧹 Tratamento de Ruído Tipo A+B (V15.2)":
+if painel == "🧹 Tratamento de Ruído Tipo A+B (V15.3)":
 
-    st.markdown("## 🧹 Tratamento de Ruído Tipo A+B (V15.2)")
+    st.markdown("## 🧹 Tratamento de Ruído Tipo A+B (V15.3)")
     st.markdown(
         "Tipo A: limpeza/suavização do histórico (df_limpo).\n\n"
         "Tipo B: penalização de séries ruidosas no TURBO++ (já integrada ao TVF).\n\n"
-        "V15.2: este painel também alimenta o contexto do QDS REAL."
+        "V15.3: este painel também alimenta o contexto do QDS REAL e do Backtest REAL."
     )
 
     df_original = st.session_state.get("df", None)
@@ -1771,7 +1784,7 @@ if painel == "🧹 Tratamento de Ruído Tipo A+B (V15.2)":
             step=0.5,
         )
 
-    if st.button("Aplicar Tratamento de Ruído Tipo A", type="primary", key="btn_ruido_tipo_a_v152"):
+    if st.button("Aplicar Tratamento de Ruído Tipo A", type="primary", key="btn_ruido_tipo_a_v153"):
         with st.spinner("Aplicando suavização condicional (Tipo A) ao histórico..."):
             df_limpo, stats = aplicar_tratamento_ruido_tipo_a(
                 df_original,
@@ -1800,7 +1813,7 @@ if painel == "🧹 Tratamento de Ruído Tipo A+B (V15.2)":
 
         st.info(
             "A partir de agora, todos os painéis que usam o histórico base "
-            "(Pipeline, QDS, TURBO, Replay, Ruído Condicional, etc.) passarão a "
+            "(Pipeline, QDS, TURBO, Replay, Ruído Condicional, Backtest REAL, etc.) passarão a "
             "usar **df_limpo** como estrada principal."
         )
 
@@ -1811,16 +1824,315 @@ if painel == "🧹 Tratamento de Ruído Tipo A+B (V15.2)":
 
 
 # ============================================================
+# NÚCLEO — BACKTEST REAL por QDS (função)
+# ============================================================
+
+def executar_backtest_real_por_qds(
+    df_base: pd.DataFrame,
+    df_qds: pd.DataFrame,
+    idx_ini: int,
+    idx_fim: int,
+    output_mode: str,
+    n_series_fixed: int,
+    min_conf_pct: float,
+) -> Tuple[pd.DataFrame, dict]:
+    """Roda o Backtest REAL do motor V15.3 ao longo de um intervalo da estrada.
+
+    Para cada índice i no intervalo:
+      - usa df_base[:i] como histórico disponível naquele instante
+      - aplica o motor TURBO++ ULTRA (mesmos parâmetros do app)
+      - gera uma previsão
+      - compara com a verdade (série i)
+      - mede:
+          * acertos_passageiros (tamanho da interseção entre conjuntos)
+          * acerto_total (True/False)
+      - lê o QDS naquele ponto (df_qds.loc[i])
+
+    Retorna:
+      - DataFrame com linha por ponto
+      - stats agregadas (por nível de QDS e global)
+    """
+    if df_base is None or df_base.empty:
+        raise ValueError("Histórico base vazio no Backtest REAL.")
+
+    if df_qds is None or df_qds.empty:
+        raise ValueError("QDS REAL não calculado. Rode o painel de QDS antes do backtest.")
+
+    n_total = len(df_base)
+    idx_ini = max(2, int(idx_ini))
+    idx_fim = min(int(idx_fim), n_total)
+
+    cols_pass = [c for c in df_base.columns if c.startswith("n")]
+    if not cols_pass:
+        raise ValueError("Histórico sem colunas de passageiros (n1..nN).")
+
+    registros = []
+
+    for i in range(idx_ini, idx_fim + 1):
+        df_hist_local = df_base.iloc[:i].copy()
+        linha_real = df_base.iloc[i - 1]
+        serie_id = linha_real.get("serie_id", f"C{i}")
+
+        # Verdade (série i)
+        real_vals = [linha_real[c] for c in cols_pass]
+        real_set = set(real_vals)
+
+        # Contexto de regime
+        clima, k_estado, bar, (k_st, k_msg) = detectar_regime(df_hist_local)
+
+        # Previsão com o motor V15.3
+        df_rep = montar_previsao_turbo_ultra(
+            df_hist=df_hist_local,
+            regime_state=k_estado,
+            output_mode=output_mode,
+            n_series_fixed=int(n_series_fixed),
+            min_conf_pct=float(min_conf_pct),
+            n_out_base=200,
+        )
+
+        if df_rep is None or df_rep.empty:
+            previsao = []
+            origem = None
+            tvf = None
+            conf = None
+            ruido_fator = None
+            acertos_pass = 0
+            acerto_total = False
+        else:
+            best = df_rep.iloc[0]
+            serie_pred = best.get("series", [])
+            previsao = list(serie_pred) if serie_pred is not None else []
+            origem = best.get("origem", None)
+            tvf = best.get("TVF", None)
+            conf = best.get("conf_pct", None)
+            ruido_fator = best.get("ruido_fator", None)
+
+            pred_set = set(previsao)
+            acertos_pass = len(real_set.intersection(pred_set))
+            acerto_total = (len(previsao) == len(real_vals)) and (previsao == real_vals)
+
+        # QDS naquele ponto (se existir)
+        if i in df_qds.index:
+            qds_score = float(df_qds.loc[i, "qds_score"])
+            nivel_qds = str(df_qds.loc[i, "nivel_qds"])
+        else:
+            qds_score = None
+            nivel_qds = "DESCONHECIDO"
+
+        registros.append(
+            {
+                "idx": i,
+                "serie_id": serie_id,
+                "clima": clima,
+                "k_estado": k_estado,
+                "qds_score": qds_score,
+                "nivel_qds": nivel_qds,
+                "previsao": " ".join(str(x) for x in previsao) if previsao else "",
+                "origem": origem,
+                "TVF": tvf,
+                "conf_pct": conf,
+                "ruido_fator": ruido_fator,
+                "acertos_passageiros": acertos_pass,
+                "acerto_total": bool(acerto_total),
+            }
+        )
+
+    df_bt = pd.DataFrame(registros).set_index("idx")
+
+    # Stats globais e por QDS
+    stats = {}
+    stats["intervalo"] = (idx_ini, idx_fim)
+    stats["total_pontos"] = len(df_bt)
+    stats["media_acertos_pass"] = float(df_bt["acertos_passageiros"].mean())
+    stats["taxa_acerto_total"] = float(df_bt["acerto_total"].mean() * 100.0)
+
+    # Por nível de QDS
+    niveis = ["PREMIUM", "BOM", "REGULAR", "RUIM"]
+    stats["por_nivel_qds"] = {}
+    for nivel in niveis:
+        bloco = df_bt[df_bt["nivel_qds"] == nivel]
+        if bloco.empty:
+            stats["por_nivel_qds"][nivel] = {
+                "pontos": 0,
+                "media_acertos_pass": None,
+                "taxa_acerto_total": None,
+            }
+        else:
+            stats["por_nivel_qds"][nivel] = {
+                "pontos": int(len(bloco)),
+                "media_acertos_pass": float(bloco["acertos_passageiros"].mean()),
+                "taxa_acerto_total": float(bloco["acerto_total"].mean() * 100.0),
+            }
+
+    return df_bt, stats
+
+
+# ============================================================
+# PAINEL — 📉 Backtest REAL por QDS (V15.3)
+# ============================================================
+
+if painel == "📉 Backtest REAL por QDS (V15.3)":
+
+    st.markdown("## 📉 Backtest REAL por trecho de QDS (V15.3)")
+    st.markdown(
+        "Aqui o Predict Cars V15.3 simula o que teria feito **em cada ponto da estrada**,\n"
+        "usando o motor TURBO++ ULTRA (V15.3) e compara com a verdade real do histórico.\n\n"
+        "O resultado é segmentado por nível de QDS (PREMIUM / BOM / REGULAR / RUIM), para "
+        "mapear a performance do motor por ambiente."
+    )
+
+    df_base = get_df_base()
+    df_qds = st.session_state.get("df_qds", None)
+
+    if df_base is None or df_base.empty:
+        st.warning("Carregue o histórico primeiro no painel de Entrada FLEX ULTRA.")
+        st.stop()
+
+    if df_qds is None or df_qds.empty:
+        st.warning(
+            "QDS REAL ainda não foi calculado. Vá ao painel "
+            "**'📈 QDS REAL — Qualidade Dinâmica da Estrada (V15.3)'** e calcule o QDS antes."
+        )
+        st.stop()
+
+    n_total = len(df_base)
+    st.markdown(f"Histórico atual contém **{n_total} séries**.")
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        idx_ini = st.number_input(
+            "Índice inicial do backtest:",
+            min_value=2,
+            max_value=n_total,
+            value=max(2, n_total - 200),
+            step=1,
+            key="bt_qds_ini_v153",
+        )
+    with col_b:
+        idx_fim = st.number_input(
+            "Índice final do backtest:",
+            min_value=int(idx_ini),
+            max_value=n_total,
+            value=n_total,
+            step=1,
+            key="bt_qds_fim_v153",
+        )
+
+    st.markdown("### ⚙️ Configuração do motor durante o Backtest")
+    output_mode = st.radio(
+        "Modo de geração do Leque (durante o backtest):",
+        (
+            "Automático (por regime)",
+            "Quantidade fixa",
+            "Confiabilidade mínima",
+        ),
+        key="bt_qds_modo_v153",
+    )
+
+    n_series_fixed = st.number_input(
+        "Quantidade total de séries (se modo for 'Quantidade fixa')",
+        min_value=1,
+        max_value=200,
+        value=25,
+        step=1,
+        key="bt_qds_qtd_v153",
+    )
+
+    min_conf_pct = st.slider(
+        "Confiabilidade mínima (%) (se modo for 'Confiabilidade mínima')",
+        min_value=0,
+        max_value=100,
+        value=30,
+        step=1,
+        key="bt_qds_conf_v153",
+    )
+
+    if st.button("Rodar Backtest REAL por QDS", type="primary", key="btn_bt_qds_v153"):
+        if idx_fim - idx_ini > 300:
+            st.warning(
+                "Intervalo muito grande (mais de 300 pontos). "
+                "Considere reduzir a janela para deixar o backtest mais responsivo."
+            )
+
+        with st.spinner("Executando Backtest REAL ao longo da estrada..."):
+            df_bt, stats_bt = executar_backtest_real_por_qds(
+                df_base=df_base,
+                df_qds=df_qds,
+                idx_ini=int(idx_ini),
+                idx_fim=int(idx_fim),
+                output_mode=output_mode,
+                n_series_fixed=int(n_series_fixed),
+                min_conf_pct=float(min_conf_pct),
+            )
+
+        st.session_state["df_backtest"] = df_bt
+        st.session_state["backtest_stats"] = stats_bt
+
+        st.success("Backtest REAL por trecho de QDS concluído.")
+
+        st.markdown("### 📊 Estatísticas globais do Backtest")
+        st.write(
+            {
+                "Intervalo analisado": stats_bt["intervalo"],
+                "Total de pontos": stats_bt["total_pontos"],
+                "Média de acertos por série (passageiros)": stats_bt["media_acertos_pass"],
+                "Taxa de acerto total (série exata)": f"{stats_bt['taxa_acerto_total']:.2f}%",
+            }
+        )
+
+        st.markdown("### 📊 Estatísticas por nível de QDS")
+        st.write(stats_bt["por_nivel_qds"])
+
+        st.markdown("### 📈 Detalhe do Backtest (amostra das últimas 200 linhas)")
+        st.dataframe(df_bt.tail(200))
+
+        with st.expander("Tabela completa do Backtest", expanded=False):
+            st.dataframe(df_bt)
+
+        st.info(
+            "Use estas métricas para entender em quais ambientes (QDS) o motor V15.3 "
+            "entrega mais acertos, onde ele é frágil e onde é mais seguro ativar "
+            "estratégias de 6 acertos, modos PRIME etc."
+        )
+    else:
+        stats_bt = st.session_state.get("backtest_stats", None)
+        df_bt = st.session_state.get("df_backtest", None)
+        if stats_bt is not None and df_bt is not None:
+            st.markdown("### 📊 Estatísticas globais do Backtest (última execução)")
+            st.write(
+                {
+                    "Intervalo analisado": stats_bt["intervalo"],
+                    "Total de pontos": stats_bt["total_pontos"],
+                    "Média de acertos por série (passageiros)": stats_bt["media_acertos_pass"],
+                    "Taxa de acerto total (série exata)": f"{stats_bt['taxa_acerto_total']:.2f}%",
+                }
+            )
+            st.markdown("### 📊 Estatísticas por nível de QDS (última execução)")
+            st.write(stats_bt["por_nivel_qds"])
+            st.markdown("### 📈 Amostra do Backtest (últimas 200 linhas)")
+            st.dataframe(df_bt.tail(200))
+        else:
+            st.info(
+                "Configure o intervalo e clique em **'Rodar Backtest REAL por QDS'** "
+                "para executar a avaliação completa do motor V15.3 ao longo da estrada."
+            )
+
+
+# ============================================================
 # PAINEL — 🧪 Testes de Confiabilidade REAL
 # ============================================================
 
 if painel == "🧪 Testes de Confiabilidade REAL":
 
-    st.markdown("## 🧪 Testes de Confiabilidade REAL")
+    st.markdown("## 🧪 Testes de Confiabilidade REAL (V15.3)")
     st.markdown(
-        "Espaço reservado para integrar QDS aprofundado, Backtest dedicado e Monte Carlo "
-        "com o motor V15.2-HÍBRIDO. Nesta versão, o painel funciona como monitor conceitual, "
-        "mas já lê o contexto de QDS e de ruído."
+        "Painel conceitual que consolida os efeitos de:\n\n"
+        "• Tratamento de Ruído Tipo A (df_limpo)\n"
+        "• Ruído Tipo B (penalização no TURBO++)\n"
+        "• QDS REAL (mapa de qualidade da estrada)\n"
+        "• Backtest REAL por QDS (V15.3)\n\n"
+        "Estrutura mantida no jeitão, pronta para receber rotinas adicionais de\n"
+        "Monte Carlo profundo e análises futuras de expectativa de acertos por modo."
     )
 
     df_base = get_df_base()
@@ -1829,13 +2141,16 @@ if painel == "🧪 Testes de Confiabilidade REAL":
         st.stop()
 
     st.markdown("### 📌 Situação atual")
-    st.write(
-        "• Motor TURBO++ ULTRA já produz leques com TVF + ajuste de ruído (Tipo B).\n"
-        "• Tratamento de Ruído Tipo A pode reduzir turbulência do histórico (df_limpo).\n"
-        "• QDS REAL já mede a qualidade dinâmica da estrada (PREMIUM / BOM / REGULAR / RUIM).\n"
-        "• Replay LIGHT e Replay ULTRA permitem simular decisões ao longo da estrada.\n"
-        "• A partir desses elementos, Backtest REAL / Monte Carlo Profundo poderão ser plugados."
-    )
+
+    bullets = [
+        "Motor TURBO++ ULTRA (V15.3) já produz leques com TVF + ajuste de ruído (Tipo B).",
+        "Tratamento de Ruído Tipo A pode reduzir turbulência do histórico (df_limpo).",
+        "QDS REAL já mede a qualidade dinâmica da estrada (PREMIUM / BOM / REGULAR / RUIM).",
+        "Backtest REAL por QDS mostra o desempenho efetivo do motor em cada faixa de ambiente.",
+        "Replay LIGHT e Replay ULTRA permitem simular decisões ao longo da estrada.",
+        "Pronto para integrar Monte Carlo profundo e estratégias de ataque/defesa por ambiente.",
+    ]
+    st.write("\n".join(f"• {b}" for b in bullets))
 
     stats_ruido = st.session_state.get("ruido_stats", None)
     if stats_ruido is not None:
@@ -1850,7 +2165,7 @@ if painel == "🧪 Testes de Confiabilidade REAL":
 
     stats_qds = st.session_state.get("qds_stats", None)
     if stats_qds is not None:
-        st.markdown("### 📈 Resumo do QDS REAL (para apoiar futuros backtests)")
+        st.markdown("### 📈 Resumo do QDS REAL (para apoiar decisões por ambiente)")
         st.write(
             {
                 "Tamanho da janela": stats_qds["window_tam"],
@@ -1862,10 +2177,22 @@ if painel == "🧪 Testes de Confiabilidade REAL":
             }
         )
 
-    st.info(
-        "Este painel foi mantido no jeitão estrutural, pronto para receber as "
-        "rotinas de Backtest REAL por trecho de QDS, Monte Carlo segmentado por regime, "
-        "e avaliação de expectativa de acertos por faixa de qualidade da estrada "
-        "nas próximas versões (V15.3, V15.4...)."
-    )
+    stats_bt = st.session_state.get("backtest_stats", None)
+    if stats_bt is not None:
+        st.markdown("### 📉 Resumo do Backtest REAL por QDS (V15.3)")
+        st.write(
+            {
+                "Intervalo analisado": stats_bt["intervalo"],
+                "Total de pontos": stats_bt["total_pontos"],
+                "Média de acertos por série (passageiros)": stats_bt["media_acertos_pass"],
+                "Taxa de acerto total (série exata)": f"{stats_bt['taxa_acerto_total']:.2f}%",
+            }
+        )
+        st.write("📊 Desempenho por nível de QDS:")
+        st.write(stats_bt["por_nivel_qds"])
 
+    st.info(
+        "Este painel foi mantido no jeitão estrutural, preparado para futuras versões "
+        "(V15.4, V15.5, V16...), onde Monte Carlo segmentado por ambiente, curvas de "
+        "expectativa de acertos e modos PRIME/SAFE poderão ser plugados diretamente."
+    )
