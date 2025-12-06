@@ -2315,17 +2315,28 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
         if st.session_state.get("mostrar_debug", False):
             st.markdown("#### 🐞 DEBUG — Leque A")
             dfA_view = dfA.copy()
-            dfA_view["series"] = dfA_view["series"].apply(lambda x: " ".join(str(v) for v in x))
+            dfA_view["series"] = dfA_view["series"].apply(
+                lambda x: " ".join(str(v) for v in x)
+            )
             st.dataframe(dfA_view.head(20))
 
             st.markdown("#### 🐞 DEBUG — Leque B")
             dfB_view = dfB.copy()
-            dfB_view["series"] = dfB_view["series"].apply(lambda x: " ".join(str(v) for v in x))
+            dfB_view["series"] = dfB_view["series"].apply(
+                lambda x: " ".join(str(v) for v in x)
+            )
             st.dataframe(dfB_view.head(20))
 
             st.markdown("#### 🐞 DEBUG — Leque MISTO")
             dfM_view = df_mix.copy()
-       # ============================================================
+            dfM_view["series"] = dfM_view["series"].apply(
+                lambda x: " ".join(str(v) for v in x)
+            )
+            st.dataframe(dfM_view.head(20))
+
+
+
+# ============================================================
 # PARTE 6/6 — Relatório Final — AIQ Bridge (para ChatGPT)
 # ============================================================
 
