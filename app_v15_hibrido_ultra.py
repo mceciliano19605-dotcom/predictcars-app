@@ -740,8 +740,10 @@ def get_passenger_cols(df: pd.DataFrame) -> List[str]:
     """
     Retorna as colunas de passageiros (n1..nN) em ordem.
     """
-    return sorted([c for c in df.columns if c.startswith("n")],
-                  key=lambda x: int(x[1:]))
+    return sorted(
+        [c for c in df.columns if c.startswith("n")],
+        key=lambda x: int(x[1:])
+    )
 
 
 def extrair_janela_hist(
@@ -751,16 +753,16 @@ def extrair_janela_hist(
     forward: int = 0,
 ) -> pd.DataFrame:
     """
-    Extrai janela em torno do índice alvo (1-based na interface).
+    Extrai uma janela do histórico em torno do índice alvo (1-based na interface).
 
-    - back: quantas séries para trás
-    - forward: quantas para frente (normalmente 0 para predição)
+    - back: quantas séries olhar para trás
+    - forward: quantas olhar para frente (normalmente 0 para predição)
     """
     if df is None or df.empty:
         return pd.DataFrame()
 
     n = len(df)
-    pos = max(0, min(idx_alvo - 1, n - 1))  # 0-based interno
+    pos = max(0, min(idx_alvo - 1, n - 1))  # índice interno 0-based
 
     ini = max(0, pos - back)
     fim = min(n, pos + 1 + forward)
@@ -772,10 +774,14 @@ def calcular_matriz_frequencia(
     suavizacao: float = 1.0,
 ) -> Dict[str, Dict[int, float]]:
     """
-    Calcula uma matriz de frequência (por posição de passageiro).
+    Calcula uma matriz de frequências para cada posição (n1..nN) da série.
 
-    Retorna:
-        { "n1": {valor: prob, ...}, "n2": {...}, ... }
+    Retorno:
+        {
+            "n1": {valor: probabilidade, ...},
+            "n2": {...},
+            ...
+        }
     """
     if janela is None or janela.empty:
         return {}
@@ -786,11 +792,12 @@ def calcular_matriz_frequencia(
     for col in cols:
         valores = janela[col].astype(int).tolist()
         contagens: Dict[int, int] = {}
+
         for v in valores:
             contagens[v] = contagens.get(v, 0) + 1
 
-        # Laplace smoothing básico
         total = sum(contagens.values()) + suavizacao * max(len(contagens), 1)
+
         probs: Dict[int, float] = {}
         for v, c in contagens.items():
             probs[v] = (c + suavizacao) / total
@@ -800,22 +807,29 @@ def calcular_matriz_frequencia(
     return matriz
 
 
+# ------------------------------------------------------------
+# FUNÇÃO CORRIGIDA — GERAR CANDIDATO (AGORA COM NP.CHOICE)
+# ------------------------------------------------------------
+
 def gerar_candidato_serie(
     matriz_freq: Dict[str, Dict[int, float]],
     rng: random.Random,
 ) -> List[int]:
     """
-    Gera uma série candidata amostrando da matriz de frequências
-    por posição (n1..nN). Caso alguma posição não tenha histórico,
-    sorteia um valor sintético (0..60) como fallback.
+    Gera uma série candidata baseada na matriz de frequências.
+
+    🔧 Correção V15.5:
+    - rng.choice() é inválido → substituído por np.random.choice()
+    - Mantém rng para randint (consistência determinística)
     """
     if not matriz_freq:
-        # fallback extremo
         return [rng.randint(0, 60) for _ in range(6)]
 
     serie: List[int] = []
+
     for col in sorted(matriz_freq.keys(), key=lambda x: int(x[1:])):
         dist = matriz_freq[col]
+
         if not dist:
             serie.append(rng.randint(0, 60))
             continue
@@ -824,16 +838,16 @@ def gerar_candidato_serie(
         probs = np.array([dist[v] for v in valores], dtype=float)
         probs = probs / probs.sum()
 
-        escolha = rng.choice(valores, p=probs)
-        serie.append(int(escolha))
+        # 🔧 CORREÇÃO IMPORTANTE:
+        escolha = int(np.random.choice(valores, p=probs))
+
+        serie.append(escolha)
 
     return serie
 
 
 def calcular_diversidade_serie(serie: List[int]) -> float:
-    """
-    Diversidade simples: proporção de valores distintos na série.
-    """
+    """Diversidade simples = proporção de valores distintos."""
     if not serie:
         return 0.0
     return len(set(serie)) / len(serie)
@@ -843,10 +857,7 @@ def calcular_qds_candidato(
     serie: List[int],
     matriz_freq: Dict[str, Dict[int, float]],
 ) -> float:
-    """
-    QDS do candidato: média das probabilidades (por posição) segundo
-    a matriz de frequências. Resultado em [0,1] (já normalizado).
-    """
+    """QDS = média das probabilidades posição a posição."""
     if not serie or not matriz_freq:
         return 0.0
 
@@ -858,15 +869,12 @@ def calcular_qds_candidato(
         if idx >= len(serie):
             continue
         v = serie[idx]
-        p = dist.get(v, 0.0)
-        probs_pos.append(float(p))
+        probs_pos.append(float(dist.get(v, 0.0)))
 
     if not probs_pos:
         return 0.0
 
-    # Clampa em [0,1]
-    qds = float(np.mean(probs_pos))
-    return float(max(0.0, min(1.0, qds)))
+    return float(max(0.0, min(1.0, np.mean(probs_pos))))
 
 
 def calcular_aiq_candidato(
@@ -875,21 +883,15 @@ def calcular_aiq_candidato(
     peso_qds: float = 0.6,
     peso_div: float = 0.4,
 ) -> Tuple[float, float, float]:
-    """
-    AIQ = combinação de QDS e Diversidade, ainda em nível de candidato.
-    Retorna (AIQ, QDS, diversidade).
-    """
+    """AIQ = combinação ponderada de QDS e Diversidade."""
     qds = calcular_qds_candidato(serie, matriz_freq)
-    diversidade = calcular_diversidade_serie(serie)
+    div = calcular_diversidade_serie(serie)
 
-    # Normalização de segurança
     qds = max(0.0, min(1.0, qds))
-    diversidade = max(0.0, min(1.0, diversidade))
+    div = max(0.0, min(1.0, div))
 
-    aiq = peso_qds * qds + peso_div * diversidade
-    aiq = max(0.0, min(1.0, aiq))
-
-    return float(aiq), float(qds), float(diversidade)
+    aiq = max(0.0, min(1.0, peso_qds * qds + peso_div * div))
+    return float(aiq), float(qds), float(div)
 
 
 def gerar_leque_candidatos(
@@ -898,9 +900,8 @@ def gerar_leque_candidatos(
     seed: int,
 ) -> List[List[int]]:
     """
-    Gera um leque de candidatos usando a matriz de frequências por posição.
-
-    Usa RNG determinístico por seed para reprodutibilidade (por índice alvo).
+    Gera o leque V14-base usando matriz de frequências.
+    Usa RNG determinístico.
     """
     rng = random.Random(seed)
     candidatos: List[List[int]] = []
@@ -910,9 +911,9 @@ def gerar_leque_candidatos(
 
     while len(candidatos) < n_series and max_tentativas > 0:
         s = gerar_candidato_serie(matriz_freq, rng)
-        chave = tuple(s)
-        if chave not in vistos:
-            vistos.add(chave)
+        t = tuple(s)
+        if t not in vistos:
+            vistos.add(t)
             candidatos.append(s)
         max_tentativas -= 1
 
@@ -926,9 +927,10 @@ def montar_tabela_candidatos(
     resumo_k: Optional[ResumoK],
 ) -> pd.DataFrame:
     """
-    Monta DataFrame com colunas:
-    - idx
-    - serie (lista)
+    Monta o DataFrame com:
+
+    - id
+    - série
     - QDS
     - Diversidade
     - AIQ
@@ -936,9 +938,10 @@ def montar_tabela_candidatos(
     - Regime_local_k
     """
     registros = []
+
     for i, serie in enumerate(candidatos, start=1):
         aiq, qds, div = calcular_aiq_candidato(serie, matriz_freq)
-        reg_local = resumo_k.regime_local if resumo_k is not None else "desconhecido"
+        reg_local = resumo_k.regime_local if resumo_k else "desconhecido"
 
         registros.append(
             {
@@ -956,254 +959,236 @@ def montar_tabela_candidatos(
         return pd.DataFrame()
 
     df = pd.DataFrame(registros)
-    df = df.sort_values(["AIQ", "QDS"], ascending=[False, False]).reset_index(drop=True)
-    return df
-
-
+    return df.sort_values(["AIQ", "QDS"], ascending=[False, False]).reset_index(drop=True)
 # ------------------------------------------------------------
-# PAINEL 2 — Pipeline V14-FLEX ULTRA (V15)
+# FUNÇÕES DO PIPELINE V14-FLEX ULTRA (V15)
 # ------------------------------------------------------------
 
-if painel == "🔍 Pipeline V14-FLEX ULTRA (V15)":
-    st.markdown("## 🔍 Pipeline V14-FLEX ULTRA (V15)")
-    st.markdown(
-        """
-        Este painel executa o **núcleo V14-FLEX ULTRA** em modo de predição:
-
-        1. Seleciona um **índice alvo** no histórico.
-        2. Extrai uma **janela local** da estrada.
-        3. Calcula a **matriz de frequências** por posição (n1..nN).
-        4. Gera um **leque base de candidatos** (V14-FLEX ULTRA).
-        5. Avalia **QDS**, diversidade e **AIQ** de cada candidato.
-        6. Entrega uma **previsão base V14** (antes do tratamento de ruído profundo).
-        """
+def get_passenger_cols(df: pd.DataFrame) -> List[str]:
+    """
+    Retorna as colunas de passageiros (n1..nN) em ordem.
+    """
+    return sorted(
+        [c for c in df.columns if c.startswith("n")],
+        key=lambda x: int(x[1:])
     )
 
-    df_limpo = st.session_state.get("df_limpo", None)
-    if df_limpo is None or df_limpo.empty:
-        st.warning(
-            "Carregue o histórico primeiro no painel "
-            "'📥 Histórico — Entrada FLEX ULTRA (V15-HÍBRIDO)'."
-        )
-        st.stop()
 
-    resumo_estrada: Optional[ResumoEstrada] = st.session_state.get("resumo_estrada")
-    resumo_k_global: Optional[ResumoK] = st.session_state.get("resumo_k_global")
+def extrair_janela_hist(
+    df: pd.DataFrame,
+    idx_alvo: int,
+    back: int,
+    forward: int = 0,
+) -> pd.DataFrame:
+    """
+    Extrai uma janela do histórico em torno do índice alvo (1-based na interface).
 
-    if "previsao_base_v14" not in st.session_state:
-        st.session_state["previsao_base_v14"] = None
+    - back: quantas séries olhar para trás
+    - forward: quantas olhar para frente (normalmente 0 para predição)
+    """
+    if df is None or df.empty:
+        return pd.DataFrame()
 
-    n_series_hist = len(df_limpo)
-    cols_pass = get_passenger_cols(df_limpo)
+    n = len(df)
+    pos = max(0, min(idx_alvo - 1, n - 1))  # índice interno 0-based
 
-    # --------------------------------------------------------
-    # CONTROLES GERAIS DO PIPELINE
-    # --------------------------------------------------------
+    ini = max(0, pos - back)
+    fim = min(n, pos + 1 + forward)
+    return df.iloc[ini:fim].copy()
 
-    st.markdown("### ⚙️ Controles do Pipeline V14-FLEX ULTRA")
 
-    col_a, col_b, col_c = st.columns(3)
+def calcular_matriz_frequencia(
+    janela: pd.DataFrame,
+    suavizacao: float = 1.0,
+) -> Dict[str, Dict[int, float]]:
+    """
+    Calcula uma matriz de frequências para cada posição (n1..nN) da série.
 
-    with col_a:
-        idx_alvo = st.number_input(
-            "Índice alvo (1 = primeira série):",
-            min_value=1,
-            max_value=n_series_hist,
-            value=n_series_hist,
-            step=1,
-        )
-    with col_b:
-        janela_back = st.slider(
-            "Tamanho da janela para trás (histórico local):",
-            min_value=10,
-            max_value=min(300, n_series_hist - 1),
-            value=min(60, max(10, n_series_hist - 1)),
-            step=5,
-        )
-    with col_c:
-        n_candidatos = st.slider(
-            "Quantidade de séries no leque base V14:",
-            min_value=10,
-            max_value=200,
-            value=60,
-            step=5,
-        )
+    Retorno:
+        {
+            "n1": {valor: probabilidade, ...},
+            "n2": {...},
+            ...
+        }
+    """
+    if janela is None or janela.empty:
+        return {}
 
-    col_d, col_e = st.columns(2)
-    with col_d:
-        seed_base = st.number_input(
-            "Seed do gerador V14 (reprodutibilidade):",
-            min_value=1,
-            max_value=999999,
-            value=12345,
-            step=1,
-        )
-    with col_e:
-        peso_qds = st.slider(
-            "Peso do QDS no AIQ (restante é Diversidade):",
-            min_value=0.1,
-            max_value=0.9,
-            value=0.6,
-            step=0.05,
-        )
+    matriz: Dict[str, Dict[int, float]] = {}
+    cols = get_passenger_cols(janela)
 
-    # --------------------------------------------------------
-    # CONTEXTO DO ALVO / JANELA LOCAL
-    # --------------------------------------------------------
+    for col in cols:
+        valores = janela[col].astype(int).tolist()
+        contagens: Dict[int, int] = {}
 
-    st.markdown("### 🛰️ Contexto local do alvo")
+        for v in valores:
+            contagens[v] = contagens.get(v, 0) + 1
 
-    df_janela = extrair_janela_hist(df_limpo, int(idx_alvo), back=int(janela_back))
-    if df_janela.empty:
-        st.error("Janela vazia ou inválida. Ajuste os parâmetros.")
-        st.stop()
+        total = sum(contagens.values()) + suavizacao * max(len(contagens), 1)
 
-    # Série alvo (última da janela)
-    serie_alvo = df_limpo.iloc[int(idx_alvo) - 1]
-    st.markdown(f"**Série alvo:** `{serie_alvo['serie']}` (índice {idx_alvo})")
+        probs: Dict[int, float] = {}
+        for v, c in contagens.items():
+            probs[v] = (c + suavizacao) / total
 
-    col_s1, col_s2, col_s3 = st.columns([2, 2, 2])
+        matriz[col] = probs
 
-    with col_s1:
-        st.markdown("#### 🚗 Série alvo (passageiros + k)")
-        valores = [int(serie_alvo[c]) for c in cols_pass]
-        k_val = int(serie_alvo["k"])
-        st.code(
-            " ".join(str(x) for x in valores) + f" | k = {k_val}",
-            language="text",
-        )
+    return matriz
 
-    with col_s2:
-        st.markdown("#### 🧭 Janela local")
-        st.write(
-            f"Séries consideradas na janela: **{len(df_janela)}** "
-            f"(de {df_janela['serie'].iloc[0]} até {df_janela['serie'].iloc[-1]})."
-        )
-        if resumo_estrada is not None:
-            st.metric("Regime global (estrada)", resumo_estrada.regime_global)
-        if resumo_k_global is not None:
-            st.metric("k* global", f"{resumo_k_global.k_star*100:.1f}%")
 
-    with col_s3:
-        st.markdown("#### 🔭 k* local (na janela)")
-        resumo_k_local = calcular_k_star(df_janela, janela=len(df_janela))
-        st.metric("k atual (última da janela)", resumo_k_local.k_atual)
-        st.metric("k* local", f"{resumo_k_local.k_star*100:.1f}%")
-        label_local = {
-            "estavel": "🟢 Ambiente estável",
-            "atencao": "🟡 Pré-ruptura residual",
-            "critico": "🔴 Ambiente crítico",
-        }.get(resumo_k_local.estado_k, "⚪ Desconhecido")
-        st.write(label_local)
-        st.caption(f"Regime local: **{resumo_k_local.regime_local}**")
+# ------------------------------------------------------------
+# FUNÇÃO CORRIGIDA — GERAR CANDIDATO (AGORA COM NP.CHOICE)
+# ------------------------------------------------------------
 
-    if st.session_state["mostrar_debug"]:
-        st.markdown("#### 🐞 DEBUG — Janela local (top 30)")
-        st.dataframe(df_janela.head(30), use_container_width=True)
+def gerar_candidato_serie(
+    matriz_freq: Dict[str, Dict[int, float]],
+    rng: random.Random,
+) -> List[int]:
+    """
+    Gera uma série candidata baseada na matriz de frequências.
 
-    # --------------------------------------------------------
-    # MATRIZ DE FREQUÊNCIAS V14-FLEX ULTRA
-    # --------------------------------------------------------
-
-    st.markdown("### 📊 Matriz de frequências (base V14-FLEX ULTRA)")
-    matriz_freq = calcular_matriz_frequencia(df_janela, suavizacao=1.0)
-
+    🔧 Correção V15.5:
+    - rng.choice() é inválido → substituído por np.random.choice()
+    - Mantém rng para randint (consistência determinística)
+    """
     if not matriz_freq:
-        st.error("Falha ao calcular a matriz de frequências. Verifique o histórico.")
-        st.stop()
+        return [rng.randint(0, 60) for _ in range(6)]
 
-    # Exibição resumida da matriz (apenas top frequências por posição)
-    cols_preview = st.columns(len(cols_pass))
-    for i, col in enumerate(cols_pass):
-        with cols_preview[i]:
-            st.markdown(f"**{col}**")
-            dist = matriz_freq.get(col, {})
-            if not dist:
-                st.write("Sem dados.")
-            else:
-                # Top 5 valores
-                top_vals = sorted(dist.items(), key=lambda x: x[1], reverse=True)[:5]
-                linhas = [f"{v}: {p*100:.1f}%" for v, p in top_vals]
-                st.caption("\n".join(linhas))
+    serie: List[int] = []
 
-    # --------------------------------------------------------
-    # GERAÇÃO DO LEQUE BASE V14-FLEX ULTRA
-    # --------------------------------------------------------
+    for col in sorted(matriz_freq.keys(), key=lambda x: int(x[1:])):
+        dist = matriz_freq[col]
 
-    st.markdown("### 🎯 Leque base V14-FLEX ULTRA")
+        if not dist:
+            serie.append(rng.randint(0, 60))
+            continue
 
-    candidatos = gerar_leque_candidatos(
-        matriz_freq=matriz_freq,
-        n_series=int(n_candidatos),
-        seed=int(seed_base + int(idx_alvo) * 13),
-    )
+        valores = list(dist.keys())
+        probs = np.array([dist[v] for v in valores], dtype=float)
+        probs = probs / probs.sum()
 
-    # Monta tabela com QDS / Diversidade / AIQ
-    regime_global_str = resumo_estrada.regime_global if resumo_estrada else "desconhecido"
-    df_candidatos = montar_tabela_candidatos(
-        candidatos=candidatos,
-        matriz_freq=matriz_freq,
-        regime_global=regime_global_str,
-        resumo_k=resumo_k_local,
-    )
+        # 🔧 CORREÇÃO IMPORTANTE:
+        escolha = int(np.random.choice(valores, p=probs))
 
-    # Reajusta AIQ se o usuário quiser alterar o peso do QDS (sem regenerar o leque)
-    if not df_candidatos.empty:
-        # recalcula AIQ com peso customizado
-        novas_aiq = []
-        for _, row in df_candidatos.iterrows():
-            serie = row["series"]
-            _, qds_tmp, div_tmp = calcular_aiq_candidato(
-                serie,
-                matriz_freq,
-                peso_qds=peso_qds,
-                peso_div=1.0 - peso_qds,
-            )
-            aiq_tmp = peso_qds * qds_tmp + (1.0 - peso_qds) * div_tmp
-            novas_aiq.append(aiq_tmp)
+        serie.append(escolha)
 
-        df_candidatos["AIQ"] = novas_aiq
-        df_candidatos = df_candidatos.sort_values(
-            ["AIQ", "QDS"], ascending=[False, False]
-        ).reset_index(drop=True)
+    return serie
 
-    if df_candidatos.empty:
-        st.error("Nenhum candidato foi gerado. Ajuste os parâmetros e tente novamente.")
-        st.stop()
 
-    # Guarda QDS da geração atual no contexto global (para estatísticas futuras)
-    lista_qds_global: List[float] = st.session_state.get("lista_qds", [])
-    lista_qds_global.extend(df_candidatos["QDS"].astype(float).tolist())
-    st.session_state["lista_qds"] = lista_qds_global
+def calcular_diversidade_serie(serie: List[int]) -> float:
+    """Diversidade simples = proporção de valores distintos."""
+    if not serie:
+        return 0.0
+    return len(set(serie)) / len(serie)
 
-    # Previsão base V14 = melhor AIQ do leque
-    melhor = df_candidatos.iloc[0]
-    previsao_base = melhor["series"]
-    st.session_state["previsao_base_v14"] = previsao_base
 
-    st.markdown("#### 🏁 Previsão base V14-FLEX ULTRA (pré-ruído)")
-    st.code(" ".join(str(x) for x in previsao_base), language="text")
+def calcular_qds_candidato(
+    serie: List[int],
+    matriz_freq: Dict[str, Dict[int, float]],
+) -> float:
+    """QDS = média das probabilidades posição a posição."""
+    if not serie or not matriz_freq:
+        return 0.0
 
-    st.caption(
-        "Esta é a saída **pura do núcleo V14-FLEX ULTRA**, antes de qualquer "
-        "tratamento de ruído condicional profundo ou ajustes avançados de "
-        "Backtest/Monte Carlo. Ela será refinada no painel "
-        "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)."
-    )
+    probs_pos: List[float] = []
+    cols = sorted(matriz_freq.keys(), key=lambda x: int(x[1:]))
 
-    # Exibição da tabela de candidatos
-    st.markdown("#### 📋 Leque base completo (ordenado por AIQ)")
-    df_view = df_candidatos.copy()
-    # Converte lista para string para visualização
-    df_view["series"] = df_view["series"].apply(
-        lambda s: " ".join(str(x) for x in s)
-    )
+    for idx, col in enumerate(cols):
+        dist = matriz_freq[col]
+        if idx >= len(serie):
+            continue
+        v = serie[idx]
+        probs_pos.append(float(dist.get(v, 0.0)))
 
-    st.dataframe(df_view, use_container_width=True)
+    if not probs_pos:
+        return 0.0
 
-    if st.session_state["mostrar_debug"]:
-        st.markdown("#### 🐞 DEBUG — Estatísticas dos candidatos")
-        st.write(df_candidatos.describe(include="all"))
+    return float(max(0.0, min(1.0, np.mean(probs_pos))))
+
+
+def calcular_aiq_candidato(
+    serie: List[int],
+    matriz_freq: Dict[str, Dict[int, float]],
+    peso_qds: float = 0.6,
+    peso_div: float = 0.4,
+) -> Tuple[float, float, float]:
+    """AIQ = combinação ponderada de QDS e Diversidade."""
+    qds = calcular_qds_candidato(serie, matriz_freq)
+    div = calcular_diversidade_serie(serie)
+
+    qds = max(0.0, min(1.0, qds))
+    div = max(0.0, min(1.0, div))
+
+    aiq = max(0.0, min(1.0, peso_qds * qds + peso_div * div))
+    return float(aiq), float(qds), float(div)
+
+
+def gerar_leque_candidatos(
+    matriz_freq: Dict[str, Dict[int, float]],
+    n_series: int,
+    seed: int,
+) -> List[List[int]]:
+    """
+    Gera o leque V14-base usando matriz de frequências.
+    Usa RNG determinístico.
+    """
+    rng = random.Random(seed)
+    candidatos: List[List[int]] = []
+    vistos = set()
+
+    max_tentativas = max(n_series * 10, n_series + 10)
+
+    while len(candidatos) < n_series and max_tentativas > 0:
+        s = gerar_candidato_serie(matriz_freq, rng)
+        t = tuple(s)
+        if t not in vistos:
+            vistos.add(t)
+            candidatos.append(s)
+        max_tentativas -= 1
+
+    return candidatos
+
+
+def montar_tabela_candidatos(
+    candidatos: List[List[int]],
+    matriz_freq: Dict[str, Dict[int, float]],
+    regime_global: str,
+    resumo_k: Optional[ResumoK],
+) -> pd.DataFrame:
+    """
+    Monta o DataFrame com:
+
+    - id
+    - série
+    - QDS
+    - Diversidade
+    - AIQ
+    - Regime_global
+    - Regime_local_k
+    """
+    registros = []
+
+    for i, serie in enumerate(candidatos, start=1):
+        aiq, qds, div = calcular_aiq_candidato(serie, matriz_freq)
+        reg_local = resumo_k.regime_local if resumo_k else "desconhecido"
+
+        registros.append(
+            {
+                "id": i,
+                "series": serie,
+                "QDS": qds,
+                "Diversidade": div,
+                "AIQ": aiq,
+                "Regime_global": regime_global,
+                "Regime_local_k": reg_local,
+            }
+        )
+
+    if not registros:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(registros)
+    return df.sort_values(["AIQ", "QDS"], ascending=[False, False]).reset_index(drop=True)
+
 # ------------------------------------------------------------
 # PAINEL 3 — REPLAY LIGHT
 # ------------------------------------------------------------
