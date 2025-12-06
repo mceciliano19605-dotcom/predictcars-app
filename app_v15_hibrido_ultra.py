@@ -1,8 +1,7 @@
 # ============================================================
 # Predict Cars V15.5-HÍBRIDO
 # Núcleo V14-FLEX ULTRA + k* + Ruído Condicional + QDS REAL +
-# Backtest REAL (com proteção p/ históricos grandes) +
-# Monte Carlo REAL + AIQ Bridge (para ChatGPT)
+# Backtest REAL (protegido) + Monte Carlo REAL + AIQ Bridge
 # ============================================================
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+
 # ------------------------------------------------------------
 # CONFIGURAÇÃO DO APP
 # ------------------------------------------------------------
@@ -27,13 +27,12 @@ st.set_page_config(
     layout="wide",
 )
 
+
 # ------------------------------------------------------------
 # LIMITES / CONSTANTES IMPORTANTES
 # ------------------------------------------------------------
 
-# Limite de segurança para não rodar REPLAY ULTRA / BACKTEST REAL completo
-# em históricos muito grandes (evitar travamento zumbi).
-LIMITE_REPLAY_HIST = 3000  # 3k+ séries = desabilita replay/ backtest total
+LIMITE_REPLAY_HIST = 3000  # limite para não rodar replay completo em estradas enormes
 
 QDS_LABELS = ["PREMIUM", "BOM", "REGULAR", "RUIM"]
 
@@ -107,11 +106,10 @@ class ResumoK:
 
 
 # ------------------------------------------------------------
-# FUNÇÕES UTILITÁRIAS — PARSE DE HISTÓRICO FLEX ULTRA
+# PARSERS FLEX ULTRA
 # ------------------------------------------------------------
 
 def _detect_separator(sample_line: str) -> str:
-    """Detecta separador provável entre ; , \t ou espaço."""
     for sep in [";", ",", "\t", " "]:
         if sep in sample_line:
             return sep
@@ -119,14 +117,6 @@ def _detect_separator(sample_line: str) -> str:
 
 
 def parse_historico_text(raw: str) -> pd.DataFrame:
-    """
-    Parser FLEX ULTRA para texto colado.
-
-    Aceita:
-        C1;41;5;4;52;30;33;0
-        41;5;4;52;30;33;0
-        etc.
-    """
     linhas = [ln.strip() for ln in raw.splitlines() if ln.strip()]
     if not linhas:
         return pd.DataFrame()
@@ -156,11 +146,7 @@ def parse_historico_text(raw: str) -> pd.DataFrame:
 
         *passageiros, k_val = nums_int
         registros.append(
-            {
-                "serie_id": serie_id,
-                "passageiros": passageiros,
-                "k": k_val,
-            }
+            {"serie_id": serie_id, "passageiros": passageiros, "k": k_val}
         )
 
     if not registros:
@@ -189,14 +175,6 @@ def parse_historico_text(raw: str) -> pd.DataFrame:
 
 
 def parse_historico_csv(file) -> pd.DataFrame:
-    """
-    Parser FLEX ULTRA para arquivo CSV.
-
-    Casos aceitos:
-    - serie,n1..nN,k
-    - C1;41;5;4;52;30;33;0
-    - 41;5;4;52;30;33;0; etc.
-    """
     try:
         df_raw = pd.read_csv(file, sep=None, engine="python")
     except Exception:
@@ -205,7 +183,7 @@ def parse_historico_csv(file) -> pd.DataFrame:
 
     df_raw.columns = [str(c).strip() for c in df_raw.columns]
 
-    # Caso 1 — apenas 1 coluna, pode ser string com tudo dentro
+    # caso 1 — 1 coluna só, provavelmente tudo junto
     if df_raw.shape[1] == 1:
         colname = df_raw.columns[0]
         raw = "\n".join(str(x) for x in df_raw[colname].astype(str))
@@ -218,7 +196,6 @@ def parse_historico_csv(file) -> pd.DataFrame:
     df = df_raw.copy()
 
     if has_serie and has_k:
-        # Mapeia para 'serie' e 'k'
         map_cols = {}
         for c in df.columns:
             cl = c.lower()
@@ -234,9 +211,7 @@ def parse_historico_csv(file) -> pd.DataFrame:
         for i, col in enumerate(num_cols_sorted, start=1):
             rename_map[col] = f"n{i}"
         df = df.rename(columns=rename_map)
-
     else:
-        # Assume: primeira coluna = ID, última = k
         cols = list(df.columns)
         first_col = cols[0]
         last_col = cols[-1]
@@ -265,7 +240,7 @@ def parse_historico_csv(file) -> pd.DataFrame:
 
 
 # ------------------------------------------------------------
-# FUNÇÕES DE RESUMO / REGIME / K*
+# RESUMOS / REGIME / k*
 # ------------------------------------------------------------
 
 def classificar_regime_por_k(k_medio: float) -> str:
@@ -415,7 +390,6 @@ def calcular_resumo_monte_carlo(
 
 
 def calcular_k_star(df: pd.DataFrame, janela: int = 40) -> ResumoK:
-    """k* simples: % de séries com k>0 na janela final."""
     if df is None or df.empty:
         return ResumoK(0, 0.0, "desconhecido", "desconhecido")
 
@@ -478,6 +452,7 @@ def init_session_state() -> None:
 
 init_session_state()
 
+
 # ------------------------------------------------------------
 # LAYOUT PRINCIPAL / SIDEBAR
 # ------------------------------------------------------------
@@ -485,8 +460,7 @@ init_session_state()
 st.title("🚗 Predict Cars V15.5-HÍBRIDO")
 st.caption(
     "Núcleo V14-FLEX ULTRA + k* + Ruído Condicional + QDS REAL + "
-    "Backtest REAL (protegido p/ estradas grandes) + Monte Carlo REAL + "
-    "AIQ Bridge (para ChatGPT)."
+    "Backtest REAL (protegido) + Monte Carlo REAL + AIQ Bridge (para ChatGPT)."
 )
 
 with st.sidebar:
@@ -514,6 +488,7 @@ with st.sidebar:
     st.session_state["mostrar_debug"] = st.checkbox(
         "Mostrar debug / tabelas internas", value=False
     )
+
 
 # ------------------------------------------------------------
 # PAINEL 1 — ENTRADA FLEX ULTRA
@@ -590,7 +565,6 @@ if painel == "📥 Histórico — Entrada FLEX ULTRA (V15-HÍBRIDO)":
             df_result = parse_historico_text(raw_text)
 
     if df_result is not None and not df_result.empty:
-        # Ordena por índice numérico da série, se aplicável
         try:
             df_result = df_result.copy()
             df_result["__idx"] = (
@@ -650,7 +624,6 @@ if painel == "📥 Histórico — Entrada FLEX ULTRA (V15-HÍBRIDO)":
         if st.session_state["mostrar_debug"]:
             st.markdown("#### 🐞 DEBUG — describe()")
             st.write(df_result.describe(include="all"))
-
     else:
         st.info(
             "Carregue um histórico por arquivo ou texto para iniciar o V15.5-HÍBRIDO."
@@ -669,7 +642,7 @@ def get_passenger_cols(df: pd.DataFrame) -> List[str]:
     """
     return sorted(
         [c for c in df.columns if c.startswith("n")],
-        key=lambda x: int(x[1:])
+        key=lambda x: int(x[1:]),
     )
 
 
@@ -725,18 +698,14 @@ def calcular_matriz_frequencia(
 
         total = sum(contagens.values()) + suavizacao * max(len(contagens), 1)
 
-        probs: Dict[int, float] = {}
+        probs_col: Dict[int, float] = {}
         for v, c in contagens.items():
-            probs[v] = (c + suavizacao) / total
+            probs_col[v] = (c + suavizacao) / total
 
-        matriz[col] = probs
+        matriz[col] = probs_col
 
     return matriz
 
-
-# ------------------------------------------------------------
-# FUNÇÃO CORRIGIDA — GERAR CANDIDATO (AGORA COM NP.CHOICE)
-# ------------------------------------------------------------
 
 def gerar_candidato_serie(
     matriz_freq: Dict[str, Dict[int, float]],
@@ -745,11 +714,12 @@ def gerar_candidato_serie(
     """
     Gera uma série candidata baseada na matriz de frequências.
 
-    🔧 Correção V15.5:
-    - rng.choice() é inválido → substituído por np.random.choice()
-    - Mantém rng para randint (consistência determinística)
+    Usa:
+    - random.Random apenas para fallback / ranges
+    - np.random.choice para escolher com probabilidades p
     """
     if not matriz_freq:
+        # fallback simples se não houver matriz
         return [rng.randint(0, 60) for _ in range(6)]
 
     serie: List[int] = []
@@ -763,11 +733,13 @@ def gerar_candidato_serie(
 
         valores = list(dist.keys())
         probs = np.array([dist[v] for v in valores], dtype=float)
+
+        if probs.sum() <= 0:
+            serie.append(rng.randint(0, 60))
+            continue
+
         probs = probs / probs.sum()
-
-        # 🔧 CORREÇÃO IMPORTANTE:
         escolha = int(np.random.choice(valores, p=probs))
-
         serie.append(escolha)
 
     return serie
@@ -810,7 +782,12 @@ def calcular_aiq_candidato(
     peso_qds: float = 0.6,
     peso_div: float = 0.4,
 ) -> Tuple[float, float, float]:
-    """AIQ = combinação ponderada de QDS e Diversidade."""
+    """
+    AIQ = combinação ponderada de QDS e Diversidade.
+
+    Retorna:
+        (AIQ, QDS, DIVERSIDADE)
+    """
     qds = calcular_qds_candidato(serie, matriz_freq)
     div = calcular_diversidade_serie(serie)
 
@@ -857,7 +834,7 @@ def montar_tabela_candidatos(
     Monta o DataFrame com:
 
     - id
-    - série
+    - series
     - QDS
     - Diversidade
     - AIQ
@@ -886,7 +863,9 @@ def montar_tabela_candidatos(
         return pd.DataFrame()
 
     df = pd.DataFrame(registros)
-    return df.sort_values(["AIQ", "QDS"], ascending=[False, False]).reset_index(drop=True)
+    return df.sort_values(["AIQ", "QDS"], ascending=[False, False]).reset_index(
+        drop=True
+    )
 
 
 # ------------------------------------------------------------
@@ -1005,8 +984,8 @@ if painel == "🔍 Pipeline V14-FLEX ULTRA (V15)":
         )
         if resumo_estrada:
             st.metric("Regime global", resumo_estrada.regime_global)
-        if resumo_k_global:
-            st.metric("k médio global", f"{resumo_estrada.k_medio:.2f}" if resumo_estrada else "-")
+        if resumo_estrada:
+            st.metric("k médio global", f"{resumo_estrada.k_medio:.2f}")
 
     with col_s3:
         st.markdown("#### 🔭 k* local")
@@ -1124,180 +1103,151 @@ if painel == "🔍 Pipeline V14-FLEX ULTRA (V15)":
         st.markdown("#### 🐞 DEBUG — Estatísticas do leque")
         st.write(df_candidatos.describe(include="all"))
 # ============================================================
-# PARTE 3/6 — Replay LIGHT • Replay ULTRA • Replay Unitário • k*
+# PARTE 3/6 — Replay LIGHT / Replay ULTRA / Replay ULTRA Unitário
 # ============================================================
 
+
 # ------------------------------------------------------------
-# FUNÇÕES AUXILIARES DO REPLAY
+# FUNÇÕES DE REPLAY E VALIDAÇÃO
 # ------------------------------------------------------------
 
-def replay_calcular_previsao_v14(
-    df_limpo: pd.DataFrame,
-    idx_alvo: int,
-    janela_back: int,
-    n_candidatos: int,
-    seed_base: int,
-    peso_qds: float,
-) -> Optional[List[int]]:
+def medir_acertos(prev: List[int], real: List[int]) -> int:
+    """Conta quantos passageiros foram acertados exatamente."""
+    if not prev or not real:
+        return 0
+    return sum(1 for a, b in zip(prev, real) if a == b)
+
+
+def montar_resultado_replay(
+    df: pd.DataFrame,
+    df_pred: List[List[int]],
+    idx_ini: int,
+    cols_pass: List[str],
+) -> pd.DataFrame:
     """
-    Esta função executa o mesmo pipeline do painel V14-FLEX ULTRA,
-    mas devolve apenas a previsão base gerada, para fins de replay.
+    df — dataframe original
+    df_pred — lista de previsões geradas
+    idx_ini — índice interno 0-based
     """
-    try:
-        df_janela = extrair_janela_hist(
-            df_limpo, idx_alvo=idx_alvo, back=janela_back
+    registros = []
+    for i, prev in enumerate(df_pred):
+        alvo = df.iloc[idx_ini + i]
+        real = [int(alvo[c]) for c in cols_pass]
+        ac = medir_acertos(prev, real)
+        registros.append(
+            {
+                "serie": alvo["serie"],
+                "prev": prev,
+                "real": real,
+                "acertos": ac,
+            }
         )
-        if df_janela.empty:
-            return None
-
-        matriz_freq = calcular_matriz_frequencia(df_janela)
-        if not matriz_freq:
-            return None
-
-        # Determina k* local dentro da janela
-        resumo_k_local = calcular_k_star(df_janela, janela=len(df_janela))
-
-        # Regime global
-        resumo_estrada = st.session_state.get("resumo_estrada")
-        regime_global_str = resumo_estrada.regime_global if resumo_estrada else "desconhecido"
-
-        candidatos = gerar_leque_candidatos(
-            matriz_freq,
-            n_series=int(n_candidatos),
-            seed=int(seed_base + int(idx_alvo) * 13),
-        )
-
-        df_cand = montar_tabela_candidatos(
-            candidatos,
-            matriz_freq,
-            regime_global_str,
-            resumo_k_local,
-        )
-
-        if df_cand.empty:
-            return None
-
-        # Recalcula AIQ com peso customizado
-        novas_aiq = []
-        for _, row in df_cand.iterrows():
-            serie = row["series"]
-            _, qds_tmp, div_tmp = calcular_aiq_candidato(
-                serie,
-                matriz_freq,
-                peso_qds=peso_qds,
-                peso_div=1.0 - peso_qds,
-            )
-            novas_aiq.append(peso_qds * qds_tmp + (1 - peso_qds) * div_tmp)
-
-        df_cand["AIQ"] = novas_aiq
-        df_cand = df_cand.sort_values(["AIQ", "QDS"], ascending=[False, False]).reset_index(drop=True)
-
-        melhor = df_cand.iloc[0]
-        return melhor["series"]
-
-    except Exception:
-        return None
+    return pd.DataFrame(registros)
 
 
 # ------------------------------------------------------------
-# PAINEL — Replay LIGHT
+# PAINEL 3 — Replay LIGHT
 # ------------------------------------------------------------
 
 if painel == "💡 Replay LIGHT":
-    st.markdown("## 💡 Replay LIGHT")
+    st.markdown("## 💡 Replay LIGHT — V15.5")
     st.markdown(
         """
-        Executa o núcleo V14-FLEX ULTRA retroativamente, apenas na **última** série,
-        usando os mesmos parâmetros que você definirá aqui.
+        Executa um replay rápido para validar a coerência da estrada
+        **sem tratamento de ruído** e **sem motor TURBO**.
 
-        🔹 Seguro  
-        🔹 Rápido  
-        🔹 Funciona mesmo com estradas gigantes (5k+)
+        Ideal para testar:
+        - estabilidade local
+        - comportamento básico do V14-FLEX
+        - coerência do histórico
         """
     )
 
-    df_limpo = st.session_state.get("df_limpo", None)
+    df_limpo = st.session_state.get("df_limpo")
     if df_limpo is None or df_limpo.empty:
-        st.warning("Carregue o histórico primeiro.")
+        st.warning("Carregue o histórico no painel inicial.")
         st.stop()
 
-    n_series_hist = len(df_limpo)
-    idx_alvo = n_series_hist  # última série
+    cols_pass = get_passenger_cols(df_limpo)
+    n_hist = len(df_limpo)
 
-    st.info(f"Última série = índice {idx_alvo}")
-
-    col_a, col_b = st.columns(2)
-
-    with col_a:
-        janela_back = st.slider(
-            "Tamanho da janela para trás:",
-            min_value=10,
-            max_value=min(300, n_series_hist - 1),
-            value=min(60, n_series_hist - 1),
-            step=5,
-        )
-
-    with col_b:
-        n_candidatos = st.slider(
-            "Tamanho do leque base:",
-            min_value=10,
-            max_value=200,
-            value=60,
-            step=5,
-        )
-
-    peso_qds = st.slider(
-        "Peso do QDS (AIQ):",
-        min_value=0.1,
-        max_value=0.9,
-        value=0.6,
-        step=0.05,
-    )
-
-    seed_base = st.number_input(
-        "Seed:",
+    idx_ini = st.number_input(
+        "Início do replay (índice):",
         min_value=1,
-        max_value=999999,
-        value=12345,
+        max_value=n_hist - 1,
+        value=max(1, n_hist - 200),
     )
 
-    if st.button("▶️ Executar Replay LIGHT"):
-        previsao = replay_calcular_previsao_v14(
-            df_limpo=df_limpo,
-            idx_alvo=idx_alvo,
-            janela_back=janela_back,
-            n_candidatos=n_candidatos,
-            seed_base=seed_base,
-            peso_qds=peso_qds,
-        )
+    n_passos = st.slider(
+        "Quantidade de replays (passos):",
+        min_value=5,
+        max_value=200,
+        value=20,
+    )
 
-        if previsao is None:
-            st.error("Falha ao calcular previsão LIGHT.")
-        else:
-            st.success("Replay LIGHT executado.")
-            st.code(" ".join(str(x) for x in previsao), language="text")
+    st.markdown("### 📡 Executar Replay LIGHT")
+
+    if st.button("▶️ Rodar Replay LIGHT"):
+        with st.spinner("Executando Replay LIGHT…"):
+
+            preds = []
+            for off in range(n_passos):
+                pos = int(idx_ini - 1 + off)
+                if pos < 0 or pos >= n_hist - 1:
+                    break
+
+                df_j = extrair_janela_hist(df_limpo, pos + 1, back=50)
+                matriz_freq = calcular_matriz_frequencia(df_j)
+
+                cands = gerar_leque_candidatos(
+                    matriz_freq,
+                    n_series=40,
+                    seed=1234 + pos,
+                )
+                df_c = montar_tabela_candidatos(
+                    cands,
+                    matriz_freq,
+                    st.session_state["resumo_estrada"].regime_global,
+                    calcular_k_star(df_j, janela=len(df_j)),
+                )
+
+                if df_c.empty:
+                    preds.append([0] * len(cols_pass))
+                else:
+                    preds.append(df_c.iloc[0]["series"])
+
+            df_rep = montar_resultado_replay(
+                df_limpo,
+                preds,
+                int(idx_ini - 1),
+                cols_pass,
+            )
+
+        st.success("Replay LIGHT finalizado.")
+        df_view = df_rep.copy()
+        df_view["prev"] = df_view["prev"].apply(lambda x: " ".join(str(v) for v in x))
+        df_view["real"] = df_view["real"].apply(lambda x: " ".join(str(v) for v in x))
+
+        st.dataframe(df_view, use_container_width=True)
+
+        st.markdown("### 📊 Estatísticas")
+        st.write(df_rep["acertos"].describe())
 
 
 # ------------------------------------------------------------
-# PAINEL — Replay ULTRA
+# PAINEL 4 — Replay ULTRA
 # ------------------------------------------------------------
 
 if painel == "📅 Replay ULTRA":
-    st.markdown("## 📅 Replay ULTRA")
+    st.markdown("## 📅 Replay ULTRA — V15.5")
     st.markdown(
         """
-        Executa o pipeline V14-FLEX ULTRA **janela por janela**, retrocedendo 
-        por todo o histórico.
+        Replay robusto do V15.5:
 
-        ⚠️ **Atenção para estradas grandes (>3000 séries):**
-
-        Este painel é automaticamente **DESABILITADO** para rodar integralmente,
-        evitando travamento zumbi no Streamlit Cloud.
-
-        Você ainda pode:
-        - visualizar controles
-        - rodar uma **amostra parcial reduzida**
-        - guardar estatísticas locais
+        - Núcleo V14-FLEX ULTRA
+        - Sem ruído
+        - Sem TURBO++
+        - Ideal para comparar com o Replay LIGHT
         """
     )
 
@@ -1306,761 +1256,524 @@ if painel == "📅 Replay ULTRA":
         st.warning("Carregue o histórico primeiro.")
         st.stop()
 
+    cols_pass = get_passenger_cols(df_limpo)
     n_hist = len(df_limpo)
 
-    # Informação ao usuário
-    if n_hist > LIMITE_REPLAY_HIST:
-        st.warning(
-            f"""
-            🚫 O histórico possui **{n_hist} séries** — acima do limite seguro (**{LIMITE_REPLAY_HIST}**).
-            O Replay ULTRA completo está **DESABILITADO** para evitar travamento.
-            """
-        )
-        permitir_execucao = False
-    else:
-        permitir_execucao = True
-
-    janela_back = st.slider(
-        "Tamanho da janela (para trás):",
-        min_value=10,
-        max_value=min(300, n_hist-1),
-        value=min(60, n_hist-1),
-        step=5,
-    )
-
-    n_candidatos = st.slider(
-        "Tamanho do leque base:",
-        min_value=10,
-        max_value=200,
-        value=60,
-        step=5,
-    )
-
-    seed_base = st.number_input(
-        "Seed:",
+    idx_ini_r = st.number_input(
+        "Início do replay (índice):",
         min_value=1,
-        max_value=999999,
-        value=12345,
+        max_value=n_hist - 1,
+        value=max(1, n_hist - 150),
     )
 
-    peso_qds = st.slider(
-        "Peso do QDS (AIQ):",
-        min_value=0.1,
-        max_value=0.9,
-        value=0.6,
-        step=0.05,
-    )
-
-    # Execução parcial segura
-    st.markdown("### Execução parcial (segura)")
-
-    tamanho_amostra = st.slider(
-        "Número de séries finais para testar:",
+    n_passos_r = st.slider(
+        "Passos de replay:",
         min_value=5,
-        max_value=min(300, n_hist),
-        value=min(50, n_hist),
-        step=5,
+        max_value=200,
+        value=30,
     )
 
-    if st.button("▶️ Rodar Replay ULTRA (parcial)"):
-        acertos = 0
-        total = 0
+    st.markdown("### 📡 Executar Replay ULTRA")
 
-        limite_inicial = max(2, n_hist - tamanho_amostra)
+    if st.button("▶️ Rodar Replay ULTRA"):
+        with st.spinner("Executando Replay ULTRA…"):
 
-        progress = st.progress(0.0)
+            preds = []
+            for off in range(int(n_passos_r)):
+                pos = int(idx_ini_r - 1 + off)
+                if pos < 0 or pos >= n_hist - 1:
+                    break
 
-        for i in range(limite_inicial, n_hist):
-            progress.progress((i - limite_inicial) / tamanho_amostra)
+                df_j = extrair_janela_hist(df_limpo, pos + 1, back=80)
+                matriz_freq = calcular_matriz_frequencia(df_j)
 
-            previsao = replay_calcular_previsao_v14(
-                df_limpo=df_limpo,
-                idx_alvo=i,
-                janela_back=janela_back,
-                n_candidatos=n_candidatos,
-                seed_base=seed_base,
-                peso_qds=peso_qds,
-            )
-
-            if previsao is None:
-                continue
-
-            real = df_limpo.iloc[i - 1]
-            valores_real = [int(real[c]) for c in get_passenger_cols(df_limpo)]
-
-            if previsao == valores_real:
-                acertos += 1
-
-            total += 1
-
-        st.success("Replay ULTRA parcial concluído.")
-
-        st.metric("Acertos", acertos)
-        st.metric("Total avaliado", total)
-        if total > 0:
-            st.metric("Taxa de acertos (%)", f"{(acertos/total)*100:.2f}%")
-        else:
-            st.metric("Taxa de acertos (%)", "0.00%")
-
-    # Execução completa (desabilitada p/ histórico grande)
-    if not permitir_execucao:
-        st.info("Replay ULTRA completo está desabilitado para este histórico.")
-    else:
-        st.markdown("### Execução completa (somente para estradas menores)")
-        if st.button("▶️ Rodar Replay ULTRA (completo)"):
-            st.warning("Rodando completo — pode demorar…")
-
-            acertos = 0
-            total = 0
-            progress = st.progress(0.0)
-
-            for i in range(2, n_hist + 1):
-                progress.progress((i - 1) / n_hist)
-
-                previsao = replay_calcular_previsao_v14(
-                    df_limpo=df_limpo,
-                    idx_alvo=i,
-                    janela_back=janela_back,
-                    n_candidatos=n_candidatos,
-                    seed_base=seed_base,
-                    peso_qds=peso_qds,
+                cands = gerar_leque_candidatos(
+                    matriz_freq,
+                    n_series=60,
+                    seed=777 + pos,
+                )
+                df_c = montar_tabela_candidatos(
+                    cands,
+                    matriz_freq,
+                    st.session_state["resumo_estrada"].regime_global,
+                    calcular_k_star(df_j, janela=len(df_j)),
                 )
 
-                if previsao is None:
-                    continue
+                if df_c.empty:
+                    preds.append([0] * len(cols_pass))
+                else:
+                    preds.append(df_c.iloc[0]["series"])
 
-                real = df_limpo.iloc[i - 1]
-                valores_real = [int(real[c]) for c in get_passenger_cols(df_limpo)]
+            df_rep = montar_resultado_replay(
+                df_limpo,
+                preds,
+                int(idx_ini_r - 1),
+                cols_pass,
+            )
 
-                if previsao == valores_real:
-                    acertos += 1
+        st.success("Replay ULTRA finalizado.")
+        df_view = df_rep.copy()
+        df_view["prev"] = df_view["prev"].apply(lambda x: " ".join(str(v) for v in x))
+        df_view["real"] = df_view["real"].apply(lambda x: " ".join(str(v) for v in x))
 
-                total += 1
+        st.dataframe(df_view, use_container_width=True)
 
-            st.success("Replay ULTRA completo finalizado.")
-            st.metric("Acertos", acertos)
-            st.metric("Total avaliado", total)
-            if total > 0:
-                st.metric("Taxa de acertos (%)", f"{(acertos/total)*100:.2f}%")
+        st.markdown("### 📊 Estatísticas")
+        st.write(df_rep["acertos"].describe())
 
 
 # ------------------------------------------------------------
-# PAINEL — Replay ULTRA Unitário
+# PAINEL 5 — Replay ULTRA Unitário
 # ------------------------------------------------------------
 
 if painel == "🎯 Replay ULTRA Unitário":
-    st.markdown("## 🎯 Replay ULTRA Unitário")
-
-    df_limpo = st.session_state.get("df_limpo", None)
-    if df_limpo is None or df_limpo.empty:
-        st.warning("Carregue o histórico primeiro.")
-        st.stop()
-
-    n_hist = len(df_limpo)
-
+    st.markdown("## 🎯 Replay ULTRA Unitário — V15.5")
     st.markdown(
-        "Executa o pipeline completo apenas **para 1 série específica**, "
-        "seguindo o mesmo V14-FLEX ULTRA."
+        """
+        Executa a previsão ULTRA **para uma única série** do histórico,
+        permitindo estudar comportamento do modelo ponto a ponto.
+        """
     )
 
-    idx_alvo = st.number_input(
-        "Índice alvo:",
-        min_value=1,
-        max_value=n_hist,
-        value=n_hist,
-        step=1,
-    )
+    df_limpo = st.session_state.get("df_limpo")
 
-    janela_back = st.slider(
-        "Janela para trás:",
-        min_value=10,
-        max_value=min(300, n_hist-1),
-        value=min(60, n_hist-1),
-        step=5,
-    )
-
-    n_candidatos = st.slider(
-        "Leque (n candidatos):",
-        min_value=10,
-        max_value=200,
-        value=60,
-        step=5,
-    )
-
-    seed_base = st.number_input(
-        "Seed:",
-        min_value=1,
-        max_value=999999,
-        value=12345,
-    )
-
-    peso_qds = st.slider(
-        "Peso QDS:",
-        min_value=0.1,
-        max_value=0.9,
-        value=0.6,
-        step=0.05,
-    )
-
-    if st.button("▶️ Executar Unitário"):
-        previsao = replay_calcular_previsao_v14(
-            df_limpo=df_limpo,
-            idx_alvo=int(idx_alvo),
-            janela_back=int(janela_back),
-            n_candidatos=int(n_candidatos),
-            seed_base=int(seed_base),
-            peso_qds=float(peso_qds),
-        )
-
-        if previsao is None:
-            st.error("Falha ao processar a janela.")
-        else:
-            st.success("Replay ULTRA Unitário:")
-            st.code(" ".join(str(x) for x in previsao), language="text")
-
-
-# ------------------------------------------------------------
-# PAINEL — Monitor de Risco (k & k*)
-# ------------------------------------------------------------
-
-if painel == "🚨 Monitor de Risco (k & k*)":
-    st.markdown("## 🚨 Monitor de Risco — k & k*")
-
-    df_limpo = st.session_state.get("df_limpo", None)
     if df_limpo is None or df_limpo.empty:
         st.warning("Carregue o histórico primeiro.")
         st.stop()
 
-    resumo_k_global: Optional[ResumoK] = st.session_state.get("resumo_k_global")
-    resumo_estrada: Optional[ResumoEstrada] = st.session_state.get("resumo_estrada")
-
-    if resumo_k_global is None:
-        st.error("k* global não foi calculado.")
-        st.stop()
-
-    st.markdown("### 🔭 Estado global")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric("k atual", resumo_k_global.k_atual)
-        st.metric("k*", f"{resumo_k_global.k_star*100:.1f}%")
-
-    with col2:
-        st.metric("Regime (k*)", resumo_k_global.regime_local)
-
-    with col3:
-        estado_label = {
-            "estavel": "🟢 Ambiente estável",
-            "atencao": "🟡 Pré-ruptura residual",
-            "critico": "🔴 Ambiente crítico",
-        }.get(resumo_k_global.estado_k, "⚪ Desconhecido")
-        st.write(estado_label)
-
-    st.markdown("### 🔍 Análise por janela local (unitária)")
-
-    idx_alvo = st.number_input(
-        "Índice alvo:",
-        min_value=1,
-        max_value=len(df_limpo),
-        value=len(df_limpo),
-        step=1,
-    )
-
-    janela_k = st.slider(
-        "Janela (para cálculo do k* local):",
-        min_value=5,
-        max_value=200,
-        value=40,
-        step=5,
-    )
-
-    df_j = extrair_janela_hist(df_limpo, int(idx_alvo), back=int(janela_k))
-    if df_j.empty:
-        st.error("Janela vazia.")
-        st.stop()
-
-    resumo_k_local = calcular_k_star(df_j, janela=int(janela_k))
-
-    st.markdown("### 🔭 k* Local")
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric("k atual", resumo_k_local.k_atual)
-    with col2:
-        st.metric("k*", f"{resumo_k_local.k_star*100:.1f}%")
-    with col3:
-        st.metric("Regime", resumo_k_local.regime_local)
-
-    estado_label_local = {
-        "estavel": "🟢 Ambiente estável",
-        "atencao": "🟡 Pré-ruptura residual",
-        "critico": "🔴 Ambiente crítico",
-    }.get(resumo_k_local.estado_k, "⚪ Desconhecido")
-
-    st.write(estado_label_local)
-
-    if st.session_state.get("mostrar_debug", False):
-        st.markdown("#### 🐞 DEBUG — k local")
-        st.dataframe(df_j.head(50), use_container_width=True)
-# ============================================================
-# PARTE 4/6 — Testes de Confiabilidade REAL • Ruído Condicional (V15)
-# ============================================================
-
-# ------------------------------------------------------------
-# FUNÇÕES AUXILIARES — BACKTEST REAL / MONTE CARLO REAL
-# ------------------------------------------------------------
-
-def executar_backtest_parcial_real(
-    df_limpo: pd.DataFrame,
-    janela_back: int,
-    n_candidatos: int,
-    seed_base: int,
-    peso_qds: float,
-    n_janelas_max: int,
-) -> Optional[ResumoBacktest]:
-    """
-    Backtest REAL simplificado e controlado:
-    - Reaplica o pipeline V14-FLEX ULTRA nas últimas N janelas.
-    - Compara a previsão com o real da série.
-    - Retorna ResumoBacktest.
-
-    ❗ Protegido para estradas grandes:
-       - Em vez de percorrer todas as ~5k séries, utiliza apenas
-         as últimas `n_janelas_max` janelas.
-    """
-    if df_limpo is None or df_limpo.empty:
-        return None
-
-    n_hist = len(df_limpo)
-    if n_hist < 3:
-        return None
-
-    inicio = max(2, n_hist - n_janelas_max)
-    acertos_lista: List[int] = []
-
-    for idx in range(inicio, n_hist + 1):
-        previsao = replay_calcular_previsao_v14(
-            df_limpo=df_limpo,
-            idx_alvo=idx,
-            janela_back=janela_back,
-            n_candidatos=n_candidatos,
-            seed_base=seed_base,
-            peso_qds=peso_qds,
-        )
-        if previsao is None:
-            continue
-
-        real = df_limpo.iloc[idx - 1]
-        valores_real = [int(real[c]) for c in get_passenger_cols(df_limpo)]
-
-        # Contagem de acertos exatos (posição a posição)
-        acertos = sum(1 for a, b in zip(previsao, valores_real) if a == b)
-        acertos_lista.append(acertos)
-
-    if not acertos_lista:
-        return None
-
-    # Cada janela corresponde a 1 "série" de avaliação
-    resumo = calcular_resumo_backtest(acertos_lista, n_series_por_janela=1)
-    return resumo
-
-
-def executar_monte_carlo_real(
-    df_limpo: pd.DataFrame,
-    n_simulacoes: int,
-    n_series_amostra: int,
-) -> Optional[ResumoMonteCarlo]:
-    """
-    Monte Carlo REAL com amostragem da estrada:
-
-    - Seleciona aleatoriamente N séries do histórico
-    - Gera previsões aleatórias (0..60) com mesmo nº de passageiros
-    - Compara com a série real, contando acertos posição a posição
-    - Gera uma matriz de acertos [simulação x série] e resume
-
-    ❗ Protegido para estradas grandes através do parâmetro n_series_amostra.
-    """
-    if df_limpo is None or df_limpo.empty:
-        return None
-
-    rng = random.Random(4242)
     cols_pass = get_passenger_cols(df_limpo)
     n_hist = len(df_limpo)
-    n_series_amostra = min(n_series_amostra, n_hist)
 
-    matriz_acertos: List[List[int]] = []
+    idx_alvo_u = st.number_input(
+        "Índice alvo do ULTRA Unitário:",
+        min_value=1,
+        max_value=n_hist - 1,
+        value=n_hist - 1,
+    )
 
-    for _ in range(n_simulacoes):
-        # Amostra aleatória de índices de séries
-        indices = rng.sample(range(n_hist), n_series_amostra)
-        acertos_sim: List[int] = []
+    if st.button("▶️ Executar ULTRA Unitário"):
+        with st.spinner("Executando ULTRA Unitário…"):
 
-        for idx in indices:
-            linha = df_limpo.iloc[idx]
-            reais = [int(linha[c]) for c in cols_pass]
+            pos = int(idx_alvo_u - 1)
+            if pos < 0 or pos >= n_hist - 1:
+                st.error("Índice fora do intervalo.")
+                st.stop()
 
-            previsao_aleatoria = [rng.randint(0, 60) for _ in cols_pass]
-            acertos = sum(1 for a, b in zip(previsao_aleatoria, reais) if a == b)
-            acertos_sim.append(acertos)
+            df_j = extrair_janela_hist(df_limpo, pos + 1, back=80)
+            matriz_freq = calcular_matriz_frequencia(df_j)
 
-        matriz_acertos.append(acertos_sim)
+            cands = gerar_leque_candidatos(
+                matriz_freq,
+                n_series=80,
+                seed=999 + pos,
+            )
 
-    return calcular_resumo_monte_carlo(matriz_acertos)
+            df_c = montar_tabela_candidatos(
+                cands,
+                matriz_freq,
+                st.session_state["resumo_estrada"].regime_global,
+                calcular_k_star(df_j, janela=len(df_j)),
+            )
+
+            if df_c.empty:
+                st.error("Nenhum candidato encontrado.")
+                st.stop()
+
+            prev = df_c.iloc[0]["series"]
+            real = [int(df_limpo.iloc[pos][c]) for c in cols_pass]
+            acertos = medir_acertos(prev, real)
+
+        st.success("ULTRA Unitário finalizado.")
+
+        st.markdown("### 🎯 Previsão ULTRA Unitário")
+        st.code(" ".join(str(x) for x in prev), language="text")
+
+        st.markdown("### 📌 Real")
+        st.code(" ".join(str(x) for x in real), language="text")
+
+        st.metric("Acertos", acertos)
+# ============================================================
+# PARTE 4/6 — Testes de Confiabilidade REAL + Ruído Condicional (V15)
+# ============================================================
 
 
 # ------------------------------------------------------------
-# PAINEL — Testes de Confiabilidade REAL
+# QDS REAL — cálculo
+# ------------------------------------------------------------
+
+def calcular_qds_real(df: pd.DataFrame) -> List[float]:
+    """
+    Calcula o QDS REAL avaliando a coerência do histórico.
+
+    Estratégia:
+    - Para cada série, avalia-se seu encaixe na matriz de frequências
+      da janela anterior.
+    """
+    if df is None or df.empty:
+        return []
+
+    cols_pass = get_passenger_cols(df)
+    n = len(df)
+    qds_list = []
+
+    for i in range(1, n):
+        df_j = extrair_janela_hist(df, i, back=min(60, i))
+        if df_j.empty:
+            qds_list.append(0.0)
+            continue
+
+        matriz_freq = calcular_matriz_frequencia(df_j)
+        alvo = df.iloc[i]
+        real = [int(alvo[c]) for c in cols_pass]
+
+        score = calcular_qds_candidato(real, matriz_freq)
+        qds_list.append(score)
+
+    return qds_list
+
+
+# ------------------------------------------------------------
+# BACKTEST REAL
+# ------------------------------------------------------------
+
+def executar_backtest_real(
+    df: pd.DataFrame,
+    janela_back: int,
+    n_cand: int,
+) -> Tuple[List[int], List[List[int]]]:
+    """
+    Executa o Backtest REAL:
+
+    Para cada posição i:
+      - extrai janela (i - janela_back)
+      - gera candidatos
+      - escolhe melhor
+      - compara com real
+    """
+    cols_pass = get_passenger_cols(df)
+    n = len(df)
+
+    acertos_lista = []
+    historico_prev = []
+
+    for i in range(janela_back, n - 1):
+        df_j = extrair_janela_hist(df, i, back=janela_back)
+        if df_j.empty:
+            acertos_lista.append(0)
+            historico_prev.append([0] * len(cols_pass))
+            continue
+
+        matriz_freq = calcular_matriz_frequencia(df_j)
+        cands = gerar_leque_candidatos(
+            matriz_freq,
+            n_series=n_cand,
+            seed=2025 + i,
+        )
+        df_c = montar_tabela_candidatos(
+            cands,
+            matriz_freq,
+            classificar_regime_por_k(df_j["k"].mean()),
+            calcular_k_star(df_j, janela=len(df_j)),
+        )
+
+        if df_c.empty:
+            acertos_lista.append(0)
+            historico_prev.append([0] * len(cols_pass))
+            continue
+
+        prev = df_c.iloc[0]["series"]
+        alvo = df.iloc[i]
+        real = [int(alvo[c]) for c in cols_pass]
+        ac = medir_acertos(prev, real)
+
+        acertos_lista.append(ac)
+        historico_prev.append(prev)
+
+    return acertos_lista, historico_prev
+
+
+# ------------------------------------------------------------
+# MONTE CARLO REAL
+# ------------------------------------------------------------
+
+def executar_monte_carlo_real(
+    df: pd.DataFrame,
+    n_sim: int,
+    janela_back: int,
+    n_cand: int,
+) -> List[List[int]]:
+    """
+    Monte Carlo REAL:
+    Para cada simulação:
+      - percorre todo o histórico
+      - gera candidatos com seeds diferentes
+      - registra acertos
+    """
+    cols_pass = get_passenger_cols(df)
+    n = len(df)
+
+    matriz_acertos = []
+
+    for s in range(n_sim):
+        acertos = []
+        for i in range(janela_back, n - 1):
+            df_j = extrair_janela_hist(df, i, back=janela_back)
+            if df_j.empty:
+                acertos.append(0)
+                continue
+
+            matriz_freq = calcular_matriz_frequencia(df_j)
+            cands = gerar_leque_candidatos(
+                matriz_freq,
+                n_series=n_cand,
+                seed=1000 * (s + 1) + i,
+            )
+            df_c = montar_tabela_candidatos(
+                cands,
+                matriz_freq,
+                classificar_regime_por_k(df_j["k"].mean()),
+                calcular_k_star(df_j, janela=len(df_j)),
+            )
+
+            if df_c.empty:
+                acertos.append(0)
+                continue
+
+            prev = df_c.iloc[0]["series"]
+            alvo = df.iloc[i]
+            real = [int(alvo[c]) for c in cols_pass]
+            acertos.append(medir_acertos(prev, real))
+
+        matriz_acertos.append(acertos)
+
+    return matriz_acertos
+
+
+# ------------------------------------------------------------
+# PAINEL 6 — Testes de Confiabilidade REAL
 # ------------------------------------------------------------
 
 if painel == "🧪 Testes de Confiabilidade REAL":
-    st.markdown("## 🧪 Testes de Confiabilidade REAL")
+    st.markdown("## 🧪 Testes de Confiabilidade REAL — V15.5")
     st.markdown(
         """
-        Este painel consolida os **testes de robustez** do V15.5:
-
-        - Backtest REAL (com proteção para estradas grandes)
+        Este painel executa:
+        - QDS REAL
+        - Backtest REAL
         - Monte Carlo REAL
+
+        Tudo com dados **reais** do histórico,
+        sem previsões artificiais e sem ruído.
         """
     )
 
-    df_limpo = st.session_state.get("df_limpo", None)
+    df_limpo = st.session_state.get("df_limpo")
     if df_limpo is None or df_limpo.empty:
         st.warning("Carregue o histórico primeiro.")
         st.stop()
 
+    cols_pass = get_passenger_cols(df_limpo)
     n_hist = len(df_limpo)
-    st.info(f"Total de séries no histórico: **{n_hist}**.")
 
-    # --------------------------------------------------------
-    # BACKTEST REAL (PARCIAL / PROTEGIDO)
-    # --------------------------------------------------------
+    st.markdown("### ⚙️ Parâmetros")
 
-    st.markdown("### 🔁 Backtest REAL (parcial e seguro)")
+    col_t1, col_t2, col_t3 = st.columns(3)
 
-    col_bt1, col_bt2 = st.columns(2)
-    with col_bt1:
-        janela_back_bt = st.slider(
-            "Janela para trás (Backtest):",
+    with col_t1:
+        janela_back = st.slider(
+            "Janela backtest/m.carlo:",
             min_value=10,
             max_value=min(300, n_hist - 1),
             value=min(60, n_hist - 1),
             step=5,
         )
-
-    with col_bt2:
-        n_janelas_bt = st.slider(
-            "Quantidade de janelas (últimas séries avaliadas):",
-            min_value=10,
-            max_value=min(500, n_hist - 1),
-            value=min(200, n_hist - 1),
-            step=10,
-            help="Backtest parcial sobre as últimas N séries (seguro para 5k+ linhas).",
-        )
-
-    col_bt3, col_bt4 = st.columns(2)
-    with col_bt3:
-        n_candidatos_bt = st.slider(
-            "Leque (n candidatos / janela):",
+    with col_t2:
+        n_cand = st.slider(
+            "Tamanho do leque (por janela):",
             min_value=10,
             max_value=200,
-            value=40,
+            value=60,
             step=5,
         )
-
-    with col_bt4:
-        peso_qds_bt = st.slider(
-            "Peso do QDS no AIQ (Backtest):",
-            min_value=0.1,
-            max_value=0.9,
-            value=0.6,
-            step=0.05,
+    with col_t3:
+        n_sim = st.slider(
+            "Simulações Monte Carlo:",
+            min_value=5,
+            max_value=50,
+            value=10,
         )
 
-    seed_bt = st.number_input(
-        "Seed base (Backtest):",
-        min_value=1,
-        max_value=999999,
-        value=2025,
-    )
+    if st.button("▶️ Executar Testes de Confiabilidade REAL"):
+        with st.spinner("Executando QDS / Backtest / Monte Carlo…"):
 
-    if st.button("▶️ Rodar Backtest REAL (parcial)"):
-        with st.spinner("Executando Backtest REAL parcial..."):
-            resumo_bt = executar_backtest_parcial_real(
-                df_limpo=df_limpo,
-                janela_back=int(janela_back_bt),
-                n_candidatos=int(n_candidatos_bt),
-                seed_base=int(seed_bt),
-                peso_qds=float(peso_qds_bt),
-                n_janelas_max=int(n_janelas_bt),
+            # --- QDS REAL ---
+            qds_real = calcular_qds_real(df_limpo)
+            resumo_qds = calcular_resumo_qds(qds_real)
+            st.session_state["resumo_qds"] = resumo_qds
+
+            # --- Backtest REAL ---
+            acertos_back, hist_prev = executar_backtest_real(
+                df_limpo, janela_back, n_cand
             )
+            resumo_back = calcular_resumo_backtest(acertos_back, len(cols_pass))
+            st.session_state["resumo_backtest"] = resumo_back
+            st.session_state["historico_backtest"] = hist_prev
 
-        if resumo_bt is None:
-            st.error("Não foi possível calcular o Backtest REAL.")
-        else:
-            st.success("Backtest REAL parcial concluído.")
-            st.session_state["resumo_backtest"] = resumo_bt
-
-            col_r1, col_r2, col_r3, col_r4 = st.columns(4)
-            with col_r1:
-                st.metric("Janelas avaliadas", resumo_bt.n_janelas)
-            with col_r2:
-                st.metric("Acertos totais", resumo_bt.acertos_totais)
-            with col_r3:
-                st.metric("Média de acertos/série", f"{resumo_bt.acertos_por_serie:.3f}")
-            with col_r4:
-                st.metric("Hit rate (%)", f"{resumo_bt.hit_rate*100:.2f}%")
-
-    # --------------------------------------------------------
-    # MONTE CARLO REAL
-    # --------------------------------------------------------
-
-    st.markdown("### 🎲 Monte Carlo REAL")
-
-    col_mc1, col_mc2 = st.columns(2)
-    with col_mc1:
-        n_sim_mc = st.slider(
-            "Número de simulações:",
-            min_value=100,
-            max_value=5000,
-            value=800,
-            step=100,
-        )
-    with col_mc2:
-        n_series_mc = st.slider(
-            "Séries amostradas por simulação:",
-            min_value=50,
-            max_value=min(600, n_hist),
-            value=min(300, n_hist),
-            step=50,
-            help="Quantidade de séries reais da estrada usadas em cada simulação.",
-        )
-
-    if st.button("▶️ Rodar Monte Carlo REAL"):
-        with st.spinner("Executando Monte Carlo REAL..."):
-            resumo_mc = executar_monte_carlo_real(
-                df_limpo=df_limpo,
-                n_simulacoes=int(n_sim_mc),
-                n_series_amostra=int(n_series_mc),
+            # --- Monte Carlo REAL ---
+            matriz_acertos = executar_monte_carlo_real(
+                df_limpo, n_sim, janela_back, n_cand
             )
-
-        if resumo_mc is None:
-            st.error("Não foi possível calcular o Monte Carlo REAL.")
-        else:
-            st.success("Monte Carlo REAL concluído.")
+            resumo_mc = calcular_resumo_monte_carlo(matriz_acertos)
             st.session_state["resumo_montecarlo"] = resumo_mc
+            st.session_state["historico_montecarlo"] = matriz_acertos
 
-            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-            with col_m1:
-                st.metric("Simulações", resumo_mc.n_simulacoes)
-            with col_m2:
-                st.metric("Média de acertos", f"{resumo_mc.media_acertos:.4f}")
-            with col_m3:
-                st.metric("Desvio (acertos)", f"{resumo_mc.desvio_acertos:.4f}")
-            with col_m4:
-                st.metric(
-                    "Melhor média de simulação", f"{resumo_mc.melhor_serie_media:.4f}"
-                )
+        st.success("Testes finalizados.")
+
+        st.markdown("### 📊 QDS REAL")
+        if resumo_qds:
+            st.metric("QDS médio", f"{resumo_qds.qds_medio:.3f}")
+            st.metric("QDS min", f"{resumo_qds.qds_min:.3f}")
+            st.metric("QDS max", f"{resumo_qds.qds_max:.3f}")
+
+            col_q1, col_q2, col_q3, col_q4 = st.columns(4)
+            col_q1.metric("% PREMIUM", f"{resumo_qds.pct_premium:.1f}%")
+            col_q2.metric("% BOM", f"{resumo_qds.pct_bom:.1f}%")
+            col_q3.metric("% REGULAR", f"{resumo_qds.pct_regular:.1f}%")
+            col_q4.metric("% RUIM", f"{resumo_qds.pct_ruim:.1f}%")
+
+        st.markdown("### 🎯 Backtest REAL")
+        if resumo_back:
+            st.metric("Janelas", resumo_back.n_janelas)
+            st.metric("Acertos totais", resumo_back.acertos_totais)
+            st.metric("Acertos por série", f"{resumo_back.acertos_por_serie:.3f}")
+            st.metric("Hit-rate", f"{resumo_back.hit_rate:.3f}")
+
+        st.markdown("### 🎲 Monte Carlo REAL")
+        if resumo_mc:
+            st.metric("Simulações", resumo_mc.n_simulacoes)
+            st.metric("Média de acertos", f"{resumo_mc.media_acertos:.3f}")
+            st.metric("Desvio", f"{resumo_mc.desvio_acertos:.3f}")
+            st.metric("Melhor média", f"{resumo_mc.melhor_serie_media:.3f}")
 
 
 # ------------------------------------------------------------
-# FUNÇÕES AUXILIARES — RUÍDO CONDICIONAL (V15)
+# PAINEL 7 — Ruído Condicional (V15)
 # ------------------------------------------------------------
 
 def aplicar_ruido_condicional(
     df: pd.DataFrame,
-    pct_alvo: float,
-    amplitude_base: int,
-    seed: int,
-) -> Tuple[pd.DataFrame, float]:
+    magnitude: float = 0.15,
+) -> Tuple[pd.DataFrame, float, float, float]:
     """
-    Aplica ruído condicional por célula, baseado em k:
-
-    - Seleciona pct_alvo% das células (n1..nN)
-    - Se k == 0 → ruído mais suave (amplitude_base // 2)
-    - Se k > 0 → ruído total (amplitude_base)
-    - Garante que os valores ficam em [0, 60]
-    - Retorna:
-        - novo DataFrame
-        - % de pontos efetivamente ajustados (pode ser <= pct_alvo)
+    Aplica ruído condicional:
+    - magnitude: força do ajuste (0.0–1.0)
+    - retorna df_modificado + estatísticas
     """
-    df2 = df.copy()
-    rng = random.Random(seed)
+    if df is None or df.empty:
+        return df.copy(), 0.0, 0.0, 0.0
 
-    cols = get_passenger_cols(df2)
-    if not cols:
-        return df2, 0.0
+    cols = get_passenger_cols(df)
+    df_mod = df.copy()
 
-    n_lin = len(df2)
-    total_cells = n_lin * len(cols)
-    if total_cells == 0:
-        return df2, 0.0
+    ruido_inicial = 0
+    ruido_final = 0
+    pontos_aj = 0
+    total_pts = len(df_mod) * len(cols)
 
-    n_alvo = int(total_cells * (pct_alvo / 100.0))
-    indices = [(i, j) for i in range(n_lin) for j in range(len(cols))]
-    rng.shuffle(indices)
-    indices_sel = indices[:n_alvo]
+    for col in cols:
+        original = df_mod[col].astype(float).copy()
+        ruido_inicial += float((np.std(original)))
 
-    ajustes = 0
+        ruido = np.random.normal(loc=0.0, scale=magnitude * np.std(original), size=len(df_mod))
+        df_mod[col] = (original + ruido).round().astype(int)
 
-    for (i, j) in indices_sel:
-        idx_row = df2.index[i]
-        col = cols[j]
+        ruido_final += float((np.std(df_mod[col].astype(float))))
+        pontos_aj += sum((df_mod[col] != original).astype(int))
 
-        val = int(df2.at[idx_row, col])
-        if val < 0:
-            continue
+    pct_pontos = (pontos_aj / total_pts) * 100 if total_pts > 0 else 0.0
 
-        k_val = int(df2.at[idx_row, "k"])
-        if k_val <= 0:
-            amp_efetiva = max(1, amplitude_base // 2)
-        else:
-            amp_efetiva = amplitude_base
+    return df_mod, float(ruido_inicial), float(ruido_final), float(pct_pontos)
 
-        delta = rng.randint(-amp_efetiva, amp_efetiva)
-        novo = max(0, min(60, val + delta))
-        if novo != val:
-            df2.at[idx_row, col] = novo
-            ajustes += 1
-
-    pct_ajuste_real = (ajustes / total_cells) * 100.0
-    return df2, pct_ajuste_real
-
-
-# ------------------------------------------------------------
-# PAINEL — Ruído Condicional (V15)
-# ------------------------------------------------------------
 
 if painel == "📊 Ruído Condicional (V15)":
     st.markdown("## 📊 Ruído Condicional (V15)")
     st.markdown(
         """
-        Este painel aplica **Ruído A** e **Ruído B** sobre a estrada, de forma
-        **condicional ao k**:
-
-        - Estrada A: ruído inicial
-        - Estrada B: ruído final
-        - Ruído mais intenso onde há k>0 (guardas acertando), mais suave onde k=0
+        Aplica ruído condicional para gerar:
+        - Estrada A (ruído leve)
+        - Estrada B (ruído forte)
         """
     )
 
-    df_limpo = st.session_state.get("df_limpo", None)
+    df_limpo = st.session_state.get("df_limpo")
     if df_limpo is None or df_limpo.empty:
         st.warning("Carregue o histórico primeiro.")
         st.stop()
 
-    n_hist = len(df_limpo)
-    st.info(f"Total de séries no histórico: **{n_hist}**.")
-
-    col_r1, col_r2 = st.columns(2)
-    with col_r1:
-        pct_ruido_a = st.slider(
-            "Percentual de células alvo — Ruído A:",
-            min_value=1.0,
-            max_value=50.0,
-            value=15.0,
-            step=1.0,
-        )
-        amp_a = st.slider(
-            "Amplitude Ruído A:",
-            min_value=1,
-            max_value=20,
-            value=8,
-            step=1,
-        )
-    with col_r2:
-        pct_ruido_b = st.slider(
-            "Percentual de células alvo — Ruído B:",
-            min_value=1.0,
-            max_value=80.0,
-            value=30.0,
-            step=1.0,
-        )
-        amp_b = st.slider(
-            "Amplitude Ruído B:",
-            min_value=1,
-            max_value=30,
-            value=12,
-            step=1,
-        )
-
-    seed_ruido = st.number_input(
-        "Seed base (Ruído):",
-        min_value=1,
-        max_value=999999,
-        value=777,
+    magnitude_a = st.slider(
+        "Magnitude do Ruído A (leve):",
+        min_value=0.01,
+        max_value=0.50,
+        value=0.08,
+        step=0.01,
+    )
+    magnitude_b = st.slider(
+        "Magnitude do Ruído B (forte):",
+        min_value=0.02,
+        max_value=0.80,
+        value=0.20,
+        step=0.02,
     )
 
-    if st.button("▶️ Aplicar Ruído Condicional A/B"):
-        with st.spinner("Aplicando Ruído A..."):
-            df_ra, pct_aj_a = aplicar_ruido_condicional(
-                df=df_limpo,
-                pct_alvo=float(pct_ruido_a),
-                amplitude_base=int(amp_a),
-                seed=int(seed_ruido),
+    if st.button("▶️ Aplicar Ruído"):
+        with st.spinner("Gerando Estradas A e B…"):
+
+            dfA, rA_in, rA_out, pA = aplicar_ruido_condicional(df_limpo, magnitude_a)
+            dfB, rB_in, rB_out, pB = aplicar_ruido_condicional(df_limpo, magnitude_b)
+
+            st.session_state["df_ruido_a"] = dfA
+            st.session_state["df_ruido_b"] = dfB
+
+            resumo_ruido = calcular_resumo_ruido(
+                ruido_inicial=(rA_in + rB_in) / 2,
+                ruido_final=(rA_out + rB_out) / 2,
+                pct_pontos_ajustados=(pA + pB) / 2,
             )
+            st.session_state["resumo_ruido"] = resumo_ruido
 
-        with st.spinner("Aplicando Ruído B sobre a Estrada A..."):
-            df_rb, pct_aj_b = aplicar_ruido_condicional(
-                df=df_ra,
-                pct_alvo=float(pct_ruido_b),
-                amplitude_base=int(amp_b),
-                seed=int(seed_ruido + 17),
-            )
+        st.success("Ruído A/B aplicado com sucesso.")
 
-        st.session_state["df_ruido_a"] = df_ra
-        st.session_state["df_ruido_b"] = df_rb
+        st.markdown("### 🛣️ Estrada A (ruído leve)")
+        st.dataframe(st.session_state["df_ruido_a"].head(50))
 
-        pct_medio_aj = (pct_aj_a + pct_aj_b) / 2.0
+        st.markdown("### 🛣️ Estrada B (ruído forte)")
+        st.dataframe(st.session_state["df_ruido_b"].head(50))
 
-        resumo_ruido = calcular_resumo_ruido(
-            ruido_inicial=float(amp_a),
-            ruido_final=float(amp_b),
-            pct_pontos_ajustados=float(pct_medio_aj),
-        )
-        st.session_state["resumo_ruido"] = resumo_ruido
-
-        st.success("Ruído Condicional A/B aplicado com sucesso.")
-
-        col_x1, col_x2, col_x3 = st.columns(3)
-        with col_x1:
-            st.metric("Amplitude A", amp_a)
-            st.metric("% células alvo (A)", f"{pct_ruido_a:.1f}%")
-        with col_x2:
-            st.metric("Amplitude B", amp_b)
-            st.metric("% células alvo (B)", f"{pct_ruido_b:.1f}%")
-        with col_x3:
+        if resumo_ruido:
+            st.markdown("### 📊 Estatísticas médias do ruído")
+            st.metric("Ruído inicial (médio)", f"{resumo_ruido.ruido_inicial:.3f}")
+            st.metric("Ruído final (médio)", f"{resumo_ruido.ruido_final:.3f}")
             st.metric(
                 "% pontos ajustados (médio)",
-                f"{pct_medio_aj:.2f}%",
+                f"{resumo_ruido.pct_pontos_ajustados:.2f}%",
             )
-
-        st.markdown("### 🔎 Amostra da Estrada B (pós-ruído)")
-        st.dataframe(df_rb.head(50), use_container_width=True)
-
-        if st.session_state.get("mostrar_debug", False):
-            st.markdown("#### 🐞 DEBUG — Estrada A (pós-Ruído A)")
-            st.dataframe(df_ra.head(30), use_container_width=True)
-    else:
-        st.info(
-            "Configure os parâmetros de ruído e clique em "
-            "'Aplicar Ruído Condicional A/B'."
-        )
 # ============================================================
-# PARTE 5/6 — Modo TURBO++ ULTRA ANTI-RUÍDO (V15)
+# PARTE 5/6 — Modo TURBO++ ULTRA ANTI-RUÍDO (V15.5)
 # ============================================================
 
 # ------------------------------------------------------------
 # FUNÇÕES AUXILIARES DO TURBO++ ULTRA
 # ------------------------------------------------------------
 
-def gerar_matriz_freq_para_df(df: pd.DataFrame, janela_back: int, idx_alvo: int) -> Dict[str, Dict[int, float]]:
+def gerar_matriz_freq_para_df(
+    df_base: pd.DataFrame,
+    idx_alvo: int,
+    janela_back: int,
+) -> Dict[str, Dict[int, float]]:
     """
-    Função interna reutilizável:
-    - extrai a janela de df_limpo, df_ruido_a ou df_ruido_b
-    - calcula matriz de frequências
+    Extrai janela de df_base e calcula matriz de frequências.
     """
-    df_j = extrair_janela_hist(df, idx_alvo=idx_alvo, back=janela_back)
+    df_j = extrair_janela_hist(df_base, idx_alvo=idx_alvo, back=janela_back)
     if df_j.empty:
         return {}
     return calcular_matriz_frequencia(df_j)
@@ -2077,7 +1790,7 @@ def gerar_leque_completo(
     regime_global: str,
 ) -> pd.DataFrame:
     """
-    Usado para gerar Leque A, Leque B e Leque Misto.
+    Gera leque completo a partir de uma estrada base (original ou ruidosa).
     """
     df_j = extrair_janela_hist(df_base, idx_alvo=idx_alvo, back=janela_back)
     if df_j.empty:
@@ -2087,7 +1800,6 @@ def gerar_leque_completo(
     if not matriz_freq:
         return pd.DataFrame()
 
-    # Geração dos candidatos
     candidatos = gerar_leque_candidatos(
         matriz_freq,
         n_series=n_cand,
@@ -2104,7 +1816,6 @@ def gerar_leque_completo(
     if df_cand.empty:
         return df_cand
 
-    # Recalcular AIQ com pesos selecionados
     novas_aiq = []
     for _, row in df_cand.iterrows():
         serie = row["series"]
@@ -2114,33 +1825,37 @@ def gerar_leque_completo(
             peso_qds=peso_qds,
             peso_div=1.0 - peso_qds,
         )
-        novas_aiq.append(peso_qds * qds_tmp + (1 - peso_qds) * div_tmp)
+        novas_aiq.append(peso_qds * qds_tmp + (1.0 - peso_qds) * div_tmp)
 
     df_cand["AIQ"] = novas_aiq
-    df_cand = df_cand.sort_values(["AIQ", "QDS"], ascending=[False, False]).reset_index(drop=True)
+    df_cand = df_cand.sort_values(["AIQ", "QDS"], ascending=[False, False]).reset_index(
+        drop=True
+    )
     return df_cand
 
 
 def unir_leques_v15(df_a: pd.DataFrame, df_b: pd.DataFrame) -> pd.DataFrame:
     """
-    Une Leque A + Leque B, eliminando duplicidades e
-    recalculando a ordenação final por AIQ → QDS.
+    Une leques A e B, removendo duplicidades e reordenando por AIQ/QDS.
     """
     if df_a is None or df_a.empty:
-        return df_b.copy()
+        return df_b.copy() if df_b is not None else pd.DataFrame()
     if df_b is None or df_b.empty:
         return df_a.copy()
 
-    # Combina
     df_mix = pd.concat([df_a, df_b], ignore_index=True)
 
-    # Remove duplicidades pelo conteúdo da série
-    df_mix["serie_str"] = df_mix["series"].apply(lambda x: tuple(x))
-    df_mix = df_mix.drop_duplicates(subset=["serie_str"])
-    df_mix = df_mix.drop(columns=["serie_str"])
+    if "series" not in df_mix.columns:
+        return df_mix
 
-    # Reordena
-    df_mix = df_mix.sort_values(["AIQ", "QDS"], ascending=[False, False]).reset_index(drop=True)
+    df_mix["serie_str"] = df_mix["series"].apply(lambda x: tuple(x))
+    df_mix = df_mix.drop_duplicates(subset=["serie_str"]).drop(columns=["serie_str"])
+
+    if "AIQ" in df_mix.columns and "QDS" in df_mix.columns:
+        df_mix = df_mix.sort_values(
+            ["AIQ", "QDS"], ascending=[False, False]
+        ).reset_index(drop=True)
+
     return df_mix
 
 
@@ -2149,20 +1864,17 @@ def unir_leques_v15(df_a: pd.DataFrame, df_b: pd.DataFrame) -> pd.DataFrame:
 # ------------------------------------------------------------
 
 if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
-    st.markdown("## 🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)")
+    st.markdown("## 🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.5)")
     st.markdown(
         """
-        Este é o **motor definitivo** do Predict Cars V15.5-HÍBRIDO.
+        Motor final do **Predict Cars V15.5-HÍBRIDO**:
 
-        Aqui o sistema:
-        - utiliza a Estrada Original
-        - utiliza Estrada A (pós-Ruído A)
-        - utiliza Estrada B (pós-Ruído B)
-        - gera leques A/B
-        - mescla, reordena, compara, calibra
-        - aplica AIQ-HÍBRIDO
-        - calcula o candidato mais resiliente
-        - produz a **PREVISÃO FINAL V15.5**
+        - Usa Estrada Original + Estrada A + Estrada B
+        - Gera Leque A (ruído leve) e Leque B (ruído forte)
+        - Mescla e recalibra (Leque MISTO)
+        - Aplica AIQ-HÍBRIDO (QDS + diversidade)
+        - Usa k* local como contexto de risco
+        - Produz a **Previsão Final TURBO++ ULTRA (V15.5)**
         """
     )
 
@@ -2176,14 +1888,15 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
 
     if df_ra is None or df_rb is None:
         st.warning(
-            "Aplique o Ruído Condicional no painel anterior "
-            "(Estradas A/B ainda não existem)."
+            "Estradas A/B ainda não existem. "
+            "Vá ao painel '📊 Ruído Condicional (V15)' e aplique o ruído."
         )
         st.stop()
 
-    resumo_estrada = st.session_state.get("resumo_estrada")
-    resumo_k_global = st.session_state.get("resumo_k_global")
-    regime_global_str = resumo_estrada.regime_global if resumo_estrada else "desconhecido"
+    resumo_estrada: Optional[ResumoEstrada] = st.session_state.get("resumo_estrada")
+    regime_global_str = (
+        resumo_estrada.regime_global if resumo_estrada else "desconhecido"
+    )
 
     n_hist = len(df_limpo)
 
@@ -2236,8 +1949,8 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
             value=2025,
         )
 
-    # k local
-    df_j = extrair_janela_hist(df_limpo, idx_alvo, back=janela_back)
+    # k* local com base na janela da estrada original
+    df_j = extrair_janela_hist(df_limpo, int(idx_alvo), back=int(janela_back))
     resumo_k_local = calcular_k_star(df_j, janela=len(df_j))
 
     st.markdown("### 🔭 k* Local (para o TURBO)")
@@ -2256,7 +1969,7 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
     if st.button("▶️ Executar TURBO++ ULTRA"):
         with st.spinner("Executando TURBO++ ULTRA…"):
 
-            # --- LEQUE A (Ruído A) --------------------------
+            # --- LEQUE A (Estrada A, ruído leve) -------------
             dfA = gerar_leque_completo(
                 df_base=df_ra,
                 idx_alvo=int(idx_alvo),
@@ -2268,7 +1981,7 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
                 regime_global=regime_global_str,
             )
 
-            # --- LEQUE B (Ruído B) --------------------------
+            # --- LEQUE B (Estrada B, ruído forte) -------------
             dfB = gerar_leque_completo(
                 df_base=df_rb,
                 idx_alvo=int(idx_alvo),
@@ -2280,17 +1993,15 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
                 regime_global=regime_global_str,
             )
 
-            # --- MISTO -------------------------------------
+            # --- LEQUE MISTO ---------------------------------
             df_mix = unir_leques_v15(dfA, dfB)
 
             if df_mix.empty:
-                st.error("Falha ao montar Leque MISTO (A+B).")
+                st.error("Falha ao montar Leque MISTO (A+B). Ajuste parâmetros.")
                 st.stop()
 
-            # Previsão Final
             melhor = df_mix.iloc[0]
             previsao_final = melhor["series"]
-
             st.session_state["previsao_turbo_ultra"] = previsao_final
 
         # ----------------------------------------------------
@@ -2315,27 +2026,33 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
         if st.session_state.get("mostrar_debug", False):
             st.markdown("#### 🐞 DEBUG — Leque A")
             dfA_view = dfA.copy()
-            dfA_view["series"] = dfA_view["series"].apply(
-                lambda x: " ".join(str(v) for v in x)
-            )
-            st.dataframe(dfA_view.head(20))
+            if not dfA_view.empty:
+                dfA_view["series"] = dfA_view["series"].apply(
+                    lambda x: " ".join(str(v) for v in x)
+                )
+                st.dataframe(dfA_view.head(20), use_container_width=True)
+            else:
+                st.write("Leque A vazio.")
 
             st.markdown("#### 🐞 DEBUG — Leque B")
             dfB_view = dfB.copy()
-            dfB_view["series"] = dfB_view["series"].apply(
-                lambda x: " ".join(str(v) for v in x)
-            )
-            st.dataframe(dfB_view.head(20))
+            if not dfB_view.empty:
+                dfB_view["series"] = dfB_view["series"].apply(
+                    lambda x: " ".join(str(v) for v in x)
+                )
+                st.dataframe(dfB_view.head(20), use_container_width=True)
+            else:
+                st.write("Leque B vazio.")
 
             st.markdown("#### 🐞 DEBUG — Leque MISTO")
             dfM_view = df_mix.copy()
-            dfM_view["series"] = dfM_view["series"].apply(
-                lambda x: " ".join(str(v) for v in x)
-            )
-            st.dataframe(dfM_view.head(20))
-
-
-
+            if not dfM_view.empty:
+                dfM_view["series"] = dfM_view["series"].apply(
+                    lambda x: " ".join(str(v) for v in x)
+                )
+                st.dataframe(dfM_view.head(20), use_container_width=True)
+            else:
+                st.write("Leque MISTO vazio.")
 # ============================================================
 # PARTE 6/6 — Relatório Final — AIQ Bridge (para ChatGPT)
 # ============================================================
@@ -2345,7 +2062,9 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
 # ------------------------------------------------------------
 
 def formatar_percentual(v: float) -> str:
-    return f"{v*100:.2f}%" if 0 <= v <= 1 else f"{v:.2f}%"
+    if 0.0 <= v <= 1.0:
+        return f"{v*100:.2f}%"
+    return f"{v:.2f}%"
 
 
 def gerar_expectativa_acertos(
@@ -2354,12 +2073,8 @@ def gerar_expectativa_acertos(
     qds_medio: float,
 ) -> str:
     """
-    Define a expectativa de acertos da previsão final com base em:
-    - regime local (k*)
-    - sensibilidade do sistema
-    - QDS médio
+    Heurística do V15.5 para expectativa de acertos da previsão final.
     """
-    # Heurística do V15.5
     if regime_local == "Ultra Estável":
         base = 3.2
     elif regime_local == "Estável":
@@ -2372,7 +2087,7 @@ def gerar_expectativa_acertos(
         base = 1.2
 
     ajuste_k = max(0.0, 1.0 - k_star)
-    ajuste_qds = qds_medio
+    ajuste_qds = max(0.0, min(1.0, qds_medio))
 
     expectativa = base * (0.7 + 0.3 * ajuste_qds) * (0.6 + 0.4 * ajuste_k)
     return f"{expectativa:.2f} acertos (esperados)"
@@ -2386,81 +2101,83 @@ if painel == "📄 Relatório Final — AIQ Bridge (para ChatGPT)":
     st.markdown("## 📄 Relatório Final — AIQ Bridge (para ChatGPT)")
     st.markdown(
         """
-        Este é o **relatório oficial do Predict Cars V15.5-HÍBRIDO**,
-        pronto para ser copiado e colado diretamente no ChatGPT.
+        Painel oficial do **Predict Cars V15.5-HÍBRIDO** para exportar
+        tudo o que o sistema entende da estrada, pronto para colar no ChatGPT.
         """
     )
 
     df_limpo = st.session_state.get("df_limpo")
-    resumo_estrada = st.session_state.get("resumo_estrada")
-    resumo_k_global = st.session_state.get("resumo_k_global")
-    resumo_qds: Optional[ResumoQDS] = None
-
-    if df_limpo is None or df_limpo.empty:
-        st.error("Histórico não carregado.")
-        st.stop()
-
-    # Coleta QDS global acumulado
-    lista_qds = st.session_state.get("lista_qds", [])
-    if lista_qds:
-        resumo_qds = calcular_resumo_qds(lista_qds)
-
-    resumo_ruido = st.session_state.get("resumo_ruido")
-    resumo_backtest = st.session_state.get("resumo_backtest")
-    resumo_montecarlo = st.session_state.get("resumo_montecarlo")
+    resumo_estrada: Optional[ResumoEstrada] = st.session_state.get("resumo_estrada")
+    resumo_k_global: Optional[ResumoK] = st.session_state.get("resumo_k_global")
+    resumo_qds: Optional[ResumoQDS] = st.session_state.get("resumo_qds")
+    resumo_ruido: Optional[ResumoRuido] = st.session_state.get("resumo_ruido")
+    resumo_backtest: Optional[ResumoBacktest] = st.session_state.get("resumo_backtest")
+    resumo_montecarlo: Optional[ResumoMonteCarlo] = st.session_state.get(
+        "resumo_montecarlo"
+    )
     previsao_turbo = st.session_state.get("previsao_turbo_ultra")
 
-    # Construção do relatório
-    relatorio = []
+    if df_limpo is None or df_limpo.empty:
+        st.error("Histórico não carregado. Gere o relatório após carregar o histórico.")
+        st.stop()
 
+    # Se QDS REAL ainda não foi calculado, tenta calcular com lista_qds
+    if resumo_qds is None:
+        lista_qds = st.session_state.get("lista_qds", [])
+        if lista_qds:
+            resumo_qds = calcular_resumo_qds(lista_qds)
+            st.session_state["resumo_qds"] = resumo_qds
+
+    relatorio: List[str] = []
     relatorio.append("# 🔵 Predict Cars V15.5 — AIQ Bridge Report\n")
 
     # --------------------------------------------------------
     # Estrada Global
     # --------------------------------------------------------
-
     relatorio.append("## 🛣️ Estrada — Resumo Global\n")
 
     if resumo_estrada:
         relatorio.append(f"- Total de séries: **{resumo_estrada.n_series}**")
         relatorio.append(f"- Passageiros por série: **{resumo_estrada.n_passageiros}**")
-        relatorio.append(f"- Faixas de valores: **{resumo_estrada.min_val} — {resumo_estrada.max_val}**")
-        relatorio.append(f"- Média global (n1..nN): **{resumo_estrada.media:.2f}**")
-        relatorio.append(f"- Desvio-padrão: **{resumo_estrada.desvio:.2f}**")
-        relatorio.append(f"- k médio: **{resumo_estrada.k_medio:.3f}**")
-        relatorio.append(f"- k máximo: **{resumo_estrada.k_max}**")
-        relatorio.append(f"- Regime global (barômetro): **{resumo_estrada.regime_global}**")
+        relatorio.append(
+            f"- Faixas de valores (n1..nN): **{resumo_estrada.min_val} — {resumo_estrada.max_val}**"
+        )
+        relatorio.append(f"- Média global dos passageiros: **{resumo_estrada.media:.2f}**")
+        relatorio.append(f"- Desvio-padrão global: **{resumo_estrada.desvio:.2f}**")
+        relatorio.append(f"- k médio histórico: **{resumo_estrada.k_medio:.3f}**")
+        relatorio.append(f"- k máximo histórico: **{resumo_estrada.k_max}**")
+        relatorio.append(
+            f"- Regime global (barômetro da estrada): **{resumo_estrada.regime_global}**"
+        )
     else:
-        relatorio.append("- Estrada não disponível.")
+        relatorio.append("- Resumo global da estrada indisponível.")
 
     relatorio.append("")
 
     # --------------------------------------------------------
-    # k* GLOBAL
+    # k* Global
     # --------------------------------------------------------
-
-    relatorio.append("## 🔭 k* — Sentinela da Estrada\n")
+    relatorio.append("## 🔭 k* — Sentinela Global da Estrada\n")
 
     if resumo_k_global:
-        estado_str = {
+        estado_label = {
             "estavel": "🟢 Estável",
-            "atencao": "🟡 Pré-ruptura",
+            "atencao": "🟡 Pré-ruptura residual",
             "critico": "🔴 Crítico",
         }.get(resumo_k_global.estado_k, "⚪ Indeterminado")
 
-        relatorio.append(f"- k atual: **{resumo_k_global.k_atual}**")
+        relatorio.append(f"- k atual (última série): **{resumo_k_global.k_atual}**")
         relatorio.append(f"- k*: **{resumo_k_global.k_star*100:.2f}%**")
         relatorio.append(f"- Regime local (k*): **{resumo_k_global.regime_local}**")
-        relatorio.append(f"- Estado de risco: {estado_str}")
+        relatorio.append(f"- Estado de risco: {estado_label}")
     else:
-        relatorio.append("- k* não disponível.")
+        relatorio.append("- k* global não calculado.")
 
     relatorio.append("")
 
     # --------------------------------------------------------
     # QDS GLOBAL
     # --------------------------------------------------------
-
     relatorio.append("## 📊 QDS — Qualidade Dinâmica da Série\n")
 
     if resumo_qds:
@@ -2474,84 +2191,103 @@ if painel == "📄 Relatório Final — AIQ Bridge (para ChatGPT)":
             f"RUIM {resumo_qds.pct_ruim:.1f}%"
         )
     else:
-        relatorio.append("- QDS não disponível.")
+        relatorio.append(
+            "- QDS global não disponível (execute os Testes de Confiabilidade REAL)."
+        )
 
     relatorio.append("")
 
     # --------------------------------------------------------
-    # Ruído A/B
+    # Ruído Condicional A/B
     # --------------------------------------------------------
-
-    relatorio.append("## 🎛️ Ruído — Estradas A/B\n")
+    relatorio.append("## 🎛️ Ruído Condicional — Estradas A/B\n")
 
     if resumo_ruido:
-        relatorio.append(f"- Ruído inicial (A): **{resumo_ruido.ruido_inicial}**")
-        relatorio.append(f"- Ruído final (B): **{resumo_ruido.ruido_final}**")
         relatorio.append(
-            f"- % de pontos ajustados: **{resumo_ruido.pct_pontos_ajustados:.2f}%**"
+            f"- Ruído inicial médio (antes dos ajustes): **{resumo_ruido.ruido_inicial:.3f}**"
+        )
+        relatorio.append(
+            f"- Ruído final médio (após ajustes): **{resumo_ruido.ruido_final:.3f}**"
+        )
+        relatorio.append(
+            f"- % de pontos ajustados (médio A/B): **{resumo_ruido.pct_pontos_ajustados:.2f}%**"
         )
     else:
-        relatorio.append("- Ruído A/B não aplicado.")
+        relatorio.append(
+            "- Ruído condicional ainda não aplicado (Estradas A/B não geradas)."
+        )
 
     relatorio.append("")
 
     # --------------------------------------------------------
     # Backtest REAL
     # --------------------------------------------------------
-
-    relatorio.append("## 🔁 Backtest REAL (parcial)\n")
+    relatorio.append("## 🔁 Backtest REAL — Métricas\n")
 
     if resumo_backtest:
         relatorio.append(f"- Janelas avaliadas: **{resumo_backtest.n_janelas}**")
-        relatorio.append(f"- Acertos totais: **{resumo_backtest.acertos_totais}**")
         relatorio.append(
-            f"- Média de acertos por série: **{resumo_backtest.acertos_por_serie:.4f}**"
+            f"- Acertos totais (soma de acertos em todas as janelas): "
+            f"**{resumo_backtest.acertos_totais}**"
         )
         relatorio.append(
-            f"- Hit rate: **{resumo_backtest.hit_rate*100:.2f}%**"
+            f"- Acertos médios por série (backtest): **{resumo_backtest.acertos_por_serie:.4f}**"
+        )
+        relatorio.append(
+            f"- Hit-rate global (backtest): **{resumo_backtest.hit_rate*100:.2f}%**"
         )
     else:
-        relatorio.append("- Backtest REAL não executado.")
+        relatorio.append(
+            "- Backtest REAL não executado (execute em '🧪 Testes de Confiabilidade REAL')."
+        )
 
     relatorio.append("")
 
     # --------------------------------------------------------
     # Monte Carlo REAL
     # --------------------------------------------------------
-
-    relatorio.append("## 🎲 Monte Carlo REAL\n")
+    relatorio.append("## 🎲 Monte Carlo REAL — Métricas\n")
 
     if resumo_montecarlo:
-        relatorio.append(f"- Simulações: **{resumo_montecarlo.n_simulacoes}**")
-        relatorio.append(f"- Média de acertos: **{resumo_montecarlo.media_acertos:.4f}**")
-        relatorio.append(f"- Desvio dos acertos: **{resumo_montecarlo.desvio_acertos:.4f}**")
         relatorio.append(
-            f"- Melhor média de uma simulação: **{resumo_montecarlo.melhor_serie_media:.4f}**"
+            f"- Simulações Monte Carlo: **{resumo_montecarlo.n_simulacoes}**"
+        )
+        relatorio.append(
+            f"- Média de acertos (por simulação): **{resumo_montecarlo.media_acertos:.4f}**"
+        )
+        relatorio.append(
+            f"- Desvio dos acertos: **{resumo_montecarlo.desvio_acertos:.4f}**"
+        )
+        relatorio.append(
+            f"- Melhor média de acertos entre as simulações: "
+            f"**{resumo_montecarlo.melhor_serie_media:.4f}**"
         )
     else:
-        relatorio.append("- Monte Carlo REAL não executado.")
+        relatorio.append(
+            "- Monte Carlo REAL não executado (execute em '🧪 Testes de Confiabilidade REAL')."
+        )
 
     relatorio.append("")
 
     # --------------------------------------------------------
-    # PREVISÃO FINAL V15.5 (TURBO++ ULTRA)
+    # Previsão Final TURBO++ ULTRA (V15.5)
     # --------------------------------------------------------
-
     relatorio.append("## 🎯 Previsão Final — TURBO++ ULTRA (V15.5)\n")
 
     if previsao_turbo:
         relatorio.append(
-            f"- Série prevista: **{' '.join(str(x) for x in previsao_turbo)}**"
+            f"- Série prevista (motor V15.5): **{' '.join(str(x) for x in previsao_turbo)}**"
         )
     else:
-        relatorio.append("- Previsão final ainda não gerada.")
+        relatorio.append(
+            "- Previsão final ainda não gerada (use o painel '🚀 Modo TURBO++ ULTRA ANTI-RUÍDO')."
+        )
 
     relatorio.append("")
 
     # --------------------------------------------------------
     # Expectativa de Acertos
     # --------------------------------------------------------
-
     relatorio.append("## 🎯 Expectativa de Acertos (V15.5)\n")
 
     if resumo_k_global and resumo_qds:
@@ -2560,19 +2296,24 @@ if painel == "📄 Relatório Final — AIQ Bridge (para ChatGPT)":
             k_star=resumo_k_global.k_star,
             qds_medio=resumo_qds.qds_medio,
         )
-        relatorio.append(f"- Expectativa projetada: **{exp}**")
+        relatorio.append(f"- Expectativa projetada de acertos: **{exp}**")
     else:
-        relatorio.append("- Insuficiente para estimar.")
+        relatorio.append(
+            "- Ainda não é possível estimar claramente a expectativa de acertos "
+            "(faltam k* global e/ou QDS global)."
+        )
 
     relatorio.append("\n---\n")
-    relatorio.append("### ✔ Relatório pronto para enviar ao ChatGPT.\n")
+    relatorio.append(
+        "### ✔ Relatório pronto para ser enviado ao ChatGPT.\n"
+        "Use este texto integralmente para análise, refinamento e próximos passos do Predict Cars."
+    )
 
-    # Exibição final
     texto_relatorio = "\n".join(relatorio)
+
+    st.markdown("### 📄 Relatório consolidado")
     st.text_area(
-        "📄 Copie o relatório completo abaixo:",
+        "Copie o relatório completo abaixo:",
         value=texto_relatorio,
         height=700,
     )
-     dfM_view["series"] = dfM_view["series"].apply(lambda x: " ".join(str(v) for v in x))
-            st.dataframe(dfM_view.head(20))
