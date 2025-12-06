@@ -1,3 +1,4 @@
+from __future__ import annotations
 # -*- coding: utf-8 -*-
 """
 Predict Cars V15-HÍBRIDO — RUÍDO TIPO B
@@ -553,7 +554,7 @@ PARTE 2/4:
 Nenhuma simplificação é aplicada. Apenas adicionamos camadas.
 """
 
-from __future__ import annotations
+
 
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Tuple
