@@ -10,27 +10,44 @@ import streamlit as st
 # ============================================================
 
 st.set_page_config(
-    page_title="Predict Cars V15-HÍBRIDO",
+    page_title="Predict Cars V15.1-HÍBRIDO",
     layout="wide",
 )
 
 # ============================================================
-# UTILITÁRIOS BÁSICOS
+# SESSION STATE
 # ============================================================
 
 def init_session_state() -> None:
     """Inicializa chaves principais na sessão, se ainda não existirem."""
     defaults = {
-        "df": None,
+        "df": None,              # histórico original
+        "df_limpo": None,        # histórico pós-tratamento de ruído Tipo A
         "n_passageiros": None,
         "fonte_historico": None,
         "historico_texto_bruto": "",
         "historico_csv_nome": None,
+        "ruido_stats": None,     # métricas antes/depois do tratamento de ruído
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
+
+def get_df_base() -> Optional[pd.DataFrame]:
+    """Retorna o DataFrame a ser usado pelo motor:
+    - se houver df_limpo, usa ele
+    - caso contrário, usa df original
+    """
+    df_limpo = st.session_state.get("df_limpo", None)
+    if df_limpo is not None and not df_limpo.empty:
+        return df_limpo
+    return st.session_state.get("df", None)
+
+
+# ============================================================
+# UTILITÁRIOS DE ENTRADA FLEX ULTRA
+# ============================================================
 
 def detectar_separador_linha(linha: str) -> str:
     """Tenta inferir o separador mais provável de uma linha de histórico."""
@@ -68,10 +85,8 @@ def parse_texto_historico(texto: str) -> pd.DataFrame:
         sep = detectar_separador_linha(linha)
         partes = [p.strip() for p in linha.split(sep) if p.strip() != ""]
         if len(partes) < 2:
-            # precisa ter pelo menos [passageiro, k]
             continue
 
-        # Detectar se o primeiro campo é ID tipo 'C123'
         serie_id: Optional[str] = None
         inicio_numeros = 0
         if partes[0].upper().startswith("C") and len(partes[0]) > 1:
@@ -79,7 +94,6 @@ def parse_texto_historico(texto: str) -> pd.DataFrame:
             inicio_numeros = 1
 
         numeros = partes[inicio_numeros:]
-        # último é k
         try:
             k_val = int(numeros[-1])
         except Exception as e:
@@ -112,7 +126,6 @@ def parse_texto_historico(texto: str) -> pd.DataFrame:
     if not registros:
         raise ValueError("Nenhuma linha válida pôde ser interpretada no texto.")
 
-    # Construir DataFrame com colunas dinâmicas n1..nN
     linhas_norm = []
     for i, reg in enumerate(registros, start=1):
         base = {}
@@ -120,7 +133,6 @@ def parse_texto_historico(texto: str) -> pd.DataFrame:
         base["serie_id"] = reg["serie_id"] if reg["serie_id"] is not None else f"C{i}"
         for j, val in enumerate(reg["passageiros"], start=1):
             base[f"n{j}"] = val
-        # completar com NaN até max_pass
         for j in range(len(reg["passageiros"]) + 1, max_pass + 1):
             base[f"n{j}"] = np.nan
         base["k"] = reg["k"]
@@ -142,7 +154,6 @@ def carregar_csv_uploaded(arquivo) -> pd.DataFrame:
         raise ValueError("Nenhum arquivo foi enviado.")
 
     conteudo = arquivo.read()
-    # para poder reler, recriamos um buffer em memória
     import io
 
     buffer = io.StringIO(conteudo.decode("utf-8", errors="ignore"))
@@ -152,7 +163,6 @@ def carregar_csv_uploaded(arquivo) -> pd.DataFrame:
     sep = ";" if amostra.count(";") >= amostra.count(",") else ","
 
     df_raw = pd.read_csv(buffer, sep=sep, header=None)
-    # Tentar detectar se primeira coluna é série tipo C1
     df = df_raw.copy()
 
     if df.shape[1] < 2:
@@ -165,7 +175,6 @@ def carregar_csv_uploaded(arquivo) -> pd.DataFrame:
         return x.startswith("C") and len(x) > 1
 
     if primeira_col.apply(_parece_id_serie).all():
-        # primeira coluna é ID da série
         serie_ids = primeira_col
         df_valores = df.iloc[:, 1:].copy()
     else:
@@ -177,7 +186,6 @@ def carregar_csv_uploaded(arquivo) -> pd.DataFrame:
             "Não foi possível identificar passageiros + k no CSV (colunas insuficientes)."
         )
 
-    # último é k, anteriores são passageiros
     valores = df_valores.apply(pd.to_numeric, errors="coerce")
     if valores.isnull().all().all():
         raise ValueError("Não foi possível converter valores numéricos do CSV.")
@@ -210,7 +218,7 @@ def resumo_rapido_historico(df: pd.DataFrame) -> str:
     k_zeros = int((df["k"] == 0).sum())
     k_pos = int((df["k"] > 0).sum())
     return (
-        f"Séries: {n_series} | Passageiros por série (máx): {n_pass} | "  # noqa: E501
+        f"Séries: {n_series} | Passageiros por série (máx): {n_pass} | "
         f"k = 0 em {k_zeros} séries | k > 0 em {k_pos} séries"
     )
 
@@ -222,8 +230,8 @@ init_session_state()
 # ============================================================
 
 st.markdown(
-    """# 🚗 Predict Cars V15-HÍBRIDO
-Núcleo V14-FLEX ULTRA + Modo TURBO++ ULTRA Anti-Ruído + Replay LIGHT/ULTRA + k & k* + Ruído Condicional.
+    """# 🚗 Predict Cars V15.1-HÍBRIDO
+Núcleo V14-FLEX ULTRA + Modo TURBO++ ULTRA Anti-Ruído + Ruído Tipo A+B + Replay LIGHT/ULTRA + k & k*.
 """
 )
 
@@ -242,29 +250,33 @@ with st.sidebar:
     painel = st.radio(
         "Escolha o painel:",
         (
-            "📥 Histórico — Entrada FLEX ULTRA (V15-HÍBRIDO)",
-            "🔍 Pipeline V14-FLEX ULTRA (V15)",
+            "📥 Histórico — Entrada FLEX ULTRA (V15.1-HÍBRIDO)",
+            "🔍 Pipeline V14-FLEX ULTRA (V15.1)",
+            "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.1)",
             "💡 Replay LIGHT",
             "📅 Replay ULTRA",
             "🎯 Replay ULTRA Unitário",
             "🚨 Monitor de Risco (k & k*)",
+            "📊 Ruído Condicional (V15.1)",
+            "🧹 Tratamento de Ruído Tipo A+B (V15.1)",
             "🧪 Testes de Confiabilidade REAL",
-            "📊 Ruído Condicional (V15)",
-            "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)",
         ),
     )
 
     st.markdown("---")
-    if st.session_state.get("df", None) is not None:
-        st.markdown("### 📊 Resumo rápido do histórico:")
-        st.info(resumo_rapido_historico(st.session_state["df"]))
+    df_base = get_df_base()
+    if df_base is not None:
+        st.markdown("### 📊 Resumo rápido do histórico (base atual):")
+        st.info(resumo_rapido_historico(df_base))
+        if st.session_state.get("df_limpo", None) is not None:
+            st.caption("✔ Historico pós-tratamento de ruído (Tipo A) em uso.")
 
 
 # ============================================================
 # PAINEL 1 — HISTÓRICO (ENTRADA FLEX ULTRA)
 # ============================================================
 
-if painel == "📥 Histórico — Entrada FLEX ULTRA (V15-HÍBRIDO)":
+if painel == "📥 Histórico — Entrada FLEX ULTRA (V15.1-HÍBRIDO)":
     st.markdown("## 📥 Histórico — Entrada FLEX ULTRA (arquivo + texto)")
     st.markdown(
         """Use **uma ou ambas** as formas de entrada abaixo.  
@@ -285,7 +297,7 @@ Se você usar as duas, poderá escolher qual será a fonte principal do históri
         arquivo_csv = st.file_uploader(
             "Selecione o arquivo de histórico (.csv)",
             type=["csv"],
-            key="uploader_v15_csv",
+            key="uploader_v151_csv",
         )
 
         if arquivo_csv is not None:
@@ -310,7 +322,7 @@ Se você usar as duas, poderá escolher qual será a fonte principal do históri
         )
 
         if texto_hist.strip():
-            if st.button("Processar texto", type="primary"):
+            if st.button("Processar texto", type="primary", key="btn_processar_texto_v151"):
                 try:
                     df_texto = parse_texto_historico(texto_hist)
                     st.session_state["historico_texto_bruto"] = texto_hist
@@ -355,7 +367,8 @@ Se você usar as duas, poderá escolher qual será a fonte principal do históri
 
         if df_final is not None:
             st.session_state["df"] = df_final
-            # detectar quantidade de passageiros (n1..nN)
+            st.session_state["df_limpo"] = None  # reset do tratamento de ruído
+            st.session_state["ruido_stats"] = None
             cols_pass = [c for c in df_final.columns if c.startswith("n")]
             st.session_state["n_passageiros"] = len(cols_pass)
 
@@ -375,12 +388,12 @@ Se você usar as duas, poderá escolher qual será a fonte principal do históri
 
     st.markdown(
         """> Após definir o histórico principal, use os outros painéis na barra lateral  
-> para executar o **Pipeline V14-FLEX ULTRA (V15)**, **Replay LIGHT/ULTRA**,  
-> **Modo TURBO++ ULTRA Anti-Ruído**, **Monitor de Risco**, etc.
+> para executar o **Pipeline V14-FLEX ULTRA (V15.1)**, **TURBO++ ULTRA Anti-Ruído**,  
+> **Replay LIGHT/ULTRA**, **Monitor de Risco**, **Ruído Condicional** e **Tratamento de Ruído Tipo A+B**.
 """
 )
 # ============================================================
-# PARTE 2/4 — FUNÇÕES DO PIPELINE V14-FLEX ULTRA (V15)
+# PARTE 2/4 — FUNÇÕES DO PIPELINE V14-FLEX ULTRA (V15.1)
 # ============================================================
 
 # ------------------------------------------------------------
@@ -388,10 +401,7 @@ Se você usar as duas, poderá escolher qual será a fonte principal do históri
 # ------------------------------------------------------------
 
 def normalizar_serie(serie: List[int]) -> List[int]:
-    """Normaliza uma série mantendo estrutura relativa.
-    Aqui é o normalizador usado desde V13.8 → V14 → V15.
-    Evita qualquer alteração da forma, só garante tipos válidos.
-    """
+    """Normaliza uma série mantendo estrutura relativa."""
     try:
         return [int(x) for x in serie]
     except:
@@ -426,15 +436,17 @@ def selecionar_janela(df: pd.DataFrame, janela: int = 40) -> pd.DataFrame:
 
 def calcular_barometro(df_janela: pd.DataFrame) -> dict:
     """Cria um resumo de ambiente:
-    - dispersão média entre séries
-    - estabilidade das faixas
+    - dispersão média entre séries consecutivas
     - distribuição de k
     """
     cols_pass = [c for c in df_janela.columns if c.startswith("n")]
 
     matriz = df_janela[cols_pass].astype(float).to_numpy()
-    diffs = np.abs(np.diff(matriz, axis=0)).mean(axis=1)
-    media_dif = float(np.mean(diffs)) if len(diffs) else 0.0
+    if matriz.shape[0] <= 1:
+        media_dif = 0.0
+    else:
+        diffs = np.abs(np.diff(matriz, axis=0)).mean(axis=1)
+        media_dif = float(np.mean(diffs))
 
     k_vals = df_janela["k"].astype(int).to_numpy()
     pct_k_pos = float(100 * np.mean(k_vals > 0))
@@ -446,19 +458,15 @@ def calcular_barometro(df_janela: pd.DataFrame) -> dict:
 
 
 # ------------------------------------------------------------
-# k* LOCAL — SENTINELA (V15)
+# k* LOCAL — SENTINELA (V15.1)
 # ------------------------------------------------------------
 
 def avaliar_k_estrela(barometro: dict) -> Tuple[str, str]:
-    """Define regime local do ambiente baseado no barômetro.
-    Retorna:
-      - estado: 'estavel' | 'atencao' | 'critico'
-      - mensagem descritiva
-    """
+    """Define regime local do ambiente baseado no barômetro."""
     media_dif = barometro["media_diferenca"]
     pct_k_pos = barometro["pct_k_positivo"]
 
-    # Sensibilidade V15 melhorada
+    # Sensibilidade V15.1 levemente mais rígida
     if pct_k_pos > 20 or media_dif > 20:
         return "critico", "🔴 k*: Ambiente crítico — turbulência forte e guardas acertando em excesso."
     elif pct_k_pos > 8 or media_dif > 10:
@@ -481,7 +489,6 @@ def detectar_regime(df: pd.DataFrame) -> Tuple[str, str, dict, Tuple[str, str]]:
     janela = selecionar_janela(df, janela=40)
     bar = calcular_barometro(janela)
 
-    # clima textual (V14-V15)
     if bar["media_diferenca"] < 10:
         clima = "🟢 Estrada estável — poucas variações bruscas."
     elif bar["media_diferenca"] < 20:
@@ -514,7 +521,6 @@ def etapa_s1(df: pd.DataFrame) -> pd.DataFrame:
 
 def etapa_s2(df: pd.DataFrame, s1: pd.DataFrame) -> pd.DataFrame:
     """S2 — Ajuste das faixas pela densidade local."""
-    # placeholder real do V14-FLEX ULTRA → preservado
     return s1.copy()
 
 
@@ -533,25 +539,21 @@ def etapa_s5(df: pd.DataFrame, s4: pd.DataFrame) -> pd.DataFrame:
     return s4.copy()
 
 
-# ------------------------------------------------------------
-# EXECUÇÃO COMPLETA DO BLOCO S1–S5 DO PIPELINE
-# ------------------------------------------------------------
-
 def executar_s1_a_s5(df: pd.DataFrame) -> pd.DataFrame:
     s1 = etapa_s1(df)
     s2 = etapa_s2(df, s1)
     s3 = etapa_s3(df, s2)
     s4 = etapa_s4(df, s3)
     s5 = etapa_s5(df, s4)
-    return s5  # matriz de faixas iniciais
+    return s5
 
 
 # ------------------------------------------------------------
-# GERADOR DE SÉRIES BASE (LEQUE ORIGINAL) — V14-FLEX ULTRA
+# GERADOR DE SÉRIES BASE (LEQUE ORIGINAL)
 # ------------------------------------------------------------
 
 def gerar_series_base(df: pd.DataFrame, regime_state: str, n_out: int = 200) -> List[List[int]]:
-    """Gera o leque ORIGINAL baseado no regime e nas faixas S1–S5."""
+    """Gera o leque ORIGINAL baseado nas faixas S1–S5."""
     faixas = executar_s1_a_s5(df)
     cols_pass = [c for c in df.columns if c.startswith("n")]
     n_pass = len(cols_pass)
@@ -574,13 +576,11 @@ def gerar_series_base(df: pd.DataFrame, regime_state: str, n_out: int = 200) -> 
 
 
 # ------------------------------------------------------------
-# LEQUE CORRIGIDO (S6/S7 serão adicionados na PARTE 3/4)
+# LEQUE CORRIGIDO (S6/S7 estrutural simples)
 # ------------------------------------------------------------
 
 def gerar_leque_corrigido(df: pd.DataFrame, regime_state: str, n_out: int = 200) -> List[List[int]]:
-    """Gera o leque CORRIGIDO usando estrutura V14/S6/S7.
-    Nesta parte só estruturamos; a lógica completa entra na parte 3/4.
-    """
+    """Gera o leque CORRIGIDO usando média + desvio global simples."""
     cols_pass = [c for c in df.columns if c.startswith("n")]
     n_pass = len(cols_pass)
 
@@ -601,37 +601,36 @@ def gerar_leque_corrigido(df: pd.DataFrame, regime_state: str, n_out: int = 200)
     return saidas
 
 
-# ------------------------------------------------------------
-# UNIÃO DE LEQUES — ORIGINAL + CORRIGIDO
-# ------------------------------------------------------------
-
 def unir_leques(leque1: List[List[int]], leque2: List[List[int]]) -> List[List[int]]:
     return leque1 + leque2
 
 
 # ------------------------------------------------------------
-# TABELA FLAT — transformando leques em tabela padrão (obrigatório)
+# TABELA FLAT — n1..nN + coluna 'series'
 # ------------------------------------------------------------
 
 def build_flat_series_table(leque: List[List[int]]) -> pd.DataFrame:
     linhas = []
     for i, serie in enumerate(leque, start=1):
         base = {}
+        base["id"] = i
+        base["series"] = normalizar_serie(serie)
         for j, val in enumerate(serie, start=1):
             base[f"n{j}"] = val
         linhas.append(base)
-    return pd.DataFrame(linhas)
+    df_flat = pd.DataFrame(linhas).set_index("id")
+    return df_flat
 
 
 # ============================================================
-# PAINEL 2 — Pipeline V14-FLEX ULTRA (V15)
+# PAINEL 2 — Pipeline V14-FLEX ULTRA (V15.1)
 # ============================================================
 
-if painel == "🔍 Pipeline V14-FLEX ULTRA (V15)":
+if painel == "🔍 Pipeline V14-FLEX ULTRA (V15.1)":
 
-    st.markdown("## 🔍 Pipeline V14-FLEX ULTRA (V15)")
+    st.markdown("## 🔍 Pipeline V14-FLEX ULTRA (V15.1)")
 
-    df = st.session_state.get("df", None)
+    df = get_df_base()
     if df is None or df.empty:
         st.warning("Carregue o histórico primeiro no painel de Entrada FLEX ULTRA.")
         st.stop()
@@ -652,47 +651,96 @@ if painel == "🔍 Pipeline V14-FLEX ULTRA (V15)":
     faixas = executar_s1_a_s5(df)
     st.dataframe(faixas)
 # ============================================================
-# PARTE 3/4 — S6/S7, LEQUES, TVF E MONTAGEM DO TURBO++ ULTRA
+# PARTE 3/4 — RUÍDO TIPO A+B, TVF, LEQUE TURBO++ ULTRA
 # ============================================================
 
 # ------------------------------------------------------------
-# REDEFININDO TABELA FLAT PARA INCLUIR COLUNA "series"
+# TRATAMENTO DE RUÍDO TIPO A — LIMPEZA DO HISTÓRICO
 # ------------------------------------------------------------
 
-def build_flat_series_table(leque: List[List[int]]) -> pd.DataFrame:
-    """Transforma leques em tabela padrão:
-    - n1..nN para cada passageiro
-    - coluna 'series' com a lista completa
+def calcular_metrica_ruido_global(df: pd.DataFrame) -> dict:
+    """Mede ruído global aproximado: dispersão média entre séries consecutivas."""
+    cols_pass = [c for c in df.columns if c.startswith("n")]
+    if not cols_pass or len(df) <= 1:
+        return {"media_diferenca": 0.0}
+
+    matriz = df[cols_pass].astype(float).to_numpy()
+    diffs = np.abs(np.diff(matriz, axis=0)).mean(axis=1)
+    media_dif = float(np.mean(diffs))
+    return {"media_diferenca": media_dif}
+
+
+def aplicar_tratamento_ruido_tipo_a(
+    df: pd.DataFrame,
+    window: int = 7,
+    limiar_sigma: float = 3.0,
+) -> Tuple[pd.DataFrame, dict]:
+    """Aplica suavização condicional (Tipo A) sobre n1..nN.
+
+    Usa mediana + MAD (desvio absoluto mediano) em janelas deslizantes.
+    Pontos cujo desvio é maior que 'limiar_sigma' * MAD são substituídos
+    pela mediana local.
+
+    Retorna:
+      - df_limpo
+      - stats com % de pontos ajustados e ruído antes/depois
     """
-    linhas = []
-    for i, serie in enumerate(leque, start=1):
-        base = {}
-        base["id"] = i
-        base["series"] = normalizar_serie(serie)
-        for j, val in enumerate(serie, start=1):
-            base[f"n{j}"] = val
-        linhas.append(base)
-    df_flat = pd.DataFrame(linhas)
-    df_flat = df_flat.set_index("id")
-    return df_flat
+    df = df.copy()
+    cols_pass = [c for c in df.columns if c.startswith("n")]
+    if not cols_pass:
+        return df, {"pct_ajustado": 0.0}
+
+    total_pontos = len(df) * len(cols_pass)
+    total_ajustes = 0
+
+    for col in cols_pass:
+        serie = df[col].astype(float)
+        med = serie.rolling(window, center=True, min_periods=1).median()
+        diff = (serie - med).abs()
+        mad = diff.rolling(window, center=True, min_periods=1).median()
+
+        eps = 1e-6
+        z = diff / (mad + eps)
+        mask = z > limiar_sigma
+
+        total_ajustes += int(mask.sum())
+        df[col] = serie.where(~mask, med)
+
+    ruido_antes = calcular_metrica_ruido_global(df=st.session_state.get("df", df))
+    ruido_depois = calcular_metrica_ruido_global(df=df)
+
+    pct_ajustado = 0.0
+    if total_pontos > 0:
+        pct_ajustado = 100.0 * total_ajustes / total_pontos
+
+    stats = {
+        "pct_ajustado": pct_ajustado,
+        "media_dif_antes": float(ruido_antes.get("media_diferenca", 0.0)),
+        "media_dif_depois": float(ruido_depois.get("media_diferenca", 0.0)),
+        "window": int(window),
+        "limiar_sigma": float(limiar_sigma),
+    }
+    return df, stats
 
 
 # ------------------------------------------------------------
-# AVALIAÇÃO BÁSICA DAS SÉRIES (TVF / CONFIANÇA)
+# AVALIAÇÃO DAS SÉRIES — TVF + RUÍDO TIPO B
 # ------------------------------------------------------------
 
 def avaliar_series_candidatas(
     flat_df: pd.DataFrame, df_hist: pd.DataFrame
 ) -> pd.DataFrame:
-    """Atribui uma confiança básica (proxy de TVF) às séries candidatas.
+    """Atribui confiança (TVF) às séries candidatas com ajuste de ruído Tipo B.
 
-    Ideia V15 (mantendo jeitão):
-    - compara distância da série candidata à última série histórica;
-    - normaliza essa distância em um score (quanto menor a distância, maior o score);
-    - gera coluna 'score' e 'conf_pct' (0–100).
+    Tipo B:
+      - mede dispersão interna da série candidata (std)
+      - penaliza séries muito "espalhadas" (ruido interno alto)
+      - combina proximidade da última série histórica + fator anti-ruído
     """
     if flat_df is None or flat_df.empty:
         return flat_df
+
+    flat_df = flat_df.copy()
 
     cols_pass_hist = [c for c in df_hist.columns if c.startswith("n")]
     cols_pass_cand = [c for c in flat_df.columns if c.startswith("n")]
@@ -700,42 +748,58 @@ def avaliar_series_candidatas(
     if not cols_pass_hist or not cols_pass_cand:
         return flat_df
 
-    # garante mesma quantidade de passageiros (n1..nN)
     n_common = min(len(cols_pass_hist), len(cols_pass_cand))
     cols_hist_use = cols_pass_hist[:n_common]
     cols_cand_use = cols_pass_cand[:n_common]
 
     ultima = df_hist[cols_hist_use].iloc[-1].astype(float).to_numpy()
 
-    dists = []
+    dist_list = []
+    std_list = []
+
     for _, row in flat_df[cols_cand_use].iterrows():
         v = row.astype(float).to_numpy()
         d = float(np.linalg.norm(v - ultima))
-        dists.append(d)
+        dist_list.append(d)
+        std_list.append(float(np.std(v)))
 
-    dists = np.array(dists)
+    dists = np.array(dist_list)
+    stds = np.array(std_list)
+
+    # Proximidade (distância reversa)
     if np.all(dists == 0):
-        scores = np.ones_like(dists)
+        score_prox = np.ones_like(dists)
     else:
-        # menor distância → maior score
-        scores = 1.0 / (1.0 + dists)
+        score_prox = 1.0 / (1.0 + dists)
 
-    # normaliza scores para 0–100
-    max_score = float(scores.max()) if len(scores) else 1.0
+    # Fator anti-ruído (std): menor std → maior fator
+    if np.all(stds == stds[0]):
+        ruido_fator = np.ones_like(stds)
+    else:
+        std_min = float(stds.min())
+        std_max = float(stds.max())
+        denom = max(std_max - std_min, 1e-6)
+        ruido_fator = 1.0 - (stds - std_min) / denom  # entre 0 e 1
+
+    # Score final combinando proximidade + anti-ruído
+    score_raw = score_prox * ruido_fator
+
+    max_score = float(score_raw.max()) if len(score_raw) else 1.0
     if max_score <= 0:
-        conf_pct = np.zeros_like(scores)
+        conf_pct = np.zeros_like(score_raw)
     else:
-        conf_pct = 100.0 * scores / max_score
+        conf_pct = 100.0 * score_raw / max_score
 
-    flat_df = flat_df.copy()
-    flat_df["score"] = scores
+    flat_df["score_prox"] = score_prox
+    flat_df["ruido_fator"] = ruido_fator
     flat_df["conf_pct"] = conf_pct
-    flat_df["TVF"] = conf_pct  # TVF básico correspondente à confiança
+    flat_df["TVF"] = conf_pct
+
     return flat_df.sort_values(by="TVF", ascending=False)
 
 
 # ------------------------------------------------------------
-# LIMITADOR POR MODO DE SAÍDA (Automático / Qtd Fixa / Conf. Mínima)
+# LIMITADOR POR MODO DE SAÍDA
 # ------------------------------------------------------------
 
 def limit_by_mode(
@@ -745,13 +809,7 @@ def limit_by_mode(
     n_series_fixed: int,
     min_conf_pct: float,
 ) -> pd.DataFrame:
-    """Aplica o modo de geração do leque de saída:
-
-    output_mode:
-      - 'Automático (por regime)' → nº de séries varia conforme k*/clima
-      - 'Quantidade fixa' → usa n_series_fixed
-      - 'Confiabilidade mínima' → filtra por conf_pct >= min_conf_pct
-    """
+    """Aplica o modo de geração do leque de saída."""
     if flat_df is None or flat_df.empty:
         return flat_df
 
@@ -766,15 +824,11 @@ def limit_by_mode(
         df = df[df["conf_pct"] >= limiar].sort_values(by="TVF", ascending=False)
 
     else:
-        # Automático (por regime) — lógica V15 simplificada mas coerente:
-        # - estável → leque mais enxuto
-        # - atenção → leque médio
-        # - crítico → leque mais largo
         if regime_state == "estavel":
             n = 10
         elif regime_state == "atencao":
             n = 20
-        else:  # crítico
+        else:
             n = 30
         n = min(n, len(df))
         df = df.sort_values(by="TVF", ascending=False).head(n)
@@ -783,7 +837,7 @@ def limit_by_mode(
 
 
 # ------------------------------------------------------------
-# MONTAGEM COMPLETA DO LEQUE TURBO++ ULTRA (sem UI ainda)
+# MONTAGEM COMPLETA DO LEQUE TURBO++ ULTRA
 # ------------------------------------------------------------
 
 def montar_previsao_turbo_ultra(
@@ -794,46 +848,27 @@ def montar_previsao_turbo_ultra(
     min_conf_pct: float,
     n_out_base: int = 200,
 ) -> pd.DataFrame:
-    """Monta o leque TURBO++ ULTRA:
-
-    Passos:
-      1) Gera leque ORIGINAL (S1–S5) → gerar_series_base
-      2) Gera leque CORRIGIDO (S6/S7 estrutural) → gerar_leque_corrigido
-      3) Constrói tabelas flat com coluna 'series'
-      4) Marca origem (ORIGINAL / CORRIGIDO)
-      5) Une em MIX
-      6) Avalia confiança / TVF
-      7) Aplica modo de saída (Automático / Fixo / Conf. mínima)
-    """
-    # 1) Leque ORIGINAL
+    """Monta o leque TURBO++ ULTRA com ruído Tipo B integrado."""
     leque_original = gerar_series_base(df_hist, regime_state, n_out=n_out_base)
     flat_original = build_flat_series_table(leque_original)
     flat_original["origem"] = "ORIGINAL"
 
-    # 2) Leque CORRIGIDO
     leque_corrigido = gerar_leque_corrigido(df_hist, regime_state, n_out=n_out_base)
     flat_corr = build_flat_series_table(leque_corrigido)
     flat_corr["origem"] = "CORRIGIDO"
 
-    # 3) MIX
     flat_mix = pd.concat([flat_original, flat_corr], ignore_index=True)
 
-    # 4) Avaliação TVF / confiança
     flat_mix = avaliar_series_candidatas(flat_mix, df_hist)
 
-    # 5) Aplicar modo de saída
     df_controlado = limit_by_mode(
         flat_mix, regime_state, output_mode, n_series_fixed, min_conf_pct
     )
 
     return df_controlado
 # ============================================================
-# PARTE 4/4 — MODO TURBO++ ULTRA, REPLAY, RISCO, CONFIABILIDADE E RUÍDO
+# PARTE 4/4 — TURBO, REPLAYS, RISCO, RUÍDO, TRATAMENTO A+B
 # ============================================================
-
-# ------------------------------------------------------------
-# UTILITÁRIO — CONTEXTO DE k* PARA PREVISÃO FINAL
-# ------------------------------------------------------------
 
 def contexto_k_previsao(k_estado: str) -> str:
     if k_estado == "estavel":
@@ -845,17 +880,17 @@ def contexto_k_previsao(k_estado: str) -> str:
 
 
 # ============================================================
-# PAINEL — 🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)
+# PAINEL — 🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.1)
 # ============================================================
 
-if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
+if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.1)":
 
-    st.markdown("## 🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)")
+    st.markdown("## 🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15.1)")
     st.markdown(
-        "Núcleo V14-FLEX ULTRA + Leque ORIGINAL/CORRIGIDO/MISTO + TVF + k* adaptativo."
+        "Núcleo V14-FLEX ULTRA + Leque ORIGINAL/CORRIGIDO/MISTO + TVF + k* adaptativo + Ruído Tipo B."
     )
 
-    df = st.session_state.get("df", None)
+    df = get_df_base()
     if df is None or df.empty:
         st.warning("Carregue o histórico primeiro no painel de Entrada FLEX ULTRA.")
         st.stop()
@@ -908,7 +943,7 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
     st.markdown("---")
 
     if st.button("Gerar Leque TURBO++ ULTRA", type="primary"):
-        with st.spinner("Gerando leque TURBO++ ULTRA, avaliando TVF e aplicando modo de saída..."):
+        with st.spinner("Gerando leque TURBO++ ULTRA, avaliando TVF e ruído Tipo B..."):
             df_turbo = montar_previsao_turbo_ultra(
                 df_hist=df,
                 regime_state=k_estado,
@@ -928,7 +963,6 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
             st.markdown("### 📊 Leque TURBO++ ULTRA — Séries Candidatas Controladas")
             st.dataframe(df_turbo.head(50))
 
-            # Previsão Final TURBO++ ULTRA
             st.markdown("---")
             st.markdown("### 🎯 Previsão Final TURBO++ ULTRA")
 
@@ -939,8 +973,10 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
                 st.code(" ".join(str(x) for x in serie_final), language="text")
                 st.markdown(contexto_k_previsao(k_estado))
                 st.caption(
-                    f"Origem = {melhor.get('origem', 'MIX')}, TVF ≈ {melhor.get('TVF', 0):.1f}, "
-                    f"Conf. ≈ {melhor.get('conf_pct', 0):.1f}%."
+                    f"Origem = {melhor.get('origem', 'MIX')}, "
+                    f"TVF ≈ {melhor.get('TVF', 0):.1f}, "
+                    f"Conf. ≈ {melhor.get('conf_pct', 0):.1f}%, "
+                    f"Ruído fator ≈ {melhor.get('ruido_fator', 0):.2f}."
                 )
             else:
                 st.warning("A coluna 'series' não foi encontrada no leque gerado.")
@@ -952,17 +988,19 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
 
 if painel == "💡 Replay LIGHT":
 
-    st.markdown("## 💡 Replay LIGHT")
+    st.markdown("## 💡 Replay LIGHT (com ruído Tipo B)")
     st.markdown(
-        "Simula o que o TURBO++ ULTRA teria feito em um ponto específico do histórico."
+        "Simula o que o TURBO++ ULTRA teria feito em um ponto específico do histórico (já podendo usar df_limpo)."
     )
 
-    df = st.session_state.get("df", None)
-    if df is None or df.empty:
+    df_original = st.session_state.get("df", None)
+    df_base = get_df_base()
+
+    if df_original is None or df_original.empty:
         st.warning("Carregue o histórico primeiro no painel de Entrada FLEX ULTRA.")
         st.stop()
 
-    n_total = len(df)
+    n_total = len(df_original)
     st.markdown(f"Histórico atual contém **{n_total} séries**.")
 
     idx_alvo = st.number_input(
@@ -983,7 +1021,7 @@ if painel == "💡 Replay LIGHT":
                 "Quantidade fixa",
                 "Confiabilidade mínima",
             ),
-            key="replay_light_modo",
+            key="replay_light_modo_v151",
         )
 
     with col_qtd:
@@ -993,7 +1031,7 @@ if painel == "💡 Replay LIGHT":
             max_value=200,
             value=25,
             step=1,
-            key="replay_light_qtd",
+            key="replay_light_qtd_v151",
         )
 
     with col_conf:
@@ -1003,23 +1041,22 @@ if painel == "💡 Replay LIGHT":
             max_value=100,
             value=30,
             step=1,
-            key="replay_light_conf",
+            key="replay_light_conf_v151",
         )
 
-    if st.button("Rodar Replay LIGHT"):
-        df_sub = df.iloc[:idx_alvo].copy()
+    if st.button("Rodar Replay LIGHT", key="btn_replay_light_v151"):
+        df_sub_base = df_base.iloc[:idx_alvo].copy()
+        serie_id = df_sub_base.iloc[-1].get("serie_id", f"C{idx_alvo}")
+        clima, k_estado, bar, (k_st, k_msg) = detectar_regime(df_sub_base)
 
-        serie_id = df_sub.iloc[-1].get("serie_id", f"C{idx_alvo}")
-        clima, k_estado, bar, (k_st, k_msg) = detectar_regime(df_sub)
-
-        st.markdown("### ℹ️ Contexto do ponto alvo")
+        st.markdown("### ℹ️ Contexto do ponto alvo (base atual)")
         st.write(f"ID alvo: **{serie_id}** (índice {idx_alvo})")
         st.info(clima)
         st.info(k_msg)
 
         with st.spinner("Gerando leque TURBO++ ULTRA para o Replay LIGHT..."):
             df_replay = montar_previsao_turbo_ultra(
-                df_hist=df_sub,
+                df_hist=df_sub_base,
                 regime_state=k_estado,
                 output_mode=output_mode,
                 n_series_fixed=int(n_series_fixed),
@@ -1044,8 +1081,10 @@ if painel == "💡 Replay LIGHT":
                 st.code(" ".join(str(x) for x in serie_final), language="text")
                 st.markdown(contexto_k_previsao(k_estado))
                 st.caption(
-                    f"Origem = {melhor.get('origem', 'MIX')}, TVF ≈ {melhor.get('TVF', 0):.1f}, "
-                    f"Conf. ≈ {melhor.get('conf_pct', 0):.1f}%."
+                    f"Origem = {melhor.get('origem', 'MIX')}, "
+                    f"TVF ≈ {melhor.get('TVF', 0):.1f}, "
+                    f"Conf. ≈ {melhor.get('conf_pct', 0):.1f}%, "
+                    f"Ruído fator ≈ {melhor.get('ruido_fator', 0):.2f}."
                 )
             else:
                 st.warning("A coluna 'series' não foi encontrada no leque gerado.")
@@ -1057,13 +1096,9 @@ if painel == "💡 Replay LIGHT":
 
 if painel == "📅 Replay ULTRA":
 
-    st.markdown("## 📅 Replay ULTRA")
-    st.markdown(
-        "Executa múltiplos pontos de Replay ao longo de um intervalo do histórico, "
-        "permitindo observar o comportamento do TURBO++ ULTRA em sequência."
-    )
+    st.markdown("## 📅 Replay ULTRA (intervalo, com ruído Tipo B)")
 
-    df = st.session_state.get("df", None)
+    df = get_df_base()
     if df is None or df.empty:
         st.warning("Carregue o histórico primeiro no painel de Entrada FLEX ULTRA.")
         st.stop()
@@ -1096,7 +1131,7 @@ if painel == "📅 Replay ULTRA":
             "Quantidade fixa",
             "Confiabilidade mínima",
         ),
-        key="replay_ultra_modo",
+        key="replay_ultra_modo_v151",
     )
 
     n_series_fixed = st.number_input(
@@ -1105,7 +1140,7 @@ if painel == "📅 Replay ULTRA":
         max_value=200,
         value=15,
         step=1,
-        key="replay_ultra_qtd",
+        key="replay_ultra_qtd_v151",
     )
 
     min_conf_pct = st.slider(
@@ -1114,10 +1149,10 @@ if painel == "📅 Replay ULTRA":
         max_value=100,
         value=30,
         step=1,
-        key="replay_ultra_conf",
+        key="replay_ultra_conf_v151",
     )
 
-    if st.button("Rodar Replay ULTRA (intervalo)"):
+    if st.button("Rodar Replay ULTRA (intervalo)", key="btn_replay_ultra_v151"):
         if idx_fim - idx_ini > 50:
             st.warning(
                 "Intervalo muito grande (mais de 50 pontos). "
@@ -1142,12 +1177,13 @@ if painel == "📅 Replay ULTRA":
                 )
 
                 if df_rep is None or df_rep.empty:
-                    previsao = None
+                    previsao = ""
                     tvf = None
                     conf = None
                 else:
                     best = df_rep.iloc[0]
-                    previsao = best.get("series", None)
+                    serie_vals = best.get("series", None)
+                    previsao = " ".join(str(x) for x in serie_vals) if serie_vals else ""
                     tvf = best.get("TVF", None)
                     conf = best.get("conf_pct", None)
 
@@ -1157,9 +1193,7 @@ if painel == "📅 Replay ULTRA":
                         "serie_id": serie_id,
                         "clima": clima,
                         "k_estado": k_estado,
-                        "previsao": " ".join(str(x) for x in previsao)
-                        if previsao is not None
-                        else "",
+                        "previsao": previsao,
                         "TVF": tvf,
                         "conf_pct": conf,
                     }
@@ -1172,17 +1206,14 @@ if painel == "📅 Replay ULTRA":
 
 
 # ============================================================
-# PAINEL — 🎯 Replay ULTRA Unitário (foco total)
+# PAINEL — 🎯 Replay ULTRA Unitário
 # ============================================================
 
 if painel == "🎯 Replay ULTRA Unitário":
 
-    st.markdown("## 🎯 Replay ULTRA Unitário")
-    st.markdown(
-        "Análise detalhada de um único ponto do histórico com foco máximo no contexto local."
-    )
+    st.markdown("## 🎯 Replay ULTRA Unitário (foco total + ruído Tipo B)")
 
-    df = st.session_state.get("df", None)
+    df = get_df_base()
     if df is None or df.empty:
         st.warning("Carregue o histórico primeiro no painel de Entrada FLEX ULTRA.")
         st.stop()
@@ -1196,7 +1227,7 @@ if painel == "🎯 Replay ULTRA Unitário":
         max_value=n_total,
         value=n_total,
         step=1,
-        key="replay_ultra_unit_idx",
+        key="replay_ultra_unit_idx_v151",
     )
 
     output_mode = st.radio(
@@ -1206,7 +1237,7 @@ if painel == "🎯 Replay ULTRA Unitário":
             "Quantidade fixa",
             "Confiabilidade mínima",
         ),
-        key="replay_ultra_unit_modo",
+        key="replay_ultra_unit_modo_v151",
     )
 
     n_series_fixed = st.number_input(
@@ -1215,7 +1246,7 @@ if painel == "🎯 Replay ULTRA Unitário":
         max_value=200,
         value=20,
         step=1,
-        key="replay_ultra_unit_qtd",
+        key="replay_ultra_unit_qtd_v151",
     )
 
     min_conf_pct = st.slider(
@@ -1224,10 +1255,10 @@ if painel == "🎯 Replay ULTRA Unitário":
         max_value=100,
         value=40,
         step=1,
-        key="replay_ultra_unit_conf",
+        key="replay_ultra_unit_conf_v151",
     )
 
-    if st.button("Rodar Replay ULTRA Unitário"):
+    if st.button("Rodar Replay ULTRA Unitário", key="btn_replay_ultra_unit_v151"):
         df_sub = df.iloc[:idx_alvo].copy()
         serie_id = df_sub.iloc[-1].get("serie_id", f"C{idx_alvo}")
         clima, k_estado, bar, (k_st, k_msg) = detectar_regime(df_sub)
@@ -1266,8 +1297,10 @@ if painel == "🎯 Replay ULTRA Unitário":
                 st.code(" ".join(str(x) for x in serie_final), language="text")
                 st.markdown(contexto_k_previsao(k_estado))
                 st.caption(
-                    f"Origem = {best.get('origem', 'MIX')}, TVF ≈ {best.get('TVF', 0):.1f}, "
-                    f"Conf. ≈ {best.get('conf_pct', 0):.1f}%."
+                    f"Origem = {best.get('origem', 'MIX')}, "
+                    f"TVF ≈ {best.get('TVF', 0):.1f}, "
+                    f"Conf. ≈ {best.get('conf_pct', 0):.1f}%, "
+                    f"Ruído fator ≈ {best.get('ruido_fator', 0):.2f}."
                 )
             else:
                 st.warning("A coluna 'series' não foi encontrada no leque gerado.")
@@ -1280,19 +1313,17 @@ if painel == "🎯 Replay ULTRA Unitário":
 if painel == "🚨 Monitor de Risco (k & k*)":
 
     st.markdown("## 🚨 Monitor de Risco (k & k*)")
-    st.markdown(
-        "Painel dedicado a enxergar a estrada pela lente do k e do k*, "
-        "com foco em rupturas, pré-rupturas e regimes estáveis."
-    )
 
-    df = st.session_state.get("df", None)
-    if df is None or df.empty:
+    df_original = st.session_state.get("df", None)
+    df_base = get_df_base()
+
+    if df_original is None or df_original.empty:
         st.warning("Carregue o histórico primeiro no painel de Entrada FLEX ULTRA.")
         st.stop()
 
-    clima, k_estado, bar, (k_st, k_msg) = detectar_regime(df)
+    clima, k_estado, bar, (k_st, k_msg) = detectar_regime(df_base)
 
-    st.markdown("### 🌡️ Clima atual da estrada")
+    st.markdown("### 🌡️ Clima atual da estrada (base atual)")
     st.info(clima)
 
     st.markdown("### ⭐ Sentinela k* (estado atual)")
@@ -1301,79 +1332,50 @@ if painel == "🚨 Monitor de Risco (k & k*)":
     st.markdown("### 📊 Barômetro resumido")
     st.write(bar)
 
-    if "k" in df.columns:
-        st.markdown("### 📈 Distribuição de k no histórico")
-        st.write(df["k"].value_counts().sort_index())
+    if "k" in df_original.columns:
+        st.markdown("### 📈 Distribuição de k no histórico original")
+        st.write(df_original["k"].value_counts().sort_index())
 
-        st.markdown("### 🔎 Estatísticas básicas de k")
+        st.markdown("### 🔎 Estatísticas básicas de k (histórico original)")
         st.write(
             {
-                "k mínimo": int(df["k"].min()),
-                "k máximo": int(df["k"].max()),
-                "k médio": float(df["k"].mean()),
+                "k mínimo": int(df_original["k"].min()),
+                "k máximo": int(df_original["k"].max()),
+                "k médio": float(df_original["k"].mean()),
             }
         )
     else:
-        st.warning("Coluna 'k' não encontrada no histórico.")
+        st.warning("Coluna 'k' não encontrada no histórico original.")
 
 
 # ============================================================
-# PAINEL — 🧪 Testes de Confiabilidade REAL
+# PAINEL — 📊 Ruído Condicional (V15.1)
 # ============================================================
 
-if painel == "🧪 Testes de Confiabilidade REAL":
+if painel == "📊 Ruído Condicional (V15.1)":
 
-    st.markdown("## 🧪 Testes de Confiabilidade REAL")
+    st.markdown("## 📊 Ruído Condicional (V15.1)")
     st.markdown(
-        "Espaço reservado para integrar QDS, Backtest dedicado e Monte Carlo "
-        "com o motor V15-HÍBRIDO. "
-        "Nesta versão, o painel funciona como monitor conceitual."
-    )
-
-    df = st.session_state.get("df", None)
-    if df is None or df.empty:
-        st.warning("Carregue o histórico primeiro no painel de Entrada FLEX ULTRA.")
-        st.stop()
-
-    st.markdown("### 📌 Situação atual")
-    st.write(
-        "• Motor TURBO++ ULTRA já produz leques com TVF e Conf. básica.\n"
-        "• Replay LIGHT e Replay ULTRA permitem simular decisões ao longo da estrada.\n"
-        "• A partir desses elementos, QDS/Backtest/Monte Carlo poderão ser plugados."
-    )
-
-    st.info(
-        "Este painel foi mantido no jeitão estrutural, pronto para receber as "
-        "rotinas de QDS / Backtest REAL / Monte Carlo Profundo na próxima fase."
-    )
-
-
-# ============================================================
-# PAINEL — 📊 Ruído Condicional (V15)
-# ============================================================
-
-if painel == "📊 Ruído Condicional (V15)":
-
-    st.markdown("## 📊 Ruído Condicional (V15)")
-    st.markdown(
-        "Monitor conceitual para enxergar como a estrada reage a diferentes regimes, "
+        "Monitor para enxergar como a estrada reage a diferentes regimes, "
         "abrindo espaço para filtros anti-ruído condicionais ao ambiente."
     )
 
-    df = st.session_state.get("df", None)
-    if df is None or df.empty:
+    df_original = st.session_state.get("df", None)
+    df_base = get_df_base()
+
+    if df_original is None or df_original.empty:
         st.warning("Carregue o histórico primeiro no painel de Entrada FLEX ULTRA.")
         st.stop()
 
-    clima, k_estado, bar, (k_st, k_msg) = detectar_regime(df)
+    clima, k_estado, bar, (k_st, k_msg) = detectar_regime(df_base)
 
-    st.markdown("### 🌡️ Clima e k*")
+    st.markdown("### 🌡️ Clima e k* (base atual)")
     st.info(clima)
     st.info(k_msg)
 
-    if "k" in df.columns:
+    if "k" in df_original.columns:
         st.markdown("### 🔎 Indicadores simples de ruído (versão inicial)")
-        k_vals = df["k"].astype(int)
+        k_vals = df_original["k"].astype(int)
         pct_sem_k = float(100 * (k_vals == 0).mean())
         pct_com_k = 100.0 - pct_sem_k
 
@@ -1391,3 +1393,132 @@ if painel == "📊 Ruído Condicional (V15)":
         )
     else:
         st.warning("Coluna 'k' não encontrada no histórico.")
+
+
+# ============================================================
+# PAINEL — 🧹 Tratamento de Ruído Tipo A+B (V15.1)
+# ============================================================
+
+if painel == "🧹 Tratamento de Ruído Tipo A+B (V15.1)":
+
+    st.markdown("## 🧹 Tratamento de Ruído Tipo A+B (V15.1)")
+    st.markdown(
+        "Tipo A: limpeza/suavização do histórico (df_limpo).\n\n"
+        "Tipo B: penalização de séries ruidosas no TURBO++ (já integrada ao TVF)."
+    )
+
+    df_original = st.session_state.get("df", None)
+    if df_original is None or df_original.empty:
+        st.warning("Carregue o histórico primeiro no painel de Entrada FLEX ULTRA.")
+        st.stop()
+
+    st.markdown("### 🔎 Situação atual do ruído (histórico original)")
+    ruido_orig = calcular_metrica_ruido_global(df_original)
+    st.write(
+        {
+            "Dispersão média entre séries (original)": float(
+                ruido_orig.get("media_diferenca", 0.0)
+            )
+        }
+    )
+
+    st.markdown("---")
+    st.markdown("### ⚙️ Parâmetros do Tratamento de Ruído Tipo A")
+
+    col_w, col_sig = st.columns(2)
+    with col_w:
+        window = st.slider(
+            "Janela (tamanho da vizinhança)",
+            min_value=3,
+            max_value=31,
+            value=7,
+            step=2,
+        )
+    with col_sig:
+        limiar_sigma = st.slider(
+            "Limiar de ruído (multiplicador de MAD)",
+            min_value=2.0,
+            max_value=6.0,
+            value=3.0,
+            step=0.5,
+        )
+
+    if st.button("Aplicar Tratamento de Ruído Tipo A", type="primary", key="btn_ruido_tipo_a"):
+        with st.spinner("Aplicando suavização condicional (Tipo A) ao histórico..."):
+            df_limpo, stats = aplicar_tratamento_ruido_tipo_a(
+                df_original,
+                window=int(window),
+                limiar_sigma=float(limiar_sigma),
+            )
+
+        st.session_state["df_limpo"] = df_limpo
+        st.session_state["ruido_stats"] = stats
+
+        st.success("Tratamento de Ruído Tipo A aplicado com sucesso.")
+
+        st.markdown("### 📊 Métricas antes/depois")
+        st.write(
+            {
+                "Window": stats["window"],
+                "Limiar sigma": stats["limiar_sigma"],
+                "Dispersão média (antes)": stats["media_dif_antes"],
+                "Dispersão média (depois)": stats["media_dif_depois"],
+                "% de pontos ajustados (n1..nN)": f"{stats['pct_ajustado']:.3f}%",
+            }
+        )
+
+        with st.expander("Prévia do histórico pós-tratamento (df_limpo)", expanded=False):
+            st.dataframe(df_limpo.head(30))
+
+        st.info(
+            "A partir de agora, todos os painéis que usam o histórico base "
+            "(Pipeline, TURBO, Replay, Ruído Condicional, etc.) passarão a "
+            "usar **df_limpo** como estrada principal."
+        )
+
+    if st.session_state.get("df_limpo", None) is not None:
+        st.markdown("---")
+        st.markdown("### ✅ Tratamento ativo")
+        st.success("Um histórico pós-ruído (df_limpo) está ativo e sendo usado pelo motor.")
+
+
+# ============================================================
+# PAINEL — 🧪 Testes de Confiabilidade REAL
+# ============================================================
+
+if painel == "🧪 Testes de Confiabilidade REAL":
+
+    st.markdown("## 🧪 Testes de Confiabilidade REAL")
+    st.markdown(
+        "Espaço reservado para integrar QDS, Backtest dedicado e Monte Carlo "
+        "com o motor V15.1-HÍBRIDO. Nesta versão, o painel funciona como monitor conceitual."
+    )
+
+    df_base = get_df_base()
+    if df_base is None or df_base.empty:
+        st.warning("Carregue o histórico primeiro no painel de Entrada FLEX ULTRA.")
+        st.stop()
+
+    st.markdown("### 📌 Situação atual")
+    st.write(
+        "• Motor TURBO++ ULTRA já produz leques com TVF + ajuste de ruído (Tipo B).\n"
+        "• Tratamento de Ruído Tipo A pode reduzir turbulência do histórico (df_limpo).\n"
+        "• Replay LIGHT e Replay ULTRA permitem simular decisões ao longo da estrada.\n"
+        "• A partir desses elementos, QDS/Backtest/Monte Carlo poderão ser plugados."
+    )
+
+    stats = st.session_state.get("ruido_stats", None)
+    if stats is not None:
+        st.markdown("### 🔎 Efeito atual do Tratamento de Ruído Tipo A")
+        st.write(
+            {
+                "Dispersão média (antes)": stats["media_dif_antes"],
+                "Dispersão média (depois)": stats["media_dif_depois"],
+                "% de pontos ajustados (n1..nN)": f"{stats['pct_ajustado']:.3f}%",
+            }
+        )
+
+    st.info(
+        "Este painel foi mantido no jeitão estrutural, pronto para receber as "
+        "rotinas de QDS / Backtest REAL / Monte Carlo Profundo nas próximas versões (V15.2, V15.3)."
+    )
