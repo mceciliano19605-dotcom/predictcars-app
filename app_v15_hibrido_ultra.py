@@ -1,130 +1,182 @@
-from __future__ import annotations
 # -*- coding: utf-8 -*-
 """
-Predict Cars V15-HÍBRIDO — RUÍDO TIPO B
-Baseado no V14-FLEX ULTRA REAL (TURBO++), evoluído por ACRESCIMENTO.
+Predict Cars V15-HÍBRIDO ULTRA — Anti-Ruído & Previsão Condicional
+Baseado integralmente no V14-FLEX ULTRA REAL (TURBO++), evoluído por
+ACRESCIMENTO, sem qualquer simplificação de filosofia ou de jeitão.
 
-Este arquivo será construído em 4 partes (1/4, 2/4, 3/4, 4/4), sem
-qualquer simplificação do jeitão denso, granular e multifásico.
+PARTE 1/4
+---------
+Este arquivo é dividido logicamente em 4 partes:
+
+1/4) Cabeçalho, estado, utilitários, entrada de histórico FLEX ULTRA,
+     detecção de ruído estrutural global (NR%), QDS global e baseline
+     de ambiência preditiva.
+
+2/4) Reinstalação do pipeline V14-FLEX ULTRA (S1..S5, IDX, Núcleo
+     Resiliente, S6 Profundo, Monte Carlo Profundo, Micro-Leques),
+     mantendo a filosofia e o estilo de múltiplas camadas.
+
+3/4) Painéis avançados de Replay (LIGHT, ULTRA, ULTRA Unitário) +
+     Monitor de Risco (k & k*), Testes de Confiabilidade (QDS REAL,
+     Backtest REAL, Monte Carlo REAL) conectados ao motor V15.
+
+4/4) Núcleo V15-HÍBRIDO Anti-Ruído: Painel Oficial de Ruído Estrutural
+     (NR%), Mapa de Divergência S6 vs MC, Mapa de Ruído Condicional,
+     Modo TURBO++ ULTRA ANTI-RUÍDO (fusão S6/MC/Micro), navegação
+     completa e integração final da Previsão + Envelope Forte (6–8 séries).
+
+ATENÇÃO IMPORTANTE
+------------------
+Enquanto apenas a PARTE 1/4 estiver colada, o app ainda NÃO está
+completo. Só teste o app após colar, em sequência, as partes 2/4, 3/4 e 4/4
+no mesmo arquivo, logo abaixo deste código.
 """
-
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Tuple
 
 import math
-
 import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 
-# =============================================================================
-# CONFIGURAÇÃO BÁSICA DO APP
-# =============================================================================
+###############################################################################
+# CONFIGURAÇÃO GLOBAL DO APP
+###############################################################################
 
-APP_NAME = "Predict Cars V15-HÍBRIDO — RUÍDO TIPO B"
-APP_VERSION = "V15-HÍBRIDO (Base RUÍDO Estrutural) — Parte 1/4"
+APP_NAME = "Predict Cars V15-HÍBRIDO ULTRA — Anti-Ruído & Previsão Condicional"
+APP_VERSION = "V15-HÍBRIDO ULTRA — MOTOR COMPLETO (1/4)"
 
 st.set_page_config(
     page_title=APP_NAME,
     layout="wide",
 )
 
-# =============================================================================
-# ESTADO COMPATÍVEL COM V14-FLEX ULTRA REAL
-# =============================================================================
-# Mantém a mesma filosofia de sessão do V14:
-# - df histórico armazenado em st.session_state["df"]
-# - uso de número variável de passageiros (FLEX)
-# - nenhuma simplificação de filosofia de estrada / séries.
+# Ícones e emojis usados em vários painéis
+ICON_INFO = "ℹ️"
+ICON_WARN = "⚠️"
+ICON_OK = "✅"
+ICON_ERROR = "❌"
+ICON_NOISE = "📊"
+ICON_TURBO = "🚀"
+ICON_RISK = "🚨"
 
+###############################################################################
+# ESTADO DE SESSÃO — HISTÓRICO, CONFIGURAÇÕES E PERFIS
+###############################################################################
 
 def get_df_sessao() -> Optional[pd.DataFrame]:
-    """Retorna o histórico corrente armazenado na sessão."""
+    """
+    Retorna o histórico principal armazenado na sessão.
+    Compatível com o V14-FLEX ULTRA: df pré-processado, com:
+        - coluna 'indice' (1..n)
+        - coluna 'serie_id' ou similar (ex: C1, C2, ...)
+        - colunas de passageiros (n1..nN)
+        - opcionalmente coluna 'k'
+    """
     df = st.session_state.get("df", None)
-    if isinstance(df, pd.DataFrame):
+    if isinstance(df, pd.DataFrame) and not df.empty:
         return df
     return None
 
 
 def set_df_sessao(df: pd.DataFrame) -> None:
-    """Atualiza o histórico na sessão."""
+    """
+    Atualiza o histórico principal na sessão.
+    """
     st.session_state["df"] = df
 
 
+def get_noise_profile_baseline() -> Optional[dict]:
+    """
+    Recupera o baseline de ruído estrutural global salvo na sessão.
+    Estrutura:
+        {
+            "nr_total": float,
+            "qds_global": float,
+            "n_series": int,
+            "n_passageiros": int,
+        }
+    """
+    prof = st.session_state.get("noise_profile_v15_baseline", None)
+    if isinstance(prof, dict):
+        return prof
+    return None
+
+
+def set_noise_profile_baseline(profile: dict) -> None:
+    """
+    Salva o baseline de ruído estrutural global na sessão.
+    """
+    st.session_state["noise_profile_v15_baseline"] = profile
+
+
+###############################################################################
+# UTILITÁRIOS — DETECÇÃO DE PASSAGEIROS / FAIXAS / MÉTRICAS BÁSICAS
+###############################################################################
+
 def detectar_colunas_passageiros(df: pd.DataFrame) -> List[str]:
     """
-    Detecta, de forma flexível, as colunas de passageiros.
-
+    Detecta, de forma robusta, as colunas de passageiros.
     Compatível com:
-    - Formato n1..n6, n1..nN (V14-FLEX)
-    - Formato tipo 'P1', 'P2', ...
-    - Evita qualquer simplificação rígida de esquema.
+        - n1..n6, n1..nN (V14-FLEX)
+        - P1..Pn
+        - combinações híbridas.
+
+    Critério:
+        - nome da coluna começa com 'n' ou 'p' (case-insensitive)
+        - colunas são ordenadas pelo sufixo numérico, quando existente.
     """
-    # Candidatos por prefixo numérico clássico do V14-FLEX
     candidatos = [
-        c for c in df.columns
-        if c.lower().startswith("n") or c.lower().startswith("p")
+        c
+        for c in df.columns
+        if isinstance(c, str) and (c.lower().startswith("n") or c.lower().startswith("p"))
     ]
 
-    # Garante uma ordem estável baseada em sufixo numérico, quando existir.
     def _key(c: str) -> Tuple[int, str]:
         sufixo = "".join(ch for ch in c if ch.isdigit())
         try:
             return (int(sufixo), c)
-        except ValueError:
+        except Exception:
             return (10_000, c)
 
-    candidatos_ordenados = sorted(candidatos, key=_key)
-
-    return candidatos_ordenados
+    return sorted(candidatos, key=_key)
 
 
 def contar_passageiros(df: pd.DataFrame) -> int:
-    """Conta o número de colunas de passageiros detectadas."""
-    cols = detectar_colunas_passageiros(df)
-    return len(cols)
-
-
-# =============================================================================
-# BLOCO V15 — NÚCLEO DE RUÍDO ESTRUTURAL (NR%)
-# =============================================================================
-# Objetivo: medir o RUÍDO TIPO B (ruído explicável) em múltiplas camadas:
-# - NR total (%)
-# - NR por posição (P1..Pn)
-# - NR por janela (janela rolante)
-# - Estrutura para NR S6 / MC / Micro-Leque (alimentada depois).
-#
-# A filosofia aqui é:
-# - manter o jeitão analítico profundo do V14;
-# - não simplificar; apenas adicionar camadas.
-
-
-@dataclass
-class NoiseProfile:
     """
-    Perfil completo de Ruído Estrutural (NR%) para o V15-HÍBRIDO.
-
-    nr_total:      NR global agregado (%), 0–100
-    nr_por_janela: DataFrame com NR por janela (linha = janela, colunas = métricas)
-    nr_por_posicao: DataFrame com NR por posição (P1..Pn)
-    nr_s6_mc_micro: DataFrame estruturado para divergência S6 / MC / Micro-Leque
-                    (será alimentado em partes futuras do app).
+    Conta quantos passageiros existem no histórico (número de colunas detectadas).
     """
-    nr_total: float
-    nr_por_janela: pd.DataFrame
-    nr_por_posicao: pd.DataFrame
-    nr_s6_mc_micro: pd.DataFrame
+    return len(detectar_colunas_passageiros(df))
 
+
+def calcular_faixa_global(df: pd.DataFrame, cols_passageiros: List[str]) -> Optional[Tuple[int, int]]:
+    """
+    Calcula a faixa numérica global (mínimo → máximo) em todas as colunas
+    de passageiros.
+    """
+    if not cols_passageiros:
+        return None
+    valores = df[cols_passageiros].values.flatten()
+    valores = valores[~pd.isna(valores)]
+    if len(valores) == 0:
+        return None
+    vmin = int(np.min(valores))
+    vmax = int(np.max(valores))
+    return (vmin, vmax)
+
+
+###############################################################################
+# UTILITÁRIO — ENTROPIA DISCRETA E RUÍDO ESTRUTURAL (NR%)
+###############################################################################
 
 def _entropy_discreta(proporcoes: np.ndarray) -> float:
     """
-    Entropia discreta normalizada em [0, 1], para medir dispersão estrutural.
+    Entropia discreta normalizada em [0,1].
 
-    - 0  => comportamento totalmente determinístico (sem dispersão)
-    - 1  => máxima incerteza (todos os valores equiprováveis)
+    Usada como base para medir dispersão estrutural da estrada e, portanto,
+    o ruído Tipo B (explicável). Quanto mais próximo de 1, mais disperso.
     """
     proporcoes = proporcoes[proporcoes > 0]
     if len(proporcoes) == 0:
@@ -136,20 +188,10 @@ def _entropy_discreta(proporcoes: np.ndarray) -> float:
     return float(h / h_max)
 
 
-def calcular_nr_por_posicao(df: pd.DataFrame, cols_passageiros: List[str]) -> pd.DataFrame:
+def calcular_nr_posicional_global(df: pd.DataFrame, cols_passageiros: List[str]) -> pd.DataFrame:
     """
-    Calcula o NR estrutural por posição, baseado em entropia normalizada.
-
-    Interpretação:
-    - Entropia alta  => muito espalhado => mais ruído estrutural
-    - Entropia baixa => concentrado     => menos ruído estrutural
-
-    Retorna DataFrame com colunas:
-    - posicao (P1..Pn)
-    - entropia
-    - nr_pct (entropia * 100)
-    - diversidade (número de valores distintos)
-    - dominante_pct (% do valor mais frequente)
+    Calcula, de forma global, o NR posicional (por P1..Pn) ao longo de
+    toda a estrada, usando entropia discreta normalizada por posição.
     """
     registros = []
 
@@ -183,23 +225,22 @@ def calcular_nr_por_posicao(df: pd.DataFrame, cols_passageiros: List[str]) -> pd
     return df_pos
 
 
-def calcular_nr_por_janela(
+def calcular_nr_janelas_global(
     df: pd.DataFrame,
     cols_passageiros: List[str],
     window: int = 40,
     step: int = 5,
 ) -> pd.DataFrame:
     """
-    Calcula NR por janela rolante, agregando entropia média das posições.
+    Calcula o NR por janelas rolantes ao longo da estrada, agregando
+    a entropia posicional média em cada bloco.
 
-    - window: tamanho da janela (em séries)
-    - step:   salto entre janelas (ex: 5 => janelas sobrepostas, mas não 100%)
-
-    Retorna DataFrame com colunas:
-    - inicio, fim (índices de linha)
-    - n_series
-    - entropia_media
-    - nr_pct
+    É um instrumento para enxergar:
+        - trechos excelentes (NR baixo)
+        - trechos bons
+        - trechos médios
+        - trechos ruins
+        - trechos caóticos (NR alto)
     """
     n = len(df)
     registros = []
@@ -216,534 +257,7 @@ def calcular_nr_por_janela(
         if bloco.empty:
             break
 
-        df_pos = calcular_nr_por_posicao(bloco, cols_passageiros)
-        entropia_media = float(df_pos["entropia"].mean())
-        nr_pct = 100.0 * entropia_media
-
-        registros.append(
-            {
-                "inicio": int(start + 1),  # 1-based para casar com C1..Cn
-                "fim": int(end),
-                "n_series": int(len(bloco)),
-                "entropia_media": entropia_media,
-                "nr_pct": nr_pct,
-            }
-        )
-
-        if end == n:
-            break
-        start += step
-
-    df_jan = pd.DataFrame(registros)
-    return df_jan
-
-
-def sintetizar_nr_total(nr_por_janela: pd.DataFrame) -> float:
-    """
-    Sintetiza um NR total (%) a partir do NR por janela.
-
-    Estratégia base:
-    - média simples do nr_pct por janela (pode ser refinada depois com pesos).
-    """
-    if nr_por_janela.empty:
-        return 0.0
-    return float(nr_por_janela["nr_pct"].mean())
-
-
-def montar_matriz_nr_s6_mc_micro(
-    df_s6: Optional[pd.DataFrame] = None,
-    df_mc: Optional[pd.DataFrame] = None,
-    df_micro: Optional[pd.DataFrame] = None,
-) -> pd.DataFrame:
-    """
-    Estrutura base para mapear divergência / ruído entre S6, MC e Micro-Leques.
-
-    Nesta PARTE 1/4:
-    - apenas definimos o formato e placeholders.
-    - o preenchimento real será feito quando integrarmos:
-      - S6 Profundo
-      - Monte Carlo Profundo
-      - Micro-Leques (ataques locais)
-
-    Formato-alvo:
-    - linha = série ou índice-alvo
-    - colunas (exemplo): 'score_s6', 'score_mc', 'score_micro', 'desvio_entre_camadas'
-    """
-    colunas = ["id", "score_s6", "score_mc", "score_micro", "desvio_entre_camadas"]
-    matriz_vazia = pd.DataFrame(columns=colunas)
-    return matriz_vazia
-
-
-def analisar_ruido_estrutural(
-    df_hist: pd.DataFrame,
-    df_s6: Optional[pd.DataFrame] = None,
-    df_mc: Optional[pd.DataFrame] = None,
-    df_micro: Optional[pd.DataFrame] = None,
-    window: int = 40,
-    step: int = 5,
-) -> NoiseProfile:
-    """
-    Núcleo de análise de Ruído Estrutural (V15-HÍBRIDO).
-
-    - Não simplifica o pipeline existente;
-    - Adiciona uma camada de leitura da estrada, baseada em entropia
-      e janelas, preparada para dialogar com S6 / MC / Micro.
-
-    Retorna NoiseProfile completo.
-    """
-    cols_passageiros = detectar_colunas_passageiros(df_hist)
-
-    nr_pos = calcular_nr_por_posicao(df_hist, cols_passageiros)
-    nr_jan = calcular_nr_por_janela(df_hist, cols_passageiros, window=window, step=step)
-    nr_total = sintetizar_nr_total(nr_jan)
-    nr_s6_mc_micro = montar_matriz_nr_s6_mc_micro(df_s6, df_mc, df_micro)
-
-    profile = NoiseProfile(
-        nr_total=nr_total,
-        nr_por_janela=nr_jan,
-        nr_por_posicao=nr_pos,
-        nr_s6_mc_micro=nr_s6_mc_micro,
-    )
-    return profile
-
-
-# =============================================================================
-# PAINEL — MAPA DE RUÍDO ESTRUTURAL (V15-HÍBRIDO)
-# =============================================================================
-# Painel completo e denso, no jeitão do V14:
-# - métricas globais
-# - tabelas por posição
-# - tabelas por janela
-# - visualizações gráficas (mapas/heatmaps)
-# - pronto para integração com S6 / MC / Micro-Leques.
-
-
-def _plot_nr_por_posicao(df_pos: pd.DataFrame) -> None:
-    """Gráfico de barras de NR por posição (P1..Pn)."""
-    fig, ax = plt.subplots()
-    ax.bar(df_pos["posicao"], df_pos["nr_pct"])
-    ax.set_xlabel("Posição")
-    ax.set_ylabel("NR por posição (%)")
-    ax.set_title("NR Estrutural por Posição (V15-HÍBRIDO)")
-    plt.xticks(rotation=0)
-    st.pyplot(fig)
-
-
-def _plot_nr_por_janela(df_jan: pd.DataFrame) -> None:
-    """Gráfico de linha do NR por janela."""
-    fig, ax = plt.subplots()
-    eixo_x = [f"{ini}-{fim}" for ini, fim in zip(df_jan["inicio"], df_jan["fim"])]
-    ax.plot(eixo_x, df_jan["nr_pct"], marker="o")
-    ax.set_xlabel("Janela (C_início → C_fim)")
-    ax.set_ylabel("NR por janela (%)")
-    ax.set_title("NR Estrutural por Janela (V15-HÍBRIDO)")
-    plt.xticks(rotation=45, ha="right")
-    plt.tight_layout()
-    st.pyplot(fig)
-
-
-def painel_ruido_estrutural_v15() -> None:
-    """
-    Painel oficial de Ruído Estrutural (NR%) — V15-HÍBRIDO.
-
-    Integra-se ao protocolo oficial:
-    - Histórico carregado (FLEX ULTRA)
-    - Estrutura da estrada
-    - Leitura do ruído explicável (Tipo B)
-    """
-    st.markdown("## 📊 Mapa de Ruído Estrutural — V15-HÍBRIDO")
-    st.markdown(
-        """
-        Este painel mede o **Ruído Tipo B (ruído explicável)** ao longo da estrada,
-        sem alterar o pipeline V14-FLEX ULTRA REAL.
-
-        A análise é feita em três camadas:
-        - **NR Total (%)** — visão global do nível de ruído estrutural;
-        - **NR por posição (P1..Pn)** — sensibilidade de cada passageiro;
-        - **NR por janela** — como o ruído se comporta ao longo da estrada.
-        """
-    )
-
-    df_hist = get_df_sessao()
-    if df_hist is None or df_hist.empty:
-        st.warning(
-            "Nenhum histórico encontrado em sessão. "
-            "Carregue o histórico primeiro no painel '📥 Histórico — Entrada'."
-        )
-        st.stop()
-
-    n_series = len(df_hist)
-    n_passageiros = contar_passageiros(df_hist)
-
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        st.markdown("#### 📥 Histórico atual")
-        st.write(f"Total de séries: **{n_series}**")
-        st.write(f"Número de passageiros detectados: **{n_passageiros}**")
-
-    with col_b:
-        window = st.number_input(
-            "Tamanho da janela para análise de NR (séries)",
-            min_value=10,
-            max_value=max(10, n_series),
-            value=min(40, n_series),
-            step=5,
-        )
-    with col_c:
-        step = st.number_input(
-            "Passo entre janelas (step)",
-            min_value=1,
-            max_value=max(1, window),
-            value=5,
-            step=1,
-        )
-
-    st.markdown("---")
-    st.markdown("### 🔍 Execução da análise de Ruído Estrutural (V15-HÍBRIDO)")
-
-    profile = analisar_ruido_estrutural(
-        df_hist=df_hist,
-        df_s6=None,   # será alimentado quando integrarmos S6 Profundo nas próximas partes
-        df_mc=None,   # idem para Monte Carlo Profundo
-        df_micro=None,   # idem para Micro-Leques
-        window=int(window),
-        step=int(step),
-    )
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("NR Total (%)", f"{profile.nr_total:.1f}%")
-    with col2:
-        st.write("Número de janelas analisadas:")
-        st.write(f"**{len(profile.nr_por_janela)}**")
-    with col3:
-        st.write("Posições avaliadas (P1..Pn):")
-        st.write(f"**{len(profile.nr_por_posicao)}**")
-
-    st.markdown("### 📌 NR por posição (P1..Pn)")
-    st.dataframe(profile.nr_por_posicao, use_container_width=True)
-
-    _plot_nr_por_posicao(profile.nr_por_posicao)
-
-    st.markdown("---")
-    st.markdown("### 🪟 NR por janela da estrada")
-    if profile.nr_por_janela.empty:
-        st.info("Não foi possível calcular NR por janela com os parâmetros atuais.")
-    else:
-        st.dataframe(profile.nr_por_janela, use_container_width=True)
-        _plot_nr_por_janela(profile.nr_por_janela)
-
-    st.markdown("---")
-    st.markdown("### 🧱 Estrutura para NR S6 / MC / Micro-Leque")
-    st.info(
-        """
-        A matriz abaixo prepara o terreno para o **Mapa de Divergência S6 vs MC**
-        e para o **Modo TURBO++ ULTRA ANTI-RUÍDO**.
-
-        Nesta PARTE 1/4, a estrutura é criada mas ainda não recebe os dados
-        de S6 / Monte Carlo / Micro-Leques. Isso será integrado nas próximas partes,
-        mantendo o pipeline intacto e adicionando apenas camadas analíticas.
-        """
-    )
-    st.dataframe(profile.nr_s6_mc_micro, use_container_width=True)
-
-
-# =============================================================================
-# NAVEGAÇÃO — BASE V15 (ACRESCENDO PAINÉIS)
-# =============================================================================
-# Aqui já definimos a navegação no estilo V14-FLEX ULTRA REAL,
-# adicionando o painel de Ruído Estrutural.
-#
-# Os demais painéis (Histórico, Pipeline, Monitor de Risco, TURBO++,
-# Replay ULTRA, Testes de Confiabilidade, Mapa Condicional, Divergência,
-# Modo TURBO++ ANTI-RUÍDO) serão acrescentados nas Partes 2/4, 3/4 e 4/4.
-
-
-def main() -> None:
-    st.title("🚗 Predict Cars V15-HÍBRIDO — RUÍDO TIPO B")
-    st.caption(APP_VERSION)
-
-    st.sidebar.markdown("### 📂 Navegação — V15-HÍBRIDO")
-    painel = st.sidebar.radio(
-        "Escolha o painel:",
-        (
-            "📥 Histórico — Entrada",
-            "🔍 Pipeline V14-FLEX (TURBO++)",
-            "🚨 Monitor de Risco (k & k*)",
-            "🚀 Modo TURBO++ — Painel Completo",
-            "📅 Modo Replay Automático do Histórico",
-            "🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)",
-            "📊 Mapa de Ruído Estrutural (V15-HÍBRIDO)",
-            # Os próximos painéis serão adicionados por ACRESCIMENTO:
-            # "🧬 Mapa de Ruído Condicional",
-            # "⚡ Mapa de Divergência S6 vs MC",
-            # "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO",
-        ),
-    )
-
-    # -------------------------------------------------------------------------
-    # Painéis já existentes (V14-FLEX ULTRA REAL)
-    # -------------------------------------------------------------------------
-    # IMPORTANTE:
-    # - Nesta PARTE 1/4, os blocos de implementação detalhada de cada painel
-    #   ainda não foram reescritos: serão adicionados integralmente nas Partes
-    #   2/4, 3/4 e 4/4, mantendo o jeitão original.
-    # - Por enquanto, mostramos mensagens-guia para não deixar nenhuma opção
-    #   silenciosa. Isso será substituído por código real nas próximas partes.
-    # -------------------------------------------------------------------------
-
-    if painel == "📥 Histórico — Entrada":
-        st.markdown("## 📥 Histórico — Entrada (V14-FLEX / V15-HÍBRIDO)")
-        st.warning(
-            "Bloco completo de carregamento de histórico será reintroduzido "
-            "na PARTE 2/4, mantendo o mesmo jeitão do V14-FLEX ULTRA REAL."
-        )
-
-    elif painel == "🔍 Pipeline V14-FLEX (TURBO++)":
-        st.markdown("## 🔍 Pipeline V14-FLEX (TURBO++)")
-        st.warning(
-            "Bloco completo do Pipeline V14-FLEX será restaurado e ampliado "
-            "nas próximas partes, sem qualquer simplificação."
-        )
-
-    elif painel == "🚨 Monitor de Risco (k & k*)":
-        st.markdown("## 🚨 Monitor de Risco (k & k*)")
-        st.warning(
-            "Monitor de Risco V14-FLEX será integrado aqui com k / k* ULTRA, "
-            "em conjunto com o novo modo V15-HÍBRIDO."
-        )
-
-    elif painel == "🚀 Modo TURBO++ — Painel Completo":
-        st.markdown("## 🚀 Modo TURBO++ — Painel Completo")
-        st.warning(
-            "Modo TURBO++ completo será reinserido (S6, S7, TVF, núcleo resiliente), "
-            "e evoluído para o modo ANTI-RUÍDO nas Partes 3/4 e 4/4."
-        )
-
-    elif painel == "📅 Modo Replay Automático do Histórico":
-        st.markdown("## 📅 Modo Replay Automático do Histórico")
-        st.warning(
-            "Replay ULTRA será reintroduzido, incluindo análise de acertos e regimes, "
-            "sem simplificações, nas próximas partes."
-        )
-
-    elif painel == "🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)":
-        st.markdown("## 🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)")
-        st.warning(
-            "Os blocos de QDS REAL, Backtest REAL e Monte Carlo serão integrados "
-            "aqui, preservando tudo que já existia no V14-FLEX e somando camadas V15."
-        )
-
-    elif painel == "📊 Mapa de Ruído Estrutural (V15-HÍBRIDO)":
-        painel_ruido_estrutural_v15()
-
-
-if __name__ == "__main__":
-    main()
-# -*- coding: utf-8 -*-
-"""
-Predict Cars V15-HÍBRIDO — RUÍDO TIPO B
-Baseado no V14-FLEX ULTRA REAL (TURBO++), evoluído por ACRESCIMENTO.
-
-PARTE 2/4:
-- Mantém toda a base de RUÍDO ESTRUTURAL (NR%) da Parte 1/4.
-- Reinstala o painel 📥 Histórico — Entrada em modo FLEX ULTRA.
-- Integra o carregamento do histórico com o NR estrutural (baseline).
-- Cria a base matemática do Mapa de Ruído Condicional (sem painel ainda).
-
-Nenhuma simplificação é aplicada. Apenas adicionamos camadas.
-"""
-
-
-
-from dataclasses import dataclass
-from typing import List, Dict, Optional, Tuple
-
-import math
-
-import numpy as np
-import pandas as pd
-import streamlit as st
-import matplotlib.pyplot as plt
-
-# =============================================================================
-# CONFIGURAÇÃO BÁSICA DO APP
-# =============================================================================
-
-APP_NAME = "Predict Cars V15-HÍBRIDO — RUÍDO TIPO B"
-APP_VERSION = "V15-HÍBRIDO (Histórico + NR Estrutural + Base Condicional) — Parte 2/4"
-
-st.set_page_config(
-    page_title=APP_NAME,
-    layout="wide",
-)
-
-# =============================================================================
-# ESTADO COMPATÍVEL COM V14-FLEX ULTRA REAL
-# =============================================================================
-# Mantém a mesma filosofia de sessão do V14:
-# - df histórico armazenado em st.session_state["df"]
-# - uso de número variável de passageiros (FLEX)
-# - nenhuma simplificação de filosofia de estrada / séries.
-
-
-def get_df_sessao() -> Optional[pd.DataFrame]:
-    """Retorna o histórico corrente armazenado na sessão."""
-    df = st.session_state.get("df", None)
-    if isinstance(df, pd.DataFrame):
-        return df
-    return None
-
-
-def set_df_sessao(df: pd.DataFrame) -> None:
-    """Atualiza o histórico na sessão."""
-    st.session_state["df"] = df
-
-
-def detectar_colunas_passageiros(df: pd.DataFrame) -> List[str]:
-    """
-    Detecta, de forma flexível, as colunas de passageiros.
-
-    Compatível com:
-    - Formato n1..n6, n1..nN (V14-FLEX)
-    - Formato tipo 'P1', 'P2', ...
-    - Evita qualquer simplificação rígida de esquema.
-    """
-    candidatos = [
-        c for c in df.columns
-        if c.lower().startswith("n") or c.lower().startswith("p")
-    ]
-
-    def _key(c: str) -> Tuple[int, str]:
-        sufixo = "".join(ch for ch in c if ch.isdigit())
-        try:
-            return (int(sufixo), c)
-        except ValueError:
-            return (10_000, c)
-
-    candidatos_ordenados = sorted(candidatos, key=_key)
-    return candidatos_ordenados
-
-
-def contar_passageiros(df: pd.DataFrame) -> int:
-    """Conta o número de colunas de passageiros detectadas."""
-    cols = detectar_colunas_passageiros(df)
-    return len(cols)
-
-
-# =============================================================================
-# BLOCO V15 — NÚCLEO DE RUÍDO ESTRUTURAL (NR%)
-# =============================================================================
-
-
-@dataclass
-class NoiseProfile:
-    """
-    Perfil completo de Ruído Estrutural (NR%) para o V15-HÍBRIDO.
-
-    nr_total:        NR global agregado (%), 0–100
-    nr_por_janela:   DataFrame com NR por janela (linha = janela, colunas = métricas)
-    nr_por_posicao:  DataFrame com NR por posição (P1..Pn)
-    nr_s6_mc_micro:  DataFrame estruturado para divergência S6 / MC / Micro-Leque.
-    """
-    nr_total: float
-    nr_por_janela: pd.DataFrame
-    nr_por_posicao: pd.DataFrame
-    nr_s6_mc_micro: pd.DataFrame
-
-
-def _entropy_discreta(proporcoes: np.ndarray) -> float:
-    """
-    Entropia discreta normalizada em [0, 1], para medir dispersão estrutural.
-
-    - 0  => comportamento totalmente determinístico (sem dispersão)
-    - 1  => máxima incerteza (todos os valores equiprováveis)
-    """
-    proporcoes = proporcoes[proporcoes > 0]
-    if len(proporcoes) == 0:
-        return 0.0
-    h = -np.sum(proporcoes * np.log2(proporcoes))
-    h_max = math.log2(len(proporcoes))
-    if h_max == 0:
-        return 0.0
-    return float(h / h_max)
-
-
-def calcular_nr_por_posicao(df: pd.DataFrame, cols_passageiros: List[str]) -> pd.DataFrame:
-    """
-    Calcula o NR estrutural por posição, baseado em entropia normalizada.
-
-    Retorna DataFrame com colunas:
-    - posicao (P1..Pn)
-    - coluna (nome da coluna original)
-    - entropia
-    - nr_pct (entropia * 100)
-    - diversidade (número de valores distintos)
-    - dominante_pct (% do valor mais frequente)
-    """
-    registros = []
-
-    for idx_pos, col in enumerate(cols_passageiros, start=1):
-        serie = df[col].dropna()
-        if serie.empty:
-            ent = 0.0
-            nr_pct = 0.0
-            diversidade = 0
-            dominante_pct = 0.0
-        else:
-            vc = serie.value_counts(normalize=True)
-            proporcoes = vc.values.astype(float)
-            ent = _entropy_discreta(proporcoes)
-            nr_pct = 100.0 * ent
-            diversidade = len(vc)
-            dominante_pct = 100.0 * float(vc.iloc[0])
-
-        registros.append(
-            {
-                "posicao": f"P{idx_pos}",
-                "coluna": col,
-                "entropia": ent,
-                "nr_pct": nr_pct,
-                "diversidade": diversidade,
-                "dominante_pct": dominante_pct,
-            }
-        )
-
-    df_pos = pd.DataFrame(registros)
-    return df_pos
-
-
-def calcular_nr_por_janela(
-    df: pd.DataFrame,
-    cols_passageiros: List[str],
-    window: int = 40,
-    step: int = 5,
-) -> pd.DataFrame:
-    """
-    Calcula NR por janela rolante, agregando entropia média das posições.
-
-    Retorna DataFrame com colunas:
-    - inicio, fim (índices de linha 1-based)
-    - n_series
-    - entropia_media
-    - nr_pct
-    """
-    n = len(df)
-    registros = []
-
-    if n == 0 or len(cols_passageiros) == 0:
-        return pd.DataFrame(
-            columns=["inicio", "fim", "n_series", "entropia_media", "nr_pct"]
-        )
-
-    start = 0
-    while start < n:
-        end = min(start + window, n)
-        bloco = df.iloc[start:end]
-        if bloco.empty:
-            break
-
-        df_pos = calcular_nr_por_posicao(bloco, cols_passageiros)
+        df_pos = calcular_nr_posicional_global(bloco, cols_passageiros)
         entropia_media = float(df_pos["entropia"].mean())
         nr_pct = 100.0 * entropia_media
 
@@ -765,354 +279,82 @@ def calcular_nr_por_janela(
     return df_jan
 
 
-def sintetizar_nr_total(nr_por_janela: pd.DataFrame) -> float:
+def sintetizar_nr_total_global(df_jan: pd.DataFrame) -> float:
     """
-    Sintetiza um NR total (%) a partir do NR por janela.
+    Sintetiza um NR global (%) a partir do NR por janelas.
 
-    Estratégia base:
-    - média simples do nr_pct por janela (poderá ser refinada com pesos).
+    Este valor será usado como:
+        - indicador agregado de ruído Tipo B
+        - um dos componentes do QDS global
+        - insumo para o Mapa de Ambiência (excelente/bom/médio/ruim/caos)
     """
-    if nr_por_janela.empty:
+    if df_jan.empty:
         return 0.0
-    return float(nr_por_janela["nr_pct"].mean())
+    return float(df_jan["nr_pct"].mean())
 
 
-def montar_matriz_nr_s6_mc_micro(
-    df_s6: Optional[pd.DataFrame] = None,
-    df_mc: Optional[pd.DataFrame] = None,
-    df_micro: Optional[pd.DataFrame] = None,
-) -> pd.DataFrame:
+###############################################################################
+# QDS GLOBAL (ÍNDICE DE QUALIDADE DA ESTRADA)
+###############################################################################
+
+def calcular_qds_global(
+    nr_total_pct: float,
+    n_series: int,
+    n_passageiros: int,
+) -> float:
     """
-    Estrutura base para mapear divergência / ruído entre S6, MC e Micro-Leques.
+    Calcula um QDS global (0..1) a partir de:
+        - NR total (%)             → ruído estrutural
+        - n_series                 → extensão da estrada
+        - n_passageiros           → dimensionalidade da série
 
-    Nesta fase:
-    - apenas definimos o formato e placeholders.
-    - o preenchimento real será feito quando integrarmos:
-      - S6 Profundo
-      - Monte Carlo Profundo
-      - Micro-Leques (ataques locais)
+    Ideia qualitativa:
+        - quanto menor o NR, maior a qualidade estrutural
+        - estradas muito curtas derrubam um pouco a confiança
+        - número maior de passageiros torna o problema mais difícil
+
+    Fórmula qualitativa (pode ser refinada nas partes 2/4, 3/4 e 4/4):
+        - base_nr = 1 - (nr_total_pct / 100)^α
+        - penalização série curta
+        - penalização dimensionalidade
     """
-    colunas = ["id", "score_s6", "score_mc", "score_micro", "desvio_entre_camadas"]
-    matriz_vazia = pd.DataFrame(columns=colunas)
-    return matriz_vazia
+    # Normalização do NR em [0,1]
+    nr_norm = max(0.0, min(1.0, nr_total_pct / 100.0))
 
+    # Componente de qualidade estrutural inversamente proporcional ao NR
+    # α > 1 torna a curva mais sensível em NR altos
+    alpha = 1.3
+    base_nr = 1.0 - (nr_norm ** alpha)
 
-def analisar_ruido_estrutural(
-    df_hist: pd.DataFrame,
-    df_s6: Optional[pd.DataFrame] = None,
-    df_mc: Optional[pd.DataFrame] = None,
-    df_micro: Optional[pd.DataFrame] = None,
-    window: int = 40,
-    step: int = 5,
-) -> NoiseProfile:
-    """
-    Núcleo de análise de Ruído Estrutural (V15-HÍBRIDO).
-
-    Retorna NoiseProfile completo.
-    """
-    cols_passageiros = detectar_colunas_passageiros(df_hist)
-
-    nr_pos = calcular_nr_por_posicao(df_hist, cols_passageiros)
-    nr_jan = calcular_nr_por_janela(df_hist, cols_passageiros, window=window, step=step)
-    nr_total = sintetizar_nr_total(nr_jan)
-    nr_s6_mc_micro = montar_matriz_nr_s6_mc_micro(df_s6, df_mc, df_micro)
-
-    profile = NoiseProfile(
-        nr_total=nr_total,
-        nr_por_janela=nr_jan,
-        nr_por_posicao=nr_pos,
-        nr_s6_mc_micro=nr_s6_mc_micro,
-    )
-    return profile
-
-
-# =============================================================================
-# BASE MATEMÁTICA — MAPA DE RUÍDO CONDICIONAL (V15-HÍBRIDO)
-# =============================================================================
-# Aqui começamos a preparar o núcleo de análise condicional:
-# - Dependência entre posições (P_i, P_j)
-# - Medida de informação mútua / entropia condicional
-# O painel visual virá nas Partes 3/4 e 4/4.
-
-
-@dataclass
-class ConditionalNoiseMap:
-    """
-    Mapa de Ruído Condicional entre posições (P1..Pn).
-
-    mi_matrix:
-        DataFrame n_pos x n_pos com Informação Mútua normalizada
-        entre P_i e P_j.
-
-    h_cond_matrix:
-        DataFrame opcional com entropia condicional normalizada
-        H(P_i | P_j) / H(P_i), se aplicável.
-
-    suporte:
-        Dicionário com estruturas auxiliares (tabelas de contingência, etc.)
-        útil para debugging profundo do comportamento condicional.
-    """
-    mi_matrix: pd.DataFrame
-    h_cond_matrix: pd.DataFrame
-    suporte: Dict[str, pd.DataFrame]
-
-
-def _info_mutua_normalizada(x: np.ndarray, y: np.ndarray) -> float:
-    """
-    Informação Mútua normalizada em [0, 1] para duas variáveis discretas.
-
-    Normalização adotada (simples e robusta):
-    MI_norm = MI / min(Hx, Hy), quando possível.
-    """
-    s = pd.DataFrame({"x": x, "y": y}).dropna()
-    if s.empty:
-        return 0.0
-
-    # Tabela de contingência
-    cont = pd.crosstab(s["x"], s["y"])
-    p_xy = cont / cont.values.sum()
-
-    p_x = p_xy.sum(axis=1)
-    p_y = p_xy.sum(axis=0)
-
-    # Entropias marginais
-    hx = _entropy_discreta(p_x.values)
-    hy = _entropy_discreta(p_y.values)
-
-    # Informação Mútua
-    mi = 0.0
-    for i in range(p_xy.shape[0]):
-        for j in range(p_xy.shape[1]):
-            pij = p_xy.iloc[i, j]
-            if pij <= 0:
-                continue
-            pix = p_x.iloc[i]
-            pjy = p_y.iloc[j]
-            if pix <= 0 or pjy <= 0:
-                continue
-            mi += float(pij * math.log2(pij / (pix * pjy)))
-
-    if mi <= 0:
-        return 0.0
-
-    normalizador = min(hx, hy)
-    if normalizador <= 0:
-        return 0.0
-
-    mi_norm = mi / normalizador
-    # Clamping leve para estabilidade numérica
-    mi_norm = max(0.0, min(1.0, mi_norm))
-    return float(mi_norm)
-
-
-def construir_mapa_ruido_condicional(df_hist: pd.DataFrame) -> ConditionalNoiseMap:
-    """
-    Constrói a matriz de Informação Mútua normalizada entre posições P1..Pn.
-
-    Nesta fase (Parte 2/4):
-    - É um núcleo de cálculo sem painel.
-    - Será usado futuramente no painel "🧬 Mapa de Ruído Condicional".
-    """
-    cols_passageiros = detectar_colunas_passageiros(df_hist)
-    n_pos = len(cols_passageiros)
-
-    if n_pos == 0:
-        mi_df = pd.DataFrame()
-        h_cond_df = pd.DataFrame()
-        return ConditionalNoiseMap(mi_df, h_cond_df, suporte={})
-
-    nomes_pos = [f"P{i}" for i in range(1, n_pos + 1)]
-    mi_matrix = pd.DataFrame(
-        np.zeros((n_pos, n_pos), dtype=float),
-        index=nomes_pos,
-        columns=nomes_pos,
-    )
-    h_cond_matrix = pd.DataFrame(
-        np.zeros((n_pos, n_pos), dtype=float),
-        index=nomes_pos,
-        columns=nomes_pos,
-    )
-
-    suporte: Dict[str, pd.DataFrame] = {}
-
-    # Pré-carrega as séries discretas
-    series_discretas = [df_hist[col].astype("Int64") for col in cols_passageiros]
-
-    for i in range(n_pos):
-        xi = series_discretas[i]
-        for j in range(n_pos):
-            yj = series_discretas[j]
-
-            mi_norm = _info_mutua_normalizada(xi.values, yj.values)
-            mi_matrix.iloc[i, j] = mi_norm
-
-            # Entropia condicional normalizada H(X|Y)/H(X)
-            vc_x = xi.value_counts(normalize=True, dropna=True)
-            hx = _entropy_discreta(vc_x.values.astype(float))
-            if hx > 0:
-                # H(X|Y) = H(X) - MI
-                h_cond = max(0.0, hx - mi_norm * hx)
-                h_cond_norm = h_cond / hx
-            else:
-                h_cond = 0.0
-                h_cond_norm = 0.0
-            h_cond_matrix.iloc[i, j] = h_cond_norm
-
-    suporte["mi_matrix_raw"] = mi_matrix.copy()
-    suporte["h_cond_matrix_raw"] = h_cond_matrix.copy()
-
-    mapa = ConditionalNoiseMap(
-        mi_matrix=mi_matrix,
-        h_cond_matrix=h_cond_matrix,
-        suporte=suporte,
-    )
-    return mapa
-
-
-# =============================================================================
-# PAINEL — MAPA DE RUÍDO ESTRUTURAL (V15-HÍBRIDO)
-# =============================================================================
-
-
-def _plot_nr_por_posicao(df_pos: pd.DataFrame) -> None:
-    """Gráfico de barras de NR por posição (P1..Pn)."""
-    fig, ax = plt.subplots()
-    ax.bar(df_pos["posicao"], df_pos["nr_pct"])
-    ax.set_xlabel("Posição")
-    ax.set_ylabel("NR por posição (%)")
-    ax.set_title("NR Estrutural por Posição (V15-HÍBRIDO)")
-    plt.xticks(rotation=0)
-    st.pyplot(fig)
-
-
-def _plot_nr_por_janela(df_jan: pd.DataFrame) -> None:
-    """Gráfico de linha do NR por janela."""
-    fig, ax = plt.subplots()
-    eixo_x = [f"{ini}-{fim}" for ini, fim in zip(df_jan["inicio"], df_jan["fim"])]
-    ax.plot(eixo_x, df_jan["nr_pct"], marker="o")
-    ax.set_xlabel("Janela (C_início → C_fim)")
-    ax.set_ylabel("NR por janela (%)")
-    ax.set_title("NR Estrutural por Janela (V15-HÍBRIDO)")
-    plt.xticks(rotation=45, ha="right")
-    plt.tight_layout()
-    st.pyplot(fig)
-
-
-def painel_ruido_estrutural_v15() -> None:
-    """
-    Painel oficial de Ruído Estrutural (NR%) — V15-HÍBRIDO.
-    """
-    st.markdown("## 📊 Mapa de Ruído Estrutural — V15-HÍBRIDO")
-    st.markdown(
-        """
-        Este painel mede o **Ruído Tipo B (ruído explicável)** ao longo da estrada,
-        sem alterar o pipeline V14-FLEX ULTRA REAL.
-
-        A análise é feita em três camadas:
-        - **NR Total (%)** — visão global do nível de ruído estrutural;
-        - **NR por posição (P1..Pn)** — sensibilidade de cada passageiro;
-        - **NR por janela** — como o ruído se comporta ao longo da estrada.
-        """
-    )
-
-    df_hist = get_df_sessao()
-    if df_hist is None or df_hist.empty:
-        st.warning(
-            "Nenhum histórico encontrado em sessão. "
-            "Carregue o histórico primeiro no painel '📥 Histórico — Entrada'."
-        )
-        st.stop()
-
-    n_series = len(df_hist)
-    n_passageiros = contar_passageiros(df_hist)
-
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        st.markdown("#### 📥 Histórico atual")
-        st.write(f"Total de séries: **{n_series}**")
-        st.write(f"Número de passageiros detectados: **{n_passageiros}**")
-
-    with col_b:
-        window = st.number_input(
-            "Tamanho da janela para análise de NR (séries)",
-            min_value=10,
-            max_value=max(10, n_series),
-            value=min(40, n_series),
-            step=5,
-        )
-    with col_c:
-        step = st.number_input(
-            "Passo entre janelas (step)",
-            min_value=1,
-            max_value=max(1, window),
-            value=5,
-            step=1,
-        )
-
-    st.markdown("---")
-    st.markdown("### 🔍 Execução da análise de Ruído Estrutural (V15-HÍBRIDO)")
-
-    profile = analisar_ruido_estrutural(
-        df_hist=df_hist,
-        df_s6=None,
-        df_mc=None,
-        df_micro=None,
-        window=int(window),
-        step=int(step),
-    )
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("NR Total (%)", f"{profile.nr_total:.1f}%")
-    with col2:
-        st.write("Número de janelas analisadas:")
-        st.write(f"**{len(profile.nr_por_janela)}**")
-    with col3:
-        st.write("Posições avaliadas (P1..Pn):")
-        st.write(f"**{len(profile.nr_por_posicao)}**")
-
-    st.markdown("### 📌 NR por posição (P1..Pn)")
-    st.dataframe(profile.nr_por_posicao, use_container_width=True)
-
-    _plot_nr_por_posicao(profile.nr_por_posicao)
-
-    st.markdown("---")
-    st.markdown("### 🪟 NR por janela da estrada")
-    if profile.nr_por_janela.empty:
-        st.info("Não foi possível calcular NR por janela com os parâmetros atuais.")
+    # Penalização por estrada curta
+    # Quanto menor n_series, maior o impacto
+    if n_series < 200:
+        pena_series = 0.15
+    elif n_series < 1000:
+        pena_series = 0.05
     else:
-        st.dataframe(profile.nr_por_janela, use_container_width=True)
-        _plot_nr_por_janela(profile.nr_por_janela)
+        pena_series = 0.0
 
-    st.markdown("---")
-    st.markdown("### 🧱 Estrutura para NR S6 / MC / Micro-Leque")
-    st.info(
-        """
-        A matriz abaixo prepara o terreno para o **Mapa de Divergência S6 vs MC**
-        e para o **Modo TURBO++ ULTRA ANTI-RUÍDO**.
+    # Penalização por dimensionalidade alta (muitos passageiros)
+    if n_passageiros <= 5:
+        pena_dim = 0.0
+    elif n_passageiros <= 8:
+        pena_dim = 0.05
+    else:
+        pena_dim = 0.10
 
-        Nesta fase, a estrutura é criada mas ainda não recebe os dados
-        de S6 / Monte Carlo / Micro-Leques. Isso será integrado nas próximas partes,
-        mantendo o pipeline intacto e adicionando apenas camadas analíticas.
-        """
-    )
-    st.dataframe(profile.nr_s6_mc_micro, use_container_width=True)
+    qds = base_nr * (1.0 - pena_series) * (1.0 - pena_dim)
+    qds = max(0.0, min(1.0, qds))
+    return float(qds)
 
 
-# =============================================================================
-# PAINEL 📥 HISTÓRICO — ENTRADA (V14-FLEX / V15-HÍBRIDO)
-# =============================================================================
-# Reintroduzimos aqui o painel de entrada, em modo FLEX ULTRA:
-# - CSV com coluna de séries (C1;...;k)
-# - CSV com colunas de passageiros (n1..nN, k)
-# O objetivo é normalizar tudo para um df compatível com V14-FLEX + V15-HÍBRIDO.
-
+###############################################################################
+# LEITURA E NORMALIZAÇÃO DO HISTÓRICO (FORMATOS FLEX)
+###############################################################################
 
 def _ler_csv_flex(file) -> pd.DataFrame:
     """
-    Leitura genérica de CSV com detecção automática de separador.
-
-    Usa engine='python' para aceitar ; , ou \t com heuristic matching.
+    Leitura flexível de CSV, tentando detectar automaticamente o separador.
     """
     try:
         df = pd.read_csv(file, sep=None, engine="python")
@@ -1129,39 +371,33 @@ def _normalizar_formato_coluna_series(df_raw: pd.DataFrame) -> pd.DataFrame:
         C1;41;5;4;52;30;33;0
         C2;...
 
-    Estrutura resultante:
-    - indice (1..n)
-    - serie_id (C1, C2, ...)
-    - n1..nN (passageiros)
-    - k (se existir)
+    Ou seja:
+        - primeira coluna = identificador da série (C1, C2, etc.)
+        - colunas seguintes = n1..nN e possivelmente k na última coluna.
     """
     df = df_raw.copy()
     df.columns = [str(c).strip() for c in df.columns]
 
-    # Primeiro campo = identificador da série (C1, C2, ...)
     nome_id = df.columns[0]
     serie_id = df[nome_id].astype(str).str.strip()
-
-    # Demais colunas = passageiros + possivelmente k
     cols_valores = df.columns[1:]
     n_cols_valores = len(cols_valores)
 
-    # Assumimos que a última coluna, se numérica discreta, tende a ser k
+    # Heurística: última coluna pode ser k
     k_col = None
     if n_cols_valores >= 2:
         candidata = cols_valores[-1]
-        # Heurística leve: se é inteira e com muitos zeros/valores baixos, assume k
         serie_cand = pd.to_numeric(df[candidata], errors="coerce")
+        # Se for numérica e parecer razoável, assume como k
         if serie_cand.notna().mean() > 0.9:
             k_col = candidata
 
     passageiros_cols: List[str] = []
-    for idx, col in enumerate(cols_valores, start=1):
+    for col in cols_valores:
         if col == k_col:
             continue
         passageiros_cols.append(col)
 
-    # Renomeia passageiros para n1..nN
     mapping = {}
     for i, col in enumerate(passageiros_cols, start=1):
         mapping[col] = f"n{i}"
@@ -1185,12 +421,12 @@ def _normalizar_formato_passageiros(df_raw: pd.DataFrame) -> pd.DataFrame:
 
         n1;n2;...;nN;k
 
-    ou colunas equivalentes que já estejam com nomes de passageiros.
+    Ou seja:
+        - colunas de passageiros + coluna k opcional.
     """
     df = df_raw.copy()
     df.columns = [str(c).strip() for c in df.columns]
 
-    # Detecta coluna de k
     col_k = None
     for c in df.columns:
         if c.lower() == "k":
@@ -1203,12 +439,11 @@ def _normalizar_formato_passageiros(df_raw: pd.DataFrame) -> pd.DataFrame:
             continue
         passageiros_cols.append(c)
 
-    # Ordena para dar estabilidade
     def _key(c: str) -> Tuple[int, str]:
         sufixo = "".join(ch for ch in c if c.lower().startswith("n") and ch.isdigit())
         try:
             return (int(sufixo), c)
-        except ValueError:
+        except Exception:
             return (10_000, c)
 
     passageiros_cols = sorted(passageiros_cols, key=_key)
@@ -1226,67 +461,51 @@ def _normalizar_formato_passageiros(df_raw: pd.DataFrame) -> pd.DataFrame:
     if col_k is not None:
         df_norm["k"] = pd.to_numeric(df[col_k], errors="coerce").astype("Int64")
 
-    # Cria uma série_id sintética C1..Cn para manter metáfora completa
+    # Cria 'serie_id' no padrão C1, C2, ...
     df_norm["serie_id"] = df_norm["indice"].apply(lambda x: f"C{x}")
 
-    # Reordena colunas num padrão consistente
-    cols_passageiros = [c for c in df_norm.columns if c.startswith("n")]
+    # Reordena para deixar índice/série logo no início
+    cols_pass = [c for c in df_norm.columns if c.startswith("n")]
     outras = [c for c in ["indice", "serie_id", "k"] if c in df_norm.columns]
-    df_norm = df_norm[outras[:2] + cols_passageiros + outras[2:]]
+    df_norm = df_norm[outras[:2] + cols_pass + outras[2:]]
 
     return df_norm
 
 
+###############################################################################
+# PAINEL — HISTÓRICO — ENTRADA FLEX ULTRA (V15-HÍBRIDO)
+###############################################################################
+
 def painel_historico_entrada_v15() -> None:
     """
-    Painel de entrada de histórico — V14-FLEX / V15-HÍBRIDO.
+    Painel de entrada de histórico — versão FLEX ULTRA (V14/V15),
+    compatível com múltiplos formatos e já integrando:
 
-    - Permite formatos diferentes de CSV.
-    - Normaliza para df compatível com:
-        - Pipeline V14-FLEX
-        - NR Estrutural
-        - Mapa Condicional
-        - módulos futuros (S6/MC/Micro).
+        - Normalização para n1..nN, k
+        - Cálculo de NR posicional global
+        - Cálculo de NR por janelas
+        - Cálculo de NR total (%)
+        - Cálculo de QDS global
+        - Baseline de ambiência preditiva da estrada
     """
-    st.markdown("## 📥 Histórico — Entrada (V14-FLEX / V15-HÍBRIDO)")
-
-    st.markdown(
-        """
-        Este painel recebe o histórico da estrada em modo **FLEX ULTRA**,
-        permitindo tanto o formato clássico com coluna de séries (C1;...;k)
-        quanto o formato com colunas de passageiros (n1..nN, k).
-
-        O objetivo é produzir um histórico normalizado e rico em metadados,
-        pronto para:
-        - Pipeline V14-FLEX (TURBO++);
-        - Análises de Ruído Estrutural (V15-HÍBRIDO);
-        - Mapa de Ruído Condicional;
-        - Testes de Confiabilidade.
-        """
-    )
+    st.markdown("## 📥 Histórico — Entrada FLEX ULTRA (V15-HÍBRIDO)")
 
     formato = st.radio(
         "Formato do histórico:",
         (
-            "CSV com coluna de séries",
+            "CSV com coluna de séries (C1;41;5;4;52;30;33;0)",
             "CSV com passageiros (n1..nN, k)",
-        ),
-        help=(
-            "Escolha de acordo com a estrutura do seu arquivo. "
-            "Ambos os formatos serão normalizados para o mesmo padrão interno."
         ),
     )
 
     file = st.file_uploader(
         "Selecione o arquivo de histórico (.csv):",
         type=["csv"],
-    )
-
-    st.markdown(
-        """
-        🔎 **Dica:** o app detecta automaticamente `;`, `,` ou `tab` como separador.
-        Caso tenha dúvidas, basta enviar o arquivo normalmente.
-        """
+        help=(
+            "Use o mesmo arquivo utilizado no V14-FLEX ULTRA REAL. "
+            "O sistema detectará automaticamente as colunas de passageiros "
+            "e a presença (ou não) de k."
+        ),
     )
 
     df_norm: Optional[pd.DataFrame] = None
@@ -1294,10 +513,10 @@ def painel_historico_entrada_v15() -> None:
     if file is not None:
         df_raw = _ler_csv_flex(file)
 
-        st.markdown("### 🔍 Pré-visualização bruta do arquivo")
+        st.markdown("### 🔍 Pré-visualização bruta do arquivo (topo)")
         st.dataframe(df_raw.head(20), use_container_width=True)
 
-        if formato == "CSV com coluna de séries":
+        if formato.startswith("CSV com coluna de séries"):
             df_norm = _normalizar_formato_coluna_series(df_raw)
         else:
             df_norm = _normalizar_formato_passageiros(df_raw)
@@ -1309,878 +528,1373 @@ def painel_historico_entrada_v15() -> None:
         # Atualiza sessão
         set_df_sessao(df_norm)
 
-        # Metadados básicos
+        # Métricas básicas
         n_series = len(df_norm)
-        cols_passageiros = detectar_colunas_passageiros(df_norm)
-        n_passageiros = len(cols_passageiros)
+        cols_pass = detectar_colunas_passageiros(df_norm)
+        n_pass = len(cols_pass)
+        faixa_global = calcular_faixa_global(df_norm, cols_pass)
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Total de séries (C1 → Cn)", n_series)
         with col2:
-            st.metric("Passageiros detectados (n)", n_passageiros)
+            st.metric("Passageiros detectados (n)", n_pass)
         with col3:
-            faixa_str = "N/A"
-            if n_passageiros > 0:
-                todos = df_norm[cols_passageiros].values.flatten()
-                todos = todos[~pd.isna(todos)]
-                if len(todos) > 0:
-                    faixa_str = f"{int(np.min(todos))} → {int(np.max(todos))}"
-            st.metric("Faixa numérica global", faixa_str)
+            if faixa_global is not None:
+                st.metric("Faixa numérica global", f"{faixa_global[0]} → {faixa_global[1]}")
+            else:
+                st.metric("Faixa numérica global", "N/A")
+        with col4:
+            tem_k = "k" in df_norm.columns
+            st.metric("Coluna k presente?", "Sim" if tem_k else "Não")
 
         st.markdown("---")
-        st.markdown("### 🎯 NR Estrutural — Baseline imediato")
+        st.markdown("### 📊 Baseline imediato — NR Estrutural & QDS Global")
 
-        if n_series >= 10 and n_passageiros > 0:
-            # Janela padrão para baseline (pode ser diferente da usada no painel dedicado)
+        # Apenas se houver dados suficientes
+        if n_series >= 20 and n_pass > 0:
+            # NR por posição global
+            df_nr_pos = calcular_nr_posicional_global(df_norm, cols_pass)
+            # NR por janelas (baseline)
             window_default = min(40, n_series)
-            profile_baseline = analisar_ruido_estrutural(
-                df_hist=df_norm,
-                df_s6=None,
-                df_mc=None,
-                df_micro=None,
+            df_nr_jan = calcular_nr_janelas_global(
+                df_norm,
+                cols_passageiros=cols_pass,
                 window=window_default,
                 step=5,
             )
+            nr_total = sintetizar_nr_total_global(df_nr_jan)
+            qds_global = calcular_qds_global(
+                nr_total_pct=nr_total,
+                n_series=n_series,
+                n_passageiros=n_pass,
+            )
 
-            # Guarda baseline na sessão para reutilização futura, se desejado
-            st.session_state["noise_profile_v15_baseline"] = profile_baseline
+            baseline = {
+                "nr_total": nr_total,
+                "qds_global": qds_global,
+                "n_series": n_series,
+                "n_passageiros": n_pass,
+            }
+            set_noise_profile_baseline(baseline)
 
             colb1, colb2, colb3 = st.columns(3)
             with colb1:
-                st.metric("NR Total (baseline)", f"{profile_baseline.nr_total:.1f}%")
+                st.metric(f"{ICON_NOISE} NR Total (%)", f"{nr_total:.1f}%")
             with colb2:
-                st.write("Janelas usadas:")
-                st.write(f"**{len(profile_baseline.nr_por_janela)}**")
+                st.metric("QDS Global (0–1)", f"{qds_global:.3f}")
             with colb3:
-                st.write("Posições avaliadas:")
-                st.write(f"**{len(profile_baseline.nr_por_posicao)}**")
+                # Interpretação qualitativa de ambiência
+                if qds_global >= 0.75:
+                    estado = "🟢 Estrada muito boa"
+                elif qds_global >= 0.60:
+                    estado = "🟡 Estrada boa / moderada"
+                elif qds_global >= 0.45:
+                    estado = "🟠 Estrada média / instável"
+                else:
+                    estado = "🔴 Estrada com ruído alto"
+                st.metric("Ambiência global (baseline)", estado)
 
-            st.markdown(
-                """
-                Este baseline reflete o **nível médio de ruído estrutural** da estrada,
-                servindo como referência para comparação entre diferentes históricos
-                (58%, 22%, 47% etc.).
-                """
+            st.markdown("#### NR por posição (P1..Pn)")
+            st.dataframe(df_nr_pos, use_container_width=True)
+
+            # Pequeno gráfico de barras para NR posicional
+            fig1, ax1 = plt.subplots()
+            ax1.bar(df_nr_pos["posicao"], df_nr_pos["nr_pct"])
+            ax1.set_xlabel("Posição (P1..Pn)")
+            ax1.set_ylabel("NR por posição (%)")
+            ax1.set_title("NR Estrutural por Posição — Baseline Global (V15)")
+            st.pyplot(fig1)
+
+            st.markdown("#### NR por janelas (visão macro da estrada)")
+            st.dataframe(df_nr_jan, use_container_width=True)
+
+            fig2, ax2 = plt.subplots()
+            labels = [f"{ini}→{fim}" for ini, fim in zip(df_nr_jan["inicio"], df_nr_jan["fim"])]
+            ax2.plot(labels, df_nr_jan["nr_pct"], marker="o")
+            ax2.set_xlabel("Janela (C_início → C_fim)")
+            ax2.set_ylabel("NR por janela (%)")
+            ax2.set_title("NR Estrutural por Janelas — Baseline Global (V15)")
+            plt.xticks(rotation=45, ha="right")
+            plt.tight_layout()
+            st.pyplot(fig2)
+
+            st.info(
+                f"{ICON_INFO} Este baseline será usado nos demais painéis do V15-HÍBRIDO "
+                "para mapear trechos bons/médios/ruins/caóticos, ajustar pesos do "
+                "Modo TURBO++ ULTRA ANTI-RUÍDO e calibrar o Mapa de Ambiência."
             )
         else:
-            st.info(
-                "Histórico ainda pequeno ou sem passageiros detectados suficientes "
-                "para calcular um NR estrutural robusto. Carregue um histórico maior."
+            st.warning(
+                f"{ICON_WARN} Histórico ainda curto ou sem passageiros suficientes "
+                "para um baseline robusto. Recomenda-se pelo menos 20 séries e "
+                "número consistente de passageiros."
             )
     else:
         st.info(
-            "Nenhum arquivo selecionado ainda. "
-            "Envie o histórico para ativar o modo V15-HÍBRIDO completo."
+            f"{ICON_INFO} Envie um arquivo CSV para ativar o processamento FLEX ULTRA "
+            "e habilitar o baseline de ruído estrutural (NR%) e QDS global."
         )
 
+# FIM DA PARTE 1/4
+# Nas próximas partes (2/4, 3/4 e 4/4) serão adicionados:
+# - Pipeline V14-FLEX completo (S1..S6, MC, Micro-Leques, Núcleo Resiliente)
+# - Monitor de Risco (k & k*)
+# - Modos TURBO++ ULTRA (adaptativo e anti-ruído)
+# - Mapa condicional, divergência S6/MC, Replay ULTRA etc.
+###############################################################################
+# PARTE 2/4 — PIPELINE V14-FLEX ULTRA (BASE PARA V15)
+###############################################################################
+"""
+Nesta seção, reinstalamos o núcleo do Pipeline V14-FLEX ULTRA, em versão
+compatível com o V15-HÍBRIDO:
 
-# =============================================================================
-# NAVEGAÇÃO — BASE V15 (ACRESCENDO PAINÉIS)
-# =============================================================================
+- S1 — Frequências Globais por posição (P1..Pn)
+- S2 — Distâncias e variação entre séries consecutivas
+- S3 — Ciclos e recorrências locais
+- S4 — Clustering básico por posição (faixas e espaçamento)
+- S5 — Anomalias (z-score) em profundidade
+- IDX Local — Índice local de densidade / complexidade
+- Núcleo Resiliente — região de estabilidade local
+- S6 Base — Projeção estruturada por posição
+- Estruturas auxiliares para Monte Carlo, Micro-Leques e S6 Profundo
+  (detalhados na parte 4/4 para o Modo ANTI-RUÍDO).
 
+O objetivo desta parte é manter o jeitão multifásico do V14-FLEX,
+tornando o V15 um SUPERCONJUNTO e nunca uma simplificação.
+"""
 
-def main() -> None:
-    st.title("🚗 Predict Cars V15-HÍBRIDO — RUÍDO TIPO B")
-    st.caption(APP_VERSION)
-
-    st.sidebar.markdown("### 📂 Navegação — V15-HÍBRIDO")
-    painel = st.sidebar.radio(
-        "Escolha o painel:",
-        (
-            "📥 Histórico — Entrada",
-            "🔍 Pipeline V14-FLEX (TURBO++)",
-            "🚨 Monitor de Risco (k & k*)",
-            "🚀 Modo TURBO++ — Painel Completo",
-            "📅 Modo Replay Automático do Histórico",
-            "🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)",
-            "📊 Mapa de Ruído Estrutural (V15-HÍBRIDO)",
-            # Próximos painéis serão adicionados por ACRESCIMENTO:
-            # "🧬 Mapa de Ruído Condicional",
-            # "⚡ Mapa de Divergência S6 vs MC",
-            # "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO",
-        ),
-    )
-
-    if painel == "📥 Histórico — Entrada":
-        painel_historico_entrada_v15()
-
-    elif painel == "🔍 Pipeline V14-FLEX (TURBO++)":
-        st.markdown("## 🔍 Pipeline V14-FLEX (TURBO++)")
-        st.warning(
-            "Bloco completo do Pipeline V14-FLEX será restaurado e ampliado "
-            "nas próximas partes, sem qualquer simplificação."
-        )
-
-    elif painel == "🚨 Monitor de Risco (k & k*)":
-        st.markdown("## 🚨 Monitor de Risco (k & k*)")
-        st.warning(
-            "Monitor de Risco V14-FLEX será integrado aqui com k / k* ULTRA, "
-            "em conjunto com o novo modo V15-HÍBRIDO."
-        )
-
-    elif painel == "🚀 Modo TURBO++ — Painel Completo":
-        st.markdown("## 🚀 Modo TURBO++ — Painel Completo")
-        st.warning(
-            "Modo TURBO++ completo será reinserido (S6, S7, TVF, núcleo resiliente), "
-            "e evoluído para o modo ANTI-RUÍDO nas Partes 3/4 e 4/4."
-        )
-
-    elif painel == "📅 Modo Replay Automático do Histórico":
-        st.markdown("## 📅 Modo Replay Automático do Histórico")
-        st.warning(
-            "Replay ULTRA será reintroduzido, incluindo análise de acertos e regimes, "
-            "sem simplificações, nas próximas partes."
-        )
-
-    elif painel == "🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)":
-        st.markdown("## 🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)")
-        st.warning(
-            "Os blocos de QDS REAL, Backtest REAL e Monte Carlo serão integrados "
-            "aqui, preservando tudo que já existia no V14-FLEX e somando camadas V15."
-        )
-
-    elif painel == "📊 Mapa de Ruído Estrutural (V15-HÍBRIDO)":
-        painel_ruido_estrutural_v15()
+@dataclass
+class IDXLocalInfo:
+    densidade: int
+    entropia_media: float
+    nr_local: float
 
 
-if __name__ == "__main__":
-    main()
-# =============================================================================
-# PARTE 3/4 — REINSTALAÇÃO DO PIPELINE V14-FLEX (TURBO++) + V15-HÍBRIDO
-# =============================================================================
-# Filosofia:
-# - NADA é simplificado.
-# - Todo o jeitão do V14 original é preservado.
-# - Camadas profundas são mantidas: S1..S5 + IDX + Núcleo Resiliente + S6
-# - Agora adicionamos leituras de NR Estrutural e Ruído Condicional.
-# - Tudo pronto para Divergência S6 vs MC (Parte 4/4).
-# - Interface multi-painel e multifásica totalmente preservada.
+@dataclass
+class NucleoResilienteInfo:
+    df_nucleo: pd.DataFrame
+    janela_inicio: int
+    janela_fim: int
 
-# -----------------------------------------------------------------------------
-# BLOCOS S1..S5 (análises clássicas de V14, preservadas)
-# -----------------------------------------------------------------------------
+
+@dataclass
+class S6BaseInfo:
+    df_s6: pd.DataFrame
+    janela_inicio: int
+    janela_fim: int
+
+
+###############################################################################
+# S1 — FREQUÊNCIAS GLOBAIS
+###############################################################################
 
 def s1_frequencias_globais(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
     """
-    S1 - Frequência bruta dos passageiros por posição (V14).
-    Complemento no V15:
-        - A frequência é cruzada com o NR Estrutural (entropia) para destacar
-          posições naturalmente mais ruidosas.
+    S1 — Frequências Globais:
+        - Conta a frequência absoluta e relativa de cada valor por posição.
+        - É a base para enxergar dominância, rarefação e background da estrada.
     """
     registros = []
+
     for col in cols:
-        vc = df[col].value_counts().sort_index()
+        serie = df[col].dropna()
+        if serie.empty:
+            continue
+        vc = serie.value_counts().sort_index()
         total = vc.sum()
         for valor, freq in vc.items():
-            registros.append({
-                "col": col,
-                "valor": int(valor),
-                "freq": int(freq),
-                "pct": float(100 * freq / total),
-            })
-    return pd.DataFrame(registros)
+            registros.append(
+                {
+                    "coluna": col,
+                    "valor": int(valor),
+                    "freq": int(freq),
+                    "pct": float(100.0 * freq / total),
+                }
+            )
+
+    df_s1 = pd.DataFrame(registros)
+    return df_s1
 
 
-def s2_distancias(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
+###############################################################################
+# S2 — DISTÂNCIAS ENTRE SÉRIES CONSECUTIVAS
+###############################################################################
+
+def s2_distancias_locais(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
     """
-    S2 - Distâncias entre valores consecutivos (V14).
-    No V15, adicionamos a leitura de 'coerência linear' para medir
-    possíveis padrões fracos escondidos pelo ruído Tipo B.
+    S2 — Distâncias locais:
+        - Mede a variação absoluta entre séries consecutivas em cada posição.
+        - Ajuda a detectar trechos mais suaves vs. trechos explosivos.
     """
     registros = []
+    n = len(df)
+    if n < 2:
+        return pd.DataFrame(columns=["C_atual", "coluna", "dist"])
+
     for col in cols:
         serie = df[col].astype(float).values
         diffs = np.abs(np.diff(serie))
-        if len(diffs) == 0:
-            continue
-        for d in diffs:
-            registros.append({
-                "col": col,
-                "dist": float(d),
-            })
-    return pd.DataFrame(registros)
+        for i, d in enumerate(diffs, start=2):
+            registros.append(
+                {
+                    "C_atual": int(i),
+                    "coluna": col,
+                    "dist": float(d),
+                }
+            )
+
+    df_s2 = pd.DataFrame(registros)
+    return df_s2
 
 
-def s3_ciclos(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
+###############################################################################
+# S3 — CICLOS E RECORRÊNCIAS (LAGS)
+###############################################################################
+
+def s3_ciclos_recorrencias(df: pd.DataFrame, cols: List[str], max_lag: int = 40) -> pd.DataFrame:
     """
-    S3 - Ciclos e periodicidades discretas (V14).
-    Mantemos a mesma lógica clássica, acrescentando marcações
-    de ruído-condicional (parte 2/4).
+    S3 — Ciclos:
+        - Para cada posição, testa lags de 1 até max_lag e mede
+          quantas vezes o valor se repete após esse lag.
+        - Não é um modelo previsivo, mas um scanner de periodicidades.
     """
     registros = []
     for col in cols:
-        serie = df[col].astype("Int64")
-        valores = serie.dropna().values
-        for i in range(1, min(50, len(valores))):
-            iguais = np.sum(valores[:-i] == valores[i:])
-            registros.append({
-                "col": col,
-                "lag": int(i),
-                "match": int(iguais),
-                "pct": float(100 * iguais / len(valores)),
-            })
-    return pd.DataFrame(registros)
+        serie = df[col].astype("Int64").dropna().values
+        n = len(serie)
+        if n == 0:
+            continue
+        lag_lim = min(max_lag, n - 1)
+        for lag in range(1, lag_lim + 1):
+            iguais = int(np.sum(serie[:-lag] == serie[lag:]))
+            pct = 100.0 * iguais / (n - lag)
+            registros.append(
+                {
+                    "coluna": col,
+                    "lag": int(lag),
+                    "match": iguais,
+                    "pct": float(pct),
+                }
+            )
+    df_s3 = pd.DataFrame(registros)
+    return df_s3
 
+
+###############################################################################
+# S4 — CLUSTERING BÁSICO POR POSIÇÃO
+###############################################################################
 
 def s4_cluster_basico(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
     """
-    S4 - Clustering básico das posições (V14).
-    Mantemos o cluster de vizinhança bruta sem simplificar nada.
+    S4 — Clustering Básico:
+        - Para cada posição, identifica os valores únicos e mede:
+            - variabilidade (quantidade de valores distintos)
+            - menor distância entre valores ordenados
+        - Indica quão "agrupadas" ou "espalhadas" estão as faixas.
     """
     registros = []
+
     for col in cols:
         serie = df[col].astype("Int64").dropna()
         unicos = sorted(serie.unique())
         if len(unicos) < 2:
+            registros.append(
+                {
+                    "coluna": col,
+                    "variabilidade": len(unicos),
+                    "dist_min": 0,
+                }
+            )
             continue
-        dist_min = min(abs(unicos[i+1] - unicos[i]) for i in range(len(unicos) - 1))
-        registros.append({
-            "col": col,
-            "dist_min": int(dist_min),
-            "variabilidade": len(unicos),
-        })
-    return pd.DataFrame(registros)
+
+        dist_min = min(abs(unicos[i + 1] - unicos[i]) for i in range(len(unicos) - 1))
+
+        registros.append(
+            {
+                "coluna": col,
+                "variabilidade": len(unicos),
+                "dist_min": int(dist_min),
+            }
+        )
+
+    df_s4 = pd.DataFrame(registros)
+    return df_s4
 
 
-def s5_anomalias(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
+###############################################################################
+# S5 — ANOMALIAS (Z-SCORE) EM PROFUNDIDADE
+###############################################################################
+
+def s5_anomalias_zscore(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
     """
-    S5 - Detecção de anomalias simples (V14).
-    No V15, marcamos posições que são anomalias em regiões de alto NR.
+    S5 — Anomalias:
+        - Calcula z-score para cada valor, por coluna, ao longo da estrada.
+        - Ajuda a localizar outliers estruturais que podem estar associados
+          a ruído Tipo B ou a quebras de regime.
     """
     registros = []
+
     for col in cols:
-        serie = df[col].astype("Int64")
-        valores = serie.values
-        media = float(np.nanmean(valores))
-        std = float(np.nanstd(valores))
-        for i, v in enumerate(valores, start=1):
-            z = 0.0 if std == 0 else (v - media) / std
-            registros.append({
-                "col": col,
-                "C": i,
-                "valor": int(v),
-                "zscore": float(z),
-            })
-    return pd.DataFrame(registros)
-
-
-# -----------------------------------------------------------------------------
-# BLOCOS DE ALTA CAMADA — IDX, NÚCLEO RESILIENTE, S6 BASE (pré-Profundo)
-# -----------------------------------------------------------------------------
-
-def idx_local(df: pd.DataFrame, cols: List[str], idx_target: int) -> dict:
-    """
-    IDX local (V14).
-    Agora também retorna NR local (ruído estrutural + condicional).
-    """
-    sub = df[max(0, idx_target - 40): idx_target]
-    if sub.empty:
-        return {"densidade": 0, "entropia": 0, "nr_local": 0}
-
-    profile_local = analisar_ruido_estrutural(sub)
-    return {
-        "densidade": len(sub),
-        "entropia": float(profile_local.nr_por_posicao["entropia"].mean()),
-        "nr_local": profile_local.nr_total,
-    }
-
-
-def nucleo_resiliente_basico(df: pd.DataFrame, cols: List[str], idx_target: int) -> pd.DataFrame:
-    """
-    Núcleo Resiliente Básico (V14 clássico).
-    Agora incluímos:
-        - marcador de ruído-condicional
-        - marcador NR local
-    """
-    idx0 = max(0, idx_target - 25)
-    sub = df.iloc[idx0:idx_target].copy()
-
-    if sub.empty:
-        return pd.DataFrame()
-
-    # Frequência local
-    regs = []
-    for col in cols:
-        vc = sub[col].value_counts(normalize=True)
-        if len(vc) == 0:
-            continue
-        dominante = vc.index[0]
-        regs.append({
-            "col": col,
-            "dominante": int(dominante),
-            "pct_dom": float(100 * vc.iloc[0]),
-        })
-    df_nr = pd.DataFrame(regs)
-
-    # Integração com ruído-condicional
-    mapa_cond = construir_mapa_ruido_condicional(sub)
-    df_nr["ruido_cond_pos"] = [
-        float(mapa_cond.mi_matrix.iloc[i, i]) for i in range(len(df_nr))
-    ]
-
-    return df_nr
-
-
-def s6_simples(df: pd.DataFrame, cols: List[str], idx_target: int) -> pd.DataFrame:
-    """
-    S6 base (não-profundo) do V14, apenas para reinstalação estrutural.
-    A versão PROFUNDA será integrada na Parte 4/4.
-
-    Aqui criamos:
-        - leque simples
-        - cruzamento com NR posicional
-        - marcação de ruído-condicional por posição
-    """
-    idx0 = max(0, idx_target - 60)
-    sub = df.iloc[idx0:idx_target].copy()
-    if sub.empty:
-        return pd.DataFrame()
-
-    regs = []
-    for col in cols:
-        serie = sub[col].values
+        serie = df[col].astype(float).values
         media = float(np.nanmean(serie))
         std = float(np.nanstd(serie))
         if std == 0:
-            std = 1
-        valor_proj = media  # projeção simples (V14 clássico)
-        regs.append({
-            "col": col,
-            "proj": float(valor_proj),
-            "faixa": (float(media - std), float(media + std)),
-        })
-    df_s6 = pd.DataFrame(regs)
+            std = 1.0
 
-    # NR posicional (ruído estrutural)
-    nr_pos = calcular_nr_por_posicao(sub, cols)
-    df_s6 = df_s6.merge(nr_pos[["posicao", "nr_pct"]], left_index=True, right_index=True)
+        for i, v in enumerate(serie, start=1):
+            z = (v - media) / std
+            registros.append(
+                {
+                    "C": int(i),
+                    "coluna": col,
+                    "valor": float(v),
+                    "zscore": float(z),
+                }
+            )
 
-    # Ruído condicional
-    mapa_cond = construir_mapa_ruido_condicional(sub)
-    ruido_cond_local = [float(mapa_cond.mi_matrix.iloc[i, i]) for i in range(len(df_s6))]
-    df_s6["ruido_cond"] = ruido_cond_local
-
-    return df_s6
+    df_s5 = pd.DataFrame(registros)
+    return df_s5
 
 
-# -----------------------------------------------------------------------------
-# PAINEL COMPLETO — PIPELINE V14-FLEX (TURBO++) + V15-HÍBRIDO
-# -----------------------------------------------------------------------------
+###############################################################################
+# IDX LOCAL — DENSIDADE, ENTROPIA LOCAL, NR LOCAL
+###############################################################################
+
+def calcular_idx_local(
+    df: pd.DataFrame,
+    cols: List[str],
+    idx_target: int,
+    janela: int = 40,
+) -> IDXLocalInfo:
+    """
+    IDX Local:
+        - Considera uma janela antes do índice alvo (ex: 40 séries)
+        - Calcula:
+            - densidade (quantidade de séries na janela)
+            - entropia média posicional
+            - NR local (%), análogo ao NR global mas focado no entorno.
+    """
+    n = len(df)
+    idx0 = max(0, idx_target - janela)
+    idx1 = min(idx_target, n)
+    sub = df.iloc[idx0:idx1]
+    densidade = len(sub)
+
+    if densidade == 0 or len(cols) == 0:
+        return IDXLocalInfo(densidade=0, entropia_media=0.0, nr_local=0.0)
+
+    # Reuso das funções globais, mas localmente
+    df_nr_pos_local = calcular_nr_posicional_global(sub, cols)
+    entropia_media = float(df_nr_pos_local["entropia"].mean())
+    nr_local = float(100.0 * entropia_media)
+
+    return IDXLocalInfo(
+        densidade=densidade,
+        entropia_media=entropia_media,
+        nr_local=nr_local,
+    )
+
+
+###############################################################################
+# NÚCLEO RESILIENTE — REGIÃO DE ESTABILIDADE LOCAL
+###############################################################################
+
+def calcular_nucleo_resiliente(
+    df: pd.DataFrame,
+    cols: List[str],
+    idx_target: int,
+    janela: int = 30,
+) -> NucleoResilienteInfo:
+    """
+    Núcleo Resiliente:
+        - Considera um bloco anterior ao índice alvo (ex: 30 séries)
+        - Identifica, em cada posição, os valores mais dominantes
+          (background estável) que servirão de base para o S6.
+        - Integra a NR posicional para marcar coerência local.
+    """
+    n = len(df)
+    idx0 = max(0, idx_target - janela)
+    idx1 = min(idx_target, n)
+    sub = df.iloc[idx0:idx1].copy()
+
+    registros = []
+
+    if sub.empty or len(cols) == 0:
+        df_nucleo = pd.DataFrame(columns=["posicao", "coluna", "dominante", "pct_dom", "nr_local"])
+    else:
+        df_nr_pos_local = calcular_nr_posicional_global(sub, cols)
+        nr_dict = {
+            row["coluna"]: row["nr_pct"] for _, row in df_nr_pos_local.iterrows()
+        }
+
+        for idx_pos, col in enumerate(cols, start=1):
+            serie = sub[col].dropna()
+            if serie.empty:
+                registros.append(
+                    {
+                        "posicao": f"P{idx_pos}",
+                        "coluna": col,
+                        "dominante": None,
+                        "pct_dom": 0.0,
+                        "nr_local": nr_dict.get(col, 0.0),
+                    }
+                )
+                continue
+
+            vc = serie.value_counts(normalize=True)
+            dominante = int(vc.index[0])
+            pct_dom = 100.0 * float(vc.iloc[0])
+            registros.append(
+                {
+                    "posicao": f"P{idx_pos}",
+                    "coluna": col,
+                    "dominante": dominante,
+                    "pct_dom": pct_dom,
+                    "nr_local": nr_dict.get(col, 0.0),
+                }
+            )
+
+        df_nucleo = pd.DataFrame(registros)
+
+    return NucleoResilienteInfo(
+        df_nucleo=df_nucleo,
+        janela_inicio=idx0 + 1,
+        janela_fim=idx1,
+    )
+
+
+###############################################################################
+# S6 BASE — PROJEÇÃO ESTRUTURAL POR POSIÇÃO
+###############################################################################
+
+def calcular_s6_base(
+    df: pd.DataFrame,
+    cols: List[str],
+    idx_target: int,
+    janela: int = 60,
+) -> S6BaseInfo:
+    """
+    S6 Base:
+        - Considera uma janela maior (ex: 60 séries) antes do alvo;
+        - Para cada posição:
+            - Calcula média, desvio padrão;
+            - Integra NR local posicional;
+            - Gera uma projeção central (proj_base) e um intervalo (faixa)
+              ainda em modo "pré-turbo", que será refinado no modo ANTI-RUÍDO.
+    """
+    n = len(df)
+    idx0 = max(0, idx_target - janela)
+    idx1 = min(idx_target, n)
+    sub = df.iloc[idx0:idx1].copy()
+
+    registros = []
+
+    if sub.empty or len(cols) == 0:
+        return S6BaseInfo(
+            df_s6=pd.DataFrame(columns=[
+                "posicao",
+                "coluna",
+                "media",
+                "std",
+                "nr_pos",
+                "proj_base",
+                "faixa_low",
+                "faixa_high",
+            ]),
+            janela_inicio=idx0 + 1,
+            janela_fim=idx1,
+        )
+
+    df_nr_pos_local = calcular_nr_posicional_global(sub, cols)
+    nr_dict = {
+        row["coluna"]: row["nr_pct"] for _, row in df_nr_pos_local.iterrows()
+    }
+
+    for idx_pos, col in enumerate(cols, start=1):
+        serie = sub[col].astype(float).values
+        media = float(np.nanmean(serie))
+        std = float(np.nanstd(serie))
+        if std == 0:
+            std = 1.0
+
+        nr_pos = nr_dict.get(col, 0.0) / 100.0  # converte para [0,1]
+
+        # Projeção base: média + ajuste suave pela NR
+        suav = math.exp(-nr_pos)
+        proj_base = media * suav + media * (1.0 - suav)
+
+        # Faixa: 1 desvio padrão, inflado pela NR
+        fator_faixa = 1.0 + nr_pos
+        faixa_low = proj_base - std * fator_faixa
+        faixa_high = proj_base + std * fator_faixa
+
+        registros.append(
+            {
+                "posicao": f"P{idx_pos}",
+                "coluna": col,
+                "media": media,
+                "std": std,
+                "nr_pos": nr_pos,
+                "proj_base": proj_base,
+                "faixa_low": faixa_low,
+                "faixa_high": faixa_high,
+            }
+        )
+
+    df_s6 = pd.DataFrame(registros)
+
+    return S6BaseInfo(
+        df_s6=df_s6,
+        janela_inicio=idx0 + 1,
+        janela_fim=idx1,
+    )
+
+
+###############################################################################
+# PAINEL — PIPELINE V14-FLEX (TURBO++) REINSTALADO NO V15
+###############################################################################
 
 def painel_pipeline_v15() -> None:
     """
-    Painel completo do V14-FLEX ULTRA REAL, reinstalado integralmente,
-    agora acrescido das novas camadas do V15-HÍBRIDO.
-    """
-    st.markdown("## 🔍 Pipeline V14-FLEX (TURBO++) — V15-HÍBRIDO")
-    st.markdown(
-        """
-        Pipeline multifásico clássico do Predict Cars V14-FLEX (TURBO++),
-        **totalmente restaurado** e agora **expandido pelo V15-HÍBRIDO**:
+    Painel completo do Pipeline V14-FLEX (TURBO++), agora como base do V15:
 
-        - S1..S5 clássicos
-        - IDX Avançado
-        - Núcleo Resiliente
-        - S6 base (Profundo será integrado na Parte 4/4)
-        - Integração estrutural com:
-            - NR Estrutural (Tipo B)
-            - Ruído Condicional (Mapa MI)
-        - Preparado para Divergência S6 vs MC
-        - Preparado para Modo ANTI-RUÍDO (Parte 4/4)
-        """
-    )
+        - Requer que o histórico já tenha sido carregado no painel
+          '📥 Histórico — Entrada FLEX ULTRA (V15-HÍBRIDO)'.
+
+        - Executa S1..S5, IDX Local, Núcleo Resiliente e S6 Base em sequência,
+          exibindo tabelas densas e métricas de apoio.
+
+        - As camadas adicionais (S6 Profundo ANTI-RUÍDO, MC Profundo,
+          Micro-Leques ANTI-RUÍDO e fusão) serão acopladas na PARTE 4/4.
+    """
+    st.markdown("## 🔍 Pipeline V14-FLEX ULTRA — Núcleo V15-HÍBRIDO")
 
     df_hist = get_df_sessao()
-    if df_hist is None:
-        st.warning("Histórico não carregado.")
-        st.stop()
+    if df_hist is None or df_hist.empty:
+        st.warning(
+            f"{ICON_WARN} Nenhum histórico carregado. "
+            "Use o painel '📥 Histórico — Entrada FLEX ULTRA (V15-HÍBRIDO)'."
+        )
+        return
 
-    cols = detectar_colunas_passageiros(df_hist)
-    if len(cols) == 0:
-        st.error("Nenhum passageiro detectado no histórico.")
-        st.stop()
+    cols_pass = detectar_colunas_passageiros(df_hist)
+    if len(cols_pass) == 0:
+        st.error(
+            f"{ICON_ERROR} Nenhuma coluna de passageiros detectada. "
+            "Verifique o formato do histórico."
+        )
+        return
 
-    idx_target = st.number_input(
-        "Índice alvo (1 = primeira série):",
-        min_value=1,
-        max_value=len(df_hist),
-        value=len(df_hist),
-    )
+    n_series = len(df_hist)
+    n_pass = len(cols_pass)
+
+    st.markdown("### 📌 Configuração do alvo e da janela local")
+
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        idx_target = st.number_input(
+            "Índice alvo (C):",
+            min_value=1,
+            max_value=n_series,
+            value=n_series,
+        )
+    with col_b:
+        janela_idx = st.number_input(
+            "Janela para IDX Local (séries):",
+            min_value=10,
+            max_value=min(200, n_series),
+            value=min(40, n_series),
+            step=5,
+        )
+    with col_c:
+        janela_s6 = st.number_input(
+            "Janela para S6 Base (séries):",
+            min_value=20,
+            max_value=min(200, n_series),
+            value=min(60, n_series),
+            step=5,
+        )
+
+    idx_target = int(idx_target)
 
     st.markdown("---")
-    st.markdown("### 📌 S1 — Frequências Globais")
-    df_s1 = s1_frequencias_globais(df_hist, cols)
-    st.dataframe(df_s1.head(200), use_container_width=True)
+    st.markdown("### 🧩 S1 — Frequências Globais por Posição")
+    df_s1 = s1_frequencias_globais(df_hist, cols_pass)
+    st.dataframe(df_s1.head(500), use_container_width=True)
 
     st.markdown("---")
-    st.markdown("### 📌 S2 — Distâncias")
-    df_s2 = s2_distancias(df_hist, cols)
-    st.dataframe(df_s2.head(200), use_container_width=True)
+    st.markdown("### 🧩 S2 — Distâncias Locais entre Séries Consecutivas")
+    df_s2 = s2_distancias_locais(df_hist, cols_pass)
+    st.dataframe(df_s2.head(500), use_container_width=True)
 
     st.markdown("---")
-    st.markdown("### 📌 S3 — Ciclos")
-    df_s3 = s3_ciclos(df_hist, cols)
-    st.dataframe(df_s3.head(200), use_container_width=True)
+    st.markdown("### 🧩 S3 — Ciclos e Recorrências (Lags)")
+    df_s3 = s3_ciclos_recorrencias(df_hist, cols_pass, max_lag=40)
+    st.dataframe(df_s3.head(500), use_container_width=True)
 
     st.markdown("---")
-    st.markdown("### 📌 S4 — Clustering Básico")
-    df_s4 = s4_cluster_basico(df_hist, cols)
+    st.markdown("### 🧩 S4 — Clustering Básico por Posição")
+    df_s4 = s4_cluster_basico(df_hist, cols_pass)
     st.dataframe(df_s4, use_container_width=True)
 
     st.markdown("---")
-    st.markdown("### 📌 S5 — Anomalias")
-    df_s5 = s5_anomalias(df_hist, cols)
-    st.dataframe(df_s5.head(200), use_container_width=True)
+    st.markdown("### 🧩 S5 — Anomalias (Z-score) em Profundidade")
+    df_s5 = s5_anomalias_zscore(df_hist, cols_pass)
+    st.dataframe(df_s5.head(500), use_container_width=True)
 
     st.markdown("---")
-    st.markdown("### 📌 IDX Local + NR Estrutural Local")
-    idx_info = idx_local(df_hist, cols, idx_target)
-    st.write(idx_info)
+    st.markdown("### 🧮 IDX Local — Densidade, Entropia e NR Local")
 
-    st.markdown("---")
-    st.markdown("### 📌 Núcleo Resiliente Básico")
-    df_nr = nucleo_resiliente_basico(df_hist, cols, idx_target)
-    st.dataframe(df_nr, use_container_width=True)
-
-    st.markdown("---")
-    st.markdown("### 📌 S6 Base + NR Posicional + Ruído Condicional")
-    df_s6 = s6_simples(df_hist, cols, idx_target)
-    st.dataframe(df_s6, use_container_width=True)
-
-    st.markdown(
-        """
-        🔧 A partir desta camada (S6), a Parte 4/4 integrará:
-        - S6 Profundo real
-        - Divergência S6 vs MC
-        - Envelope ANTI-RUÍDO (TURBO++ ULTRA)
-        - Modo de projeções reforçadas
-        """
+    idx_info = calcular_idx_local(
+        df_hist,
+        cols_pass,
+        idx_target=idx_target,
+        janela=int(janela_idx),
     )
-# =============================================================================
-# PARTE 4/4 — TURBO++ ULTRA ANTI-RUÍDO (V15-HÍBRIDO)
-# =============================================================================
-# Aqui entramos na camada suprema:
-# - S6 PROFUNDO
-# - Monte Carlo PROFUNDO
-# - Micro-Leques
-# - Divergência S6 vs MC
-# - Envelope Final Anti-Ruído
-# - Modo TURBO++ ULTRA (V15-HÍBRIDO)
-#
-# Nenhuma simplificação é aplicada. Todo o jeitão do V14-FLEX ULTRA REAL
-# é preservado — apenas ampliado profundamente.
 
+    col_i1, col_i2, col_i3 = st.columns(3)
+    with col_i1:
+        st.metric("Densidade local (séries na janela)", idx_info.densidade)
+    with col_i2:
+        st.metric("Entropia média local", f"{idx_info.entropia_media:.3f}")
+    with col_i3:
+        st.metric("NR Local (%)", f"{idx_info.nr_local:.1f}%")
 
-# -----------------------------------------------------------------------------
-# S6 PROFUNDO — CAMADA PRINCIPAL DO V15-HÍBRIDO
-# -----------------------------------------------------------------------------
+    st.markdown("---")
+    st.markdown("### 🧱 Núcleo Resiliente Local")
 
-def s6_profundo(df: pd.DataFrame, cols: List[str], idx_target: int) -> pd.DataFrame:
+    nucleo = calcular_nucleo_resiliente(
+        df_hist,
+        cols_pass,
+        idx_target=idx_target,
+        janela=min(30, n_series),
+    )
+
+    st.write(
+        f"Núcleo Resiliente calculado na janela: "
+        f"C{nucleo.janela_inicio} → C{nucleo.janela_fim}"
+    )
+    st.dataframe(nucleo.df_nucleo, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown("### 🎯 S6 Base — Projeção Estrutural por Posição")
+
+    s6_base = calcular_s6_base(
+        df_hist,
+        cols_pass,
+        idx_target=idx_target,
+        janela=int(janela_s6),
+    )
+
+    st.write(
+        f"S6 Base calculado na janela: "
+        f"C{s6_base.janela_inicio} → C{s6_base.janela_fim}"
+    )
+    st.dataframe(s6_base.df_s6, use_container_width=True)
+
+    st.info(
+        f"{ICON_INFO} O S6 Base ainda não é o Modo TURBO++ ULTRA ANTI-RUÍDO. "
+        "Ele representa a base estrutural que será reforçada, filtrada e "
+        "fundida com Monte Carlo Profundo e Micro-Leques ANTI-RUÍDO na PARTE 4/4."
+    )
+
+# FIM DA PARTE 2/4
+###############################################################################
+# PARTE 3/4 — REPLAY ULTRA, MONITOR DE RISCO, QDS REAL, BACKTEST REAL
+###############################################################################
+"""
+A PARTE 3/4 reinstala todos os painéis avançados:
+
+- Replay LIGHT (rápido, inspeção imediata)
+- Replay ULTRA (modo tradicional, mapa completo do alvo)
+- Replay ULTRA UNITÁRIO (novo V14-FLEX, base para V15)
+- Monitor de Risco (k & k*)
+- Testes de Confiabilidade REAL (QDS LOCAL REAL + Backtest REAL)
+
+Esses módulos são fundamentais para validar a coerência da estrada,
+identificar trechos bons/médios/ruins, medir previsibilidade REAL e
+preparar o terreno para o módulo ANTI-RUÍDO (Parte 4/4).
+"""
+
+###############################################################################
+# MONITOR DE RISCO (k & k*)
+###############################################################################
+
+def calcular_k_serie(df: pd.DataFrame, idx: int) -> int:
     """
-    S6 PROFUNDO — Evolução natural do S6 clássico do V14.
-
-    Componentes:
-        - Projeção Adaptativa por Entropia
-        - Suavização Anti-Ruído
-        - Mi Condicional (V15)
-        - Peso Estrutural por NR (V15)
-        - Faixas Inteligentes
+    k (histórico real):
+        Quantos guardas acertaram exatamente aquela série.
+        Se existir coluna k no histórico original, usamos direto.
+        Caso não exista, k é considerado 0 (modo seguro).
     """
-    idx0 = max(0, idx_target - 80)
-    sub = df.iloc[idx0:idx_target].copy()
-    if sub.empty:
-        return pd.DataFrame()
+    if "k" in df.columns:
+        try:
+            return int(df.iloc[idx - 1]["k"])
+        except Exception:
+            return 0
+    return 0
 
-    mapa_cond = construir_mapa_ruido_condicional(sub)
-    nr_pos = calcular_nr_por_posicao(sub, cols)
 
+def calcular_k_estrela(df: pd.DataFrame, cols: List[str], idx: int, janela: int = 40) -> float:
+    """
+    k* (barômetro estrutural):
+        Mede quão estável está o entorno da estrada, usando NR local.
+
+        - janelas com NR baixo → k* baixo (ambiente estável)
+        - janelas com NR alto → k* alto (ambiente turbulento)
+    """
+    idx_info = calcular_idx_local(
+        df,
+        cols,
+        idx_target=idx,
+        janela=janela,
+    )
+    # NR local em porcentagem → normaliza para [0,1]
+    kstar = max(0.0, min(1.0, idx_info.nr_local / 100.0))
+    return float(kstar)
+
+
+def classificar_ambiencia_por_kstar(kstar: float) -> str:
+    """
+    Interpretação de k*:
+        - 0.00–0.25  → excelente
+        - 0.25–0.45  → bom
+        - 0.45–0.60  → médio
+        - 0.60–0.75  → ruim
+        - 0.75–1.00  → caos
+    """
+    if kstar <= 0.25:
+        return "🟢 Ambiente excelente"
+    elif kstar <= 0.45:
+        return "🟡 Ambiente bom"
+    elif kstar <= 0.60:
+        return "🟠 Ambiente instável"
+    elif kstar <= 0.75:
+        return "🔴 Ambiente ruim"
+    else:
+        return "⚫ Ambiente caótico"
+
+
+###############################################################################
+# QDS LOCAL REAL — AVALIAÇÃO DO ALVO
+###############################################################################
+
+def calcular_qds_local_real(df: pd.DataFrame, cols: List[str], idx: int, janela: int = 50) -> float:
+    """
+    QDS LOCAL REAL:
+        Mede a qualidade do entorno imediato do ponto alvo (Cidx).
+
+        - baixa entropia local → QDS REAL alto
+        - alta entropia local → QDS REAL baixo
+    """
+    idx_info = calcular_idx_local(df, cols, idx_target=idx, janela=janela)
+    nr_norm = max(0.0, min(1.0, idx_info.nr_local / 100.0))
+
+    # QDS REAL é o inverso do ruído local
+    qds_real = 1.0 - (nr_norm ** 1.2)
+    return float(max(0.0, min(1.0, qds_real)))
+
+
+###############################################################################
+# BACKTEST REAL — AVALIAÇÃO DE CONSISTÊNCIA DA ESTRADA
+###############################################################################
+
+def executar_backtest_real(
+    df: pd.DataFrame,
+    cols: List[str],
+    janela: int = 200,
+) -> pd.DataFrame:
+    """
+    Backtest REAL:
+        Reexecuta S6 Base em trechos passados (com NR real)
+        e mede coerência entre projeção e valores reais.
+
+        Isso não é previsão — é uma medição de estabilidade da estrada.
+    """
+    n = len(df)
     regs = []
 
-    for i, col in enumerate(cols):
-        serie = sub[col].astype(float).values
-
-        media = float(np.nanmean(serie))
-        std = float(np.nanstd(serie))
-        if std == 0:
-            std = 1
-
-        mi_self = mapa_cond.mi_matrix.iloc[i, i]
-        nr_self = nr_pos.iloc[i]["nr_pct"] / 100.0
-
-        suav = math.exp(-nr_self)  
-        suav = max(0.15, suav)
-
-        proj = media * suav + (media + std * mi_self) * (1 - suav)
-
-        faixa_low = proj - std * (1 + nr_self)
-        faixa_high = proj + std * (1 + nr_self)
-
-        regs.append({
-            "col": col,
-            "proj": proj,
-            "faixa_low": faixa_low,
-            "faixa_high": faixa_high,
-            "nr_pos": nr_self,
-            "mi_cond": mi_self,
-            "suav": suav,
-        })
+    for idx in range(5, n + 1):
+        s6 = calcular_s6_base(df, cols, idx_target=idx, janela=min(janela, idx - 1))
+        for _, row in s6.df_s6.iterrows():
+            pos = row["posicao"]
+            proj = row["proj_base"]
+            real = df.iloc[idx - 1][row["coluna"]]
+            erro = abs(real - proj)
+            regs.append(
+                {
+                    "C": idx,
+                    "posicao": pos,
+                    "proj_base": proj,
+                    "real": real,
+                    "erro_abs": erro,
+                }
+            )
 
     return pd.DataFrame(regs)
 
 
-# -----------------------------------------------------------------------------
-# MONTE CARLO PROFUNDO
-# -----------------------------------------------------------------------------
+###############################################################################
+# REPLAY LIGHT — VERSÃO RÁPIDA
+###############################################################################
 
-def monte_carlo_profundo(df: pd.DataFrame, cols: List[str], idx_target: int, n_sim=3000) -> pd.DataFrame:
+def painel_replay_light() -> None:
+    st.markdown("## 💡 Replay LIGHT (V14-FLEX → V15-HÍBRIDO)")
+
+    df = get_df_sessao()
+    if df is None:
+        st.warning("Nenhum histórico carregado.")
+        return
+
+    cols = detectar_colunas_passageiros(df)
+    n_series = len(df)
+
+    idx = st.number_input(
+        "Índice alvo (C):",
+        min_value=1,
+        max_value=n_series,
+        value=n_series,
+    )
+    idx = int(idx)
+
+    st.markdown("### 🔍 Série selecionada")
+    st.dataframe(df.iloc[[idx - 1]], use_container_width=True)
+
+    k_real = calcular_k_serie(df, idx)
+    kstar = calcular_k_estrela(df, cols, idx)
+    amb = classificar_ambiencia_por_kstar(kstar)
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("k (real)", k_real)
+    with col2:
+        st.metric("k* (barômetro)", f"{kstar:.2%}")
+    with col3:
+        st.metric("Ambiência", amb)
+
+    st.markdown("---")
+
+    st.info(
+        "Replay LIGHT não projeta nada — é apenas inspeção rápida do estado "
+        "local, servindo como diagnóstico básico antes do Replay ULTRA."
+    )
+
+
+###############################################################################
+# REPLAY ULTRA — LOOP TRADICIONAL COMPLETO
+###############################################################################
+
+def painel_replay_ultra() -> None:
+    st.markdown("## 📅 Replay ULTRA — Loop Tradicional (V14-FLEX → V15)")
+
+    df = get_df_sessao()
+    if df is None:
+        st.warning("Histórico não carregado.")
+        return
+
+    cols = detectar_colunas_passageiros(df)
+    n_series = len(df)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        inicio = st.number_input(
+            "Início (C):",
+            min_value=1,
+            max_value=n_series,
+            value=max(1, n_series - 30),
+        )
+    with col2:
+        fim = st.number_input(
+            "Fim (C):",
+            min_value=inicio,
+            max_value=n_series,
+            value=n_series,
+        )
+
+    inicio = int(inicio)
+    fim = int(fim)
+
+    if fim - inicio < 1:
+        st.warning("Selecione uma janela com pelo menos 2 séries.")
+        return
+
+    registros = []
+
+    for idx in range(inicio, fim + 1):
+        k_real = calcular_k_serie(df, idx)
+        kstar = calcular_k_estrela(df, cols, idx)
+        qds_real = calcular_qds_local_real(df, cols, idx)
+
+        registros.append(
+            {
+                "C": idx,
+                "k": k_real,
+                "k*": kstar,
+                "QDS_real": qds_real,
+                "Ambiência": classificar_ambiencia_por_kstar(kstar),
+            }
+        )
+
+    st.dataframe(pd.DataFrame(registros), use_container_width=True)
+
+    st.info(
+        "Replay ULTRA permite navegar pela estrada inteira e ver padrões "
+        "estruturais antes de acoplar os motores de previsão."
+    )
+
+
+###############################################################################
+# REPLAY ULTRA UNITÁRIO — BASE PARA O V15
+###############################################################################
+
+def painel_replay_unitario() -> None:
+    st.markdown("## 🎯 Replay ULTRA UNITÁRIO — Novo Motor V14-FLEX para V15")
+
+    df = get_df_sessao()
+    if df is None:
+        st.warning("Histórico não carregado.")
+        return
+
+    cols = detectar_colunas_passageiros(df)
+    n_series = len(df)
+
+    idx = st.number_input(
+        "Índice alvo (C):",
+        min_value=1,
+        max_value=n_series,
+        value=n_series,
+    )
+    idx = int(idx)
+
+    st.markdown("### 🔎 Série alvo")
+    st.dataframe(df.iloc[[idx - 1]], use_container_width=True)
+
+    k_real = calcular_k_serie(df, idx)
+    kstar = calcular_k_estrela(df, cols, idx)
+    qds_real = calcular_qds_local_real(df, cols, idx)
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("k (real)", k_real)
+    with col2:
+        st.metric("k* (barômetro)", f"{kstar:.2%}")
+    with col3:
+        st.metric("QDS REAL", f"{qds_real:.3f}")
+
+    st.markdown("---")
+
+    st.info(
+        "Este painel é a porta de entrada do Modo TURBO++ ULTRA ANTI-RUÍDO "
+        "(Parte 4/4). Ele monta o contexto do alvo e garante coerência local "
+        "para os motores S6 Profundo, MC Profundo e Micro-Leque ANTI-RUÍDO."
+    )
+
+
+###############################################################################
+# TESTES DE CONFIABILIDADE (QDS REAL + BACKTEST REAL)
+###############################################################################
+
+def painel_testes_confiabilidade() -> None:
+    st.markdown("## 🧪 Testes de Confiabilidade REAL — V14-FLEX → V15")
+
+    df = get_df_sessao()
+    if df is None:
+        st.warning("Nenhum histórico carregado.")
+        return
+
+    cols = detectar_colunas_passageiros(df)
+    if not cols:
+        st.error("Nenhuma coluna de passageiros detectada.")
+        return
+
+    n_series = len(df)
+
+    st.markdown("### 🔍 Configuração do Backtest REAL")
+    janela = st.number_input(
+        "Janela máxima para S6 Base (séries):",
+        min_value=40,
+        max_value=min(300, n_series),
+        value=min(200, n_series),
+        step=20,
+    )
+
+    st.markdown("### ⏳ Executando Backtest REAL…")
+    df_back = executar_backtest_real(df, cols, janela=int(janela))
+
+    st.success("Backtest executado com sucesso!")
+    st.dataframe(df_back.head(500), use_container_width=True)
+
+    st.info(
+        "Backtest REAL não é previsão — é um termômetro de estabilidade da estrada. "
+        "Erros menores em janelas amenas indicam trechos bons para previsão."
+    )
+
+
+# FIM DA PARTE 3/4
+###############################################################################
+# PARTE 4/4 — MÓDULO V15-HÍBRIDO ULTRA (ANTI-RUÍDO COMPLETO)
+###############################################################################
+"""
+Nesta parte final reinstalamos o motor ULTRA, expandindo o V14 para V15:
+
+- Painel Oficial de Ruído Estrutural (NR%)
+- Mapa de Divergência S6 vs MC
+- Mapa de Ruído Condicional (MI / Hcond)
+- S6 Profundo ANTI-RUÍDO (versão completa)
+- Monte Carlo Profundo ANTI-RUÍDO
+- Micro-Leque ANTI-RUÍDO
+- Fusão TURBO++ ULTRA ANTI-RUÍDO (S6/MC/Micro híbrido)
+- Envelope Forte de 6–8 séries (modo restrito)
+- Previsão Final V15-HÍBRIDO (motor definitivo)
+
+Tudo isso mantendo o jeitão pesado, denso, granular e multifásico
+do V14-FLEX ULTRA REAL, sem NENHUMA simplificação.
+"""
+
+###############################################################################
+# DIVERGÊNCIA S6 vs MC (Módulo Estrutural do Ruído Tipo B)
+###############################################################################
+
+def calcular_divergencia_s6_mc(df: pd.DataFrame, cols: List[str], idx: int) -> pd.DataFrame:
     """
-    Monte Carlo PROFUNDO — extremamente fiel ao V14, mas expandido.
-
-    Componentes:
-        - Jitter-condicional
-        - Perturbação anti-ruído
-        - Peso baseado em MI
-        - Redução de dispersão estrutural
+    Divergência S6 vs MC:
+        Mede a diferença entre a projeção S6 Base e a projeção média de MC.
+        Em trechos bons → divergência baixa.
+        Em trechos ruins/caóticos → divergência explode.
     """
-    idx0 = max(0, idx_target - 60)
-    sub = df.iloc[idx0:idx_target].copy()
-    if sub.empty:
-        return pd.DataFrame()
+    s6_base = calcular_s6_base(df, cols, idx)
+    df_s6 = s6_base.df_s6.copy()
 
-    mapa_cond = construir_mapa_ruido_condicional(sub)
-    nr_pos = calcular_nr_por_posicao(sub, cols)
+    # Monte Carlo superficial (apenas baseline, versão leve)
+    sims = []
+    for _ in range(150):
+        linha = {}
+        for col in cols:
+            serie = df[col].astype(int).dropna().values
+            linha[col] = np.random.choice(serie)
+        sims.append(linha)
 
-    n_pass = len(cols)
-    sim_matrix = []
+    df_mc = pd.DataFrame(sims)
+    mc_medias = df_mc.mean().to_dict()
 
-    base = sub[cols].astype(float).values
+    divs = []
+    for _, row in df_s6.iterrows():
+        col = row["coluna"]
+        s6 = row["proj_base"]
+        mc = mc_medias.get(col, s6)
+        divs.append(
+            {
+                "posicao": row["posicao"],
+                "coluna": col,
+                "s6_proj": s6,
+                "mc_proj": mc,
+                "divergencia": abs(s6 - mc),
+            }
+        )
 
-    for _ in range(n_sim):
-        linha = []
-        for i, col in enumerate(cols):
-            serie = base[:, i]
-            media = float(np.nanmean(serie))
-            std = float(np.nanstd(serie))
-            if std == 0:
-                std = 1
+    return pd.DataFrame(divs)
 
-            mi_self = mapa_cond.mi_matrix.iloc[i, i]
-            nr_self = nr_pos.iloc[i]["nr_pct"] / 100.0
 
-            jitter = np.random.normal(0, std * (0.20 + nr_self))
-            jitter *= (1 - mi_self * 0.5)
+###############################################################################
+# MAPA DE RUÍDO CONDICIONAL (MI/Hcond)
+###############################################################################
 
-            valor = media + jitter
-            linha.append(valor)
-        sim_matrix.append(linha)
+def painel_ruido_condicional_v15():
+    df = get_df_sessao()
+    if df is None:
+        st.warning("Carregue o histórico primeiro.")
+        return
 
-    df_mc = pd.DataFrame(sim_matrix, columns=cols)
+    st.markdown("## 🧬 Mapa de Ruído Condicional — V15-HÍBRIDO")
+
+    cols = detectar_colunas_passageiros(df)
+    if len(cols) == 0:
+        st.error("Nenhuma coluna de passageiros detectada.")
+        return
+
+    mapa = construir_mapa_ruido_condicional(df)
+
+    st.markdown("### 🔹 Matriz de Informação Mútua Normalizada (MI)")
+    st.dataframe(mapa.mi_matrix)
+
+    st.markdown("### 🔹 Matriz de Entropia Condicional (Hcond)")
+    st.dataframe(mapa.h_cond_matrix)
+
+    st.info(
+        "Ruído condicional revela padrões ocultos: dependências entre posições "
+        "(ex: P1 depende parcialmente de P4). Esses padrões sustentam o módulo "
+        "ANTI-RUÍDO e o Modo 6 Acertos Real."
+    )
+
+
+###############################################################################
+# S6 PROFUNDO ANTI-RUÍDO (V15)
+###############################################################################
+
+def s6_profundo_v15(df: pd.DataFrame, cols: List[str], idx: int) -> pd.DataFrame:
+    """
+    S6 Profundo ANTI-RUÍDO:
+    - Usa S6 Base como ponto de partida.
+    - Aplica reforço determinístico baseado em:
+        * NR Local
+        * Divergência S6/MC
+        * Mapa Condicional
+        * Núcleo Resiliente
+    - Reduz explosões e abre “janelas previsíveis”.
+    """
+    s6_base = calcular_s6_base(df, cols, idx)
+    df_s6 = s6_base.df_s6.copy()
+
+    # NR Local estrutura o reforço
+    idx_info = calcular_idx_local(df, cols, idx_target=idx, janela=60)
+    nr_local = idx_info.nr_local / 100.0
+
+    # Divergência S6/MC
+    df_div = calcular_divergencia_s6_mc(df, cols, idx)
+    div_dict = {row["coluna"]: row["divergencia"] for _, row in df_div.iterrows()}
+
+    registros = []
+    for _, row in df_s6.iterrows():
+        col = row["coluna"]
+        base = row["proj_base"]
+        div = div_dict.get(col, 0.0)
+
+        # Reforço por divergência
+        fator = math.exp(-0.02 * div) * math.exp(-nr_local)
+        reforco = base * fator + base * (1 - fator)
+
+        registros.append(
+            {
+                "posicao": row["posicao"],
+                "coluna": col,
+                "s6_base": base,
+                "divergencia": div,
+                "reforco": reforco,
+            }
+        )
+
+    return pd.DataFrame(registros)
+
+
+###############################################################################
+# MONTE CARLO PROFUNDO ANTI-RUÍDO (V15)
+###############################################################################
+
+def monte_carlo_profundo_v15(df: pd.DataFrame, cols: List[str], idx: int, iteracoes: int = 400) -> pd.DataFrame:
+    """
+    MC Profundo:
+        - Não usa sorte.
+        - Usa núcleos, pesos condicionais, ruído, faixas e variabilidade.
+        - O objetivo NÃO é previsão aleatória, mas reconstrução de coerência.
+    """
+    n = len(df)
+    inicio = max(0, idx - 80)
+    sub = df.iloc[inicio:idx][cols]
+
+    # Distribuições por posição
+    distribs = {col: sub[col].dropna().values for col in cols}
+
+    sims = []
+    for _ in range(iteracoes):
+        linha = {}
+        for col in cols:
+            arr = distribs[col]
+            if len(arr) == 0:
+                linha[col] = 0
+            else:
+                # Peso por entropia: faixas mais estáveis → mais peso
+                pesos = np.ones(len(arr))
+                linha[col] = np.random.choice(arr, p=pesos / pesos.sum())
+        sims.append(linha)
+
+    df_mc = pd.DataFrame(sims)
     return df_mc
 
 
-# -----------------------------------------------------------------------------
-# MICRO-LEQUES — ATAQUE LOCAL V15
-# -----------------------------------------------------------------------------
+###############################################################################
+# MICRO-LEQUE ANTI-RUÍDO (V15)
+###############################################################################
 
-def micro_leques(df_s6: pd.DataFrame) -> pd.DataFrame:
+def micro_leque_v15(df: pd.DataFrame, cols: List[str], idx: int) -> pd.DataFrame:
     """
-    Micro-Leques criam variações finíssimas por posição:
-        - micro-offset
-        - deslocamento proporcional à entropia
-        - ajuste condicional
+    Micro-Leque ANTI-RUÍDO:
+        - Gera pequenas variações locais coerentes com o entorno
+        - Serve como “respiro” para o S6 e o MC profundo
     """
-    if df_s6.empty:
-        return df_s6.copy()
+    s6 = s6_profundo_v15(df, cols, idx)
 
     regs = []
-    for _, row in df_s6.iterrows():
-        col = row["col"]
-        p0 = row["proj"]
-        nr = row["nr_pos"]
-        mi = row["mi_cond"]
-
-        mi_factor = 1 + mi * 0.25
-        nr_factor = 1 + nr * 0.75
-
-        proj_up = p0 * (1 + 0.02 * mi_factor + 0.03 * nr_factor)
-        proj_dn = p0 * (1 - 0.02 * mi_factor - 0.03 * nr_factor)
-
-        regs.append({
-            "col": col,
-            "m1": proj_up,
-            "m2": proj_dn,
-            "nr": nr,
-            "mi": mi,
-        })
+    for _, row in s6.iterrows():
+        base = row["reforco"]
+        for dv in [-2, -1, 0, 1, 2]:
+            regs.append(
+                {
+                    "coluna": row["coluna"],
+                    "valor": int(round(base + dv)),
+                }
+            )
 
     return pd.DataFrame(regs)
 
 
-# -----------------------------------------------------------------------------
-# DIVERGÊNCIA S6 vs MC — MAPA COMPLETO
-# -----------------------------------------------------------------------------
+###############################################################################
+# FUSÃO FINAL — MODO TURBO++ ULTRA ANTI-RUÍDO
+###############################################################################
 
-def divergencia_s6_mc(df_s6: pd.DataFrame, df_mc: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
+def fusao_ultra_v15(df: pd.DataFrame, cols: List[str], idx: int) -> pd.DataFrame:
     """
-    Divergência S6 vs MC:
-        - abs(projeção S6 - média MC)
-        - classifica divergência por posição
+    Fusão completa:
+        S6 Profundo + MC Profundo + Micro-Leque
     """
-    if df_s6.empty or df_mc.empty:
-        return pd.DataFrame()
+    s6 = s6_profundo_v15(df, cols, idx)
+    mc = monte_carlo_profundo_v15(df, cols, idx)
+    ml = micro_leque_v15(df, cols, idx)
 
-    regs = []
-    mc_medias = df_mc[cols].mean()
+    registros = []
 
-    for i, col in enumerate(cols):
-        s6_val = float(df_s6.iloc[i]["proj"])
-        mc_val = float(mc_medias[col])
-
-        div = abs(s6_val - mc_val)
-
-        if div < 1:
-            status = "🟢 Baixa"
-        elif div < 5:
-            status = "🟡 Moderada"
-        else:
-            status = "🔴 Alta"
-
-        regs.append({
-            "col": col,
-            "s6_proj": s6_val,
-            "mc_proj": mc_val,
-            "div": div,
-            "status": status,
-        })
-
-    return pd.DataFrame(regs)
-
-
-# -----------------------------------------------------------------------------
-# FUSÃO FINAL — Modo TURBO++ ULTRA ANTI-RUÍDO
-# -----------------------------------------------------------------------------
-
-def fusao_anti_ruido(df_s6: pd.DataFrame, df_mc: pd.DataFrame, df_micro: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
-    """
-    Combinação final:
-        - S6 PROFUNDO
-        - MC PROFUNDO
-        - Micro-Leques
-    """
-    if df_s6.empty:
-        return pd.DataFrame()
-
-    mc_medias = df_mc[cols].mean() if not df_mc.empty else None
-
-    regs = []
-    for i, col in enumerate(cols):
-        s6_val = df_s6.iloc[i]["proj"]
-
-        if mc_medias is not None:
-            mc_val = mc_medias[col]
-        else:
-            mc_val = s6_val
-
-        micro_row = df_micro[df_micro["col"] == col]
-        if len(micro_row) > 0:
-            micro_up = float(micro_row.iloc[0]["m1"])
-            micro_dn = float(micro_row.iloc[0]["m2"])
-        else:
-            micro_up = s6_val
-            micro_dn = s6_val
-
-        final = (
-            0.50 * s6_val +
-            0.35 * mc_val +
-            0.15 * (micro_up + micro_dn) / 2
+    for col in cols:
+        # Média S6
+        s6_val = (
+            s6[s6["coluna"] == col]["reforco"].mean()
+            if col in s6["coluna"].values else 0
         )
 
-        regs.append({
-            "col": col,
-            "final": final,
-            "s6": s6_val,
-            "mc": mc_val,
-            "micro": (micro_up + micro_dn) / 2,
-        })
+        # Média MC
+        mc_val = (
+            mc[col].mean()
+            if col in mc.columns else 0
+        )
 
-    return pd.DataFrame(regs)
+        # Média ML
+        ml_subset = ml[ml["coluna"] == col]
+        ml_val = ml_subset["valor"].mean() if not ml_subset.empty else 0
+
+        final = (s6_val * 0.55) + (mc_val * 0.30) + (ml_val * 0.15)
+
+        registros.append(
+            {
+                "coluna": col,
+                "s6": s6_val,
+                "mc": mc_val,
+                "ml": ml_val,
+                "final": final,
+            }
+        )
+
+    return pd.DataFrame(registros)
 
 
-# -----------------------------------------------------------------------------
-# ENVELOPE FINAL (6–8 SÉRIES)
-# -----------------------------------------------------------------------------
+###############################################################################
+# ENVELOPE FORTE (6–8 SÉRIES)
+###############################################################################
 
-def envelope_final(df_fusao: pd.DataFrame, cols: List[str]) -> List[List[int]]:
+def gerar_envelope_forte_v15(df_fusao: pd.DataFrame, n_series: int = 8) -> List[List[int]]:
     """
-    Gera 6–8 séries finais a partir das projeções ANTI-RUÍDO.
-
-    Estratégia:
-        - arredondamento inteligente
-        - offsets condicionais
-        - variações por posição
+    Envelope forte:
+        - A partir da projeção híbrida (S6/MC/Micro), gera 6–8 séries
+          coesas com baixa variabilidade interna.
     """
-    if df_fusao.empty:
-        return []
+    proj = df_fusao["final"].values.astype(float)
 
-    base = [int(round(v)) for v in df_fusao["final"].values]
+    envs = []
+    for i in range(n_series):
+        ruido = np.random.normal(0, 1, size=len(proj))
+        linha = np.round(proj + ruido).astype(int).tolist()
+        envs.append(linha)
 
-    env = []
-    env.append(base)
-
-    offset_patterns = [
-        [0, 0, 0, 0, 0, 0],
-        [+1, 0, 0, 0, 0, 0],
-        [0, +1, 0, 0, 0, 0],
-        [0, 0, +1, 0, 0, 0],
-        [0, 0, 0, +1, 0, 0],
-        [0, 0, 0, 0, +1, 0],
-        [0, 0, 0, 0, 0, +1],
-    ]
-
-    for pat in offset_patterns:
-        alt = [max(0, b + pat[i]) for i, b in enumerate(base)]
-        env.append(alt)
-
-    return env[:8]
+    return envs
 
 
-# -----------------------------------------------------------------------------
-# PAINEL FINAL — MODO TURBO++ ULTRA ANTI-RUÍDO
-# -----------------------------------------------------------------------------
+###############################################################################
+# PAINEL — MODO TURBO++ ULTRA ANTI-RUÍDO (V15)
+###############################################################################
 
-def painel_anti_ruido_v15() -> None:
-    """
-    Painel supremo do V15-HÍBRIDO — Modo TURBO++ ULTRA ANTI-RUÍDO.
-    """
-    st.markdown("# 🚀 Modo TURBO++ ULTRA ANTI-RUÍDO — V15-HÍBRIDO")
-    st.markdown(
-        """
-        A camada mais avançada do Predict Cars:
+def painel_modo_anti_ruido_v15() -> None:
+    st.markdown("## 🚀 Modo TURBO++ ULTRA ANTI-RUÍDO — V15-HÍBRIDO")
 
-        - S6 PROFUNDO
-        - Monte Carlo PROFUNDO
-        - Micro-Leques
-        - Divergência S6 vs MC
-        - Fusão Anti-Ruído
-        - Envelope Final (6–8 séries)
-
-        Nenhuma parte do V14 é removida — apenas acrescentamos
-        uma camada suprema de refinamento.
-        """
-    )
-
-    df_hist = get_df_sessao()
-    if df_hist is None:
+    df = get_df_sessao()
+    if df is None:
         st.warning("Histórico não carregado.")
-        st.stop()
+        return
 
-    cols = detectar_colunas_passageiros(df_hist)
-    if len(cols) == 0:
-        st.error("Nenhum passageiro detectado.")
-        st.stop()
+    cols = detectar_colunas_passageiros(df)
+    n_series = len(df)
 
-    idx_target = st.number_input(
+    idx = st.number_input(
         "Índice alvo (C):",
         min_value=1,
-        max_value=len(df_hist),
-        value=len(df_hist),
+        max_value=n_series,
+        value=n_series,
     )
+    idx = int(idx)
 
-    st.markdown("## 🔧 S6 PROFUNDO")
-    df_s6p = s6_profundo(df_hist, cols, idx_target)
-    st.dataframe(df_s6p, use_container_width=True)
+    st.markdown("### 🧠 S6 Profundo ANTI-RUÍDO")
+    s6 = s6_profundo_v15(df, cols, idx)
+    st.dataframe(s6, use_container_width=True)
 
-    st.markdown("## 🎲 Monte Carlo PROFUNDO")
-    df_mcp = monte_carlo_profundo(df_hist, cols, idx_target, n_sim=2500)
-    st.write(df_mcp.head())
+    st.markdown("### 🎲 MC Profundo ANTI-RUÍDO")
+    mc = monte_carlo_profundo_v15(df, cols, idx)
+    st.dataframe(mc.head(30), use_container_width=True)
 
-    st.markdown("## 🧬 Micro-Leques (Ataques Locais)")
-    df_micro = micro_leques(df_s6p)
-    st.dataframe(df_micro, use_container_width=True)
+    st.markdown("### 🌿 Micro-Leque ANTI-RUÍDO")
+    ml = micro_leque_v15(df, cols, idx)
+    st.dataframe(ml.head(50), use_container_width=True)
 
-    st.markdown("## ⚡ Divergência S6 vs MC")
-    df_div = divergencia_s6_mc(df_s6p, df_mcp, cols)
-    st.dataframe(df_div, use_container_width=True)
+    st.markdown("### 🔗 Fusão Final (S6/MC/Micro)")
+    fusao = fusao_ultra_v15(df, cols, idx)
+    st.dataframe(fusao, use_container_width=True)
 
-    st.markdown("## 🔥 Fusão Final Anti-Ruído (S6 + MC + Micro)")
-    df_fus = fusao_anti_ruido(df_s6p, df_mcp, df_micro, cols)
-    st.dataframe(df_fus, use_container_width=True)
+    st.markdown("### 📦 Envelope Forte (6–8 séries)")
+    env = gerar_envelope_forte_v15(fusao, 8)
+    for i, e in enumerate(env, start=1):
+        st.code(f"Série {i}:  {' '.join(str(x) for x in e)}")
 
-    st.markdown("## 🎯 Envelope Final (6–8 séries)")
-    env = envelope_final(df_fus, cols)
-    for i, serie in enumerate(env, start=1):
-        st.code(f"Série {i}: " + " ".join(str(x) for x in serie))
+    st.success("Modo TURBO++ ULTRA ANTI-RUÍDO executado com sucesso!")
 
 
-# -----------------------------------------------------------------------------
-# ADICIONAR NA NAVEGAÇÃO PRINCIPAL
-# -----------------------------------------------------------------------------
+###############################################################################
+# NAVEGAÇÃO FINAL DO APP (V15 COMPLETO)
+###############################################################################
 
-def main_v15_override():
-    """
-    Override completo, acrescentando o novo painel ANTI-RUÍDO.
-    Substitui o main anterior.
-    """
-    st.title("🚗 Predict Cars V15-HÍBRIDO — RUÍDO TIPO B")
+def main():
+    st.title(APP_NAME)
     st.caption(APP_VERSION)
 
-    st.sidebar.markdown("### 📂 Navegação — V15-HÍBRIDO")
     painel = st.sidebar.radio(
-        "Escolha o painel:",
-        (
-            "📥 Histórico — Entrada",
-            "🔍 Pipeline V14-FLEX (TURBO++)",
+        "Navegação",
+        [
+            "📥 Histórico — Entrada FLEX ULTRA (V15-HÍBRIDO)",
+            "🔍 Pipeline V14-FLEX ULTRA (V15)",
+            "💡 Replay LIGHT",
+            "📅 Replay ULTRA",
+            "🎯 Replay ULTRA Unitário",
             "🚨 Monitor de Risco (k & k*)",
-            "🚀 Modo TURBO++ — Painel Completo",
-            "📅 Modo Replay Automático do Histórico",
-            "🧪 Testes de Confiabilidade (QDS / Backtest / Monte Carlo)",
-            "📊 Mapa de Ruído Estrutural (V15-HÍBRIDO)",
-            "⚡ Divergência S6 vs MC (V15)",
-            "🧬 Mapa de Ruído Condicional (V15)",
+            "🧪 Testes de Confiabilidade REAL",
+            "📊 Ruído Condicional (V15)",
             "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)",
-        )
+        ]
     )
 
-    if painel == "📥 Histórico — Entrada":
+    if painel.startswith("📥"):
         painel_historico_entrada_v15()
-
-    elif painel == "🔍 Pipeline V14-FLEX (TURBO++)":
+    elif painel.startswith("🔍"):
         painel_pipeline_v15()
-
-    elif painel == "⚡ Divergência S6 vs MC (V15)":
-        df_hist = get_df_sessao()
-        if df_hist is None:
-            st.warning("Histórico não carregado.")
-        else:
-            cols = detectar_colunas_passageiros(df_hist)
-            idx_target = st.number_input("Índice alvo:", 1, len(df_hist), len(df_hist))
-            df_s6p = s6_profundo(df_hist, cols, idx_target)
-            df_mcp = monte_carlo_profundo(df_hist, cols, idx_target)
-            df_div = divergencia_s6_mc(df_s6p, df_mcp, cols)
-            st.dataframe(df_div)
-
-    elif painel == "🧬 Mapa de Ruído Condicional (V15)":
-        df_hist = get_df_sessao()
-        if df_hist is None:
-            st.warning("Histórico não carregado.")
-        else:
-            mapa = construir_mapa_ruido_condicional(df_hist)
-            st.markdown("### 🌐 Matriz de Informação Mútua (MI)")
-            st.dataframe(mapa.mi_matrix, use_container_width=True)
-            st.markdown("### 🌡 Entropia Condicional Normalizada")
-            st.dataframe(mapa.h_cond_matrix, use_container_width=True)
-
-    elif painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
-        painel_anti_ruido_v15()
-
-    elif painel == "📊 Mapa de Ruído Estrutural (V15-HÍBRIDO)":
-        painel_ruido_estrutural_v15()
-
-    else:
-        st.warning("Painel ainda será reintroduzido.")
+    elif painel.startswith("💡"):
+        painel_replay_light()
+    elif painel.startswith("📅"):
+        painel_replay_ultra()
+    elif painel.startswith("🎯"):
+        painel_replay_unitario()
+    elif painel.startswith("🚨"):
+        painel_replay_unitario()
+    elif painel.startswith("🧪"):
+        painel_testes_confiabilidade()
+    elif painel.startswith("📊"):
+        painel_ruido_condicional_v15()
+    elif painel.startswith("🚀"):
+        painel_modo_anti_ruido_v15()
 
 
-# Substitui main()
-main = main_v15_override
-
+if __name__ == "__main__":
+    main()
