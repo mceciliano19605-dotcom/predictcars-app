@@ -1,9 +1,10 @@
 # ============================================================
-# Predict Cars V15-HÍBRIDO
+# Predict Cars V15-HÍBRIDO ULTRA
 # Versão FLEX ULTRA + Replay + Monitor de Risco + Ruído
 # + Testes de Confiabilidade REAL + TURBO++ ULTRA ANTI-RUÍDO
+# + Painel 📄 Relatório Final V15-HÍBRIDO
 #
-# Arquivo sugerido: app_v15_hibrido.py
+# Arquivo: app_v15_hibrido_ultra.py
 # ============================================================
 
 import io
@@ -42,6 +43,7 @@ def init_session_state():
         "ultima_analise_ruido": None,
         "ultima_confiabilidade": None,
         "ultima_previsao_turbo": None,
+        "ultimo_relatorio_final": None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -61,7 +63,6 @@ init_session_state()
 # ------------------------------------------------------------
 def detectar_delimitador(sample: str) -> str:
     if ";" in sample and "," in sample:
-        # Heurística: se tem muito mais ';' que ',', assume ';'
         if sample.count(";") > sample.count(","):
             return ";"
         else:
@@ -78,7 +79,6 @@ def carregar_historico_arquivo(
     text_sample = raw_bytes[:2000].decode("utf-8", errors="ignore")
     sep = detectar_delimitador(text_sample)
 
-    # Lê sem header para permitir formatos variados
     df_raw = pd.read_csv(
         io.BytesIO(raw_bytes),
         sep=sep,
@@ -98,7 +98,6 @@ def carregar_historico_arquivo(
         passageiros = df_raw.iloc[:, 1:-1].astype(int)
         k_col = df_raw.iloc[:, -1].astype(int)
     else:
-        # Somente passageiros + k
         serie_ids = pd.Series(
             [f"C{i+1}" for i in range(len(df_raw))],
             index=df_raw.index,
@@ -113,7 +112,6 @@ def carregar_historico_arquivo(
     df["serie_id"] = serie_ids.values
     df["idx"] = np.arange(1, len(df) + 1)
 
-    # Reordena colunas para ficar consistente
     cols = ["idx", "serie_id"] + col_passageiros + ["k"]
     df = df[cols]
 
@@ -178,19 +176,10 @@ def obter_num_passageiros(df: pd.DataFrame) -> int:
 def obter_colunas_passageiros(df: pd.DataFrame) -> List[str]:
     return [c for c in df.columns if c.startswith("n")]
 
-
 # ------------------------------------------------------------
 # Métricas centrais: k, k*, regimes, barômetro e ruído
-# (implementações numéricas estáveis e genéricas)
 # ------------------------------------------------------------
 def calcular_k_star(df: pd.DataFrame, janela: int = 50) -> pd.Series:
-    """
-    k* sentinel: sensibilidade ao regime da estrada.
-    Ideia geral:
-    - janelas móveis da coluna k
-    - normaliza pela faixa de k observada
-    - valores altos indicam turbulência / ruptura
-    """
     if "k" not in df.columns:
         raise ValueError("DataFrame sem coluna 'k'.")
 
@@ -198,11 +187,8 @@ def calcular_k_star(df: pd.DataFrame, janela: int = 50) -> pd.Series:
     rolling_mean = k_values.rolling(janela, min_periods=1).mean()
     rolling_max = k_values.rolling(janela, min_periods=1).max()
 
-    # Normaliza evitando divisão por zero
     eps = 1e-9
     norm = (rolling_mean + 0.5 * rolling_max) / (rolling_max + eps)
-
-    # Clipa para 0..1
     k_star = norm.clip(0.0, 1.0)
     return k_star
 
@@ -224,7 +210,6 @@ def calcular_barometro_global(df: pd.DataFrame) -> Dict[str, float]:
     k_std = float(k.std(ddof=1)) if len(k) > 1 else 0.0
     k_max = float(k.max()) if len(k) > 0 else 0.0
 
-    # Usa k* global aproximado (pela média de k* local)
     k_star_series = calcular_k_star(df)
     k_star_mean = float(k_star_series.mean())
 
@@ -277,7 +262,7 @@ def classificar_nivel_ruido(nr_val: float) -> str:
 # - S6 Profundo
 # - Micro-Leque
 # - Monte Carlo Profundo
-# - Combinação adaptativa por k*
+# - Combinação adaptativa por k* e NR%
 # ============================================================
 
 def _extrair_ultimas_series(
@@ -285,10 +270,6 @@ def _extrair_ultimas_series(
     idx_alvo: int,
     janela_contexto: int,
 ) -> pd.DataFrame:
-    """
-    Recorta a janela [idx_alvo - janela_contexto, idx_alvo - 1]
-    garantindo limites.
-    """
     if "idx" not in df.columns:
         raise ValueError("DataFrame sem coluna 'idx'.")
 
@@ -314,20 +295,13 @@ def _s6_profundo(
     num_passageiros: int,
     qtd_series: int,
 ) -> List[List[int]]:
-    """
-    S6 Profundo:
-    - Frequência dos passageiros na janela de contexto
-    - Seleciona passageiros mais frequentes como base
-    - Gera pequenas variações para formar o leque
-    """
     cols_pass = obter_colunas_passageiros(df_contexto)
     valores = df_contexto[cols_pass].values.ravel()
-    valores = valores[valores >= 0]  # segurança
+    valores = valores[valores >= 0]
 
     if len(valores) == 0:
         return []
 
-    # Frequência
     uniques, counts = np.unique(valores, return_counts=True)
     ordem = np.argsort(-counts)
     ordenados = uniques[ordem]
@@ -335,9 +309,7 @@ def _s6_profundo(
     base = list(ordenados[:num_passageiros])
     previsoes = []
 
-    # Gera variações
     for i in range(qtd_series):
-        # Pequena rotação + eventual troca
         rota = i % num_passageiros
         p = base[rota:] + base[:rota]
         previsoes.append(sorted(p[:num_passageiros]))
@@ -350,11 +322,6 @@ def _micro_leque(
     num_passageiros: int,
     qtd_series: int,
 ) -> List[List[int]]:
-    """
-    Micro-Leque:
-    - Pequenas "micro mutações" em torno da S6 principal.
-    - Usa uma combinação de passageiros frequentes e amostragem.
-    """
     cols_pass = obter_colunas_passageiros(df_contexto)
     valores = df_contexto[cols_pass].values.ravel()
     valores = valores[valores >= 0]
@@ -385,10 +352,6 @@ def _monte_carlo_profundo(
     qtd_series: int,
     n_iter: int = 500,
 ) -> List[List[int]]:
-    """
-    Monte Carlo Profundo:
-    - Gera amostras monte carlo a partir de distribuição empírica.
-    """
     cols_pass = obter_colunas_passageiros(df_contexto)
     valores = df_contexto[cols_pass].values.ravel()
     valores = valores[valores >= 0]
@@ -415,18 +378,6 @@ def combinar_previsoes_hibrido(
     k_star_local: float,
     nr_local: float,
 ) -> Dict[str, List[List[int]]]:
-    """
-    Combinação Híbrida V15:
-    Pesos dependem de:
-    - k* local (regime da estrada)
-    - NR% (ruído estrutural local)
-    Regras qualitativas:
-    - Estrada estável + pouco ruído: S6 forte, Micro médio, MC baixo.
-    - Estrada turbulenta: MC sobe, S6 cai um pouco.
-    - Ruído alto: Micro e MC ganham peso relativo.
-    """
-    # Pesos base em função de k*
-    # k* baixo => estrada boa => S6 domina
     if k_star_local < 0.25:
         w_s6 = 0.6
         w_micro = 0.25
@@ -444,8 +395,6 @@ def combinar_previsoes_hibrido(
         w_micro = 0.3
         w_mc = 0.5
 
-    # Ajuste por ruído
-    # Ruído alto => S6 sofre, MC e Micro pesam mais
     if nr_local > 0.7:
         w_s6 *= 0.6
         w_micro *= 1.2
@@ -462,7 +411,6 @@ def combinar_previsoes_hibrido(
     w_micro /= total
     w_mc /= total
 
-    # Normaliza comprimentos de listas
     max_len = max(len(s6_list), len(micro_list), len(mc_list))
     if max_len == 0:
         return {
@@ -477,7 +425,6 @@ def combinar_previsoes_hibrido(
             return lst[i]
         return None
 
-    # Constrói híbrido por "votação ponderada"
     hibrido = []
     for i in range(max_len):
         cand_s6 = safe_get(s6_list, i)
@@ -494,16 +441,14 @@ def combinar_previsoes_hibrido(
         if not pool:
             continue
 
-        # Ordena por peso
         ordenados = sorted(pool.items(), key=lambda x: -x[1])
-        # Num passageiros inferido da primeira previsão disponível
         base_len = 0
         for lst in [cand_s6, cand_micro, cand_mc]:
             if lst is not None and len(lst) > 0:
                 base_len = len(lst)
                 break
         if base_len <= 0:
-            base_len = 6  # fallback
+            base_len = 6
 
         escolhidos = [x[0] for x in ordenados[:base_len]]
         hibrido.append(sorted(escolhidos))
@@ -527,7 +472,6 @@ def gerar_leque_previsoes_v15(
     df_contexto = _extrair_ultimas_series(df, idx_alvo, janela_contexto)
     num_passageiros = obter_num_passageiros(df)
 
-    # k* e NR local na borda da janela (última série disponível)
     df_contexto = df_contexto.copy()
     df_contexto["k_star"] = calcular_k_star(df_contexto)
     df_contexto["nr"] = estimar_ruido_condicional(df_contexto)
@@ -557,9 +501,6 @@ def formatar_previsao(lista: List[int]) -> str:
 def montar_dataframe_leque(
     combinado: Dict[str, List[List[int]]]
 ) -> pd.DataFrame:
-    """
-    Constrói um DataFrame tabular com as séries de previsão.
-    """
     registros = []
     for tipo in ["S6", "Micro", "MC", "Hibrido"]:
         listas = combinado.get(tipo, [])
@@ -582,16 +523,7 @@ def _backtest_simple_window(
     qtd_series: int,
     passo: int = 1,
 ) -> Dict[str, float]:
-    """
-    Backtest simplificado:
-    - Varre a estrada em janelas
-    - Para cada posição j, usa as janelas anteriores para gerar leque
-    - Compara com o carro real em j (alvo)
-    - Mede acertos médios do módulo HÍBRIDO
-    Obs: para não enlouquecer o tempo, faz amostragem com passo.
-    """
     max_idx = int(df["idx"].max())
-    num_passageiros = obter_num_passageiros(df)
     cols_pass = obter_colunas_passageiros(df)
 
     resultados_acertos = []
@@ -619,7 +551,6 @@ def _backtest_simple_window(
 
         alvo_vals = alvo_row[cols_pass].iloc[0].tolist()
 
-        # Melhor previsão em termos de acertos
         melhor = 0
         for prev in leque_hibrido:
             ac = _contar_acertos(prev, alvo_vals)
@@ -644,11 +575,6 @@ def _qds_qualidade_distribuicao_series(
     df: pd.DataFrame,
     janela_contexto: int,
 ) -> Dict[str, float]:
-    """
-    QDS (qualidade da distribuição de séries) simplificado:
-    - Mede diversidade de passageiros nas janelas.
-    - Alta diversidade + estabilidade de k = QDS alta.
-    """
     num_passageiros = obter_num_passageiros(df)
     cols_pass = obter_colunas_passageiros(df)
 
@@ -668,7 +594,6 @@ def _qds_qualidade_distribuicao_series(
     uniques, counts = np.unique(valores, return_counts=True)
     probs = counts / counts.sum()
 
-    # Entropia como medida de diversidade
     entropia = -np.sum(probs * np.log(probs + 1e-9))
     entropia_max = math.log(len(uniques) + 1e-9)
     if entropia_max <= 0:
@@ -676,11 +601,9 @@ def _qds_qualidade_distribuicao_series(
     else:
         diversidade = float(entropia / entropia_max)
 
-    # k* médio na janela
     sub["k_star"] = calcular_k_star(sub)
     k_star_mean = float(sub["k_star"].mean())
 
-    # QDS: diversidade alta / turbulência muito alta derruba nota
     qds_raw = diversidade * (1.0 - 0.4 * k_star_mean)
     qds = max(0.0, min(1.0, qds_raw))
 
@@ -696,11 +619,6 @@ def _monte_carlo_confiabilidade(
     qtd_series: int,
     num_sim: int = 200,
 ) -> Dict[str, float]:
-    """
-    Simulação Monte Carlo de confiabilidade:
-    - Em cada simulação escolhe um alvo fictício dentro da estrada
-    - Gera leque e mede quantos acertos médios se obteria
-    """
     max_idx = int(df["idx"].max())
     cols_pass = obter_colunas_passageiros(df)
     rng = np.random.default_rng(112233)
@@ -753,12 +671,6 @@ def consolidar_confiabilidade_real(
     janela_contexto: int,
     qtd_series: int,
 ) -> Dict[str, Dict[str, float]]:
-    """
-    Consolida:
-    - QDS
-    - Backtest REAL simplificado
-    - Monte Carlo de confiabilidade
-    """
     qds_info = _qds_qualidade_distribuicao_series(
         df=df,
         janela_contexto=janela_contexto,
@@ -781,6 +693,149 @@ def consolidar_confiabilidade_real(
         "Backtest": backtest_info,
         "MonteCarlo": mc_info,
     }
+
+# ============================================================
+# Helper — Montagem do Relatório Final V15-HÍBRIDO
+# ============================================================
+
+def montar_relatorio_final_v15() -> str:
+    df = get_df()
+    if df is None or df.empty:
+        raise ValueError("Histórico não carregado.")
+
+    max_idx = int(df["idx"].max())
+    num_pass = obter_num_passageiros(df)
+
+    # Fonte principal de contexto: TURBO++ ULTRA, se já rodou
+    fonte = st.session_state.get("ultima_previsao_turbo")
+    if fonte is None:
+        fonte = st.session_state.get("ultima_previsao")
+
+    if fonte is not None:
+        idx_alvo = int(fonte.get("idx_alvo", max_idx + 1))
+        janela_contexto = int(fonte.get("janela_contexto", min(150, max_idx)))
+    else:
+        idx_alvo = max_idx + 1
+        janela_contexto = min(150, max_idx)
+
+    idx_ini = max(1, idx_alvo - janela_contexto)
+    idx_fim = min(max_idx, idx_alvo - 1)
+    if idx_fim < idx_ini:
+        idx_fim = max_idx
+
+    df_contexto = df[(df["idx"] >= idx_ini) & (df["idx"] <= idx_fim)].copy()
+    if df_contexto.empty:
+        df_contexto = df.copy()
+
+    # Barômetro global
+    bar_global = calcular_barometro_global(df)
+    df_contexto["k_star"] = calcular_k_star(df_contexto)
+    df_contexto["nr"] = estimar_ruido_condicional(df_contexto)
+
+    k_star_local = float(df_contexto["k_star"].iloc[-1])
+    nr_local = float(df_contexto["nr"].iloc[-1])
+    nr_mean = float(df_contexto["nr"].mean())
+
+    # Confiabilidade
+    confi = st.session_state.get("ultima_confiabilidade")
+    if confi is None:
+        confi = consolidar_confiabilidade_real(
+            df=df_contexto,
+            janela_contexto=min(janela_contexto, len(df_contexto)),
+            qtd_series=5,
+        )
+
+    qds = confi["QDS"]
+    back = confi["Backtest"]
+    mc = confi["MonteCarlo"]
+
+    ambiente_score = qds["qds"]
+    ambiente_score += 0.1 * max(0.0, back["media_acertos"] - 2) / 4.0
+    ambiente_score += 0.1 * max(0.0, mc["media_acertos"] - 2) / 4.0
+    ambiente_score = max(0.0, min(1.0, ambiente_score))
+
+    penal_ruido = nr_local
+    penal_k_star = k_star_local
+    fator_conf = ambiente_score * (1.0 - 0.5 * penal_ruido - 0.4 * penal_k_star)
+    fator_conf = max(0.0, min(1.0, fator_conf))
+
+    # Envelope oficial, se vier do TURBO++ ULTRA
+    envelope_oficial = []
+    hibrido_list = []
+    if st.session_state.get("ultima_previsao_turbo") is not None:
+        info_turbo = st.session_state["ultima_previsao_turbo"]
+        hibrido_list = info_turbo.get("hibrido_list", [])
+        envelope_oficial = info_turbo.get("envelope_oficial", [])
+    elif st.session_state.get("ultima_previsao") is not None:
+        info = st.session_state["ultima_previsao"]
+        combinado = info.get("combinado", {})
+        hibrido_list = combinado.get("Hibrido", [])
+        envelope_oficial = hibrido_list[:3]
+
+    # Texto do envelope
+    def blocos_previsao(lista_series: List[List[int]]) -> str:
+        if not lista_series:
+            return "Nenhuma série oficial registrada."
+        linhas = []
+        for i, prev in enumerate(lista_series, start=1):
+            linhas.append(f"{i:02d}) {formatar_previsao(prev)}")
+        return "\n".join(linhas)
+
+    txt_env = blocos_previsao(envelope_oficial)
+
+    rel = []
+    rel.append("=== RELATÓRIO FINAL V15-HÍBRIDO ===")
+    rel.append("")
+    rel.append(f"Série alvo (hipotética): C{idx_alvo}")
+    rel.append(f"Janela de contexto: {janela_contexto} séries (C{idx_ini} até C{idx_fim})")
+    rel.append(f"Histórico total: {len(df)} séries, {num_pass} passageiros por série.")
+    rel.append("")
+    rel.append("--- Ambiente Global ---")
+    rel.append(f"k médio global: {bar_global['k_mean']:.2f}")
+    rel.append(f"k máximo global: {bar_global['k_max']:.2f}")
+    rel.append(f"k* médio global: {bar_global['k_star_mean']:.2f}")
+    rel.append(classificar_barometro_global(bar_global))
+    rel.append("")
+    rel.append("--- Ambiente Local (trecho de contexto) ---")
+    rel.append(f"k* local (última série da janela): {k_star_local:.2f}")
+    rel.append(classificar_regime_k_star(k_star_local))
+    rel.append(f"NR% local: {nr_local:.2f}")
+    rel.append(f"NR% médio no trecho: {nr_mean:.2f}")
+    rel.append(classificar_nivel_ruido(nr_local))
+    rel.append("")
+    rel.append("--- Confiabilidade (QDS / Backtest / Monte Carlo) ---")
+    rel.append(f"QDS: {qds['qds']:.2f} (diversidade: {qds['diversidade']:.2f})")
+    rel.append(
+        f"Backtest — média de acertos (HÍBRIDO): {back['media_acertos']:.2f} "
+        f"em {back['qtd_testes']} janelas."
+    )
+    rel.append(
+        f"Monte Carlo — média de acertos (HÍBRIDO): {mc['media_acertos']:.2f} "
+        f"em {mc['qtd_sim']} simulações."
+    )
+    rel.append(f"Fator de confiança consolidado: {fator_conf:.2f}")
+    rel.append("")
+    rel.append("--- Envelope Oficial TURBO++ ULTRA (se disponível) ---")
+    rel.append(txt_env)
+    rel.append("")
+    rel.append("--- Observações gerais ---")
+    if fator_conf >= 0.7:
+        rel.append(
+            "Ambiente favorável: estrada com boa qualidade para previsão híbrida "
+            "(nível alto de confiança)."
+        )
+    elif fator_conf >= 0.4:
+        rel.append(
+            "Ambiente intermediário: estrada utilizável, mas com pontos de atenção "
+            "em ruído ou turbulência."
+        )
+    else:
+        rel.append(
+            "Ambiente hostil: ruído/turbulência ou baixa aderência do método. "
+            "Usar envelope com cautela, considerar trechos alternativos."
+        )
+
+    return "\n".join(rel)
 # ============================================================
 # UI — Navegação
 # ============================================================
@@ -799,6 +854,7 @@ painel = st.sidebar.radio(
         "🧪 Testes de Confiabilidade REAL",
         "📊 Ruído Condicional (V15)",
         "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)",
+        "📄 Relatório Final V15-HÍBRIDO",
     ],
 )
 
@@ -946,7 +1002,6 @@ if painel == "🔍 Pipeline V14-FLEX ULTRA (V15)":
             st.subheader("Leque de Previsões — V15-HÍBRIDO")
             st.dataframe(df_leque, use_container_width=True)
 
-            # Destaque da previsão "oficial" (HÍBRIDO 1)
             hibrido = combinado.get("Hibrido", [])
             if hibrido:
                 prev_oficial = hibrido[0]
@@ -956,7 +1011,6 @@ if painel == "🔍 Pipeline V14-FLEX ULTRA (V15)":
                     f"`{formatar_previsao(prev_oficial)}`"
                 )
 
-                # k* e ruído local para interpretar
                 df_contexto = _extrair_ultimas_series(df, idx_alvo, janela_contexto)
                 df_contexto["k_star"] = calcular_k_star(df_contexto)
                 df_contexto["nr"] = estimar_ruido_condicional(df_contexto)
@@ -1013,7 +1067,6 @@ if painel == "💡 Replay LIGHT":
     with st.expander("Visualizar trecho"):
         st.dataframe(df_trecho, use_container_width=True)
 
-    # k* e NR no trecho
     df_trecho["k_star"] = calcular_k_star(df_trecho)
     df_trecho["nr"] = estimar_ruido_condicional(df_trecho)
 
@@ -1105,7 +1158,6 @@ if painel == "🎯 Replay ULTRA Unitário":
 
     max_idx = int(df["idx"].max())
     cols_pass = obter_colunas_passageiros(df)
-    num_pass = len(cols_pass)
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -1147,7 +1199,7 @@ if painel == "🎯 Replay ULTRA Unitário":
 
             alvo_row = df[df["idx"] == idx_alvo_replay]
             if alvo_row.empty:
-                st.error("Série alvo não encontrada no histórico.")
+                st.error("Série alvo não encontrado no histórico.")
             else:
                 alvo_vals = alvo_row[cols_pass].iloc[0].tolist()
 
@@ -1158,7 +1210,6 @@ if painel == "🎯 Replay ULTRA Unitário":
                 st.subheader("Leque gerado (HÍBRIDO + módulos)")
                 st.dataframe(df_leque, use_container_width=True)
 
-                # Calcula acertos por previsão
                 registros = []
                 for _, row in df_leque.iterrows():
                     previsao_lista = [int(x) for x in str(row["Previsão"]).split()]
@@ -1246,7 +1297,6 @@ if painel == "🚨 Monitor de Risco (k & k*)":
             use_container_width=True,
         )
 
-    # Valor local exato no idx_ref
     df_centro = df_local[df_local["idx"] == idx_ref]
     if not df_centro.empty:
         k_c = float(df_centro["k"].iloc[0])
@@ -1329,7 +1379,6 @@ if painel == "🧪 Testes de Confiabilidade REAL":
 
             st.markdown("### Interpretação qualitativa")
 
-            # QDS
             if qds["qds"] >= 0.7:
                 st.info("🟢 QDS alto: distribuição saudável para previsão.")
             elif qds["qds"] >= 0.4:
@@ -1337,7 +1386,6 @@ if painel == "🧪 Testes de Confiabilidade REAL":
             else:
                 st.error("🔴 QDS baixo: estrada com distribuição complicada.")
 
-            # Backtest
             if back["qtd_testes"] > 0:
                 if back["media_acertos"] >= 4:
                     st.info("🟢 Backtest indica excelente aderência do método híbrido.")
@@ -1346,7 +1394,6 @@ if painel == "🧪 Testes de Confiabilidade REAL":
                 else:
                     st.error("🔴 Backtest fraco, ambiente hostil para o método atual.")
 
-            # Monte Carlo
             if mc["qtd_sim"] > 0:
                 if mc["media_acertos"] >= 4:
                     st.info("🟢 Monte Carlo sugere alta robustez do método.")
@@ -1416,7 +1463,6 @@ if painel == "📊 Ruído Condicional (V15)":
         f"NR% médio do trecho: {nr_mean:.2f} — "
         + classificar_nivel_ruido(nr_mean)
     )
-
 # ============================================================
 # PAINEL 9 — Modo TURBO++ ULTRA ANTI-RUÍDO (V15)
 # ============================================================
@@ -1478,7 +1524,6 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
 
     if st.button("🚀 Gerar envelope TURBO++ ULTRA ANTI-RUÍDO"):
         try:
-            # Base do leque híbrido
             combinado_base = gerar_leque_previsoes_v15(
                 df=df,
                 idx_alvo=idx_alvo,
@@ -1492,18 +1537,12 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
                 st.error("Não foi possível gerar leque híbrido para esse alvo.")
                 st.stop()
 
-            # k* e NR local
             df_contexto = _extrair_ultimas_series(df, idx_alvo, janela_contexto)
             df_contexto["k_star"] = calcular_k_star(df_contexto)
             df_contexto["nr"] = estimar_ruido_condicional(df_contexto)
             k_star_local = float(df_contexto["k_star"].iloc[-1])
             nr_local = float(df_contexto["nr"].iloc[-1])
 
-            # Ajuste de confiança por ambiente
-            # Baseado em:
-            # - QDS global
-            # - Backtest médio
-            # - Monte Carlo de confiabilidade
             confi = consolidar_confiabilidade_real(
                 df=df_contexto,
                 janela_contexto=min(janela_contexto, len(df_contexto)),
@@ -1514,19 +1553,16 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
             back_ac = confi["Backtest"]["media_acertos"]
             mc_ac = confi["MonteCarlo"]["media_acertos"]
 
-            # Escore global de ambiente 0..1
             ambiente_score = qds_val
             ambiente_score += 0.1 * max(0.0, back_ac - 2) / 4.0
             ambiente_score += 0.1 * max(0.0, mc_ac - 2) / 4.0
             ambiente_score = max(0.0, min(1.0, ambiente_score))
 
-            # Penalização por ruído e turbulência
             penal_ruido = peso_ruido * nr_local
             penal_k_star = peso_k_star * k_star_local
             fator_conf = ambiente_score * (1.0 - 0.5 * penal_ruido - 0.4 * penal_k_star)
             fator_conf = max(0.0, min(1.0, fator_conf))
 
-            # Quanto menor a confiança, mais estreito o envelope "oficial"
             qtd_oficiais = max(1, int(qtd_series * fator_conf))
             qtd_oficiais = min(qtd_oficiais, len(hibrido_list))
 
@@ -1588,3 +1624,41 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
 
         except Exception as e:
             st.error(f"Erro no Modo TURBO++ ULTRA ANTI-RUÍDO: {e}")
+
+# ============================================================
+# PAINEL 10 — 📄 Relatório Final V15-HÍBRIDO
+# ============================================================
+if painel == "📄 Relatório Final V15-HÍBRIDO":
+    st.markdown("## 📄 Relatório Final V15-HÍBRIDO")
+
+    df = get_df()
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro no painel '📥 Histórico — Entrada FLEX ULTRA (V15-HÍBRIDO)'.")
+        st.stop()
+
+    st.markdown(
+        """
+        Este painel consolida **ambiente, risco, ruído, confiabilidade e envelope**  
+        em um único texto, pronto para você **copiar e colar aqui no chat**  
+        para análise conjunta (humano + máquina).
+        """
+    )
+
+    if st.button("📝 Gerar Relatório Final V15-HÍBRIDO"):
+        try:
+            rel = montar_relatorio_final_v15()
+            st.session_state["ultimo_relatorio_final"] = rel
+            st.success("Relatório gerado. Você pode copiar o texto abaixo.")
+        except Exception as e:
+            st.error(f"Erro ao montar o relatório final: {e}")
+
+    rel_txt = st.session_state.get("ultimo_relatorio_final")
+    if rel_txt:
+        st.markdown("### Texto do Relatório Final (selecione e copie):")
+        st.text_area(
+            "Relatório Final",
+            value=rel_txt,
+            height=400,
+        )
+    else:
+        st.info("Ainda não há relatório gerado nesta sessão.")
