@@ -3207,11 +3207,11 @@ def carregar_historico_upload(arquivo, formato: str) -> pd.DataFrame:
 # ------------------------------------------------------------
 def _normalizar_historico_flex(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Versão robusta para colagem de texto (HOTFIX V15.5.2)
+    Versão robusta para colagem de texto (HOTFIX V15.5.2 CORRIGIDO)
     - Mantém 'C' no id mesmo se o navegador remover
     - Força coluna 0 a ser string
     - Detecta corretamente k na última coluna
-    - Suporta histórico grande colado
+    - Usa apenas as colunas numéricas (exceto a primeira) como passageiros/k
     """
 
     df = df.copy()
@@ -3252,19 +3252,26 @@ def _normalizar_historico_flex(df: pd.DataFrame) -> pd.DataFrame:
 
     df["id"] = df["id_raw"].apply(extrair_num)
 
+    # --------------------------------------------------------
     # Detectar colunas de dados (passageiros + k)
-    colunas_dados = list(df.columns[1:])  # todas depois da primeira
+    # Somente colunas com rótulo inteiro != 0 (coluna 0 é o id original)
+    # --------------------------------------------------------
+    data_cols = [c for c in df.columns if isinstance(c, int) and c != 0]
+
+    if not data_cols:
+        raise ValueError("Histórico inválido: não foram encontradas colunas de passageiros.")
+
+    data_cols = sorted(data_cols)
 
     # Verificar se última coluna é k
-    ultima = colunas_dados[-1]
+    ultima = data_cols[-1]
     ultima_vals = pd.to_numeric(df[ultima], errors="coerce")
 
     tem_k = False
-    if ultima_vals.notnull().all():
-        if ultima_vals.max() <= 20:
-            tem_k = True
+    if ultima_vals.notnull().all() and ultima_vals.max() <= 20:
+        tem_k = True
 
-    passageiros_cols = colunas_dados[:-1] if tem_k else colunas_dados
+    passageiros_cols = data_cols[:-1] if tem_k else data_cols
     k_col = ultima if tem_k else None
 
     # Criar DF final
@@ -3281,18 +3288,27 @@ def _normalizar_historico_flex(df: pd.DataFrame) -> pd.DataFrame:
         rename_map[k_col] = "k"
         final_cols.append("k")
 
+    # aplicar renomeação
     df = df.rename(columns=rename_map)
+
+    # manter somente colunas finais
     df = df[final_cols].copy()
 
     # converter para int
     for c in df.columns:
         if c.startswith("n"):
-            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).clip(0, 60).astype(int)
+            df[c] = (
+                pd.to_numeric(df[c], errors="coerce")
+                .fillna(0)
+                .clip(0, 60)
+                .astype(int)
+            )
         if c == "k":
             df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
 
     df = df.dropna().reset_index(drop=True)
     return df
+
 
 
 
