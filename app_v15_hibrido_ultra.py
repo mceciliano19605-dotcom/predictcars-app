@@ -180,17 +180,26 @@ def obter_colunas_passageiros(df: pd.DataFrame) -> List[str]:
 # Métricas centrais: k, k*, regimes, barômetro e ruído
 # ------------------------------------------------------------
 def calcular_k_star(df: pd.DataFrame, janela: int = 50) -> pd.Series:
+    """
+    k* baseado na variância local de k.
+    - Estrada limpa (k quase sempre = 0) → variância ≈ 0 → k* ≈ 0 (estável)
+    - Estrada oscilando → variância sobe → k* sobe (turbulência real)
+    """
     if "k" not in df.columns:
         raise ValueError("DataFrame sem coluna 'k'.")
 
-    k_values = df["k"].astype(float)
-    rolling_mean = k_values.rolling(janela, min_periods=1).mean()
-    rolling_max = k_values.rolling(janela, min_periods=1).max()
+    # Série de k
+    k = df["k"].astype(float)
 
-    eps = 1e-9
-    norm = (rolling_mean + 0.5 * rolling_max) / (rolling_max + eps)
-    k_star = norm.clip(0.0, 1.0)
+    # Variância móvel de k na janela
+    rolling_var = k.rolling(janela, min_periods=5).var(ddof=1)
+    rolling_var = rolling_var.fillna(0.0)
+
+    # Normalização suave: var / (var + 1)
+    k_star = (rolling_var / (rolling_var + 1.0)).clip(0.0, 1.0)
+
     return k_star
+
 
 
 def classificar_regime_k_star(valor: float) -> str:
