@@ -1533,6 +1533,7 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
 
     if st.button("🚀 Gerar envelope TURBO++ ULTRA ANTI-RUÍDO"):
         try:
+            # Gera o leque base (S6, Micro, MC, Híbrido)
             combinado_base = gerar_leque_previsoes_v15(
                 df=df,
                 idx_alvo=idx_alvo,
@@ -1541,17 +1542,32 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
                 qtd_series_micro=qtd_series,
                 qtd_series_mc=qtd_series,
             )
+
             hibrido_list = combinado_base.get("Hibrido", [])
             if not hibrido_list:
-                st.error("Não foi possível gerar leque híbrido para esse alvo.")
+                st.error("Não foi possível gerar o leque híbrido para esse alvo.")
                 st.stop()
 
+            # Extrai janela de contexto
             df_contexto = _extrair_ultimas_series(df, idx_alvo, janela_contexto)
-            df_contexto["k_star"] = calcular_k_star(df_contexto)
-            df_contexto["nr"] = estimar_ruido_condicional(df_contexto)
-            k_star_local = float(df_contexto["k_star"].iloc[-1])
-            nr_local = float(df_contexto["nr"].iloc[-1])
+            if df_contexto.empty:
+                st.error(
+                    "A janela de contexto ficou vazia para esse índice alvo. "
+                    "Tente reduzir a janela ou corrigir o índice."
+                )
+                st.stop()
 
+            # Sentinelas k* e NR%
+            k_star_series = calcular_k_star(df_contexto)
+            nr_series = estimar_ruido_condicional(df_contexto)
+
+            df_contexto["k_star"] = k_star_series
+            df_contexto["nr"] = nr_series
+
+            k_star_local = float(k_star_series.iloc[-1])
+            nr_local = float(nr_series.iloc[-1])
+
+            # Confiabilidade REAL (QDS / Backtest / MonteCarlo)
             confi = consolidar_confiabilidade_real(
                 df=df_contexto,
                 janela_contexto=min(janela_contexto, len(df_contexto)),
@@ -1562,21 +1578,26 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
             back_ac = confi["Backtest"]["media_acertos"]
             mc_ac = confi["MonteCarlo"]["media_acertos"]
 
+            # Score base de ambiente (quanto mais alto → melhor)
             ambiente_score = qds_val
             ambiente_score += 0.1 * max(0.0, back_ac - 2) / 4.0
             ambiente_score += 0.1 * max(0.0, mc_ac - 2) / 4.0
             ambiente_score = max(0.0, min(1.0, ambiente_score))
 
+            # Penalizações por ruído & regime
             penal_ruido = peso_ruido * nr_local
             penal_k_star = peso_k_star * k_star_local
+
             fator_conf = ambiente_score * (1.0 - 0.5 * penal_ruido - 0.4 * penal_k_star)
             fator_conf = max(0.0, min(1.0, fator_conf))
 
+            # Quantidade final de séries
             qtd_oficiais = max(1, int(qtd_series * fator_conf))
             qtd_oficiais = min(qtd_oficiais, len(hibrido_list))
 
             envelope_oficial = hibrido_list[:qtd_oficiais]
 
+            # Salva para o relatório final
             st.session_state["ultima_previsao_turbo"] = {
                 "idx_alvo": idx_alvo,
                 "janela_contexto": janela_contexto,
@@ -1589,36 +1610,32 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
                 "fator_conf": fator_conf,
             }
 
-            st.success("Envelope TURBO++ ULTRA ANTI-RUÍDO gerado.")
+            st.success("Envelope TURBO++ ULTRA ANTI-RUÍDO gerado com sucesso.")
 
+            # Mostra envelope
             st.markdown("### 🔚 Envelope Oficial de Previsões (TURBO++ ULTRA)")
             st.write(f"Série alvo: **C{idx_alvo}** (hipotética).")
-            st.write(f"Quantidade de séries oficiais: **{len(envelope_oficial)}** de {len(hibrido_list)} geradas.")
+            st.write(f"Quantidade de séries oficiais: **{len(envelope_oficial)}** de {len(hibrido_list)}.")
 
             registros = []
             for i, prev in enumerate(envelope_oficial, start=1):
-                registros.append(
-                    {
-                        "Ordem": i,
-                        "Previsão": formatar_previsao(prev),
-                    }
-                )
+                registros.append({
+                    "Ordem": i,
+                    "Previsão": formatar_previsao(prev),
+                })
             df_env = pd.DataFrame(registros)
             st.dataframe(df_env, use_container_width=True)
 
+            # Métricas
             st.markdown("### Ambiente e confiança")
-
             col1, col2, col3 = st.columns(3)
-            qds_info = confi["QDS"]
-            back_info = confi["Backtest"]
-            mc_info = confi["MonteCarlo"]
 
             with col1:
-                st.metric("QDS", f"{qds_info['qds']:.2f}")
+                st.metric("QDS", f"{qds_val:.2f}")
             with col2:
-                st.metric("Backtest méd. acertos", f"{back_info['media_acertos']:.2f}")
+                st.metric("Backtest méd. acertos", f"{back_ac:.2f}")
             with col3:
-                st.metric("Monte Carlo méd. acertos", f"{mc_info['media_acertos']:.2f}")
+                st.metric("Monte Carlo méd. acertos", f"{mc_ac:.2f}")
 
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -1633,6 +1650,7 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
 
         except Exception as e:
             st.error(f"Erro no Modo TURBO++ ULTRA ANTI-RUÍDO: {e}")
+
 
 # ============================================================
 # PAINEL 10 — 📄 Relatório Final V15-HÍBRIDO
