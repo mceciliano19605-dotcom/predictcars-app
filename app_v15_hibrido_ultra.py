@@ -3205,36 +3205,40 @@ def carregar_historico_upload(arquivo, formato: str) -> pd.DataFrame:
 # ------------------------------------------------------------
 # NORMALIZADOR FLEX ULTRA (núcleo)
 # ------------------------------------------------------------
+# ------------------------------------------------------------
+# NORMALIZADOR FLEX ULTRA (núcleo)
+# ------------------------------------------------------------
 def _normalizar_historico_flex(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Versão robusta para colagem de texto (HOTFIX V15.5.2 CORRIGIDO)
+    Versão robusta V15.5.3 — assume histórico com:
+      id ; n1 ; n2 ; ... ; nN ; k
+    (ou seja: SEMPRE existe k na última coluna)
     - Mantém 'C' no id mesmo se o navegador remover
     - Força coluna 0 a ser string
-    - Detecta corretamente k na última coluna
-    - Usa apenas as colunas numéricas (exceto a primeira) como passageiros/k
+    - Reconstrói id numérico
+    - Usa todas as colunas numéricas após a primeira como passageiros,
+      exceto a última, que é tratada como k.
     """
 
     df = df.copy()
 
-    # Garantir que a coluna 0 existe
-    if df.shape[1] < 2:
-        raise ValueError("Histórico inválido: não há colunas suficientes.")
+    # Garantir colunas mínimas: id + 1 passageiro + k = 3 colunas
+    if df.shape[1] < 3:
+        raise ValueError("Histórico inválido: não há colunas suficientes (id + passageiros + k).")
 
-    # Forçar primeira coluna a STRING
+    # Forçar primeira coluna (id original) a STRING
     df.iloc[:, 0] = df.iloc[:, 0].astype(str).str.strip()
 
-    # Restaurar prefixo C se removido
+    # Restaurar prefixo C se removido ou sujo
     def restaurar_id(x):
         x = str(x).strip()
+        x = x.replace("\ufeff", "")  # remover BOM
 
-        # remover BOM invisível
-        x = x.replace("\ufeff", "")
-
-        # já tem C
+        # Se já começa com C e tem número, mantemos
         if x.startswith("C"):
             return x
 
-        # está só com número
+        # Se é só número (ex.: "1"), reconstituímos como "C1"
         if x.isdigit():
             return f"C{x}"
 
@@ -3242,10 +3246,10 @@ def _normalizar_historico_flex(df: pd.DataFrame) -> pd.DataFrame:
 
     df["id_raw"] = df.iloc[:, 0].apply(restaurar_id)
 
-    # Extrair número do ID
+    # Extrair número do ID (C1 -> 1, C20 -> 20, etc.)
     import re
     def extrair_num(x):
-        m = re.search(r"\d+", x)
+        m = re.search(r"\d+", str(x))
         if m:
             return int(m.group())
         return None
@@ -3253,40 +3257,32 @@ def _normalizar_historico_flex(df: pd.DataFrame) -> pd.DataFrame:
     df["id"] = df["id_raw"].apply(extrair_num)
 
     # --------------------------------------------------------
-    # Detectar colunas de dados (passageiros + k)
-    # Somente colunas com rótulo inteiro != 0 (coluna 0 é o id original)
+    # Detecção simples das colunas de dados:
+    # colunas numéricas depois da primeira (0) são dados.
+    # Última destas colunas é SEMPRE k.
     # --------------------------------------------------------
     data_cols = [c for c in df.columns if isinstance(c, int) and c != 0]
-
-    if not data_cols:
-        raise ValueError("Histórico inválido: não foram encontradas colunas de passageiros.")
-
     data_cols = sorted(data_cols)
 
-    # Verificar se última coluna é k
-    ultima = data_cols[-1]
-    ultima_vals = pd.to_numeric(df[ultima], errors="coerce")
+    if len(data_cols) < 2:
+        raise ValueError("Histórico inválido: é esperado pelo menos 1 passageiro + 1 coluna k.")
 
-    tem_k = False
-    if ultima_vals.notnull().all() and ultima_vals.max() <= 20:
-        tem_k = True
+    # Última coluna de dados = k
+    k_col = data_cols[-1]
+    passageiros_cols = data_cols[:-1]
 
-    passageiros_cols = data_cols[:-1] if tem_k else data_cols
-    k_col = ultima if tem_k else None
-
-    # Criar DF final
+    # Construir DF final: id + n1..nN + k
     final_cols = ["id"]
     rename_map = {}
 
-    # renomear passageiros
+    # renomear passageiros -> n1..nN
     for i, c in enumerate(passageiros_cols):
         rename_map[c] = f"n{i+1}"
         final_cols.append(f"n{i+1}")
 
     # renomear k
-    if tem_k:
-        rename_map[k_col] = "k"
-        final_cols.append("k")
+    rename_map[k_col] = "k"
+    final_cols.append("k")
 
     # aplicar renomeação
     df = df.rename(columns=rename_map)
@@ -3294,7 +3290,7 @@ def _normalizar_historico_flex(df: pd.DataFrame) -> pd.DataFrame:
     # manter somente colunas finais
     df = df[final_cols].copy()
 
-    # converter para int
+    # converter numéricos
     for c in df.columns:
         if c.startswith("n"):
             df[c] = (
@@ -3308,6 +3304,7 @@ def _normalizar_historico_flex(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.dropna().reset_index(drop=True)
     return df
+
 
 
 
