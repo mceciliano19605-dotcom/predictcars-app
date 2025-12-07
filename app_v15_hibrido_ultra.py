@@ -913,7 +913,7 @@ if painel == "📥 Histórico — Entrada FLEX ULTRA (V15-HÍBRIDO)":
                         f"Histórico carregado com sucesso: {len(df_novo)} séries, "
                         f"{obter_num_passageiros(df_novo)} passageiros por série."
                     )
-                    st.experimental_rerun()
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Erro ao carregar histórico: {e}")
     else:
@@ -932,7 +932,7 @@ if painel == "📥 Histórico — Entrada FLEX ULTRA (V15-HÍBRIDO)":
                     f"Histórico carregado com sucesso: {len(df_novo)} séries, "
                     f"{obter_num_passageiros(df_novo)} passageiros por série."
                 )
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"Erro ao carregar histórico: {e}")
 
