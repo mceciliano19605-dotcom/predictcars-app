@@ -1564,19 +1564,39 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
             df_contexto["k_star"] = k_star_series
             df_contexto["nr"] = nr_series
 
-            k_star_local = float(k_star_series.iloc[-1])
-            nr_local = float(nr_series.iloc[-1])
+            # Por segurança, checa de novo se há dados
+            if k_star_series.empty or nr_series.empty:
+                k_star_local = 0.0
+                nr_local = 0.0
+            else:
+                k_star_local = float(k_star_series.iloc[-1])
+                nr_local = float(nr_series.iloc[-1])
 
-            # Confiabilidade REAL (QDS / Backtest / MonteCarlo)
-            confi = consolidar_confiabilidade_real(
-                df=df_contexto,
-                janela_contexto=min(janela_contexto, len(df_contexto)),
-                qtd_series=min(qtd_series, 8),
-            )
+            # Confiabilidade REAL (QDS / Backtest / MonteCarlo) com proteção
+            try:
+                confi = consolidar_confiabilidade_real(
+                    df=df_contexto,
+                    janela_contexto=min(janela_contexto, len(df_contexto)),
+                    qtd_series=min(qtd_series, 8),
+                )
 
-            qds_val = confi["QDS"]["qds"]
-            back_ac = confi["Backtest"]["media_acertos"]
-            mc_ac = confi["MonteCarlo"]["media_acertos"]
+                qds_val = confi["QDS"]["qds"]
+                back_ac = confi["Backtest"]["media_acertos"]
+                mc_ac = confi["MonteCarlo"]["media_acertos"]
+            except Exception:
+                # Fallback neutro, caso algo interno dê problema
+                st.warning(
+                    "Não foi possível calcular os Testes de Confiabilidade REAL "
+                    "para esta janela. Usando valores neutros."
+                )
+                qds_val = 0.5
+                back_ac = 2.0
+                mc_ac = 2.0
+                confi = {
+                    "QDS": {"qds": qds_val},
+                    "Backtest": {"media_acertos": back_ac},
+                    "MonteCarlo": {"media_acertos": mc_ac},
+                }
 
             # Score base de ambiente (quanto mais alto → melhor)
             ambiente_score = qds_val
@@ -1650,6 +1670,7 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
 
         except Exception as e:
             st.error(f"Erro no Modo TURBO++ ULTRA ANTI-RUÍDO: {e}")
+
 
 
 # ============================================================
