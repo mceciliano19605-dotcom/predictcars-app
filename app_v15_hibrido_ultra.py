@@ -3207,78 +3207,93 @@ def carregar_historico_upload(arquivo, formato: str) -> pd.DataFrame:
 # ------------------------------------------------------------
 def _normalizar_historico_flex(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Converte qualquer formato FLEX ULTRA em DF padrão:
-       id | n1 | n2 | ... | nN | [k]
-    Onde 'k' é opcional.
-
-    Regras:
-    - primeira coluna deve ser ID (C1, C2, etc) -> limpa para int
-    - últimas colunas podem incluir ou não k
-    - número de passageiros pode variar (FLEX)
-    - clamp total 0–60
+    Versão robusta para colagem de texto (HOTFIX V15.5.2)
+    - Mantém 'C' no id mesmo se o navegador remover
+    - Força coluna 0 a ser string
+    - Detecta corretamente k na última coluna
+    - Suporta histórico grande colado
     """
 
-    # Renomeia colunas para genéricas
     df = df.copy()
-    df.columns = [f"col{i}" for i in range(df.shape[1])]
 
-    # Primeira coluna é ID (C1, C2 -> extrair número)
-    def extrair_id(val):
-        if isinstance(val, str):
-            m = re.search(r"\d+", val)
-            if m:
-                return int(m.group())
-        try:
-            return int(val)
-        except:
-            return None
+    # Garantir que a coluna 0 existe
+    if df.shape[1] < 2:
+        raise ValueError("Histórico inválido: não há colunas suficientes.")
 
-    df["id"] = df["col0"].apply(extrair_id)
+    # Forçar primeira coluna a STRING
+    df.iloc[:, 0] = df.iloc[:, 0].astype(str).str.strip()
 
-    # Passageiros são todas as colunas entre col1..colX exceto talvez a última se for k.
-    colunas = list(df.columns)
-    col_pass = [c for c in colunas if c.startswith("col") and c != "col0"]
+    # Restaurar prefixo C se removido
+    def restaurar_id(x):
+        x = str(x).strip()
 
-    # Detectar se a última é k (se todos os valores forem 0..30)
-    ultima = col_pass[-1]
-    possivel_k = pd.to_numeric(df[ultima], errors="coerce")
+        # remover BOM invisível
+        x = x.replace("\ufeff", "")
+
+        # já tem C
+        if x.startswith("C"):
+            return x
+
+        # está só com número
+        if x.isdigit():
+            return f"C{x}"
+
+        return x
+
+    df["id_raw"] = df.iloc[:, 0].apply(restaurar_id)
+
+    # Extrair número do ID
+    import re
+    def extrair_num(x):
+        m = re.search(r"\d+", x)
+        if m:
+            return int(m.group())
+        return None
+
+    df["id"] = df["id_raw"].apply(extrair_num)
+
+    # Detectar colunas de dados (passageiros + k)
+    colunas_dados = list(df.columns[1:])  # todas depois da primeira
+
+    # Verificar se última coluna é k
+    ultima = colunas_dados[-1]
+    ultima_vals = pd.to_numeric(df[ultima], errors="coerce")
 
     tem_k = False
-    if possivel_k.notnull().all():
-        mx = possivel_k.max()
-        if mx <= 20:   # razoável para k real
+    if ultima_vals.notnull().all():
+        if ultima_vals.max() <= 20:
             tem_k = True
 
-    passageiros_cols = col_pass[:-1] if tem_k else col_pass
-    k_col = [ultima] if tem_k else []
+    passageiros_cols = colunas_dados[:-1] if tem_k else colunas_dados
+    k_col = ultima if tem_k else None
 
-    # Renomear passageiros -> n1..nN
-    novo = {"id": "id"}
+    # Criar DF final
+    final_cols = ["id"]
+    rename_map = {}
+
+    # renomear passageiros
     for i, c in enumerate(passageiros_cols):
-        novo[c] = f"n{i+1}"
+        rename_map[c] = f"n{i+1}"
+        final_cols.append(f"n{i+1}")
 
+    # renomear k
     if tem_k:
-        novo[ultima] = "k"
+        rename_map[k_col] = "k"
+        final_cols.append("k")
 
-    df = df.rename(columns=novo)
+    df = df.rename(columns=rename_map)
+    df = df[final_cols].copy()
 
-    # Filtrar apenas colunas válidas
-    cols_final = ["id"] + [f"n{i+1}" for i in range(len(passageiros_cols))]
-    if tem_k:
-        cols_final.append("k")
-
-    df = df[cols_final].copy()
-
-    # Clamping geral
+    # converter para int
     for c in df.columns:
         if c.startswith("n"):
-            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
-            df[c] = df[c].clip(VALOR_MIN_PASSAGEIRO, VALOR_MAX_PASSAGEIRO).astype(int)
-        elif c == "k":
+            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).clip(0, 60).astype(int)
+        if c == "k":
             df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
 
     df = df.dropna().reset_index(drop=True)
     return df
+
 
 
 # ============================================================
