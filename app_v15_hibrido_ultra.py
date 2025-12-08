@@ -1671,16 +1671,23 @@ if painel == "🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)":
 
 
 # ============================================================
-# PAINEL 10 — 📄 Relatório Final V15-HÍBRIDO
+# PAINEL 10 — 📄 Relatório Final V15-HÍBRIDO (V15.6 MAX)
 # ============================================================
 if painel == "📄 Relatório Final V15-HÍBRIDO":
-    st.markdown("## 📄 Relatório Final — V15-HÍBRIDO")
+    st.markdown("## 📄 Relatório Final — V15.6 MAX")
 
-    if "ultima_previsao_turbo" not in st.session_state:
-        st.warning("Execute o painel '🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)' antes de gerar o relatório final.")
+    df = get_df()
+    if df is None or df.empty:
+        st.error("Histórico não carregado.")
         st.stop()
 
-    dados = st.session_state["ultima_previsao_turbo"]
+    # ------------------------------------------------------------
+    # Dados do TURBO++ ULTRA (obrigatório)
+    # ------------------------------------------------------------
+    dados = st.session_state.get("ultima_previsao_turbo", None)
+    if dados is None:
+        st.warning("Execute primeiro o painel '🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)'.")
+        st.stop()
 
     idx_alvo = dados["idx_alvo"]
     janela_contexto = dados["janela_contexto"]
@@ -1690,25 +1697,15 @@ if painel == "📄 Relatório Final V15-HÍBRIDO":
     k_star_local = dados.get("k_star_local", 0.0)
     nr_local = dados.get("nr_local", 0.0)
     fator_conf = dados.get("fator_conf", 0.0)
-    confi = dados.get("confi", None)
+    confi = dados.get("confi", {})
 
-    df = get_df()
-    if df is None or df.empty:
-        st.error("Histórico não carregado.")
-        st.stop()
+    qds_val = confi.get("QDS", {}).get("qds", 0.0)
+    back_val = confi.get("Backtest", {}).get("media_acertos", 0.0)
+    mc_val = confi.get("MonteCarlo", {}).get("media_acertos", 0.0)
 
-    # Confiabilidade fallback
-    if confi is None:
-        confi = {
-            "QDS": {"qds": 0.50},
-            "Backtest": {"media_acertos": 2.0},
-            "MonteCarlo": {"media_acertos": 2.0},
-        }
-
-    qds_val = confi["QDS"]["qds"]
-    back_val = confi["Backtest"]["media_acertos"]
-    mc_val = confi["MonteCarlo"]["media_acertos"]
-
+    # ------------------------------------------------------------
+    # Cabeçalho do relatório
+    # ------------------------------------------------------------
     st.markdown(f"### 🔚 Relatório Consolidado — C{idx_alvo} (hipotética)")
 
     # Envelope
@@ -1733,7 +1730,7 @@ if painel == "📄 Relatório Final V15-HÍBRIDO":
     with col2:
         st.metric("NR%", f"{nr_local:.3f}")
     with col3:
-        st.metric("Fator de confiança", f"{fator_conf:.3f}")
+        st.metric("Fator Confiança (TURBO++)", f"{fator_conf:.3f}")
 
     st.info(classificar_regime_k_star(k_star_local))
     st.info(classificar_nivel_ruido(nr_local))
@@ -1748,10 +1745,9 @@ if painel == "📄 Relatório Final V15-HÍBRIDO":
     with col3:
         st.metric("Monte Carlo (média)", f"{mc_val:.3f}")
 
-    # Fator de confiança final (fix robusto)
-    fator_conf_final = float(fator_conf)
-
-    # Resumo
+    # ------------------------------------------------------------
+    # Seção SUMÁRIO
+    # ------------------------------------------------------------
     st.markdown("### 📘 Resumo Final")
 
     resumo = f"""
@@ -1768,18 +1764,611 @@ if painel == "📄 Relatório Final V15-HÍBRIDO":
 - Backtest: {back_val:.3f}
 - Monte Carlo: {mc_val:.3f}
 
-**Fator de confiança final:** {fator_conf_final:.3f}
+**Fator de confiança (TURBO++ ULTRA):** {fator_conf:.3f}
 
 ---
-**Conclusão:**  
-Este relatório integra:
-- o envelope TURBO++ ULTRA,
-- os sentinelas (k\* e NR%),
-- e a Confiabilidade REAL,
-construindo o diagnóstico final para C{idx_alvo}.
-    """
-
+A seguir: integração do **Modo 6 Acertos — V15.6 MAX**.
+"""
     st.markdown(resumo)
 
+    # ======================================================
+    # BLOCO EXTRA — Integração com Modo 6 Acertos MAX
+    # ======================================================
+    st.markdown("## 🎯 Integração — Modo 6 Acertos (V15.6 MAX)")
+
+    resultado_m6 = st.session_state.get("resultado_modo6", None)
+
+    if resultado_m6 is None:
+        st.info("O Modo 6 Acertos ainda não foi executado.")
+    else:
+        final_6 = resultado_m6.get("final_6", [])
+        confi_m6 = resultado_m6.get("confiabilidade", 0.0)
+        nucleo_m6 = resultado_m6.get("nucleo", [])
+        cob_leves_m6 = resultado_m6.get("cob_leves", [])
+        cob_avanc_m6 = resultado_m6.get("cob_avancadas", [])
+        inter_ref_m6 = resultado_m6.get("intersecao_ref", [])
+
+        st.markdown("### 🎯 Grade Final — Modo 6 Acertos MAX")
+        st.code(" ".join(str(x) for x in final_6))
+
+        st.markdown("### 📈 Confiabilidade do Modo 6 Acertos")
+        st.metric("Confiabilidade (%)", f"{confi_m6*100:.1f}%")
+
+        st.markdown("### 🔵 Núcleo Utilizado")
+        st.code(" ".join(str(x) for x in nucleo_m6))
+
+        st.markdown("### 🟠 Coberturas Leves")
+        for i, c in enumerate(cob_leves_m6, start=1):
+            st.write(f"**Cobertura Leve {i}:** {c}")
+
+        st.markdown("### 🔴 Coberturas Avançadas")
+        for i, c in enumerate(cob_avanc_m6, start=1):
+            st.write(f"**Cobertura Avançada {i}:** {c}")
+
+        st.markdown("### 🧩 Interseção Reforçada (MAX)")
+        st.code(" ".join(str(x) for x in inter_ref_m6))
+
+        st.success("✔ Modo 6 Acertos MAX integrado ao Relatório Final.")
+
+
+# ============================================================
+# PAINEL 11 — 🧠 Painel de Decisão do Modo 6 Acertos (V15.6 MAX)
+# ============================================================
+if painel == "🧠 Painel de Decisão do Modo 6 Acertos (V15.6 MAX)":
+    st.markdown("## 🧠 Painel de Decisão — Modo 6 Acertos (V15.6 MAX)")
+
+    df = get_df()
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro.")
+        st.stop()
+
+    # Verifica se o TURBO++ ULTRA já foi rodado
+    dados = st.session_state.get("ultima_previsao_turbo", None)
+    if dados is None:
+        st.warning("Rode primeiro o painel '🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)' para gerar o envelope.")
+        st.stop()
+
+    # Extrai dados do TURBO++ ULTRA
+    idx_alvo = dados["idx_alvo"]
+    janela_contexto = dados["janela_contexto"]
+    hibrido_list = dados["hibrido_list"]
+    envelope_oficial = dados["envelope_oficial"]
+
+    k_star_local = dados.get("k_star_local", 0.0)
+    nr_local = dados.get("nr_local", 0.0)
+    fator_conf = dados.get("fator_conf", 0.0)
+    confi = dados.get("confi", {})
+
+    qds_val = confi.get("QDS", {}).get("qds", 0.0)
+    back_val = confi.get("Backtest", {}).get("media_acertos", 0.0)
+    mc_val = confi.get("MonteCarlo", {}).get("media_acertos", 0.0)
+
+    # -------------------------------------------------------------------
+    # 1) Análise automática do app — critério do Modo 6 Acertos
+    # -------------------------------------------------------------------
+    condicoes = {
+        "k* baixo": (k_star_local < 0.15),
+        "NR% baixo": (nr_local < 0.20),
+        "QDS alto": (qds_val > 0.75),
+        "ULTRA convergente": (len(envelope_oficial) >= 2),
+        "Backtest OK": (back_val >= 3.0),
+        "Monte Carlo OK": (mc_val >= 3.0),
+    }
+
+    st.markdown("### 🔍 Avaliação automática do ambiente")
+    for nome, ok in condicoes.items():
+        if ok:
+            st.success(f"🟢 {nome}")
+        else:
+            st.error(f"🔴 {nome}")
+
+    # -------------------------------------------------------------------
+    # 2) Diagnóstico geral
+    # -------------------------------------------------------------------
+    score = 0
+    for ok in condicoes.values():
+        score += 1 if ok else 0
+
+    st.markdown("### 📊 Diagnóstico geral")
+
+    if score >= 5:
+        recomendacao = "🟢 RECOMENDADO — Ambiente muito favorável."
+    elif score >= 3:
+        recomendacao = "🟡 NEUTRO — Pode usar, mas com cautela."
+    else:
+        recomendacao = "🔴 NÃO RECOMENDADO — Ambiente hostil para 6 acertos."
+
+    st.info(recomendacao)
+
+    # -------------------------------------------------------------------
+    # 3) Painel explicativo
+    # -------------------------------------------------------------------
+    st.markdown("### 📝 Motivos a favor")
+    st.write("""
+    - Estrada estável (k* baixo)
+    - Baixo ruído estrutural (NR%)
+    - Alta diversidade (QDS)
+    - Backtest sólido
+    - Monte Carlo robusto
+    - Convergência ULTRA adequada
+    """)
+
+    st.markdown("### ⚠️ Motivos contra")
+    st.write("""
+    - Turbulência (k* alto)
+    - Ruído estrutural elevado (NR%)
+    - Baixa diversidade estatística
+    - Desalinhamento entre S6, Micro e MC
+    - Envelope ULTRA curto ou inconsistente
+    """)
+
+    # -------------------------------------------------------------------
+    # 4) Decisão manual do usuário
+    # -------------------------------------------------------------------
+    st.markdown("---")
+    st.markdown("## 👉 Sua decisão")
+
+    ativar = st.radio(
+        "Deseja ativar o Modo 6 Acertos?",
+        ["NÃO, seguir fluxo normal", "SIM, ativar Modo 6 Acertos"],
+        horizontal=True,
+    )
+
+    if ativar == "SIM, ativar Modo 6 Acertos":
+        st.success("Modo 6 Acertos será ativado na próxima etapa (motor ainda será instalado).")
+        st.session_state["modo6_decisao"] = True
+    else:
+        st.warning("Modo 6 Acertos **não** será ativado.")
+        st.session_state["modo6_decisao"] = False
+# ============================================================
+# MÓDULO INTERNO — Funções do Modo 6 Acertos (V15.6 MAX)
+# ============================================================
+
+def _extrair_nucleo_ultra(hibrido_list: List[List[int]]) -> List[int]:
+    """
+    Núcleo = a previsão híbrida principal (primeira série do envelope TURBO++)
+    """
+    if not hibrido_list:
+        return []
+    return list(sorted(hibrido_list[0]))
+
+
+def _gerar_coberturas_leves(hibrido_list: List[List[int]], max_coberturas: int = 4) -> List[List[int]]:
+    """
+    Gera séries adjacentes (coberturas):
+    - pequenas variações estruturais
+    - deslocamento leve
+    - ajuda a capturar microdesvios
+    """
+    coberturas = []
+
+    for i in range(1, min(max_coberturas + 1, len(hibrido_list))):
+        base = sorted(hibrido_list[i])
+        coberturas.append(base)
+
+    return coberturas
+
+
+def _intersecao_estatistica(nucleo: List[int], coberturas: List[List[int]]) -> List[int]:
+    """
+    Interseção entre núcleo e séries de cobertura:
+    - Elementos que aparecem com muita frequência
+    - Ajuda a estabilizar desvios leves
+    """
+    if not nucleo:
+        return []
+
+    freq = {n: 1 for n in nucleo}
+
+    for serie in coberturas:
+        for n in serie:
+            freq[n] = freq.get(n, 0) + 1
+
+    # Ordenar pela frequência (maior primeiro)
+    ordenado = sorted(freq.items(), key=lambda x: -x[1])
+
+    # O modo 6 acertos precisa retornar exatamente 6 elementos finais
+    candidatos = [x[0] for x in ordenado]
+
+    return candidatos[:6]
+
+
+def _ajustar_por_risco(valores: List[int],
+                       k_star: float,
+                       nr: float,
+                       qds: float,
+                       back: float,
+                       mc: float) -> List[int]:
+    """
+    Ajuste final por risco adaptativo:
+    - penaliza instabilidade (k*, NR%)
+    - favorece estabilidade (QDS)
+    - favorece módulos fortes (backtest e MC)
+    """
+    if not valores:
+        return []
+
+    pesos_raw = []
+    for n in valores:
+        base = 1.0
+        base *= (1.0 - 0.5 * k_star)
+        base *= (1.0 - 0.4 * nr)
+        base *= (0.7 + 0.6 * qds)
+        base *= (0.7 + 0.15 * back)
+        base *= (0.7 + 0.15 * mc)
+        pesos_raw.append(base)
+
+    # Normaliza
+    total = sum(pesos_raw)
+    if total <= 0:
+        total = 1.0
+    pesos = [p / total for p in pesos_raw]
+
+    # Reordena valores pelos pesos (maior peso primeiro)
+    pares = list(zip(valores, pesos))
+    pares_ord = sorted(pares, key=lambda x: -x[1])
+
+    # Pega os 6 primeiros
+    final = [p[0] for p in pares_ord][:6]
+
+    return sorted(final)
+# ============================================================
+# MÓDULO PRINCIPAL — Modo 6 Acertos (V15.6 MAX)
+# ============================================================
+
+def gerar_modo_6_acertos(
+    hibrido_list: List[List[int]],
+    k_star_local: float,
+    nr_local: float,
+    qds_val: float,
+    back_val: float,
+    mc_val: float,
+) -> Dict[str, any]:
+    """
+    Função principal do Modo 6 Acertos — V15.6 MAX
+
+    Etapas:
+    1. extrai núcleo do ULTRA
+    2. gera coberturas leves
+    3. calcula interseção estatística
+    4. aplica pesos adaptativos
+    5. monta resposta completa
+    """
+
+    # -----------------------------
+    # 1) núcleo
+    # -----------------------------
+    nucleo = _extrair_nucleo_ultra(hibrido_list)
+
+    # -----------------------------
+    # 2) coberturas
+    # -----------------------------
+    coberturas = _gerar_coberturas_leves(hibrido_list, max_coberturas=5)
+
+    # -----------------------------
+    # 3) interseção
+    # -----------------------------
+    intersec = _intersecao_estatistica(nucleo, coberturas)
+
+    # -----------------------------
+    # 4) ajuste por risco (com pesos adaptativos)
+    # -----------------------------
+    final_6 = _ajustar_por_risco(
+        valores=intersec,
+        k_star=k_star_local,
+        nr=nr_local,
+        qds=qds_val,
+        back=back_val,
+        mc=mc_val,
+    )
+
+    # -----------------------------
+    # 5) confiabilidade específica do Modo 6 Acertos
+    # -----------------------------
+    confi_6 = 0.0
+    try:
+        confi_6 = (
+            (1 - k_star_local) * 0.30 +
+            (1 - nr_local) * 0.25 +
+            qds_val * 0.20 +
+            (back_val / 5.0) * 0.12 +
+            (mc_val / 5.0) * 0.13
+        )
+        confi_6 = max(0.0, min(1.0, confi_6))
+    except Exception:
+        confi_6 = 0.0
+
+    # -----------------------------
+    # 6) Estrutura final
+    # -----------------------------
+    return {
+        "nucleo": nucleo,
+        "coberturas": coberturas,
+        "intersecao": intersec,
+        "final_6": final_6,
+        "confiabilidade_modo6": confi_6,
+    }
+# ============================================================
+# PAINEL 12 — 🎯 Modo 6 Acertos — Execução (V15.6 MAX)
+# ============================================================
+if painel == "🎯 Modo 6 Acertos — Execução (V15.6 MAX)":
+    st.markdown("## 🎯 Modo 6 Acertos — Execução (V15.6 MAX)")
+
+    df = get_df()
+    if df is None or df.empty:
+        st.warning("Carregue o histórico primeiro.")
+        st.stop()
+
+    # Verifica se o TURBO++ ULTRA foi rodado
+    dados = st.session_state.get("ultima_previsao_turbo", None)
+    if dados is None:
+        st.warning("Rode antes o painel '🚀 Modo TURBO++ ULTRA ANTI-RUÍDO (V15)'.")
+        st.stop()
+
+    # Verifica se o usuário aprovou no Painel de Decisão
+    decisao = st.session_state.get("modo6_decisao", None)
+    if decisao is None:
+        st.warning("Vá ao painel '🧠 Painel de Decisão do Modo 6 Acertos (V15.6 MAX)' e tome sua decisão.")
+        st.stop()
+
+    if decisao is False:
+        st.error("Modo 6 Acertos NÃO foi aprovado. Retorne ao painel de decisão.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Extrai dados necessários
+    # ------------------------------------------------------------
+    hibrido_list = dados["hibrido_list"]
+    k_star_local = dados.get("k_star_local", 0.0)
+    nr_local = dados.get("nr_local", 0.0)
+
+    confi = dados.get("confi", {})
+    qds_val = confi.get("QDS", {}).get("qds", 0.0)
+    back_val = confi.get("Backtest", {}).get("media_acertos", 0.0)
+    mc_val = confi.get("MonteCarlo", {}).get("media_acertos", 0.0)
+
+    # ------------------------------------------------------------
+    # Rodar o motor Modo 6 Acertos MAX
+    # ------------------------------------------------------------
+    resultado = gerar_modo_6_acertos_max(
+        hibrido_list=hibrido_list,
+        k_star_local=k_star_local,
+        nr_local=nr_local,
+        qds_val=qds_val,
+        back_val=back_val,
+        mc_val=mc_val,
+    )
+
+    nucleo = resultado["nucleo"]
+    cob_leves = resultado.get("cob_leves", [])
+    cob_avancadas = resultado.get("cob_avancadas", [])
+    intersec_ref = resultado.get("intersec_reforcada", [])
+    final_6 = resultado["final_6"]
+    confi_m6 = resultado["confiabilidade_modo6"]
+
+    # ------------------------------------------------------------
+    # Exibe resultados
+    # ------------------------------------------------------------
+    st.success("Modo 6 Acertos MAX gerado com sucesso!")
+
+    st.markdown("### 🔵 Núcleo (do Híbrido ULTRA)")
+    st.code(" ".join(str(x) for x in nucleo))
+
+    st.markdown("### 🟠 Coberturas Leves")
+    if cob_leves:
+        for i, c in enumerate(cob_leves, start=1):
+            st.write(f"**Cobertura Leve {i}:** {c}")
+    else:
+        st.write("Nenhuma cobertura leve disponível.")
+
+    st.markdown("### 🔴 Coberturas Avançadas (V15.6 MAX)")
+    if cob_avancadas:
+        for i, c in enumerate(cob_avancadas, start=1):
+            st.write(f"**Cobertura Avançada {i}:** {c}")
+    else:
+        st.write("Nenhuma cobertura avançada disponível.")
+
+    st.markdown("### 🧩 Interseção Reforçada (MAX)")
+    st.code(" ".join(str(x) for x in intersec_ref))
+
+    st.markdown("### 🎯 **Grade Final — Modo 6 Acertos MAX**")
+    st.code(" ".join(str(x) for x in final_6))
+
+    st.markdown("### 📈 Confiabilidade do Modo 6 Acertos")
+    st.metric("Confiabilidade (%)", f"{confi_m6*100:.1f}%")
+
+    # ------------------------------------------------------------
+    # Armazena resultado final para o Relatório Final
+    # ------------------------------------------------------------
+    st.session_state["resultado_modo6"] = {
+        "final_6": final_6,
+        "confiabilidade": confi_m6,
+        "nucleo": nucleo,
+        "cob_leves": cob_leves,
+        "cob_avancadas": cob_avancadas,
+        "intersecao_ref": intersec_ref,
+    }
+
+    st.info("O resultado foi salvo e poderá ser integrado no Relatório Final V15.6 MAX.")
+
+# ============================================================
+# MÓDULO INTERNO — Coberturas Estruturais Avançadas (V15.6 MAX)
+# ============================================================
+
+def _cobertura_deslocamento(nucleo: List[int], desloc: int) -> List[int]:
+    """
+    Deslocamento suave: soma ou subtrai valores dentro das faixas viáveis.
+    """
+    resultado = []
+    for n in nucleo:
+        novo = n + desloc
+        if 1 <= novo <= 60:  # assume faixas padrão
+            resultado.append(novo)
+        else:
+            resultado.append(n)  # fallback
+    return sorted(list(set(resultado)))
+
+
+def _cobertura_permutacao_parcial(nucleo: List[int]) -> List[int]:
+    """
+    Permuta pequenas posições internas do núcleo.
+    """
+    if len(nucleo) < 2:
+        return nucleo.copy()
+
+    import random
+    idx1, idx2 = random.sample(range(len(nucleo)), 2)
+    novo = nucleo.copy()
+    novo[idx1], novo[idx2] = novo[idx2], novo[idx1]
+    return sorted(list(set(novo)))
+
+
+def _cobertura_frequencia_probabilistica(hibrido_list: List[List[int]],
+                                         limite: int = 2) -> List[int]:
+    """
+    Frequência global das previsões híbridas para reforço estatístico.
+    """
+    freq = {}
+    for serie in hibrido_list[:limite]:
+        for n in serie:
+            freq[n] = freq.get(n, 0) + 1
+
+    ordenado = sorted(freq.items(), key=lambda x: -x[1])
+    return [x[0] for x in ordenado[:6]]
+
+
+def gerar_coberturas_avancadas(
+    nucleo: List[int],
+    hibrido_list: List[List[int]],
+    k_star: float,
+    nr: float,
+    qds: float,
+) -> List[List[int]]:
+    """
+    Gera uma lista de coberturas avançadas, adaptadas ao ambiente.
+    Quanto mais estável (k*, NR% baixos), mais fortes as coberturas.
+    Quanto mais turbulento, mais sutis.
+    """
+
+    cob = []
+
+    # Cobertura 1: deslocamento +1
+    if k_star < 0.5:
+        cob.append(_cobertura_deslocamento(nucleo, +1))
+
+    # Cobertura 2: deslocamento -1
+    if nr < 0.6:
+        cob.append(_cobertura_deslocamento(nucleo, -1))
+
+    # Cobertura 3: permutação interna leve
+    cob.append(_cobertura_permutacao_parcial(nucleo))
+
+    # Cobertura 4: reforço probabilístico
+    cob.append(_cobertura_frequencia_probabilistica(hibrido_list, limite=3))
+
+    # Cobertura 5: mistura adaptativa núcleo + probabilístico
+    if qds > 0.5:
+        freq_base = _cobertura_frequencia_probabilistica(hibrido_list, limite=5)
+        mix = list(set(nucleo + freq_base))
+        cob.append(sorted(mix)[:6])
+
+    # Garantir unicidade e consistência
+    final = []
+    for c in cob:
+        if c and c not in final:
+            final.append(sorted(c))
+
+    return final[:6]  # máx. 6 coberturas
+# ============================================================
+# EXTENSÃO DO MOTOR — Integração das Coberturas Avançadas (V15.6 MAX)
+# ============================================================
+
+def _intersecao_reforcada(nucleo: List[int], coberturas_completas: List[List[int]]) -> List[int]:
+    """
+    Interseção reforçada:
+    - combina núcleo + coberturas leves + coberturas avançadas
+    - conta frequência total
+    - prioriza estabilidade das ocorrências
+    """
+    freq = {}
+
+    # adicionar frequência do núcleo
+    for n in nucleo:
+        freq[n] = freq.get(n, 0) + 2  # núcleo tem peso maior
+
+    # adicionar coberturas
+    for serie in coberturas_completas:
+        for n in serie:
+            freq[n] = freq.get(n, 0) + 1
+
+    # ordenar
+    ordenado = sorted(freq.items(), key=lambda x: -x[1])
+
+    # seleciona os 6 melhores
+    return [x[0] for x in ordenado[:6]]
+
+
+def gerar_modo_6_acertos_max(
+    hibrido_list: List[List[int]],
+    k_star_local: float,
+    nr_local: float,
+    qds_val: float,
+    back_val: float,
+    mc_val: float,
+) -> Dict[str, any]:
+    """
+    Versão MAX do modo 6 acertos:
+    inclui coberturas avançadas e interseção reforçada.
+    """
+
+    # 1) núcleo
+    nucleo = _extrair_nucleo_ultra(hibrido_list)
+
+    # 2) coberturas leves
+    cob_leves = _gerar_coberturas_leves(hibrido_list, max_coberturas=5)
+
+    # 3) coberturas avançadas
+    cob_avancadas = gerar_coberturas_avancadas(
+        nucleo=nucleo,
+        hibrido_list=hibrido_list,
+        k_star=k_star_local,
+        nr=nr_local,
+        qds=qds_val,
+    )
+
+    # 4) todas coberturas juntas
+    cob_todas = cob_leves + cob_avancadas
+
+    # 5) interseção reforçada
+    intersec_ref = _intersecao_reforcada(nucleo, cob_todas)
+
+    # 6) ajuste por risco
+    final_6 = _ajustar_por_risco(
+        valores=intersec_ref,
+        k_star=k_star_local,
+        nr=nr_local,
+        qds=qds_val,
+        back=back_val,
+        mc=mc_val,
+    )
+
+    # 7) confiabilidade max
+    confi_m6 = (
+        (1 - k_star_local) * 0.28 +
+        (1 - nr_local) * 0.25 +
+        qds_val * 0.22 +
+        (back_val / 5.0) * 0.12 +
+        (mc_val / 5.0) * 0.13
+    )
+    confi_m6 = max(0.0, min(1.0, confi_m6))
+
+    return {
+        "nucleo": nucleo,
+        "cob_leves": cob_leves,
+        "cob_avancadas": cob_avancadas,
+        "intersec_reforcada": intersec_ref,
+        "final_6": final_6,
+        "confiabilidade_modo6": confi_m6,
+    }
 
 
