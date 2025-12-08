@@ -602,7 +602,6 @@ def pipeline_v14_flex_ultra_v156(
 def construir_navegacao_v156() -> str:
     """
     Constrói o menu principal da V15.6 MAX.
-    A lógica detalhada de cada painel será implementada nas Partes seguintes.
     """
     st.sidebar.title("Predict Cars V15.6 MAX")
     st.sidebar.markdown(
@@ -615,6 +614,7 @@ def construir_navegacao_v156() -> str:
         unsafe_allow_html=True,
     )
 
+    # 🔑 Corrigido: chave única para evitar conflito com outros radios
     painel = st.sidebar.radio(
         "Escolha o painel:",
         [
@@ -631,9 +631,11 @@ def construir_navegacao_v156() -> str:
             "📜 Relatório Final V15.6 MAX",
         ],
         index=0,
-        key="v156_painel",
+        key="menu_principal_v156",  # 👈 chave nova
     )
+
     return painel
+
 
 
 # ============================================================
