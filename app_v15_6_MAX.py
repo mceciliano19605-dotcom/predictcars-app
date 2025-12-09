@@ -614,7 +614,7 @@ def construir_navegacao_v156() -> str:
         unsafe_allow_html=True,
     )
 
-    # 🔑 Corrigido: chave única para evitar conflito com outros radios
+    # 🔑 Menu principal sem key (evita conflitos de duplicidade)
     painel = st.sidebar.radio(
         "Escolha o painel:",
         [
@@ -631,10 +631,10 @@ def construir_navegacao_v156() -> str:
             "📜 Relatório Final V15.6 MAX",
         ],
         index=0,
-        key="menu_v156_super_unico_001",  # 👈 chave nova
     )
 
     return painel
+
 
 
 
