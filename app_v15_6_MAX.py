@@ -1942,7 +1942,18 @@ def turbo_ultra_v156(
         },
     }
 
+    # ------------------------------------------------------------
+    # 🔹 COMPATIBILIDADE V14/V15 — CAMPOS SIMPLES PARA O PAINEL
+    # ------------------------------------------------------------
+    resultados["final"] = final
+    resultados["serie_s6"] = serie_s6
+    resultados["mc_amostras"] = mc_list[:20]
+    resultados["divergencia_s6_mc"] = div_s6_mc
+    resultados["pesos"] = pesos
+    resultados["descricao"] = "Previsão TURBO++ ULTRA V15.6 MAX"
+
     return resultados
+
 
 
 
