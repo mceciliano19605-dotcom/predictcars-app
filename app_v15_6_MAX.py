@@ -32,17 +32,17 @@ def construir_navegacao_v156():
     st.markdown("### 🧭 Navegação — Predict Cars V15.6 MAX")
 
     opcoes = [
-        "📥 Histórico — Entrada FLEX ULTRA",
+        "📥 Histórico — Entrada FLEX ULTRA (V15.6 MAX)",
         "🔍 Pipeline V14-FLEX ULTRA (V15.6 MAX)",
-        "💡 Replay LIGHT",
-        "📅 Replay ULTRA",
-        "🎯 Replay ULTRA Unitário",
-        "🚨 Monitor de Risco (k & k*)",
-        "🧪 Testes de Confiabilidade REAL",
-        "📊 Ruído Condicional (V15.6)",
-        "🚀 Modo TURBO++ ULTRA Anti-Ruído",
+        "💡 Replay LIGHT (V15.6 MAX)",
+        "📅 Replay ULTRA (V15.6 MAX)",
+        "🎯 Replay ULTRA Unitário (V15.6 MAX)",
+        "🚨 Monitor de Risco (k & k*) (V15.6 MAX)",
+        "🧪 Testes de Confiabilidade REAL (V15.6 MAX)",
+        "📊 Ruído Condicional (V15.6 MAX)",
+        "🚀 Modo TURBO++ ULTRA Anti-Ruído (V15.6 MAX)",
         "🎯 Modo 6 Acertos — Execução (V15.6 MAX)",
-        "📄 Relatório Final V15.6 MAX"
+        "📜 Relatório Final V15.6 MAX"
     ]
 
     painel = st.selectbox(
@@ -52,6 +52,7 @@ def construir_navegacao_v156():
     )
 
     return painel
+
 
 # ------------------------------------------------------------
 # Estilos globais (mantendo jeitão denso das versões anteriores)
