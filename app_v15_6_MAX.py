@@ -25,6 +25,33 @@ st.set_page_config(
     page_icon="🚗",
     layout="wide",
 )
+# ============================================================
+# Navegação oficial — Predict Cars V15.6 MAX
+# ============================================================
+def construir_navegacao_v156():
+    st.markdown("### 🧭 Navegação — Predict Cars V15.6 MAX")
+
+    opcoes = [
+        "📥 Histórico — Entrada FLEX ULTRA",
+        "🔍 Pipeline V14-FLEX ULTRA (V15.6 MAX)",
+        "💡 Replay LIGHT",
+        "📅 Replay ULTRA",
+        "🎯 Replay ULTRA Unitário",
+        "🚨 Monitor de Risco (k & k*)",
+        "🧪 Testes de Confiabilidade REAL",
+        "📊 Ruído Condicional (V15.6)",
+        "🚀 Modo TURBO++ ULTRA Anti-Ruído",
+        "🎯 Modo 6 Acertos — Execução (V15.6 MAX)",
+        "📄 Relatório Final V15.6 MAX"
+    ]
+
+    painel = st.selectbox(
+        "Selecione um painel:",
+        opcoes,
+        index=0
+    )
+
+    return painel
 
 # ------------------------------------------------------------
 # Estilos globais (mantendo jeitão denso das versões anteriores)
@@ -86,7 +113,7 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
+painel = construir_navegacao_v156()
 
 # ============================================================
 # CONSTANTES E CONFIGURAÇÕES GERAIS
@@ -595,61 +622,9 @@ def pipeline_v14_flex_ultra_v156(
     return resultado
 
 
-# ============================================================
-# NAVEGAÇÃO PRINCIPAL (APENAS CABEÇALHO E REGISTRO DOS PAINÉIS)
-# ============================================================
-
-def construir_navegacao_v156() -> str:
-    """
-    Constrói o menu principal da V15.6 MAX.
-    """
-    st.sidebar.title("Predict Cars V15.6 MAX")
-    st.sidebar.markdown(
-        """
-        <div class="very-small-text">
-        Versão MAX: núcleo + coberturas + interseção estatística.<br>
-        Estrada completa, sem simplificações, com todos os módulos ativos.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # 🔑 Menu principal sem key (evita conflitos de duplicidade)
-    painel = st.sidebar.radio(
-        "Escolha o painel:",
-        [
-            "📥 Histórico — Entrada FLEX ULTRA (V15.6 MAX)",
-            "🔍 Pipeline V14-FLEX ULTRA (V15.6 MAX)",
-            "💡 Replay LIGHT (V15.6 MAX)",
-            "📅 Replay ULTRA (V15.6 MAX)",
-            "🎯 Replay ULTRA Unitário (V15.6 MAX)",
-            "🚨 Monitor de Risco (k & k*) (V15.6 MAX)",
-            "📊 Ruído Condicional (V15.6 MAX)",
-            "🧪 Testes de Confiabilidade REAL (V15.6 MAX)",
-            "🚀 Modo TURBO++ ULTRA Anti-Ruído (V15.6 MAX)",
-            "🎯 Modo 6 Acertos — Execução (V15.6 MAX)",
-            "📜 Relatório Final V15.6 MAX",
-        ],
-        index=0,
-    )
-
-    return painel
 
 
 
-
-# ============================================================
-# PONTO DE ENTRADA PRINCIPAL (MAIN) — PARTE 1/6
-# ============================================================
-
-def main_v156():
-    """Função principal da V15.6 MAX. As rotas de cada painel serão expandidas nas próximas partes."""
-    init_session_state_v156()
-    painel = construir_navegacao_v156()
-
-    if painel == "📥 Histórico — Entrada FLEX ULTRA (V15.6 MAX)":
-        painel_historico_entrada_v156()
-        return
 
     # Os demais painéis serão implementados nas Partes 2/6–6/6.
     st.markdown("## 🔧 Painel em construção (aguardando próximas partes do código)")
@@ -2699,32 +2674,7 @@ def painel_modo_6_acertos_execucao_v156() -> None:
         st.write("Nenhuma combinação selecionada ainda.")
 
 
-# ============================================================
-# MAIN ATUALIZADO — AGORA COM TESTES + MODO 6 ACERTOS
-# ============================================================
 
-def main_v156():
-    """
-    Função principal da V15.6 MAX — versão PARTE 5/6:
-
-    Painéis ativos:
-    - 📥 Histórico — Entrada FLEX ULTRA (V15.6 MAX)
-    - 🔍 Pipeline V14-FLEX ULTRA (V15.6 MAX)
-    - 💡 Replay LIGHT (V15.6 MAX)
-    - 📅 Replay ULTRA (V15.6 MAX)
-    - 🎯 Replay ULTRA Unitário (V15.6 MAX)
-    - 🚨 Monitor de Risco (k & k*) (V15.6 MAX)
-    - 📊 Ruído Condicional (V15.6 MAX)
-    - 🚀 Modo TURBO++ ULTRA Anti-Ruído (V15.6 MAX)
-    - 🧪 Testes de Confiabilidade REAL (V15.6 MAX)
-    - 🎯 Modo 6 Acertos — Execução (V15.6 MAX)
-    - 📜 Relatório Final V15.6 MAX  (Painel final será completado na Parte 6/6)
-    """
-    init_session_state_v156()
-    painel = construir_navegacao_v156()
-
-    if painel == "📥 Histórico — Entrada FLEX ULTRA (V15.6 MAX)":
-        painel_historico_entrada_v156()
 
     elif painel == "🔍 Pipeline V14-FLEX ULTRA (V15.6 MAX)":
         painel_pipeline_v14_flex_ultra_v156()
@@ -3116,7 +3066,7 @@ def main_v156():
     - 📜 Relatório Final V15.6 MAX
     """
     init_session_state_v156()
-    painel = construir_navegacao_v156()
+
 
     if painel == "📥 Histórico — Entrada FLEX ULTRA (V15.6 MAX)":
         painel_historico_entrada_v156()
