@@ -113,7 +113,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-painel = construir_navegacao_v156()
 
 # ============================================================
 # CONSTANTES E CONFIGURAÇÕES GERAIS
