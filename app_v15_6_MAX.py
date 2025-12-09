@@ -567,39 +567,18 @@ def painel_historico_entrada_v156() -> None:
             f"{len(historico_atual)} no total (para proteger contra modo zumbi)."
         )
 
-
 # ============================================================
 # (PLACEHOLDER) FUNÇÕES DO PIPELINE V14-FLEX ULTRA (V15.6 MAX)
 # ============================================================
-# IMPORTANTE:
-# As funções abaixo serão completadas nas Partes 2/6, 3/6 e 4/6,
-# incluindo:
-#   - Cálculo de k* (sentinela de risco) em janelas dinâmicas
-#   - Barômetro de regime da estrada (estável / pré-ruptura / ruptura / ruído)
-#   - Núcleo resiliente + coberturas + interseção estatística
-#   - Replay LIGHT / Replay ULTRA / Replay ULTRA Unitário
-#   - Modo TURBO++ ULTRA Anti-Ruído
-#   - Painel de Ruído Condicional (NR% / Ruído Tipo A/B)
-#   - Testes de Confiabilidade REAL (QDS, Backtest, Monte Carlo Profundo)
-#   - Modo 6 Acertos V15.6 MAX (semi-automático, guiado por k*, NR%, QDS, MC)
-#   - Relatório Final V15.6 MAX
-#
-# Aqui apenas deixamos a espinha dorsal para não quebrar o arquivo
-# quando você salvar a Parte 1/6 no GitHub.
+# Estes placeholders mantêm a estrutura do app funcionando
+# enquanto as Partes 2/6, 3/6 e 4/6 não são coladas.
+# Nada aqui executa lógica real — são versões mínimas
+# apenas para permitir navegação e evitar erros.
 
-
-def calcular_k_sentinela_v156(
-    df: pd.DataFrame,
-    janela: int = 200,
-) -> pd.DataFrame:
-    """
-    Placeholder do cálculo de k* (sentinela de risco) para V15.6 MAX.
-    A implementação completa virá nas próximas partes, mantendo toda
-    a lógica de regimes (estável, pré-ruptura, ruptura, ruído pesado),
-    mapeando janelas móveis do histórico.
-    """
+def calcular_k_sentinela_v156(df: pd.DataFrame, janela: int = 200) -> pd.DataFrame:
+    """Placeholder do cálculo de k* — será implementado na Parte 2/6."""
     df = df.copy()
-    df["k_sentinela"] = np.nan  # será preenchido depois
+    df["k_sentinela"] = np.nan
     return df
 
 
@@ -609,49 +588,15 @@ def pipeline_v14_flex_ultra_v156(
     idx_alvo: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Placeholder do pipeline principal V14-FLEX ULTRA adaptado para V15.6 MAX.
-    Aqui centralizamos a preparação para Replay, TURBO, ruído, etc.
-    A versão completa será montada nas próximas partes.
+    Placeholder do Pipeline V14-FLEX ULTRA para V15.6 MAX.
+    Será substituído pelas Partes 2/6 e 3/6.
     """
-    resultado = {
-        "df_com_k_sentinela": calcular_k_sentinela_v156(df),
-        "idx_alvo": idx_alvo,
+    return {
         "ok": True,
-        "mensagem": "Pipeline V14-FLEX ULTRA (V15.6 MAX) será completado nas Partes 2/6–4/6.",
+        "idx_alvo": idx_alvo,
+        "df_com_k_sentinela": calcular_k_sentinela_v156(df),
+        "mensagem": "Pipeline V14-FLEX ULTRA (V15.6 MAX) — aguardando implementação completa.",
     }
-    return resultado
-
-
-
-
-
-
-    # Os demais painéis serão implementados nas Partes 2/6–6/6.
-    st.markdown("## 🔧 Painel em construção (aguardando próximas partes do código)")
-    st.info(
-        "Este painel faz parte da V15.6 MAX completa. "
-        "Ao colar todas as 6 partes do arquivo `app_v15_6_MAX.py`, "
-        "toda a lógica de Pipeline, Replay, Monitor de Risco, Ruído, "
-        "Confiabilidade, Modo 6 Acertos e Relatório Final ficará ativa aqui."
-    )
-
-
-if __name__ == "__main__":
-    main_v156()
-# ============================================================
-# PARTE 2/6 — Núcleo do Pipeline V14-FLEX ULTRA (V15.6 MAX)
-# ============================================================
-
-# Aqui começamos a estruturar de fato o PIPELINE V14-FLEX ULTRA da V15.6 MAX:
-# - Cálculo de k* (sentinela de risco) em janelas móveis
-# - Classificação de regime da estrada (barômetro)
-# - Extração de janela ativa em torno da série alvo
-# - Núcleo + coberturas a partir das frequências recentes
-# - Estrutura básica para alimentar Replay / TURBO / Modo 6 / Relatório Final
-
-# OBS: As funções de Replay, TURBO, Ruído, Confiabilidade, Modo 6 e Relatório
-# serão conectadas nas Partes 3/6, 4/6, 5/6 e 6/6. Aqui montamos o esqueleto
-# estatístico que todos eles vão consumir.
 
 
 # ------------------------------------------------------------
