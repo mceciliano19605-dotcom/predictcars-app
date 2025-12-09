@@ -1782,28 +1782,138 @@ def turbo_ultra_v156(
     arr = arr / len(combinacoes)
     final = [int(round(x)) for x in arr]
 
-    # Registro em sessão
-    resultado = {
-        "serie_s6": serie_s6,
-        "micro_leque": leques_flat,
-        "mc_amostras": mc_list[:20],
-        "divergencia_s6_mc": div_s6_mc,
-        "pesos": pesos,
-        "final": final,
-        "descricao": "Previsão TURBO++ ULTRA V15.6 MAX",
+    # ------------------------------------------------------------
+    # 🔹 SEÇÃO FINAL — COMPILAÇÃO DE RESULTADOS (V15.6 MAX)
+    # ------------------------------------------------------------
+
+    resultados = {
+        # =====================================================================
+        # 🎯 1) Núcleo S6 Profundo
+        # =====================================================================
+        "s6_nucleo": {
+            "numeros": s6_previsao,
+            "dispersao": s6_dispersao,
+            "entropia": s6_entropia,
+            "faixa": s6_faixa,
+            "probabilidades": s6_probabilidades,
+        },
+
+        # =====================================================================
+        # 🌪️ 2) Micro-Leque Profundo
+        # =====================================================================
+        "micro_leque": {
+            "numeros": micro_previsao,
+            "dispersao": micro_dispersao,
+            "entropia": micro_entropia,
+            "faixa": micro_faixa,
+            "profundidade": profundidade_micro,
+            "probabilidades": micro_probabilidades,
+        },
+
+        # =====================================================================
+        # 🎲 3) Monte Carlo Profundo (MC ULTRA)
+        # =====================================================================
+        "monte_carlo": {
+            "numeros": mc_previsao,
+            "convergencia": mc_convergencia,
+            "entropia": mc_entropia,
+            "faixa": mc_faixa,
+            "iteracoes": mc_iteracoes,
+            "probabilidades": mc_probabilidades,
+        },
+
+        # =====================================================================
+        # 🧭 4) k* — Ambiente Dinâmico (Sentinela)
+        # =====================================================================
+        "k_star": {
+            "valor": k_star_valor,
+            "regime": k_star_regime,
+            "forca": k_star_forca,
+            "ajuste_pesos": {
+                "peso_s6_final": peso_s6_final,
+                "peso_mc_final": peso_mc_final,
+                "peso_micro_final": peso_micro_final
+            },
+        },
+
+        # =====================================================================
+        # 🔧 5) Índices de Estabilidade (IDX ULTRA)
+        # =====================================================================
+        "idx_ultra": {
+            "t_norm": idx_tnorm,
+            "estabilidade": idx_estabilidade,
+            "classe": idx_classe,
+            "descricao": idx_descricao,
+        },
+
+        # =====================================================================
+        # ❗ 6) Divergência S6 vs MC (V15.6 MAX)
+        # =====================================================================
+        "divergencia": {
+            "valor_absoluto": divergencia_valor,
+            "porcentagem": divergencia_pct,
+            "classe": divergencia_classe,
+            "descricao": divergencia_texto,
+        },
+
+        # =====================================================================
+        # 🧩 7) Interseção Estatística (Núcleo + Coberturas)
+        # =====================================================================
+        "intersecao": {
+            "numeros": intersecao_numeros,
+            "forca_intersecao": intersecao_forca,
+            "classe": intersecao_classe,
+            "descricao": intersecao_texto,
+        },
+
+        # =====================================================================
+        # 🚀 8) Previsão Final TURBO++ ULTRA (V15.6 MAX)
+        # =====================================================================
+        "previsao_final": {
+            "numeros": previsao_final,
+            "faixa_combinada": faixa_combinada,
+            "entropia_combinada": entropia_combinada,
+            "dispersao_combinada": dispersao_combinada,
+            "classificacao": classificacao_final,
+            "justificativas": {
+                "uso_s6": justificativa_s6,
+                "uso_mc": justificativa_mc,
+                "uso_micro": justificativa_micro,
+                "uso_intersecao": justificativa_intersecao,
+            },
+        },
+
+        # =====================================================================
+        # 🛡️ 9) Anti-Ruído — Mapa Condicional (V15.6 MAX)
+        # =====================================================================
+        "anti_ruido": {
+            "fator": fator_antirruido,
+            "elasticidade_nucleo": elasticidade_nucleo,
+            "intensidade_turbulencia": intensidade_turbulencia,
+            "nr_pct": nr_pct,
+            "classe_ruido": classe_ruido,
+            "descricao_ruido": descricao_ruido,
+        },
+
+        # =====================================================================
+        # 📊 10) Painel Analítico Completo (DEBUG PROFUNDO)
+        # =====================================================================
+        "painel_debug": {
+            "idx_alvo": idx_alvo,
+            "s6_raw": s6_raw,
+            "mc_raw": mc_raw,
+            "micro_raw": micro_raw,
+            "k_series": k_series_local,
+            "k_star_series": k_star_series,
+            "faixa_s6": s6_faixa,
+            "faixa_mc": mc_faixa,
+            "faixa_micro": micro_faixa,
+            "detalhes_intersecao": detalhes_intersecao,
+        }
     }
 
-    st.session_state["turbo_ultra_result"] = resultado
+    return resultados
 
-    # Guarda logs
-    st.session_state["turbo_ultra_logs"] = [
-        f"S6: {serie_s6}",
-        f"Pesos: {pesos}",
-        f"Divergência S6-MC: {div_s6_mc}",
-        f"Final: {final}",
-    ]
-
-    return resultado
 
 # ============================================================
 # PAINEL — 🚀 TURBO++ ULTRA ANTI-RUÍDO (V15.6 MAX)
