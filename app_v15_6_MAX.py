@@ -451,7 +451,7 @@ def painel_historico_entrada_v156() -> None:
         arquivo = st.file_uploader(
             "Selecione um arquivo de histórico (.txt, .csv)",
             type=["txt", "csv"],
-            key="v156_upload",
+            key="v156_upload_hist",
         )
 
         n_passageiros_upload = st.number_input(
@@ -1788,7 +1788,7 @@ def painel_pipeline_v14_flex_ultra_v156() -> None:
             max_value=n_series,
             value=n_series,
             step=1,
-            key="v156_idx_alvo_pipeline",
+            key="v156_idx_alvo_pipeline_input",
         )
     with col2:
         st.markdown(
