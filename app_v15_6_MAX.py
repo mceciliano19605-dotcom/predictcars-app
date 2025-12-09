@@ -1949,12 +1949,24 @@ def turbo_ultra_v156(
     resultados["final"] = final
     resultados["serie_s6"] = serie_s6
     resultados["mc_amostras"] = mc_list[:20]
-    resultados["micro_leque"] = leques_flat  # <<< ADICIONAR ESTA LINHA
+    resultados["micro_leque"] = leques_flat
     resultados["divergencia_s6_mc"] = div_s6_mc
-    resultados["pesos"] = pesos
+
+    resultados["pesos"] = {
+        "peso_s6": peso_s6,
+        "peso_mc": peso_mc,
+        "peso_micro": peso_micro,
+        "suavizacao_idx": suavizacao_idx,
+        "profundidade_micro": profundidade_micro,
+        "fator_antirruido": fator_antirruido,
+        "elasticidade_nucleo": elasticidade_nucleo,
+        "intensidade_turbulencia": intensidade_turbulencia,
+    }
+
     resultados["descricao"] = "Previsão TURBO++ ULTRA V15.6 MAX"
 
     return resultados
+
 
 
 
