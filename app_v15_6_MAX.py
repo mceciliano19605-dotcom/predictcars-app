@@ -2959,24 +2959,14 @@ def painel_relatorio_final_v156() -> None:
 
 def main_v156():
     """
-    Função principal da V15.6 MAX — VERSÃO FINAL (Partes 1/6 a 6/6 integradas).
-
-    Painéis ativos:
-    - 📥 Histórico — Entrada FLEX ULTRA (V15.6 MAX)
-    - 🔍 Pipeline V14-FLEX ULTRA (V15.6 MAX)
-    - 💡 Replay LIGHT (V15.6 MAX)
-    - 📅 Replay ULTRA (V15.6 MAX)
-    - 🎯 Replay ULTRA Unitário (V15.6 MAX)
-    - 🚨 Monitor de Risco (k & k*) (V15.6 MAX)
-    - 📊 Ruído Condicional (V15.6 MAX)
-    - 🚀 Modo TURBO++ ULTRA Anti-Ruído (V15.6 MAX)
-    - 🧪 Testes de Confiabilidade REAL (V15.6 MAX)
-    - 🎯 Modo 6 Acertos — Execução (V15.6 MAX)
-    - 📜 Relatório Final V15.6 MAX
+    Função principal da V15.6 MAX — controla toda a navegação.
     """
     init_session_state_v156()
 
+    # 🔥 Captura o painel escolhido na navegação
+    painel = construir_navegacao_v156()
 
+    # 🔥 Roteamento correto para todos os painéis
     if painel == "📥 Histórico — Entrada FLEX ULTRA (V15.6 MAX)":
         painel_historico_entrada_v156()
 
