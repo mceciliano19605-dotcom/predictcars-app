@@ -1853,6 +1853,7 @@ def painel_turbo_ultra_v156() -> None:
     # 🔬 Ajustes Avançados do Motor (NOVO — V15.6 MAX completo)
     # ------------------------------------------------------------
     with st.expander("🔬 Ajustes Avançados do Motor — TURBO++ ULTRA"):
+
         suavizacao_idx = st.slider(
             "Suavização IDX (0 = bruto, 1 = ultra suave)",
             min_value=0.00,
@@ -1890,7 +1891,18 @@ def painel_turbo_ultra_v156() -> None:
             min_value=0.00,
             max_value=1.00,
             value=st.session_state.get("turbo_ultra_avancado", {}).get("intensidade_turbulencia", 0.30),
-            st
+            step=0.05,
+        )
+
+        # Salvando tudo
+        st.session_state["turbo_ultra_avancado"] = {
+            "suavizacao_idx": float(suavizacao_idx),
+            "profundidade_micro": int(profundidade_micro),
+            "fator_antirruido": float(fator_antirruido),
+            "elasticidade_nucleo": float(elasticidade_nucleo),
+            "intensidade_turbulencia": float(intensidade_turbulencia),
+        }
+
     # ------------------------------------------------------------
     # ▶️ Execução do TURBO++ ULTRA (com proteção Anti-Zumbi)
     # ------------------------------------------------------------
