@@ -2673,44 +2673,8 @@ def painel_modo_6_acertos_execucao_v156() -> None:
     else:
         st.write("Nenhuma combinação selecionada ainda.")
 
-
-
-
-    elif painel == "🔍 Pipeline V14-FLEX ULTRA (V15.6 MAX)":
-        painel_pipeline_v14_flex_ultra_v156()
-
-    elif painel == "💡 Replay LIGHT (V15.6 MAX)":
-        painel_replay_light_v156()
-
-    elif painel == "📅 Replay ULTRA (V15.6 MAX)":
-        painel_replay_ultra_v156()
-
-    elif painel == "🎯 Replay ULTRA Unitário (V15.6 MAX)":
-        painel_replay_ultra_unitario_v156()
-
-    elif painel == "🚨 Monitor de Risco (k & k*) (V15.6 MAX)":
-        painel_monitor_risco_v156()
-
-    elif painel == "📊 Ruído Condicional (V15.6 MAX)":
-        painel_ruido_condicional_v156()
-
-    elif painel == "🚀 Modo TURBO++ ULTRA Anti-Ruído (V15.6 MAX)":
-        painel_modo_turbo_ultra_v156()
-
-    elif painel == "🧪 Testes de Confiabilidade REAL (V15.6 MAX)":
-        painel_testes_confiabilidade_real_v156()
-
-    elif painel == "🎯 Modo 6 Acertos — Execução (V15.6 MAX)":
-        painel_modo_6_acertos_execucao_v156()
-
-    elif painel == "📜 Relatório Final V15.6 MAX":
-        # Implementado definitivamente na Parte 6/6
-        st.markdown("## 📜 Relatório Final V15.6 MAX")
-        st.info("Painel em construção — será ativado na Parte 6/6.")
-
-
-if __name__ == "__main__":
-    main_v156()
+    # fim do painel
+    return
 # ============================================================
 # PARTE 6/6 — RELATÓRIO FINAL V15.6 MAX
 # ============================================================
