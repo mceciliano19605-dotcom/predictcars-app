@@ -1793,7 +1793,6 @@ def turbo_ultra_v156(df: pd.DataFrame, idx_alvo: int) -> Dict[str, Any]:
 
     return resultado
 
-
 # ============================================================
 # PAINEL — 🚀 TURBO++ ULTRA ANTI-RUÍDO (V15.6 MAX)
 # ============================================================
@@ -1806,8 +1805,10 @@ def painel_turbo_ultra_v156() -> None:
         st.warning("Carregue primeiro o histórico.")
         return
 
+    # Intervalo de índices possível
     min_idx, max_idx = obter_intervalo_indices(df)
 
+    # Índice alvo
     idx_alvo = st.number_input(
         "Índice alvo (previsão TURBO++ ULTRA):",
         min_value=min_idx + 1,
@@ -1817,26 +1818,28 @@ def painel_turbo_ultra_v156() -> None:
         key="idx_turbo_ultra_v156",
     )
 
-    # Controle dos pesos (opcional)
-    with st.expander("⚙️ Ajustes Manuais (opcional)"):
+    # ------------------------------------------------------------
+    # 🔧 Ajustes Manuais Básicos (igual ao que você já tinha)
+    # ------------------------------------------------------------
+    with st.expander("⚙️ Ajustes Manuais — Pesos do Motor"):
         peso_s6 = st.slider(
             "Peso S6",
-            min_value=0.1,
-            max_value=0.9,
-            value=st.session_state.get("turbo_ultra_pesos", {}).get("peso_s6", 0.5),
+            min_value=0.05,
+            max_value=0.90,
+            value=st.session_state.get("turbo_ultra_pesos", {}).get("peso_s6", 0.50),
             step=0.05,
         )
         peso_mc = st.slider(
             "Peso Monte Carlo",
-            min_value=0.1,
-            max_value=0.9,
+            min_value=0.05,
+            max_value=0.90,
             value=st.session_state.get("turbo_ultra_pesos", {}).get("peso_mc", 0.35),
             step=0.05,
         )
         peso_micro = st.slider(
             "Peso Micro-Leque",
-            min_value=0.1,
-            max_value=0.9,
+            min_value=0.05,
+            max_value=0.90,
             value=st.session_state.get("turbo_ultra_pesos", {}).get("peso_micro", 0.15),
             step=0.05,
         )
@@ -1846,43 +1849,138 @@ def painel_turbo_ultra_v156() -> None:
             "peso_mc": float(peso_mc),
             "peso_micro": float(peso_micro),
         }
+    # ------------------------------------------------------------
+    # 🔬 Ajustes Avançados do Motor (NOVO — V15.6 MAX completo)
+    # ------------------------------------------------------------
+    with st.expander("🔬 Ajustes Avançados do Motor — TURBO++ ULTRA"):
+        suavizacao_idx = st.slider(
+            "Suavização IDX (0 = bruto, 1 = ultra suave)",
+            min_value=0.00,
+            max_value=1.00,
+            value=st.session_state.get("turbo_ultra_avancado", {}).get("suavizacao_idx", 0.25),
+            step=0.05,
+        )
 
+        profundidade_micro = st.slider(
+            "Profundidade Micro-Leque",
+            min_value=3,
+            max_value=40,
+            value=st.session_state.get("turbo_ultra_avancado", {}).get("profundidade_micro", 15),
+            step=1,
+        )
+
+        fator_antirruido = st.slider(
+            "Fator Anti-Ruído (impacta S6/MC/Micro)",
+            min_value=0.00,
+            max_value=1.00,
+            value=st.session_state.get("turbo_ultra_avancado", {}).get("fator_antirruido", 0.40),
+            step=0.05,
+        )
+
+        elasticidade_nucleo = st.slider(
+            "Elasticidade do Núcleo (0 = rígido, 1 = elástico)",
+            min_value=0.00,
+            max_value=1.00,
+            value=st.session_state.get("turbo_ultra_avancado", {}).get("elasticidade_nucleo", 0.20),
+            step=0.05,
+        )
+
+        intensidade_turbulencia = st.slider(
+            "Intensidade Anti-Turbulência (reduz variações espúrias)",
+            min_value=0.00,
+            max_value=1.00,
+            value=st.session_state.get("turbo_ultra_avancado", {}).get("intensidade_turbulencia", 0.30),
+            st
+    # ------------------------------------------------------------
+    # ▶️ Execução do TURBO++ ULTRA (com proteção Anti-Zumbi)
+    # ------------------------------------------------------------
     if st.button("Rodar TURBO++ ULTRA", type="primary"):
         limite_max = st.session_state.get("limite_max_janela", 600)
+
+        # Proteção contra travamento
         if st.session_state.get("flag_modo_seguro", True):
             if not limitar_operacao(len(df), limite_max, "TURBO++ ULTRA"):
                 return
 
-        r = turbo_ultra_v156(df, idx_alvo=idx_alvo)
-        st.session_state["turbo_ultra_result"] = r
+        # Recupera pesos básicos
+        pesos = st.session_state.get("turbo_ultra_pesos", {})
+        peso_s6 = float(pesos.get("peso_s6", 0.5))
+        peso_mc = float(pesos.get("peso_mc", 0.35))
+        peso_micro = float(pesos.get("peso_micro", 0.15))
 
+        # Recupera ajustes avançados
+        av = st.session_state.get("turbo_ultra_avancado", {})
+        suavizacao_idx = float(av.get("suavizacao_idx", 0.25))
+        profundidade_micro = int(av.get("profundidade_micro", 15))
+        fator_antirruido = float(av.get("fator_antirruido", 0.40))
+        elasticidade_nucleo = float(av.get("elasticidade_nucleo", 0.20))
+        intensidade_turbulencia = float(av.get("intensidade_turbulencia", 0.30))
+
+        # --------------------------------------------------------
+        # 🔥 Chamada do motor TURBO++ ULTRA completo
+        # --------------------------------------------------------
+        r = turbo_ultra_v156(
+            df,
+            idx_alvo=idx_alvo,
+            peso_s6=float(peso_s6),
+            peso_mc=float(peso_mc),
+            peso_micro=float(peso_micro),
+            suavizacao_idx=float(suavizacao_idx),
+            profundidade_micro=int(profundidade_micro),
+            fator_antirruido=float(fator_antirruido),
+            elasticidade_nucleo=float(elasticidade_nucleo),
+            intensidade_turbulencia=float(intensidade_turbulencia),
+        )
+
+        st.session_state["turbo_ultra_result"] = r
+    # ------------------------------------------------------------
+    # 📊 Exibição dos resultados do TURBO++ ULTRA
+    # ------------------------------------------------------------
     r = st.session_state.get("turbo_ultra_result")
     if r:
         st.markdown("### 🔥 PREVISÃO FINAL TURBO++ ULTRA")
         st.code(formatar_lista_passageiros(r["final"]), language="text")
 
         col1, col2, col3 = st.columns(3)
+
+        # Núcleo S6
         with col1:
             st.subheader("Núcleo (S6)")
             st.code(formatar_lista_passageiros(r["serie_s6"]), language="text")
 
+        # Micro-Leque
         with col2:
             st.subheader("Micro-Leque")
             for ml in r["micro_leque"]:
                 st.text(formatar_lista_passageiros(ml))
 
+        # Monte Carlo
         with col3:
             st.subheader("Monte Carlo (amostras)")
             for mc in r["mc_amostras"]:
                 st.text(formatar_lista_passageiros(mc))
 
+        # Divergência
         st.markdown("### 📉 Divergência S6 vs Monte Carlo")
         st.metric("Divergência média", round(r["divergencia_s6_mc"], 4))
 
-        st.markdown("### ⚖️ Pesos usados")
-        st.json(r["pesos"])
+        # Pesos usados (básicos + avançados)
+        st.markdown("### ⚖️ Pesos e Parâmetros Utilizados")
+        st.json({
+            "peso_s6": r["pesos"].get("peso_s6"),
+            "peso_mc": r["pesos"].get("peso_mc"),
+            "peso_micro": r["pesos"].get("peso_micro"),
+            "suavizacao_idx": r.get("suavizacao_idx"),
+            "profundidade_micro": r.get("profundidade_micro"),
+            "fator_antirruido": r.get("fator_antirruido"),
+            "elasticidade_nucleo": r.get("elasticidade_nucleo"),
+            "intensidade_turbulencia": r.get("intensidade_turbulencia"),
+        })
 
-        st.caption(r["descricao"])
+        # Mensagem legendada do motor
+        st.caption(r.get("descricao", ""))
+
+
 # ============================================================
 # PARTE 5/6 — Monitor de Risco, Ruído Condicional, Confiabilidade REAL
 # ============================================================
