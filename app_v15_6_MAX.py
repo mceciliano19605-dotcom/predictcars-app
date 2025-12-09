@@ -631,7 +631,7 @@ def construir_navegacao_v156() -> str:
             "📜 Relatório Final V15.6 MAX",
         ],
         index=0,
-        key="menu_principal_v156",  # 👈 chave nova
+        key="menu_principal_v156_unico",  # 👈 chave nova
     )
 
     return painel
