@@ -2999,3 +2999,10 @@ def main_v156():
 
     elif painel == "📜 Relatório Final V15.6 MAX":
         painel_relatorio_final_v156()
+
+# ============================================================
+# PONTO DE ENTRADA DA APLICAÇÃO
+# ============================================================
+if __name__ == "__main__":
+    main_v156()
+
