@@ -1825,7 +1825,7 @@ def turbo_ultra_v156(
         # =====================================================================
         # 🌪️ 2) Micro-Leque Profundo
         # =====================================================================
-        "micro_leque": {
+        "micro_leque_info": {
             "numeros": loc.get(
                 "micro_previsao",
                 leques_flat[0] if leques_flat else serie_s6
@@ -1836,6 +1836,7 @@ def turbo_ultra_v156(
             "profundidade": profundidade_micro,
             "probabilidades": loc.get("micro_probabilidades"),
         },
+
 
         # =====================================================================
         # 🎲 3) Monte Carlo Profundo (MC ULTRA)
@@ -1948,11 +1949,13 @@ def turbo_ultra_v156(
     resultados["final"] = final
     resultados["serie_s6"] = serie_s6
     resultados["mc_amostras"] = mc_list[:20]
+    resultados["micro_leque"] = leques_flat  # <<< ADICIONAR ESTA LINHA
     resultados["divergencia_s6_mc"] = div_s6_mc
     resultados["pesos"] = pesos
     resultados["descricao"] = "Previsão TURBO++ ULTRA V15.6 MAX"
 
     return resultados
+
 
 
 
