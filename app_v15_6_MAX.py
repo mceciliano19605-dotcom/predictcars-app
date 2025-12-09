@@ -2165,66 +2165,7 @@ def painel_ruido_condicional_v156() -> None:
     st.info(ruido_info["texto_resumo"])
 
 
-# ============================================================
-# MAIN ATUALIZADO — ROTAS COMPLETAS DOS PAINÉIS (1 a 9)
-# ============================================================
 
-def main_v156():
-    """
-    Função principal da V15.6 MAX, agora com:
-    - Histórico — Entrada
-    - Pipeline V14-FLEX ULTRA
-    - Replays (LIGHT, ULTRA, Unitário)
-    - Monitor de Risco (k & k*)
-    - Modo TURBO++ ULTRA Anti-Ruído
-    - Ruído Condicional
-    (Modo 6 Acertos + Relatório Final virão nas Partes 5/6 e 6/6)
-    """
-    init_session_state_v156()
-    painel = construir_navegacao_v156()
-
-    if painel == "📥 Histórico — Entrada FLEX ULTRA (V15.6 MAX)":
-        painel_historico_entrada_v156()
-
-    elif painel == "🔍 Pipeline V14-FLEX ULTRA (V15.6 MAX)":
-        painel_pipeline_v14_flex_ultra_v156()
-
-    elif painel == "💡 Replay LIGHT (V15.6 MAX)":
-        painel_replay_light_v156()
-
-    elif painel == "📅 Replay ULTRA (V15.6 MAX)":
-        painel_replay_ultra_v156()
-
-    elif painel == "🎯 Replay ULTRA Unitário (V15.6 MAX)":
-        painel_replay_ultra_unitario_v156()
-
-    elif painel == "🚨 Monitor de Risco (k & k*) (V15.6 MAX)":
-        painel_monitor_risco_v156()
-
-    elif painel == "📊 Ruído Condicional (V15.6 MAX)":
-        painel_ruido_condicional_v156()
-
-    elif painel == "🚀 Modo TURBO++ ULTRA Anti-Ruído (V15.6 MAX)":
-        painel_modo_turbo_ultra_v156()
-
-    elif painel == "🧪 Testes de Confiabilidade REAL (V15.6 MAX)":
-        # Implementado na Parte 5/6
-        st.markdown("## 🧪 Testes de Confiabilidade REAL (V15.6 MAX)")
-        st.info("Painel em construção — será ativado na Parte 5/6.")
-
-    elif painel == "🎯 Modo 6 Acertos — Execução (V15.6 MAX)":
-        # Implementado na Parte 5/6
-        st.markdown("## 🎯 Modo 6 Acertos — Execução (V15.6 MAX)")
-        st.info("Painel em construção — será ativado na Parte 5/6.")
-
-    elif painel == "📜 Relatório Final V15.6 MAX":
-        # Implementado na Parte 6/6
-        st.markdown("## 📜 Relatório Final V15.6 MAX")
-        st.info("Painel em construção — será ativado na Parte 6/6.")
-
-
-if __name__ == "__main__":
-    main_v156()
 # ============================================================
 # PARTE 5/6 — TESTES DE CONFIABILIDADE REAL + MODO 6 ACERTOS
 # ============================================================
