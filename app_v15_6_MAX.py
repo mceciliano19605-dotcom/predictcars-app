@@ -2155,21 +2155,33 @@ def painel_turbo_ultra_v156() -> None:
         st.markdown("### 📉 Divergência S6 vs Monte Carlo")
         st.metric("Divergência média", round(r["divergencia_s6_mc"], 4))
 
-        # Pesos usados (básicos + avançados)
+        # ============================================================
+        # 🔥 BLOCO OFICIAL — ⚖️ PESOS E PARÂMETROS UTILIZADOS (V15.6 MAX)
+        # ============================================================
         st.markdown("### ⚖️ Pesos e Parâmetros Utilizados")
-        st.json({
-            "peso_s6": r["pesos"].get("peso_s6"),
-            "peso_mc": r["pesos"].get("peso_mc"),
-            "peso_micro": r["pesos"].get("peso_micro"),
-            "suavizacao_idx": r.get("suavizacao_idx"),
-            "profundidade_micro": r.get("profundidade_micro"),
-            "fator_antirruido": r.get("fator_antirruido"),
-            "elasticidade_nucleo": r.get("elasticidade_nucleo"),
-            "intensidade_turbulencia": r.get("intensidade_turbulencia"),
-        })
+
+        pesos_dict = r.get("pesos", {})
+
+        st.json(
+            {
+                "peso_s6": pesos_dict.get("peso_s6", peso_s6),
+                "peso_mc": pesos_dict.get("peso_mc", peso_mc),
+                "peso_micro": pesos_dict.get("peso_micro", peso_micro),
+                "suavizacao_idx": pesos_dict.get("suavizacao_idx", suavizacao_idx),
+                "profundidade_micro": pesos_dict.get("profundidade_micro", profundidade_micro),
+                "fator_antirruido": pesos_dict.get("fator_antirruido", fator_antirruido),
+                "elasticidade_nucleo": pesos_dict.get("elasticidade_nucleo", elasticidade_nucleo),
+                "intensidade_turbulencia": pesos_dict.get("intensidade_turbulencia", intensidade_turbulencia),
+            }
+        )
 
         # Mensagem legendada do motor
         st.caption(r.get("descricao", ""))
+
+        # ============================================================
+        # 🔚 FIM DO BLOCO OFICIAL — ⚖️ PESOS E PARÂMETROS (V15.6 MAX)
+        # ============================================================
+
 
 
 # ============================================================
