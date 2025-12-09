@@ -1691,7 +1691,19 @@ def ajustar_pesos_por_kstar(kstar_info: KStarInfo) -> Dict[str, float]:
 # FUNÇÃO PRINCIPAL — TURBO++ ULTRA (V15.6 MAX)
 # ------------------------------------------------------------
 
-def turbo_ultra_v156(df: pd.DataFrame, idx_alvo: int) -> Dict[str, Any]:
+def turbo_ultra_v156(
+    df: pd.DataFrame,
+    idx_alvo: int,
+    peso_s6: float = 0.5,
+    peso_mc: float = 0.35,
+    peso_micro: float = 0.15,
+    suavizacao_idx: float = 0.25,
+    profundidade_micro: int = 15,
+    fator_antirruido: float = 0.40,
+    elasticidade_nucleo: float = 0.20,
+    intensidade_turbulencia: float = 0.30,
+) -> Dict[str, Any]:
+ 
     """
     Combina:
     - S6 PROFUNDO
