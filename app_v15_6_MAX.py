@@ -1766,10 +1766,11 @@ def turbo_ultra_v156(
     n_pass = len(serie_s6)
     combinacoes = []
 
+    # combinamos núcleo + primeiras amostras de MC + leques
     for p in [serie_s6] + mc_list[:20] + leques_flat:
         combinacoes.append(p)
 
-    # Média ponderada geral
+    # Média ponderada geral (mantendo pesos originais)
     arr = np.zeros(n_pass)
     for c in combinacoes:
         tmp = np.array(c)
@@ -1783,56 +1784,85 @@ def turbo_ultra_v156(
     final = [int(round(x)) for x in arr]
 
     # ------------------------------------------------------------
+    # 🔹 REGISTRO EM SESSÃO — COMPATIBILIDADE V14/V15
+    # ------------------------------------------------------------
+    resultado_sessao = {
+        "serie_s6": serie_s6,
+        "micro_leque": leques_flat,
+        "mc_amostras": mc_list[:20],
+        "divergencia_s6_mc": div_s6_mc,
+        "pesos": pesos,
+        "final": final,
+        "descricao": "Previsão TURBO++ ULTRA V15.6 MAX",
+    }
+
+    st.session_state["turbo_ultra_result"] = resultado_sessao
+
+    st.session_state["turbo_ultra_logs"] = [
+        f"S6: {serie_s6}",
+        f"Pesos: {pesos}",
+        f"Divergência S6-MC: {div_s6_mc}",
+        f"Final: {final}",
+    ]
+
+    # ------------------------------------------------------------
     # 🔹 SEÇÃO FINAL — COMPILAÇÃO DE RESULTADOS (V15.6 MAX)
     # ------------------------------------------------------------
+    loc = locals()  # garante que não haja NameError se variável não existir
 
     resultados = {
         # =====================================================================
         # 🎯 1) Núcleo S6 Profundo
         # =====================================================================
         "s6_nucleo": {
-            "numeros": s6_previsao,
-            "dispersao": s6_dispersao,
-            "entropia": s6_entropia,
-            "faixa": s6_faixa,
-            "probabilidades": s6_probabilidades,
+            "numeros": loc.get("s6_previsao", serie_s6),
+            "dispersao": loc.get("s6_dispersao"),
+            "entropia": loc.get("s6_entropia"),
+            "faixa": loc.get("s6_faixa"),
+            "probabilidades": loc.get("s6_probabilidades"),
         },
 
         # =====================================================================
         # 🌪️ 2) Micro-Leque Profundo
         # =====================================================================
         "micro_leque": {
-            "numeros": micro_previsao,
-            "dispersao": micro_dispersao,
-            "entropia": micro_entropia,
-            "faixa": micro_faixa,
+            "numeros": loc.get(
+                "micro_previsao",
+                leques_flat[0] if leques_flat else serie_s6
+            ),
+            "dispersao": loc.get("micro_dispersao"),
+            "entropia": loc.get("micro_entropia"),
+            "faixa": loc.get("micro_faixa"),
             "profundidade": profundidade_micro,
-            "probabilidades": micro_probabilidades,
+            "probabilidades": loc.get("micro_probabilidades"),
         },
 
         # =====================================================================
         # 🎲 3) Monte Carlo Profundo (MC ULTRA)
         # =====================================================================
         "monte_carlo": {
-            "numeros": mc_previsao,
-            "convergencia": mc_convergencia,
-            "entropia": mc_entropia,
-            "faixa": mc_faixa,
-            "iteracoes": mc_iteracoes,
-            "probabilidades": mc_probabilidades,
+            "numeros": loc.get(
+                "mc_previsao",
+                mc_list[0] if mc_list else final
+            ),
+            "convergencia": loc.get("mc_convergencia"),
+            "entropia": loc.get("mc_entropia"),
+            "faixa": loc.get("mc_faixa"),
+            "iteracoes": loc.get("mc_iteracoes"),
+            "probabilidades": loc.get("mc_probabilidades"),
         },
 
         # =====================================================================
         # 🧭 4) k* — Ambiente Dinâmico (Sentinela)
         # =====================================================================
         "k_star": {
-            "valor": k_star_valor,
-            "regime": k_star_regime,
-            "forca": k_star_forca,
+            "valor": loc.get("k_star_valor"),
+            "regime": loc.get("k_star_regime"),
+            "forca": loc.get("k_star_forca"),
             "ajuste_pesos": {
-                "peso_s6_final": peso_s6_final,
-                "peso_mc_final": peso_mc_final,
-                "peso_micro_final": peso_micro_final
+                "peso_s6_final": loc.get("peso_s6_final", pesos.get("peso_s6")),
+                "peso_mc_final": loc.get("peso_mc_final", pesos.get("peso_mc")),
+                "peso_micro_final": loc.get("peso_micro_final", pesos.get("peso_micro")),
             },
         },
 
@@ -1840,46 +1870,46 @@ def turbo_ultra_v156(
         # 🔧 5) Índices de Estabilidade (IDX ULTRA)
         # =====================================================================
         "idx_ultra": {
-            "t_norm": idx_tnorm,
-            "estabilidade": idx_estabilidade,
-            "classe": idx_classe,
-            "descricao": idx_descricao,
+            "t_norm": loc.get("idx_tnorm"),
+            "estabilidade": loc.get("idx_estabilidade"),
+            "classe": loc.get("idx_classe"),
+            "descricao": loc.get("idx_descricao"),
         },
 
         # =====================================================================
         # ❗ 6) Divergência S6 vs MC (V15.6 MAX)
         # =====================================================================
         "divergencia": {
-            "valor_absoluto": divergencia_valor,
-            "porcentagem": divergencia_pct,
-            "classe": divergencia_classe,
-            "descricao": divergencia_texto,
+            "valor_absoluto": loc.get("divergencia_valor", div_s6_mc),
+            "porcentagem": loc.get("divergencia_pct"),
+            "classe": loc.get("divergencia_classe"),
+            "descricao": loc.get("divergencia_texto"),
         },
 
         # =====================================================================
         # 🧩 7) Interseção Estatística (Núcleo + Coberturas)
         # =====================================================================
         "intersecao": {
-            "numeros": intersecao_numeros,
-            "forca_intersecao": intersecao_forca,
-            "classe": intersecao_classe,
-            "descricao": intersecao_texto,
+            "numeros": loc.get("intersecao_numeros", final),
+            "forca_intersecao": loc.get("intersecao_forca"),
+            "classe": loc.get("intersecao_classe"),
+            "descricao": loc.get("intersecao_texto"),
         },
 
         # =====================================================================
         # 🚀 8) Previsão Final TURBO++ ULTRA (V15.6 MAX)
         # =====================================================================
         "previsao_final": {
-            "numeros": previsao_final,
-            "faixa_combinada": faixa_combinada,
-            "entropia_combinada": entropia_combinada,
-            "dispersao_combinada": dispersao_combinada,
-            "classificacao": classificacao_final,
+            "numeros": loc.get("previsao_final", final),
+            "faixa_combinada": loc.get("faixa_combinada"),
+            "entropia_combinada": loc.get("entropia_combinada"),
+            "dispersao_combinada": loc.get("dispersao_combinada"),
+            "classificacao": loc.get("classificacao_final"),
             "justificativas": {
-                "uso_s6": justificativa_s6,
-                "uso_mc": justificativa_mc,
-                "uso_micro": justificativa_micro,
-                "uso_intersecao": justificativa_intersecao,
+                "uso_s6": loc.get("justificativa_s6"),
+                "uso_mc": loc.get("justificativa_mc"),
+                "uso_micro": loc.get("justificativa_micro"),
+                "uso_intersecao": loc.get("justificativa_intersecao"),
             },
         },
 
@@ -1890,9 +1920,9 @@ def turbo_ultra_v156(
             "fator": fator_antirruido,
             "elasticidade_nucleo": elasticidade_nucleo,
             "intensidade_turbulencia": intensidade_turbulencia,
-            "nr_pct": nr_pct,
-            "classe_ruido": classe_ruido,
-            "descricao_ruido": descricao_ruido,
+            "nr_pct": loc.get("nr_pct"),
+            "classe_ruido": loc.get("classe_ruido"),
+            "descricao_ruido": loc.get("descricao_ruido"),
         },
 
         # =====================================================================
@@ -1900,19 +1930,20 @@ def turbo_ultra_v156(
         # =====================================================================
         "painel_debug": {
             "idx_alvo": idx_alvo,
-            "s6_raw": s6_raw,
-            "mc_raw": mc_raw,
-            "micro_raw": micro_raw,
-            "k_series": k_series_local,
-            "k_star_series": k_star_series,
-            "faixa_s6": s6_faixa,
-            "faixa_mc": mc_faixa,
-            "faixa_micro": micro_faixa,
-            "detalhes_intersecao": detalhes_intersecao,
-        }
+            "s6_raw": loc.get("s6_raw", serie_s6),
+            "mc_raw": loc.get("mc_raw", mc_list[:20]),
+            "micro_raw": loc.get("micro_raw", leques_flat),
+            "k_series": loc.get("k_series_local"),
+            "k_star_series": loc.get("k_star_series"),
+            "faixa_s6": loc.get("s6_faixa"),
+            "faixa_mc": loc.get("mc_faixa"),
+            "faixa_micro": loc.get("micro_faixa"),
+            "detalhes_intersecao": loc.get("detalhes_intersecao"),
+        },
     }
 
     return resultados
+
 
 
 # ============================================================
