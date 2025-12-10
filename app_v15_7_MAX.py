@@ -383,6 +383,63 @@ if painel == "📁 Carregar Histórico":
             "Envie seu arquivo para iniciar o processamento do PredictCars V15.7 MAX.",
             tipo="info",
         )
+# ============================================================
+# Painel 1B — 📄 Carregar Histórico (Copiar e Colar)
+# ============================================================
+if painel == "📄 Carregar Histórico (Copiar e Colar)":
+
+    st.markdown("## 📄 Carregar Histórico — Copiar e Colar (V15.7 MAX)")
+
+    st.markdown(
+        "Cole abaixo o conteúdo completo do histórico em formato **FLEX ULTRA** "
+        "(linhas como `C123;12;34;56;23;45;2`)."
+    )
+
+    texto = st.text_area(
+        "Cole aqui o histórico completo",
+        height=300,
+        placeholder="C1;41;5;4;52;30;33;0\nC2;9;39;37;49;43;41;1\n..."
+    )
+
+    if st.button("📥 Processar Histórico (Copiar e Colar)"):
+
+        linhas = texto.strip().split("\n")
+
+        # ANTI-ZUMBI — impede operação com textos gigantes colados manualmente
+        if not limitar_operacao(
+            len(linhas),
+            limite_series=LIMITE_SERIES_REPLAY_ULTRA,
+            contexto="Carregar Histórico (Copiar e Colar)",
+            painel="📄 Carregar Histórico (Copiar e Colar)",
+        ):
+            st.stop()
+
+        if not texto.strip():
+            exibir_bloco_mensagem(
+                "Nenhum dado encontrado",
+                "Cole o conteúdo do histórico FLEX ULTRA para continuar.",
+                tipo="warning",
+            )
+            st.stop()
+
+        try:
+            df = analisar_historico_flex_ultra(linhas)
+        except Exception as erro:
+            exibir_bloco_mensagem(
+                "Erro ao processar histórico",
+                f"Detalhes técnicos: {erro}",
+                tipo="error",
+            )
+            st.stop()
+
+        st.session_state["historico_df"] = df
+
+        exibir_bloco_mensagem(
+            "Histórico carregado com sucesso!",
+            f"Séries carregadas: **{len(df)}**\n\n"
+            "Agora prossiga para o painel **🛣️ Pipeline V14-FLEX ULTRA**.",
+            tipo="success",
+        )
 
 
 # ============================================================
