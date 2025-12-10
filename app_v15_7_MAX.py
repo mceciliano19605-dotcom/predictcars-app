@@ -1,3 +1,7 @@
+# ============================================================
+# PARTE 1/8 — INÍCIO
+# ============================================================
+
 import streamlit as st
 st.sidebar.warning("Rodando arquivo: app_v15_7_MAX.py")
 # ============================================================
@@ -148,6 +152,7 @@ LIMITE_SERIES_TURBO_ULTRA: int = 8000
 LIMITE_PREVISOES_TURBO: int = 600
 LIMITE_PREVISOES_MODO_6: int = 800
 
+
 def limitar_operacao(
     qtd_series: int,
     limite_series: int,
@@ -173,6 +178,177 @@ def limitar_operacao(
 
 
 # ============================================================
+# NÚCLEO V16 — Premium Profundo (Diagnóstico & Calibração)
+# Compatível com V15.7 MAX, 100% opcional e retrocompatível
+# ============================================================
+from typing import Dict, Any, Optional, Tuple  # Reimportar não faz mal
+
+
+def v16_identificar_df_base() -> Tuple[Optional[str], Optional[pd.DataFrame]]:
+    """
+    Tenta descobrir qual DataFrame de histórico está ativo no app.
+    Busca em chaves comuns do st.session_state para não quebrar nada.
+    Se não encontrar nada, retorna (None, None).
+    """
+    candidatos = []
+    for chave in ["historico_df", "df_historico", "df_base", "df", "df_hist"]:
+        if chave in st.session_state:
+            objeto = st.session_state[chave]
+            if isinstance(objeto, pd.DataFrame) and not objeto.empty:
+                candidatos.append((chave, objeto))
+
+    if not candidatos:
+        return None, None
+
+    chave_escolhida, df_escolhido = candidatos[0]
+    return chave_escolhida, df_escolhido
+
+
+def v16_resumo_basico_historico(
+    df: pd.DataFrame,
+    limite_linhas: int = 3000,
+) -> Dict[str, Any]:
+    """
+    Gera um resumo leve do histórico para diagnóstico:
+    - Quantidade total de séries
+    - Janela usada para diagnóstico (anti-zumbi)
+    - Distribuição de k (se existir)
+    - Presença de colunas relevantes (k*, NR%, QDS)
+    Tudo protegido contra KeyError e DataFrames pequenos.
+    """
+    resumo: Dict[str, Any] = {}
+
+    n_total = int(len(df))
+    if n_total <= 0:
+        resumo["n_total"] = 0
+        resumo["n_usado"] = 0
+        resumo["colunas"] = list(df.columns)
+        resumo["dist_k"] = {}
+        resumo["info_extra"] = {}
+        return resumo
+
+    limite_seguro = max(100, min(limite_linhas, n_total))
+    df_uso = df.tail(limite_seguro).copy()
+
+    resumo["n_total"] = n_total
+    resumo["n_usado"] = int(len(df_uso))
+    resumo["colunas"] = list(df_uso.columns)
+
+    dist_k: Dict[Any, int] = {}
+    if "k" in df_uso.columns:
+        try:
+            contagem_k = df_uso["k"].value_counts().sort_index()
+            for k_val, qtd in contagem_k.items():
+                dist_k[int(k_val)] = int(qtd)
+        except Exception:
+            dist_k = {}
+    resumo["dist_k"] = dist_k
+
+    info_extra: Dict[str, Any] = {}
+    for col in df_uso.columns:
+        col_lower = str(col).lower()
+        if "k*" in col_lower or "k_est" in col_lower or "kstar" in col_lower:
+            info_extra["tem_k_estrela"] = True
+        if "nr" in col_lower and "%" in col_lower:
+            info_extra["tem_nr_percent"] = True
+        if "qds" in col_lower:
+            info_extra["tem_qds"] = True
+    resumo["info_extra"] = info_extra
+
+    return resumo
+
+
+def v16_mapear_confiabilidade_session_state() -> Dict[str, Any]:
+    """
+    Varre st.session_state e tenta localizar informações de confiabilidade,
+    QDS, k*, NR%, etc., sem assumir nomes fixos.
+    Não quebra o app se nada for encontrado.
+    """
+    mapeamento: Dict[str, Any] = {}
+
+    try:
+        for chave, valor in st.session_state.items():
+            nome_lower = str(chave).lower()
+            if any(token in nome_lower for token in ["confiab", "qds", "k_estrela", "k*", "nr%", "ruido"]):
+                if isinstance(valor, (int, float, str)):
+                    mapeamento[chave] = valor
+                elif isinstance(valor, dict):
+                    mapeamento[chave] = {"tipo": "dict", "tamanho": len(valor)}
+                elif isinstance(valor, pd.DataFrame):
+                    mapeamento[chave] = {
+                        "tipo": "DataFrame",
+                        "linhas": len(valor),
+                        "colunas": list(valor.columns)[:10],
+                    }
+                else:
+                    mapeamento[chave] = {"tipo": type(valor).__name__}
+    except Exception:
+        pass
+
+    return mapeamento
+
+
+# ============================================================
+# Métricas básicas do histórico — V15.7 MAX
+# ============================================================
+def calcular_metricas_basicas_historico(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Calcula métricas simples do histórico para uso em:
+    - Painel de carregamento
+    - Monitor de Risco — k & k*
+    Tudo de forma leve, sem quebrar se faltarem colunas.
+    """
+    metricas: Dict[str, Any] = {}
+
+    if df is None or df.empty:
+        metricas["qtd_series"] = 0
+        metricas["min_k"] = None
+        metricas["max_k"] = None
+        metricas["media_k"] = 0.0
+        return metricas
+
+    metricas["qtd_series"] = int(len(df))
+
+    if "k" in df.columns:
+        try:
+            k_vals = df["k"].astype(float)
+            metricas["min_k"] = float(k_vals.min())
+            metricas["max_k"] = float(k_vals.max())
+            metricas["media_k"] = float(k_vals.mean())
+        except Exception:
+            metricas["min_k"] = None
+            metricas["max_k"] = None
+            metricas["media_k"] = 0.0
+    else:
+        metricas["min_k"] = None
+        metricas["max_k"] = None
+        metricas["media_k"] = 0.0
+
+    return metricas
+
+
+def exibir_resumo_inicial_historico(metricas: Dict[str, Any]) -> None:
+    """
+    Exibe um resumo amigável logo após o carregamento do histórico.
+    Usado no Painel 1 (Carregar Histórico) e como base para o Monitor de Risco.
+    """
+    qtd_series = metricas.get("qtd_series", 0)
+    min_k = metricas.get("min_k")
+    max_k = metricas.get("max_k")
+    media_k = metricas.get("media_k", 0.0)
+
+    corpo = (
+        f"- Séries carregadas: **{qtd_series}**\n"
+        f"- k mínimo: **{min_k}** · k máximo: **{max_k}** · k médio: **{media_k:.2f}**\n"
+    )
+
+    exibir_bloco_mensagem(
+        "Resumo inicial do histórico (V15.7 MAX)",
+        corpo,
+        tipo="info",
+    )
+
+# ============================================================
 # Cabeçalho visual principal
 # ============================================================
 st.markdown(
@@ -191,7 +367,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
 
 # ============================================================
 # Construção da Navegação — V15.7 MAX
@@ -215,6 +390,7 @@ def construir_navegacao_v157() -> str:
         "🎯 Modo 6 Acertos — Execução",
         "🧪 Testes de Confiabilidade REAL",
         "📘 Relatório Final",
+        "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
     ]
 
     painel = st.sidebar.selectbox(
@@ -241,6 +417,12 @@ def construir_navegacao_v157() -> str:
 # ============================================================
 painel = construir_navegacao_v157()
 
+# ============================================================
+# PARTE 1/8 — FIM
+# ============================================================
+# ============================================================
+# PARTE 2/8 — INÍCIO
+# ============================================================
 
 # ============================================================
 # Painel 1 — 📁 Carregar Histórico
@@ -272,7 +454,6 @@ if painel == "📁 Carregar Histórico":
             "Envie seu arquivo para iniciar o processamento do PredictCars V15.7 MAX.",
             tipo="info",
         )
-
 
 # ============================================================
 # Painel 1B — 📄 Carregar Histórico (Copiar e Colar)
@@ -313,7 +494,8 @@ if painel == "📄 Carregar Histórico (Copiar e Colar)":
             st.stop()
 
         try:
-            df = analisar_historico_flex_ultra(linhas)
+            conteudo = "\n".join(linhas)
+            df = analisar_historico_flex_ultra(conteudo)
         except Exception as erro:
             exibir_bloco_mensagem(
                 "Erro ao processar histórico",
@@ -330,7 +512,6 @@ if painel == "📄 Carregar Histórico (Copiar e Colar)":
             "Agora prossiga para o painel **🛣️ Pipeline V14-FLEX ULTRA**.",
             tipo="success",
         )
-
 
 # ============================================================
 # Painel 2 — 🛰️ Sentinelas — k* (Ambiente de Risco)
@@ -414,6 +595,7 @@ if painel == "🛰️ Sentinelas — k* (Ambiente de Risco)":
             f"O regime identificado para o histórico atual é:\n\n{regime}",
             tipo="info",
         )
+
 # ============================================================
 # Painel 3 — 🛣️ Pipeline V14-FLEX ULTRA (Preparação)
 # ============================================================
@@ -498,6 +680,13 @@ if painel == "🛣️ Pipeline V14-FLEX ULTRA":
         clusters = np.zeros(len(matriz_norm))
         centroides = np.zeros((1, matriz_norm.shape[1]))
 
+# ============================================================
+# PARTE 2/8 — FIM
+# ============================================================
+# ============================================================
+# PARTE 3/8 — INÍCIO
+# ============================================================
+
     # ============================================================
     # Exibição final do pipeline
     # ============================================================
@@ -525,6 +714,7 @@ if painel == "🛣️ Pipeline V14-FLEX ULTRA":
     st.session_state["pipeline_estrada"] = estrada
 
     st.success("Pipeline FLEX ULTRA concluído com sucesso!")
+
 # ============================================================
 # Painel 4 — 🔁 Replay LIGHT
 # ============================================================
@@ -589,7 +779,6 @@ if painel == "🔁 Replay LIGHT":
 
     st.success("Replay LIGHT concluído!")
 
-
 # ============================================================
 # Painel 5 — 🔁 Replay ULTRA
 # ============================================================
@@ -653,6 +842,14 @@ if painel == "🔁 Replay ULTRA":
     )
 
     st.success("Replay ULTRA concluído!")
+
+# ============================================================
+# PARTE 3/8 — FIM
+# ============================================================
+# ============================================================
+# PARTE 4/8 — INÍCIO
+# ============================================================
+
 # ============================================================
 # Painel 6 — ⚙️ Modo TURBO++ HÍBRIDO
 # ============================================================
@@ -717,9 +914,11 @@ if painel == "⚙️ Modo TURBO++ HÍBRIDO":
 
         # Combinação híbrida
         previsao_final = list(
-            np.round(0.4 * np.array(dx_melhor)
-                     + 0.3 * np.array(s6_melhor)
-                     + 0.3 * np.array(previsao_mc))
+            np.round(
+                0.4 * np.array(dx_melhor)
+                + 0.3 * np.array(s6_melhor)
+                + 0.3 * np.array(previsao_mc)
+            )
         )
         previsao_final = [int(x) for x in previsao_final]
 
@@ -738,7 +937,6 @@ if painel == "⚙️ Modo TURBO++ HÍBRIDO":
     st.success(f"**{formatar_lista_passageiros(previsao_final)}**")
 
     st.session_state["ultima_previsao"] = previsao_final
-
 
 # ============================================================
 # Painel 7 — ⚙️ Modo TURBO++ ULTRA
@@ -785,18 +983,17 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     # ============================================================
     # MOTORES PROFUNDOS
     # ============================================================
-
     # --- S6 PROFUNDO ---
-    def s6_profundo_V157(df, idx_alvo):
-        ult = df[col_pass].iloc[idx_alvo].values
-        scores = []
-        for i in range(len(df) - 1):
-            base = df[col_pass].iloc[i].values
-            inter = len(set(base) & set(ult))
-            scores.append(inter)
-        melhores_idx = np.argsort(scores)[-25:]
-        candidatos = df[col_pass].iloc[melhores_idx].values
-        return candidatos
+    def s6_profundo_V157(df_local, idx_alvo):
+        ult_local = df_local[col_pass].iloc[idx_alvo].values
+        scores_local = []
+        for i_local in range(len(df_local) - 1):
+            base_local = df_local[col_pass].iloc[i_local].values
+            inter_local = len(set(base_local) & set(ult_local))
+            scores_local.append(inter_local)
+        melhores_idx_local = np.argsort(scores_local)[-25:]
+        candidatos_local = df_local[col_pass].iloc[melhores_idx_local].values
+        return candidatos_local
 
     # --- MICRO-LEQUE PROFUNDO ---
     def micro_leque_profundo(base, profundidade=20):
@@ -872,6 +1069,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 
     st.session_state["ultima_previsao"] = previsao_final
     st.session_state["div_s6_mc"] = divergencia
+
 # ============================================================
 # Painel 8 — 📡 Painel de Ruído Condicional
 # ============================================================
@@ -901,6 +1099,13 @@ if painel == "📡 Painel de Ruído Condicional":
         st.stop()
 
     st.info("Calculando indicadores de ruído condicional...")
+
+# ============================================================
+# PARTE 4/8 — FIM
+# ============================================================
+# ============================================================
+# PARTE 5/8 — INÍCIO
+# ============================================================
 
     try:
         # Ruído Tipo A: dispersão intra-série (variação entre passageiros)
@@ -1104,6 +1309,14 @@ if painel == "🧭 Monitor de Risco — k & k*":
     }
 
     st.success("Monitor de Risco atualizado com sucesso!")
+
+# ============================================================
+# PARTE 5/8 — FIM
+# ============================================================
+# ============================================================
+# PARTE 6/8 — INÍCIO
+# ============================================================
+
 # ============================================================
 # Painel 11 — 🎯 Modo 6 Acertos — Execução (V15.7 MAX)
 # ============================================================
@@ -1145,32 +1358,32 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ============================================================
     # Coberturas Estatísticas Premium
     # ============================================================
-    def gerar_coberturas(base):
-        coberturas = []
+    def gerar_coberturas(base_local):
+        coberturas_local = []
 
         # Camada 1 — deslocamentos leves
         for d in [-2, -1, 1, 2]:
-            cob = np.clip(base + d, 1, 60)
-            coberturas.append(cob.tolist())
+            cob = np.clip(base_local + d, 1, 60)
+            coberturas_local.append(cob.tolist())
 
         # Camada 2 — reembaralhamentos leves
         for _ in range(6):
-            emb = np.random.permutation(base)
-            coberturas.append(emb.tolist())
+            emb = np.random.permutation(base_local)
+            coberturas_local.append(emb.tolist())
 
         # Camada 3 — ruído adaptado ao risco
-        indice_risco = risco.get("indice_risco", 0.4)
-        amplitude = 3 + int(indice_risco * 5)
+        indice_risco_local = risco.get("indice_risco", 0.4)
+        amplitude = 3 + int(indice_risco_local * 5)
 
         for _ in range(10):
-            ruido = np.random.randint(-amplitude, amplitude + 1, size=len(base))
-            cob = np.clip(base + ruido, 1, 60)
-            coberturas.append(cob.tolist())
+            ruido = np.random.randint(-amplitude, amplitude + 1, size=len(base_local))
+            cob = np.clip(base_local + ruido, 1, 60)
+            coberturas_local.append(cob.tolist())
 
         # Remove duplicatas mantendo ordem
         unicos = []
         vistos = set()
-        for lista in coberturas:
+        for lista in coberturas_local:
             t = tuple(lista)
             if t not in vistos:
                 vistos.add(t)
@@ -1290,6 +1503,14 @@ if painel == "🧪 Testes de Confiabilidade REAL":
     )
 
     st.success("Teste de Confiabilidade REAL concluído com sucesso!")
+
+# ============================================================
+# PARTE 6/8 — FIM
+# ============================================================
+# ============================================================
+# PARTE 7/8 — INÍCIO
+# ============================================================
+
 # ============================================================
 # Painel 13 — 📘 Relatório Final — V15.7 MAX (Premium)
 # ============================================================
@@ -1411,3 +1632,148 @@ if painel == "📘 Relatório Final":
     )
 
     st.success("Relatório Final gerado com sucesso!")
+
+# ============================================================
+# PARTE 7/8 — FIM
+# ============================================================
+# ============================================================
+# PARTE 8/8 — INÍCIO
+# ============================================================
+
+# ============================================================
+# INÍCIO DO PAINEL V16 PREMIUM PROFUNDO  (COLAR AQUI)
+# ============================================================
+
+# ============================================================
+# PAINEL — 🔮 V16 Premium Profundo — Diagnóstico & Calibração
+# ============================================================
+if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
+    st.markdown("## 🔮 V16 Premium Profundo — Diagnóstico & Calibração")
+    st.markdown(
+        """
+        Este painel **não altera nada do fluxo V15.7 MAX**.
+
+        Ele serve para:
+        - 📊 **Inspecionar o histórico ativo** (tamanho, colunas, distribuição de k),
+        - 🛡️ **Verificar rapidamente o regime de risco potencial** para o TURBO++ e Modo 6 Acertos,
+        - 📐 **Organizar informações de confiabilidade/QDS/k*** já calculadas em outros painéis.
+
+        Tudo com **anti-zumbi interno**, rodando apenas em uma janela segura do histórico.
+        """
+    )
+
+    # --------------------------------------------------------
+    # 1) Descobrir automaticamente qual DF de histórico usar
+    # --------------------------------------------------------
+    nome_df, df_base = v16_identificar_df_base()
+
+    if df_base is None:
+        st.warning(
+            "⚠️ Não encontrei nenhum DataFrame de histórico ativo em `st.session_state`.\n\n"
+            "Use primeiro um painel que carregue o histórico (por exemplo, **Carregar Histórico**), "
+            "e depois volte aqui."
+        )
+        st.stop()
+
+    st.info(
+        f"📁 DataFrame detectado para diagnóstico: **{nome_df}**  \n"
+        f"Séries totais disponíveis: **{len(df_base)}**"
+    )
+
+    # --------------------------------------------------------
+    # 2) Controle Anti-Zumbi V16 (apenas para este painel)
+    # --------------------------------------------------------
+    n_total = int(len(df_base))
+    limite_max_slider = int(min(6000, max(500, n_total)))
+
+    st.markdown("### 🛡️ Anti-zumbi V16 — Janela de Diagnóstico")
+
+    limite_linhas = st.slider(
+        "Quantidade máxima de séries a considerar no diagnóstico (janela final do histórico):",
+        min_value=200,
+        max_value=limite_max_slider,
+        value=min(2000, limite_max_slider),
+        step=100,
+    )
+
+    # --------------------------------------------------------
+    # 3) Resumo básico do histórico (janela segura)
+    # --------------------------------------------------------
+    resumo = v16_resumo_basico_historico(df_base, limite_linhas=limite_linhas)
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Séries totais no histórico", resumo.get("n_total", 0))
+    with col2:
+        st.metric("Séries usadas no diagnóstico", resumo.get("n_usado", 0))
+    with col3:
+        st.metric("Qtd. de colunas detectadas", len(resumo.get("colunas", [])))
+
+    st.markdown("### 🧬 Colunas detectadas na janela de diagnóstico")
+    st.write(resumo.get("colunas", []))
+
+    # Distribuição de k (se existir)
+    dist_k = resumo.get("dist_k", {})
+    if dist_k:
+        st.markdown("### 🎯 Distribuição de k (janela final do histórico)")
+        df_k = pd.DataFrame(
+            {"k": list(dist_k.keys()), "qtd": list(dist_k.values())}
+        ).sort_values("k")
+        df_k["proporção (%)"] = (df_k["qtd"] / df_k["qtd"].sum() * 100).round(2)
+        st.dataframe(df_k, use_container_width=True)
+    else:
+        st.info("ℹ️ Não foi possível calcular a distribuição de k.")
+
+    # --------------------------------------------------------
+    # 4) Mapa rápido de confiabilidade / QDS / k*
+    # --------------------------------------------------------
+    st.markdown("### 🧠 Mapa rápido de confiabilidade (session_state)")
+
+    with st.expander("Ver variáveis relevantes detectadas"):
+        mapeamento_conf = v16_mapear_confiabilidade_session_state()
+        if not mapeamento_conf:
+            st.write("Nenhuma variável relevante encontrada.")
+        else:
+            st.json(mapeamento_conf)
+
+    # --------------------------------------------------------
+    # 5) Interpretação qualitativa do regime
+    # --------------------------------------------------------
+    st.markdown("### 🩺 Interpretação qualitativa do regime")
+    comentario_regime = []
+
+    if dist_k:
+        total_k = sum(dist_k.values())
+        proporcao_k_alto = round(
+            sum(qtd for k_val, qtd in dist_k.items() if k_val >= 3) / total_k * 100,
+            2,
+        )
+        proporcao_k_baixo = round(
+            sum(qtd for k_val, qtd in dist_k.items() if k_val <= 1) / total_k * 100,
+            2,
+        )
+
+        comentario_regime.append(f"- k ≥ 3: **{proporcao_k_alto}%**")
+        comentario_regime.append(f"- k ≤ 1: **{proporcao_k_baixo}%**")
+
+        if proporcao_k_alto >= 35:
+            comentario_regime.append("- 🟢 Regime mais estável.")
+        elif proporcao_k_baixo >= 50:
+            comentario_regime.append("- 🔴 Regime turbulento.")
+        else:
+            comentario_regime.append("- 🟡 Regime intermediário.")
+    else:
+        comentario_regime.append("- ℹ️ Sem dados suficientes para avaliar o regime.")
+
+    st.markdown("\n".join(comentario_regime))
+
+    st.success("Painel V16 Premium Profundo executado com sucesso!")
+
+
+# ============================================================
+# FIM DO PAINEL V16 PREMIUM PROFUNDO
+# ============================================================
+
+# ============================================================
+# PARTE 8/8 — FIM
+# ============================================================
