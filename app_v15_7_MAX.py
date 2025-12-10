@@ -81,14 +81,12 @@ def analisar_historico_flex_ultra(conteudo: str) -> pd.DataFrame:
     - prefixo C1, C2, C3 ...
     - 5 ou 6 passageiros
     - sensor k sempre na última coluna
-    - validação anti-zumbi para grandes arquivos (até 10k séries)
     """
     linhas = conteudo.strip().split("\n")
     registros = []
 
     for linha in linhas:
         partes = linha.replace(" ", "").split(";")
-
         if len(partes) < 7:
             continue
 
@@ -96,9 +94,7 @@ def analisar_historico_flex_ultra(conteudo: str) -> pd.DataFrame:
             serie = partes[0]
             nums = list(map(int, partes[1:-1]))
             k_val = int(partes[-1])
-
             registros.append([serie] + nums + [k_val])
-
         except:
             continue
 
@@ -106,14 +102,11 @@ def analisar_historico_flex_ultra(conteudo: str) -> pd.DataFrame:
     df = pd.DataFrame(registros, columns=colunas[: len(registros[0])])
 
     return df
+
 # ============================================================
 # Utilitários de texto e apresentação — V15.7 MAX
 # ============================================================
 def texto_em_blocos(texto: str, largura: int = 100) -> List[str]:
-    """
-    Quebra um texto longo em blocos menores para exibição no Streamlit,
-    preservando o jeitão dos painéis explicativos.
-    """
     if not texto:
         return []
     return textwrap.wrap(texto, width=largura)
@@ -124,13 +117,7 @@ def exibir_bloco_mensagem(
     corpo: str,
     tipo: str = "info",
 ) -> None:
-    """
-    Exibe um bloco de mensagem padronizado, usado em:
-    - diagnósticos
-    - avisos de risco
-    - explicações de parâmetros
-    - orientações do pipeline
-    """
+
     blocos = texto_em_blocos(corpo, largura=110)
 
     if tipo == "info":
@@ -152,15 +139,13 @@ def exibir_bloco_mensagem(
             unsafe_allow_html=True,
         )
 
-
 # ============================================================
-# Configurações Anti-Zumbi — limites globais V15.7 MAX
+# Configurações Anti-Zumbi — limites globais
 # ============================================================
 LIMITE_SERIES_REPLAY_ULTRA: int = 8000
 LIMITE_SERIES_TURBO_ULTRA: int = 8000
 LIMITE_PREVISOES_TURBO: int = 600
 LIMITE_PREVISOES_MODO_6: int = 800
-
 
 def limitar_operacao(
     qtd_series: int,
@@ -168,111 +153,26 @@ def limitar_operacao(
     contexto: str = "",
     painel: str = "",
 ) -> bool:
-    """
-    Proteção Anti-Zumbi genérica para operações pesadas.
 
-    Retorna:
-    - True  -> operação PERMITIDA
-    - False -> operação BLOQUEADA por risco de travamento
-    """
     if qtd_series is None:
         return True
 
     if qtd_series <= limite_series:
         return True
 
-    contexto_txt = f" ({contexto})" if contexto else ""
-    painel_txt = f" — Painel: {painel}" if painel else ""
-
     msg = (
-        f"🔒 **Operação bloqueada pela Proteção Anti-Zumbi{contexto_txt}.**\n\n"
-        f"- Séries no histórico: **{qtd_series}**\n"
-        f"- Limite sugerido para segurança: **{limite_series}**\n"
-        f"{painel_txt}\n\n"
-        "👉 Isso evita travamentos prolongados no Streamlit.\n"
-        "Se for realmente necessário rodar acima desse limite, converse comigo (Auri) "
-        "para avaliarmos juntos um ajuste seguro."
+        f"🔒 **Operação bloqueada pela Proteção Anti-Zumbi ({contexto}).**\n\n"
+        f"- Séries detectadas: **{qtd_series}**\n"
+        f"- Limite seguro: **{limite_series}**\n"
+        f"Painel: **{painel}**\n\n"
+        "👉 Evitamos travamento no Streamlit."
     )
-    exibir_bloco_mensagem(
-        "Proteção Anti-Zumbi — Limite de séries excedido",
-        msg,
-        tipo="warning",
-    )
+    exibir_bloco_mensagem("Proteção Anti-Zumbi", msg, tipo="warning")
     return False
 
 
 # ============================================================
-# Métricas básicas do histórico — base para diagnósticos
-# ============================================================
-def calcular_metricas_basicas_historico(df: pd.DataFrame) -> Dict[str, Any]:
-    """
-    Calcula métricas básicas do histórico para uso em:
-    - Diagnóstico inicial
-    - Monitor de risco
-    - Painéis de confiabilidade
-    """
-    if df is None or df.empty:
-        return {
-            "qtd_series": 0,
-            "min_k": None,
-            "max_k": None,
-            "media_k": None,
-            "qtd_passageiros": None,
-        }
-
-    colunas_num = [c for c in df.columns if c.startswith("p")]
-    qtd_passageiros = len(colunas_num)
-
-    if "k" in df.columns:
-        min_k = int(df["k"].min())
-        max_k = int(df["k"].max())
-        media_k = float(df["k"].mean())
-    else:
-        min_k = max_k = media_k = None
-
-    return {
-        "qtd_series": int(len(df)),
-        "min_k": min_k,
-        "max_k": max_k,
-        "media_k": media_k,
-        "qtd_passageiros": qtd_passageiros,
-    }
-
-
-def exibir_resumo_inicial_historico(metricas: Dict[str, Any]) -> None:
-    """
-    Mostra um pequeno painel de resumo logo após o carregamento
-    do histórico, alinhado com o fluxo V14-FLEX ULTRA + V15.7 MAX.
-    """
-    qtd_series = metricas.get("qtd_series") or 0
-    qtd_passageiros = metricas.get("qtd_passageiros")
-    min_k = metricas.get("min_k")
-    max_k = metricas.get("max_k")
-    media_k = metricas.get("media_k")
-
-    texto = [
-        f"- Séries carregadas: **{qtd_series}**",
-    ]
-
-    if qtd_passageiros is not None:
-        texto.append(f"- Passageiros por carro (n): **{qtd_passageiros}**")
-
-    if min_k is not None and max_k is not None:
-        texto.append(f"- k mínimo no histórico: **{min_k}**")
-        texto.append(f"- k máximo no histórico: **{max_k}**")
-    if media_k is not None:
-        texto.append(f"- k médio aproximado: **{media_k:.2f}**")
-
-    corpo = "\n".join(texto)
-    exibir_bloco_mensagem(
-        "Resumo inicial do histórico — V15.7 MAX",
-        corpo,
-        tipo="info",
-    )
-
-
-# ============================================================
-# Cabeçalho visual principal — título e descrição do app
+# Cabeçalho visual principal
 # ============================================================
 st.markdown(
     '<div class="big-title">🚗 Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO</div>',
@@ -290,23 +190,12 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
 # ============================================================
-# Construção da Navegação — PredictCars V15.7 MAX
+# Construção da Navegação — V15.7 MAX
 # ============================================================
 def construir_navegacao_v157() -> str:
-    """
-    Cria o menu lateral oficial do PredictCars V15.7 MAX / V16 Premium.
-    Mantém sequência lógica:
-    1) Histórico
-    2) Sentinelas
-    3) Pipeline
-    4) Replays
-    5) TURBO++
-    6) Painéis Premium (Ruído, Divergência, Risco)
-    7) Modo 6 Acertos
-    8) Testes de Confiabilidade REAL
-    9) Relatório Final
-    """
 
     st.sidebar.markdown("## 🚦 Navegação PredictCars V15.7 MAX")
 
@@ -330,7 +219,6 @@ def construir_navegacao_v157() -> str:
     painel = st.sidebar.selectbox(
         "Selecione um painel:",
         opcoes,
-        index=0,
     )
 
     st.sidebar.markdown("---")
@@ -352,8 +240,7 @@ def construir_navegacao_v157() -> str:
 # ============================================================
 painel = construir_navegacao_v157()
 
-# Após determinar o painel, começaremos a montar o fluxo
-# painel a painel nas próximas partes (4/10 → 10/10).
+
 # ============================================================
 # Painel 1 — 📁 Carregar Histórico
 # ============================================================
@@ -384,6 +271,8 @@ if painel == "📁 Carregar Histórico":
             "Envie seu arquivo para iniciar o processamento do PredictCars V15.7 MAX.",
             tipo="info",
         )
+
+
 # ============================================================
 # Painel 1B — 📄 Carregar Histórico (Copiar e Colar)
 # ============================================================
@@ -406,7 +295,6 @@ if painel == "📄 Carregar Histórico (Copiar e Colar)":
 
         linhas = texto.strip().split("\n")
 
-        # ANTI-ZUMBI — impede operação com textos gigantes colados manualmente
         if not limitar_operacao(
             len(linhas),
             limite_series=LIMITE_SERIES_REPLAY_ULTRA,
@@ -446,6 +334,7 @@ if painel == "📄 Carregar Histórico (Copiar e Colar)":
 # ============================================================
 # Painel 2 — 🛰️ Sentinelas — k* (Ambiente de Risco)
 # ============================================================
+
 if painel == "🛰️ Sentinelas — k* (Ambiente de Risco)":
 
     st.markdown("## 🛰️ Sentinelas — k* (Ambiente de Risco) — V15.7 MAX")
