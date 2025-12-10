@@ -376,8 +376,8 @@ def construir_navegacao_v157() -> str:
     st.sidebar.markdown("## 🚦 Navegação PredictCars V15.7 MAX")
 
     opcoes = [
-        "📁 Carregar Histórico",
-        "📄 Carregar Histórico (Copiar e Colar)",
+        "📁 Carregar Histórico (Arquivo)",
+        "📄 Carregar Histórico (Colar)",
         "🛰️ Sentinelas — k* (Ambiente de Risco)",
         "🛣️ Pipeline V14-FLEX ULTRA",
         "🔁 Replay LIGHT",
