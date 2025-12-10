@@ -312,6 +312,7 @@ def construir_navegacao_v157() -> str:
 
     opcoes = [
         "📁 Carregar Histórico",
+        "📄 Carregar Histórico (Copiar e Colar)",
         "🛰️ Sentinelas — k* (Ambiente de Risco)",
         "🛣️ Pipeline V14-FLEX ULTRA",
         "🔁 Replay LIGHT",
