@@ -425,9 +425,9 @@ painel = construir_navegacao_v157()
 # ============================================================
 
 # ============================================================
-# Painel 1 — 📁 Carregar Histórico
+# Painel 1 — 📁 Carregar Histórico (Arquivo)
 # ============================================================
-if painel == "📁 Carregar Histórico":
+if painel == "📁 Carregar Histórico (Arquivo)":
 
     st.markdown("## 📁 Carregar Histórico — V15.7 MAX")
 
@@ -456,9 +456,9 @@ if painel == "📁 Carregar Histórico":
         )
 
 # ============================================================
-# Painel 1B — 📄 Carregar Histórico (Copiar e Colar)
+# Painel 1B — 📄 Carregar Histórico (Colar)
 # ============================================================
-if painel == "📄 Carregar Histórico (Copiar e Colar)":
+if painel == "📄 Carregar Histórico (Colar)":
 
     st.markdown("## 📄 Carregar Histórico — Copiar e Colar (V15.7 MAX)")
 
