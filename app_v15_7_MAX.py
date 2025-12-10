@@ -1447,14 +1447,12 @@ if painel == "📘 Relatório Final":
         )
     elif indice_risco < 0.80:
         orientacao = (
-            "🟠 **Ambiente turbulento** —  
-            Priorizar coberturas e reduzir peso do núcleo.\n"
+            "🟠 **Ambiente turbulento** — Priorizar coberturas e reduzir peso do núcleo.\n"
             "Avaliar divergência e ruído antes de decisões finais."
         )
     else:
         orientacao = (
-            "🔴 **Ambiente crítico** —  
-            Operar com máxima cautela, priorizando estabilização.\n"
+            "🔴 **Ambiente crítico** — Operar com máxima cautela, priorizando estabilização.\n"
             "Evitar agressividade e monitorar S6 vs MC."
         )
 
@@ -1465,3 +1463,4 @@ if painel == "📘 Relatório Final":
     )
 
     st.success("Relatório Final gerado com sucesso!")
+
