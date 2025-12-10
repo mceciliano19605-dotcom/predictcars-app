@@ -1,3 +1,5 @@
+import streamlit as st
+st.sidebar.warning("Rodando arquivo: app_v15_7_MAX.py")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
@@ -8,8 +10,6 @@
 # + Relatório Final COMPLETO V15.7 MAX
 # Arquivo oficial: app_v15_7_MAX.py
 # ============================================================
-import streamlit as st
-st.sidebar.warning("Rodando arquivo: app_v15_7_MAX.py")
 import math
 import itertools
 import textwrap
