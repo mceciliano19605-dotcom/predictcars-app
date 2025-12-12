@@ -1400,13 +1400,22 @@ if painel == "🎯 Modo 6 Acertos — Execução":
             coberturas_local.append(emb.tolist())
 
         # Camada 3 — ruído adaptado ao risco
-        indice_risco_local = risco.get("indice_risco", 0.4)
+        if isinstance(risco, dict):
+            indice_risco_local = risco.get("indice_risco", 0.4)
+        else:
+            indice_risco_local = 0.4
+
         amplitude = 3 + int(indice_risco_local * 5)
 
         for _ in range(10):
-            ruido = np.random.randint(-amplitude, amplitude + 1, size=len(base_local))
+            ruido = np.random.randint(
+                -amplitude,
+                amplitude + 1,
+                size=len(base_local)
+            )
             cob = np.clip(base_local + ruido, 1, 60)
             coberturas_local.append(cob.tolist())
+
 
         # Remove duplicatas mantendo ordem
         unicos = []
