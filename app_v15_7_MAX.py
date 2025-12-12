@@ -1799,13 +1799,14 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 
 
 # ============================================================
-# FIM DO PAINEL V16 PREMIUM PROFUNDO
-# ============================================================
-
-# ============================================================
 # ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS
 # ============================================================
-if painel in opcoes_v16:
+try:
+    _opcoes_v16_router = v16_obter_paineis()
+except Exception:
+    _opcoes_v16_router = []
+
+if painel in _opcoes_v16_router:
     v16_renderizar_painel(painel)
     st.stop()
 
