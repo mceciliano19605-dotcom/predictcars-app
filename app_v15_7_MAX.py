@@ -24,6 +24,15 @@ import pandas as pd
 import streamlit as st
 
 # ============================================================
+# V16 PREMIUM — IMPORTAÇÃO OFICIAL
+# (Não altera nada do V15.7, apenas registra os painéis novos)
+# ============================================================
+from app_v16_premium import (
+    v16_obter_paineis,
+    v16_renderizar_painel,
+)
+
+# ============================================================
 # Configuração da página (obrigatório V15.7 MAX)
 # ============================================================
 st.set_page_config(
@@ -375,7 +384,10 @@ def construir_navegacao_v157() -> str:
 
     st.sidebar.markdown("## 🚦 Navegação PredictCars V15.7 MAX")
 
-    opcoes = [
+    # ------------------------------------------------------------
+    # Painéis originais do V15.7 MAX (BASE)
+    # ------------------------------------------------------------
+    opcoes_base = [
         "📁 Carregar Histórico (Arquivo)",
         "📄 Carregar Histórico (Colar)",
         "🛰️ Sentinelas — k* (Ambiente de Risco)",
@@ -393,6 +405,21 @@ def construir_navegacao_v157() -> str:
         "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
     ]
 
+    # ============================================================
+    # INTEGRAÇÃO OFICIAL V16 PREMIUM — PAINÉIS ADICIONAIS
+    # (Os painéis abaixo são SOMADOS ao menu do V15.7 MAX)
+    # ============================================================
+    try:
+        opcoes_v16 = v16_obter_paineis()
+    except Exception:
+        opcoes_v16 = []
+
+    # Combinação final
+    opcoes = opcoes_base + opcoes_v16
+
+    # ------------------------------------------------------------
+    # Renderização do menu
+    # ------------------------------------------------------------
     painel = st.sidebar.selectbox(
         "Selecione um painel:",
         opcoes,
@@ -410,6 +437,7 @@ def construir_navegacao_v157() -> str:
     )
 
     return painel
+
 
 
 # ============================================================
@@ -1773,6 +1801,13 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 # ============================================================
 # FIM DO PAINEL V16 PREMIUM PROFUNDO
 # ============================================================
+
+# ============================================================
+# ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS
+# ============================================================
+if painel in opcoes_v16:
+    v16_renderizar_painel(painel)
+    st.stop()
 
 # ============================================================
 # PARTE 8/8 — FIM
