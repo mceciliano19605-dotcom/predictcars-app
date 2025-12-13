@@ -1199,3 +1199,168 @@ def _painel_v16_relatorio_final() -> None:
         ),
         tipo="success",
     )
+# ============================================================
+# BLOCO 8/7 — DECISÃO FINAL V16 — PACOTE DE PREVISÃO (AGORA)
+# ============================================================
+
+# Gerar as listas de previsões adaptativas baseadas no núcleo V16 e em coberturas.
+# Usaremos o volume sugerido, a confiabilidade e a dinâmica do alvo para o cálculo.
+
+def v16_gerar_previsoes_atuais(
+    c1: List[int], c2: List[int], c3: List[int], regime: str, confiabilidade: float, 
+    volume_sugerido: int, dinamica_alvo: Dict[str, Any], limite_max_listas: int
+) -> List[List[int]]:
+    """
+    Função responsável por gerar as previsões com base no núcleo V16 (C1, C2, C3) e nas coberturas.
+    """
+    # Camada 1: Previsões principais (C1)
+    previsoes_principais = [c1]  # Núcleo base
+
+    # Camada 2: Coberturas principais (C2)
+    previsoes_c2 = c2[:limite_max_listas]
+
+    # Camada 3: Coberturas complementares (C3)
+    previsoes_c3 = c3[:limite_max_listas]
+
+    # Junta as previsões de todas as camadas
+    previsoes_finais = previsoes_principais + previsoes_c2 + previsoes_c3
+
+    return previsoes_finais
+
+# Exemplo de chamada da função para gerar as previsões
+previsoes = v16_gerar_previsoes_atuais(
+    c1=[10, 16, 23, 33, 41, 45],
+    c2=[11, 15, 22, 30, 35, 43],
+    c3=[12, 16, 21, 28, 34, 46],
+    regime="normal",
+    confiabilidade=0.65,
+    volume_sugerido=12,
+    dinamica_alvo={"movimento": "lento"},
+    limite_max_listas=12
+)
+
+# Exibindo as previsões geradas
+_v16_exibir_bloco(
+    "Pacote Final de Previsões (V16)",
+    f"Previsões geradas: {previsoes}",
+    tipo="success",
+)
+
+# ============================================================
+# FIM DO BLOCO 8/7
+# ============================================================
+# ============================================================
+# BLOCO 9/7 — APRENDIZADO PÓS-RODADA V16
+# ============================================================
+
+def v16_aprendizado_pos_rodada(
+    previsoes: List[List[int]],
+    resultado_real: List[int],
+    regime: str,
+    confiabilidade: float,
+    dinamica_alvo: str,
+) -> Dict[str, Any]:
+    """
+    Analisa o desempenho das previsões após a rodada real
+    e gera ajustes automáticos para a próxima execução.
+    """
+
+    resultado_set = set(resultado_real)
+
+    analise = {
+        "acertos_max": 0,
+        "melhor_lista": None,
+        "media_acertos": 0,
+        "ajuste_volume": 0,
+        "ajuste_amplitude": 0,
+        "observacao": "",
+    }
+
+    total_acertos = []
+
+    for lista in previsoes:
+        acertos = len(set(lista) & resultado_set)
+        total_acertos.append(acertos)
+
+        if acertos > analise["acertos_max"]:
+            analise["acertos_max"] = acertos
+            analise["melhor_lista"] = lista
+
+    analise["media_acertos"] = round(sum(total_acertos) / max(len(total_acertos), 1), 2)
+
+    # -----------------------------
+    # LÓGICA DE APRENDIZADO
+    # -----------------------------
+    if analise["acertos_max"] >= 4:
+        analise["ajuste_volume"] = -2
+        analise["ajuste_amplitude"] = -1
+        analise["observacao"] = "Alvo parcialmente capturado. Reduzindo dispersão."
+    elif analise["acertos_max"] == 3:
+        analise["ajuste_volume"] = 0
+        analise["ajuste_amplitude"] = 0
+        analise["observacao"] = "Zona morna. Manter estratégia."
+    else:
+        analise["ajuste_volume"] = +2
+        analise["ajuste_amplitude"] = +2
+        analise["observacao"] = "Alvo em movimento rápido. Aumentando respiração."
+
+    # Ajustes adicionais por dinâmica do alvo
+    if dinamica_alvo == "em_movimento":
+        analise["ajuste_volume"] += 1
+
+    return analise
+
+
+# -----------------------------
+# PAINEL — APRENDIZADO PÓS-RODADA
+# -----------------------------
+def painel_v16_aprendizado_pos_rodada():
+    st.markdown("## 🧠 V16 — Aprendizado Pós-Rodada")
+
+    if "v16_previsoes_finais" not in st.session_state:
+        st.warning("Nenhuma previsão V16 encontrada.")
+        st.stop()
+
+    resultado_txt = st.text_input(
+        "Informe o resultado real da rodada (ex: 11,16,22,30,35,43):"
+    )
+
+    if not resultado_txt:
+        st.info("Digite o resultado real para ativar o aprendizado.")
+        st.stop()
+
+    try:
+        resultado_real = [int(x.strip()) for x in resultado_txt.split(",")]
+    except Exception:
+        st.error("Formato inválido.")
+        st.stop()
+
+    info = st.session_state.get("v16_engine_info", {})
+
+    aprendizado = v16_aprendizado_pos_rodada(
+        previsoes=st.session_state["v16_previsoes_finais"],
+        resultado_real=resultado_real,
+        regime=info.get("regime", "normal"),
+        confiabilidade=info.get("confiabilidade", 0.5),
+        dinamica_alvo=info.get("dinamica_alvo", "estavel"),
+    )
+
+    st.session_state["v16_aprendizado"] = aprendizado
+
+    _v16_exibir_bloco(
+        "Resultado do Aprendizado V16",
+        f"""
+        🔢 Acertos máximos: {aprendizado['acertos_max']}
+        📊 Média de acertos: {aprendizado['media_acertos']}
+        🎯 Melhor lista: {aprendizado['melhor_lista']}
+        🔄 Ajuste de volume sugerido: {aprendizado['ajuste_volume']}
+        📐 Ajuste de amplitude sugerido: {aprendizado['ajuste_amplitude']}
+        🧠 Observação: {aprendizado['observacao']}
+        """,
+        tipo="success",
+    )
+
+
+# ============================================================
+# FIM DO BLOCO 9/7
+# ============================================================
