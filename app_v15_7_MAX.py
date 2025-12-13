@@ -446,6 +446,77 @@ def construir_navegacao_v157() -> str:
 painel = construir_navegacao_v157()
 
 # ============================================================
+# CAMADA A — ESTADO DO ALVO (V16)
+# Observador puro — NÃO decide, NÃO bloqueia, NÃO gera previsões
+# ============================================================
+
+def v16_estimar_volatilidade_local(df: Optional[pd.DataFrame], janela: int = 30) -> float:
+    try:
+        matriz_norm = st.session_state.get("pipeline_matriz_norm")
+        if isinstance(matriz_norm, np.ndarray) and len(matriz_norm) >= janela:
+            bloco = matriz_norm[-janela:]
+            return float(np.mean(np.std(bloco, axis=1)))
+    except Exception:
+        pass
+
+    if df is None or df.empty:
+        return 0.0
+
+    try:
+        col_pass = [c for c in df.columns if str(c).startswith("p")]
+        bloco = df[col_pass].tail(janela).astype(float).values
+        return float(np.mean(np.std(bloco, axis=1)))
+    except Exception:
+        return 0.0
+
+
+def v16_calcular_estado_alvo(
+    df: Optional[pd.DataFrame],
+    nr_percent: Optional[float],
+    divergencia: Optional[float],
+) -> Dict[str, Any]:
+
+    nr = float(nr_percent) if isinstance(nr_percent, (int, float)) else 35.0
+    div = float(divergencia) if isinstance(divergencia, (int, float)) else 4.0
+    vol = v16_estimar_volatilidade_local(df, janela=30)
+
+    nr_norm = min(1.0, nr / 70.0)
+    div_norm = min(1.0, div / 10.0)
+    vol_norm = min(1.0, vol / 0.35)
+
+    velocidade = float(0.45 * nr_norm + 0.35 * div_norm + 0.20 * vol_norm)
+
+    if velocidade < 0.33:
+        tipo = "parado"
+        comentario = "🎯 Alvo estável — erro tende a ser por pouco. Volume alto faz sentido."
+    elif velocidade < 0.66:
+        tipo = "movimento_lento"
+        comentario = "🎯 Alvo em movimento lento — alternar rajadas e coberturas."
+    else:
+        tipo = "movimento_rapido"
+        comentario = "⚠️ Alvo rápido — ambiente difícil. Operação respiratória."
+
+    return {
+        "tipo": tipo,
+        "velocidade": round(velocidade, 4),
+        "vol_local": round(vol, 4),
+        "nr_percent": nr,
+        "divergencia": div,
+        "comentario": comentario,
+    }
+
+
+def v16_registrar_estado_alvo():
+    estado = v16_calcular_estado_alvo(
+        st.session_state.get("historico_df"),
+        st.session_state.get("nr_percent"),
+        st.session_state.get("div_s6_mc"),
+    )
+    st.session_state["estado_alvo_v16"] = estado
+    return estado
+
+
+# ============================================================
 # PARTE 1/8 — FIM
 # ============================================================
 # ============================================================
