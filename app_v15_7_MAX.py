@@ -1540,6 +1540,87 @@ if painel == "🧪 Testes de Confiabilidade REAL":
     )
 
     st.success("Teste de Confiabilidade REAL concluído com sucesso!")
+# ============================================================
+# BLOCO — SANIDADE FINAL DAS LISTAS DE PREVISÃO
+# (Elimina permutações, duplicatas por conjunto e falsas coberturas)
+# Válido para V15.7 MAX e V16 Premium
+# ============================================================
+
+def _sanear_listas_previsao(
+    listas,
+    min_diferencas: int = 1,
+    referencia: list = None,
+):
+    """
+    Aplica saneamento final nas listas de previsão:
+    - Normaliza (ordena)
+    - Remove duplicatas por CONJUNTO
+    - Remove listas idênticas à referência (6/6)
+    - Exige diversidade mínima (min_diferencas)
+    """
+
+    if not listas:
+        return []
+
+    saneadas = []
+    vistos = set()
+
+    ref_set = set(referencia) if referencia else None
+
+    for lst in listas:
+        try:
+            lst_int = [int(x) for x in lst]
+        except Exception:
+            continue
+
+        lst_norm = tuple(sorted(lst_int))
+
+        # Remove duplicatas por conjunto
+        if lst_norm in vistos:
+            continue
+
+        # Remove cópia total da referência (6/6)
+        if ref_set is not None:
+            inter = len(set(lst_norm) & ref_set)
+            if inter == len(ref_set):
+                continue
+            # Exige diversidade mínima
+            if (len(ref_set) - inter) < min_diferencas:
+                continue
+
+        vistos.add(lst_norm)
+        saneadas.append(list(lst_norm))
+
+    return saneadas
+
+
+# ============================================================
+# APLICAÇÃO AUTOMÁTICA DA SANIDADE (SE LISTAS EXISTIREM)
+# ============================================================
+
+# Sanear listas do Modo 6 (V15.7)
+if "modo6_listas" in st.session_state:
+    base_ref = st.session_state.get("ultima_previsao")
+    st.session_state["modo6_listas"] = _sanear_listas_previsao(
+        st.session_state.get("modo6_listas", []),
+        min_diferencas=1,
+        referencia=base_ref,
+    )
+
+# Sanear Execução V16 (se existir)
+if "v16_execucao" in st.session_state:
+    exec_v16 = st.session_state.get("v16_execucao", {})
+    base_ref = exec_v16.get("C1")
+
+    for chave in ["C2", "C3", "todas_listas"]:
+        if chave in exec_v16:
+            exec_v16[chave] = _sanear_listas_previsao(
+                exec_v16.get(chave, []),
+                min_diferencas=1,
+                referencia=base_ref,
+            )
+
+    st.session_state["v16_execucao"] = exec_v16
 
 # ============================================================
 # PARTE 6/8 — FIM
