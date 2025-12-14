@@ -1992,6 +1992,8 @@ if painel == "📘 Relatório Final":
     )
 
     st.success("Relatório Final gerado com sucesso!")
+
+
 # ============================================================
 # Painel X — 🧠 Laudo Operacional V16 (Estado, Expectativa, Volume)
 # ============================================================
@@ -2049,6 +2051,136 @@ if painel == "🧠 Laudo Operacional V16":
         "O PredictCars informa o ambiente e os trade-offs.\n"
         "A decisão final de quantas previsões gerar é do operador."
     )
+
+# ============================================================
+# V16 — CAMADA D
+# Estado do Alvo · Expectativa · Volume × Confiabilidade
+# ============================================================
+
+def v16_registrar_estado_alvo():
+    """
+    Classifica o estado do alvo com base em:
+    - NR%
+    - Divergência S6 vs MC
+    - Índice de risco
+    """
+    nr = st.session_state.get("nr_percent")
+    div = st.session_state.get("div_s6_mc")
+    risco = (st.session_state.get("diagnostico_risco") or {}).get("indice_risco")
+
+    if nr is None or div is None or risco is None:
+        return {
+            "tipo": "indefinido",
+            "velocidade": "indefinida",
+            "comentario": "Histórico insuficiente para classificar o alvo.",
+        }
+
+    # velocidade ∈ [~0, ~1+] (heurística)
+    velocidade = round((nr / 100.0 + div / 15.0 + float(risco)) / 3.0, 3)
+
+    if velocidade < 0.30:
+        tipo = "alvo_parado"
+        comentario = "🎯 Alvo praticamente parado — oportunidade rara. Volume alto recomendado."
+    elif velocidade < 0.55:
+        tipo = "movimento_lento"
+        comentario = "🎯 Alvo em movimento lento — alternar rajadas e coberturas."
+    elif velocidade < 0.80:
+        tipo = "movimento_rapido"
+        comentario = "⚠️ Alvo em movimento rápido — reduzir agressividade."
+    else:
+        tipo = "disparado"
+        comentario = "🚨 Alvo disparado — ambiente hostil. Operar apenas de forma respiratória."
+
+    return {
+        "tipo": tipo,
+        "velocidade": velocidade,
+        "comentario": comentario,
+    }
+
+
+def v16_registrar_expectativa():
+    """
+    Estima expectativa de curto prazo (1–3 séries)
+    com base em microjanelas, ruído e divergência.
+    """
+    micro = st.session_state.get("v16_microdiag") or {}
+    nr = st.session_state.get("nr_percent")
+    div = st.session_state.get("div_s6_mc")
+
+    if not micro or nr is None or div is None:
+        return {
+            "previsibilidade": "indefinida",
+            "erro_esperado": "indefinido",
+            "chance_janela_ouro": "baixa",
+            "comentario": "Histórico insuficiente para expectativa.",
+        }
+
+    score = float(micro.get("score_melhor", 0.0) or 0.0)
+    janela_ouro = bool(micro.get("janela_ouro", False))
+
+    if janela_ouro and score >= 0.80 and float(nr) < 40.0 and float(div) < 5.0:
+        return {
+            "previsibilidade": "alta",
+            "erro_esperado": "baixo",
+            "chance_janela_ouro": "alta",
+            "comentario": "🟢 Forte expectativa positiva nas próximas 1–3 séries.",
+        }
+
+    if score >= 0.50 and float(nr) < 60.0:
+        return {
+            "previsibilidade": "moderada",
+            "erro_esperado": "moderado",
+            "chance_janela_ouro": "média",
+            "comentario": "🟡 Ambiente misto. Oportunidades pontuais podem surgir no curto prazo.",
+        }
+
+    return {
+        "previsibilidade": "baixa",
+        "erro_esperado": "alto",
+        "chance_janela_ouro": "baixa",
+        "comentario": "🔴 Baixa previsibilidade nas próximas 1–3 séries (ruído/divergência dominantes).",
+    }
+
+
+def v16_registrar_volume_e_confiabilidade():
+    """
+    Relaciona quantidade de previsões com confiabilidade estimada.
+    O sistema informa — a decisão é do operador.
+    """
+    risco = st.session_state.get("diagnostico_risco") or {}
+    indice = risco.get("indice_risco")
+
+    if indice is None:
+        return {
+            "minimo": 3,
+            "recomendado": 6,
+            "maximo_tecnico": 20,
+            "confiabilidades_estimadas": {},
+            "comentario": "Confiabilidade não calculada (rode o Monitor de Risco).",
+        }
+
+    indice = float(indice)
+    conf_base = max(0.05, 1.0 - indice)
+
+    volumes = [3, 6, 10, 20, 40, 80]
+    confs = {}
+    for v in volumes:
+        # queda suave conforme volume cresce (heurística)
+        confs[v] = round(max(0.01, conf_base - v * 0.003), 3)
+
+    recomendado = 20 if conf_base > 0.35 else 6
+
+    return {
+        "minimo": 3,
+        "recomendado": int(recomendado),
+        "maximo_tecnico": 80,
+        "confiabilidades_estimadas": confs,
+        "comentario": (
+            "O sistema informa volumes e confiabilidades estimadas. "
+            "A decisão final de quantas previsões gerar é do operador."
+        ),
+    }
+
 
 # ============================================================
 # PARTE 7/8 — FIM
