@@ -515,6 +515,83 @@ def v16_registrar_estado_alvo():
     st.session_state["estado_alvo_v16"] = estado
     return estado
 
+# ============================================================
+# CAMADA B — EXPECTATIVA DE CURTO PRAZO (V16)
+# Laudo observacional: horizonte 1–3 séries (NÃO decide)
+# ============================================================
+
+def v16_calcular_expectativa_curto_prazo(
+    df: Optional[pd.DataFrame],
+    estado_alvo: Optional[Dict[str, Any]],
+    k_star: Optional[float],
+    nr_percent: Optional[float],
+    divergencia: Optional[float],
+) -> Dict[str, Any]:
+
+    if df is None or df.empty:
+        return {
+            "horizonte": "1–3 séries",
+            "previsibilidade": "indefinida",
+            "erro_esperado": "indefinido",
+            "chance_janela_ouro": "baixa",
+            "comentario": "Histórico insuficiente para expectativa.",
+        }
+
+    k = float(k_star) if isinstance(k_star, (int, float)) else 0.25
+    nr = float(nr_percent) if isinstance(nr_percent, (int, float)) else 35.0
+    div = float(divergencia) if isinstance(divergencia, (int, float)) else 4.0
+
+    tipo = (estado_alvo or {}).get("tipo", "movimento_lento")
+
+    # Índice simples de previsibilidade
+    risco_norm = min(1.0, (nr / 70.0) * 0.4 + (div / 10.0) * 0.3 + (k / 0.5) * 0.3)
+    previsibilidade_score = max(0.0, 1.0 - risco_norm)
+
+    if previsibilidade_score >= 0.65:
+        previsibilidade = "alta"
+        erro = "baixo"
+    elif previsibilidade_score >= 0.40:
+        previsibilidade = "média"
+        erro = "médio"
+    else:
+        previsibilidade = "baixa"
+        erro = "alto"
+
+    # Chance de janela de ouro (qualitativa)
+    if tipo == "parado" and previsibilidade_score >= 0.60:
+        chance_ouro = "alta"
+    elif tipo == "movimento_lento" and previsibilidade_score >= 0.45:
+        chance_ouro = "média"
+    else:
+        chance_ouro = "baixa"
+
+    comentario = (
+        f"Alvo {tipo}. Previsibilidade {previsibilidade}. "
+        f"Erro esperado {erro}. Chance de janela de ouro {chance_ouro}."
+    )
+
+    return {
+        "horizonte": "1–3 séries",
+        "previsibilidade": previsibilidade,
+        "erro_esperado": erro,
+        "chance_janela_ouro": chance_ouro,
+        "score_previsibilidade": round(previsibilidade_score, 4),
+        "comentario": comentario,
+    }
+
+
+def v16_registrar_expectativa():
+    estado = st.session_state.get("estado_alvo_v16")
+    expectativa = v16_calcular_expectativa_curto_prazo(
+        st.session_state.get("historico_df"),
+        estado,
+        st.session_state.get("sentinela_kstar"),
+        st.session_state.get("nr_percent"),
+        st.session_state.get("div_s6_mc"),
+    )
+    st.session_state["expectativa_v16"] = expectativa
+    return expectativa
+
 
 # ============================================================
 # PARTE 1/8 — FIM
