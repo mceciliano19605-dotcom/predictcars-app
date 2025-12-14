@@ -1209,8 +1209,385 @@ if painel == "⚙️ Modo TURBO++ HÍBRIDO":
     st.session_state["ultima_previsao"] = previsao_final
 
 # ============================================================
-# Painel 7 — ⚙️ Modo TURBO++ ULTRA
+# BLOCO 1/4 — ORQUESTRADOR DE TENTATIVA (V16) — INVISÍVEL
+# Objetivo: traduzir diagnóstico (alvo/risco/confiabilidade) em
+# "configuração de tentativa" para o Modo 6 (sem decidir listas).
+# LISTAS SEMPRE EXISTEM: este orquestrador NUNCA retorna volume 0.
 # ============================================================
+
+from typing import Dict, Any, Optional
+
+
+# ------------------------------------------------------------
+# HELPERS (V16) — clamp + safe float
+# ------------------------------------------------------------
+
+def _clamp_v16(x: float, lo: float, hi: float) -> float:
+    try:
+        x = float(x)
+    except Exception:
+        x = lo
+    if x < lo:
+        return lo
+    if x > hi:
+        return hi
+    return x
+
+
+def _safe_float_v16(x: Any, default: float = 0.0) -> float:
+    try:
+        return float(x)
+    except Exception:
+        return float(default)
+
+
+# ------------------------------------------------------------
+# ORQUESTRADOR DE TENTATIVA (V16) — núcleo conceitual
+# ------------------------------------------------------------
+
+def orquestrar_tentativa_v16(
+    *,
+    series_count: int,
+    alvo_tipo: Optional[str] = None,          # "parado" | "movimento_lento" | "movimento_rapido"
+    alvo_velocidade: Optional[float] = None,  # ex: 0.9319 (se disponível)
+    k_star: Optional[float] = None,           # ex: 0.2083
+    nr_pct: Optional[float] = None,           # ex: 67.87  (0..100)
+    divergencia_s6_mc: Optional[float] = None,# ex: 14.0480
+    risco_composto: Optional[float] = None,   # ex: 0.7560  (0..1)
+    confiabilidade_estimada: Optional[float] = None,  # 0..1 (se você já tiver)
+    # --- Limites técnicos (anti-zumbi) ---
+    limite_seguro_series_modo6: int = 800,    # padrão atual (já visto no app)
+    # --- Volumes base (pode ser ajustado depois, mas COMEÇA CONSERVADOR) ---
+    volume_min_base: int = 3,
+    volume_rec_base: int = 6,
+    volume_max_base: int = 80,
+) -> Dict[str, Any]:
+    """
+    Retorna um dicionário com a "configuração de tentativa" (invisível),
+    para o Modo 6 usar como guia de volume e forma (diversidade/variação).
+
+    ✅ Regras implementadas aqui:
+    - Objetivo único: tentar cravar 6 passageiros (não decide, só orienta).
+    - Listas SEMPRE existem -> volume_min >= 1 (nunca 0).
+    - Confiabilidade alta => explorar (mandar bala com critério).
+    - Confiabilidade baixa => tentar com critério (degradado, mas não zero).
+    - Anti-zumbi não censura: limita teto, mas não zera.
+    """
+
+    # -----------------------------
+    # Sanitização básica
+    # -----------------------------
+    try:
+        series_count = int(series_count)
+    except Exception:
+        series_count = 0
+
+    k_star = _safe_float_v16(k_star, 0.0)
+    nr_pct = _safe_float_v16(nr_pct, 0.0)
+    divergencia_s6_mc = _safe_float_v16(divergencia_s6_mc, 0.0)
+    risco_composto = _safe_float_v16(risco_composto, 0.0)
+
+    # Normalizações defensivas
+    nr_norm = _clamp_v16(nr_pct / 100.0, 0.0, 1.0)             # 0..1
+    risco_norm = _clamp_v16(risco_composto, 0.0, 1.0)          # 0..1
+    k_norm = _clamp_v16(k_star / 0.35, 0.0, 1.0)               # 0..1 (0.35 ~ teto típico de alerta)
+    div_norm = _clamp_v16(divergencia_s6_mc / 15.0, 0.0, 1.0)  # 0..1 (15 ~ divergência crítica)
+
+    # -----------------------------
+    # Inferência do tipo de alvo (se não vier do Laudo)
+    # -----------------------------
+    alvo_tipo_norm = (alvo_tipo or "").strip().lower()
+
+    if not alvo_tipo_norm:
+        v = _safe_float_v16(alvo_velocidade, 0.0)
+        # Heurística simples (pode refinar depois):
+        # - <0.35: parado/lento
+        # - 0.35..0.70: movimento_lento
+        # - >0.70: movimento_rapido
+        if v <= 0.35:
+            alvo_tipo_norm = "parado"
+        elif v <= 0.70:
+            alvo_tipo_norm = "movimento_lento"
+        else:
+            alvo_tipo_norm = "movimento_rapido"
+
+    if alvo_tipo_norm in ("lento", "movimento lento", "movimento-lento"):
+        alvo_tipo_norm = "movimento_lento"
+    if alvo_tipo_norm in ("rapido", "rápido", "movimento rapido", "movimento-rápido", "movimento_rapido"):
+        alvo_tipo_norm = "movimento_rapido"
+    if alvo_tipo_norm in ("parado", "estavel", "estável"):
+        alvo_tipo_norm = "parado"
+
+    if alvo_tipo_norm not in ("parado", "movimento_lento", "movimento_rapido"):
+        alvo_tipo_norm = "movimento_rapido"  # default seguro: tratar como difícil
+
+    # -----------------------------
+    # Construção de uma "confiabilidade estimada" interna (se não vier)
+    # -----------------------------
+    # Ideia: confiabilidade cai com ruído, risco, k* alto e divergência alta.
+    # (Não é promessa, é régua de orientação de intensidade.)
+    if confiabilidade_estimada is None:
+        penal = 0.40 * nr_norm + 0.25 * risco_norm + 0.20 * div_norm + 0.15 * k_norm
+        conf = 1.0 - _clamp_v16(penal, 0.0, 1.0)
+    else:
+        conf = _clamp_v16(_safe_float_v16(confiabilidade_estimada, 0.0), 0.0, 1.0)
+
+    # -----------------------------
+    # Definição do "modo de tentativa" (conceito → controle interno)
+    # -----------------------------
+    # - exploração_intensa: alta confiança (mandar bala com critério)
+    # - tentativa_controlada: meio termo
+    # - tentativa_degradada: baixa confiança / alvo rápido / ambiente hostil
+    if conf >= 0.55 and risco_norm <= 0.55 and nr_norm <= 0.55 and div_norm <= 0.60:
+        modo = "exploracao_intensa"
+    elif conf >= 0.30 and risco_norm <= 0.75 and nr_norm <= 0.75:
+        modo = "tentativa_controlada"
+    else:
+        modo = "tentativa_degradada"
+
+    # Alvo rápido puxa para degradado, a menos que seja realmente "bom"
+    if alvo_tipo_norm == "movimento_rapido" and modo != "exploracao_intensa":
+        modo = "tentativa_degradada"
+
+    # -----------------------------
+    # Volumes base (sempre > 0)
+    # -----------------------------
+    vol_min = max(1, int(volume_min_base))
+    vol_rec = max(vol_min, int(volume_rec_base))
+    vol_max = max(vol_rec, int(volume_max_base))
+
+    # -----------------------------
+    # Ajuste de intensidade por modo + confiabilidade
+    # -----------------------------
+    # Observação: "mandar bala" = aumentar volume e variação interna,
+    # mas SEM explodir sem critério.
+    if modo == "exploracao_intensa":
+        # Escala com conf (0.55..1.0) -> multiplicador (1.1..1.9)
+        mult = 1.1 + 0.8 * _clamp_v16((conf - 0.55) / 0.45, 0.0, 1.0)
+        vol_rec = int(max(vol_rec, round(vol_rec * mult)))
+        vol_max = int(max(vol_max, round(vol_max * mult)))
+
+        diversidade = 0.55  # moderada (refino + variação)
+        variacao_interna = 0.75
+        aviso_curto = "🟢 Exploração intensa: mandar bala com critério (janela favorável)."
+
+    elif modo == "tentativa_controlada":
+        # Escala suave com conf (0.30..0.55) -> multiplicador (0.95..1.20)
+        mult = 0.95 + 0.25 * _clamp_v16((conf - 0.30) / 0.25, 0.0, 1.0)
+        vol_rec = int(max(vol_rec, round(vol_rec * mult)))
+        vol_max = int(max(vol_max, round(vol_max * mult)))
+
+        # diversidade depende do alvo
+        if alvo_tipo_norm == "parado":
+            diversidade = 0.35  # mais próximo (ajuste fino)
+            variacao_interna = 0.60
+        elif alvo_tipo_norm == "movimento_lento":
+            diversidade = 0.50  # cercamento
+            variacao_interna = 0.55
+        else:
+            diversidade = 0.65  # já puxa para hipóteses
+            variacao_interna = 0.45
+
+        aviso_curto = "🟡 Tentativa controlada: cercar com critério (sem exagero)."
+
+    else:
+        # Degradado: volume controlado, diversidade alta (hipóteses)
+        # Garante mínimo, limita teto e aumenta diversidade.
+        # Se conf for muito baixa, não adianta inflar volume: mantém enxuto.
+        if conf <= 0.10:
+            vol_rec = max(vol_min, min(vol_rec, 6))
+            vol_max = max(vol_rec, min(vol_max, 12))
+        elif conf <= 0.20:
+            vol_rec = max(vol_min, min(vol_rec, 8))
+            vol_max = max(vol_rec, min(vol_max, 18))
+        else:
+            vol_rec = max(vol_min, min(vol_rec, 10))
+            vol_max = max(vol_rec, min(vol_max, 24))
+
+        diversidade = 0.85  # alto (ali, lá, acolá)
+        variacao_interna = 0.35
+        aviso_curto = "🔴 Tentativa degradada: hipóteses espalhadas (chance baixa, mas listas existem)."
+
+    # -----------------------------
+    # Anti-zumbi como LIMITADOR (não censura)
+    # -----------------------------
+    # Se o histórico excede o limite seguro do modo 6:
+    # - não bloqueia
+    # - apenas derruba o teto e puxa recomendado para um patamar seguro
+    # Mantém volume_min > 0 SEMPRE.
+    if series_count > int(limite_seguro_series_modo6):
+        # Fator de penalização pelo excesso de séries (piora custo)
+        excesso = series_count - int(limite_seguro_series_modo6)
+        fator = _clamp_v16(1.0 - (excesso / max(1.0, float(limite_seguro_series_modo6))) * 0.60, 0.25, 1.0)
+
+        teto_seguro = int(max(vol_rec, round(vol_max * fator)))
+        teto_seguro = int(_clamp_v16(teto_seguro, max(vol_rec, vol_min), vol_max))
+
+        # puxa recomendado junto do teto seguro (mas nunca abaixo do mínimo)
+        vol_max = max(vol_rec, teto_seguro)
+        vol_rec = max(vol_min, min(vol_rec, vol_max))
+
+        aviso_curto += " 🔒 Anti-Zumbi: volume limitado (sem bloquear geração)."
+
+    # -----------------------------
+    # Garantias finais (invioláveis)
+    # -----------------------------
+    vol_min = max(1, int(vol_min))
+    vol_rec = max(vol_min, int(vol_rec))
+    vol_max = max(vol_rec, int(vol_max))
+
+    diversidade = _clamp_v16(diversidade, 0.10, 0.95)
+    variacao_interna = _clamp_v16(variacao_interna, 0.10, 0.95)
+
+    return {
+        "modo_tentativa": modo,
+        "alvo_tipo": alvo_tipo_norm,
+        "confiabilidade_estimada": float(conf),
+        "volume_min": int(vol_min),
+        "volume_recomendado": int(vol_rec),
+        "volume_max": int(vol_max),
+        "diversidade": float(diversidade),
+        "variacao_interna": float(variacao_interna),
+        "aviso_curto": str(aviso_curto),
+        "debug": {
+            "nr_norm": float(nr_norm),
+            "risco_norm": float(risco_norm),
+            "k_norm": float(k_norm),
+            "div_norm": float(div_norm),
+            "series_count": int(series_count),
+            "limite_seguro_series_modo6": int(limite_seguro_series_modo6),
+        },
+    }
+
+# ============================================================
+# BLOCO 2/4 — PONTE ORQUESTRADOR → TURBO++ ULTRA (V16)
+# Objetivo: coletar diagnósticos existentes do app (Laudo/Risco)
+# e preparar a configuração de tentativa para o Modo 6,
+# SEM alterar UI e SEM decidir listas.
+# ============================================================
+
+def preparar_tentativa_turbo_ultra_v16(
+    *,
+    df,
+    series_count: int,
+    alvo_tipo: Optional[str] = None,
+    alvo_velocidade: Optional[float] = None,
+    k_star: Optional[float] = None,
+    nr_pct: Optional[float] = None,
+    divergencia_s6_mc: Optional[float] = None,
+    risco_composto: Optional[float] = None,
+    confiabilidade_estimada: Optional[float] = None,
+    limite_seguro_series_modo6: int = 800,
+) -> Dict[str, Any]:
+    """
+    Ponte invisível:
+    - lê informações já calculadas no app
+    - chama o Orquestrador de Tentativa (BLOCO 1)
+    - devolve um dicionário pronto para o TURBO++ ULTRA usar
+
+    NÃO gera listas
+    NÃO executa motores
+    NÃO decide nada
+    """
+
+    # Defesa básica
+    try:
+        series_count = int(series_count)
+    except Exception:
+        series_count = 0
+
+    # Chamada central ao Orquestrador
+    cfg = orquestrar_tentativa_v16(
+        series_count=series_count,
+        alvo_tipo=alvo_tipo,
+        alvo_velocidade=alvo_velocidade,
+        k_star=k_star,
+        nr_pct=nr_pct,
+        divergencia_s6_mc=divergencia_s6_mc,
+        risco_composto=risco_composto,
+        confiabilidade_estimada=confiabilidade_estimada,
+        limite_seguro_series_modo6=limite_seguro_series_modo6,
+    )
+
+    # Normalização final (garantia extra)
+    cfg["volume_min"] = max(1, int(cfg.get("volume_min", 1)))
+    cfg["volume_recomendado"] = max(
+        cfg["volume_min"],
+        int(cfg.get("volume_recomendado", cfg["volume_min"]))
+    )
+    cfg["volume_max"] = max(
+        cfg["volume_recomendado"],
+        int(cfg.get("volume_max", cfg["volume_recomendado"]))
+    )
+
+    return cfg
+
+# ============================================================
+# >>> INÍCIO — BLOCO 3/4 — ORQUESTRADOR → TURBO++ ULTRA (V16)
+# Camada invisível de conexão (não é painel, não gera listas)
+# ============================================================
+
+def _injetar_cfg_tentativa_turbo_ultra_v16(
+    *,
+    df,
+    qtd_series: int,
+    k_star,
+    limite_series_padrao: int,
+):
+    """
+    Injeta no session_state a configuração de tentativa calculada
+    pelo Orquestrador (BLOCO 1 + BLOCO 2), sem bloquear execução.
+    """
+
+    # Coleta informações já existentes
+    laudo_v16 = st.session_state.get("laudo_operacional_v16", {}) or {}
+
+    alvo_tipo = laudo_v16.get("estado_alvo") or laudo_v16.get("alvo_tipo")
+    alvo_velocidade = laudo_v16.get("velocidade_estimada")
+
+    nr_pct = st.session_state.get("nr_pct")
+    divergencia_s6_mc = st.session_state.get("divergencia_s6_mc")
+    risco_composto = st.session_state.get("indice_risco")
+
+    cfg = preparar_tentativa_turbo_ultra_v16(
+        df=df,
+        series_count=qtd_series,
+        alvo_tipo=alvo_tipo,
+        alvo_velocidade=alvo_velocidade,
+        k_star=k_star,
+        nr_pct=nr_pct,
+        divergencia_s6_mc=divergencia_s6_mc,
+        risco_composto=risco_composto,
+        limite_seguro_series_modo6=limite_series_padrao,
+    )
+
+    # Guarda para uso posterior
+    st.session_state["cfg_tentativa_turbo_ultra"] = cfg
+
+    # Aviso curto (informativo, não bloqueante)
+    aviso = cfg.get("aviso_curto")
+    if aviso:
+        st.caption(aviso)
+
+    # Define limite efetivo (anti-zumbi vira limitador, não censura)
+    limite_efetivo = min(
+        limite_series_padrao,
+        int(cfg.get("volume_max", limite_series_padrao))
+    )
+
+    return limite_efetivo
+
+
+# ============================================================
+# <<< FIM — BLOCO 3/4 — ORQUESTRADOR → TURBO++ ULTRA (V16)
+# ============================================================
+
+
+# ============================================================
+# >>> SUBSTITUIR — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (V15.7 + V16)
+# (cole NO LUGAR do conteúdo atual do Painel 7, até antes de "MOTORES PROFUNDOS")
+# ============================================================
+
 if painel == "⚙️ Modo TURBO++ ULTRA":
 
     st.markdown("## ⚙️ Modo TURBO++ ULTRA — V15.7 MAX")
@@ -1227,17 +1604,6 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         )
         st.stop()
 
-    qtd_series = len(df)
-
-    # Anti-zumbi forte — TURBO++ ULTRA é mais pesado
-    if not limitar_operacao(
-        qtd_series,
-        limite_series=LIMITE_SERIES_TURBO_ULTRA,
-        contexto="TURBO++ ULTRA",
-        painel="⚙️ Modo TURBO++ ULTRA",
-    ):
-        st.stop()
-
     if k_star is None:
         exibir_bloco_mensagem(
             "k* não encontrado",
@@ -1246,13 +1612,35 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         )
         st.stop()
 
+    qtd_series = len(df)
+
+    # ============================================================
+    # V16 — ORQUESTRADOR (invisível) + ANTI-ZUMBI INTELIGENTE
+    # ============================================================
+    LIMITE_SERIES_TURBO_ULTRA_EFETIVO = _injetar_cfg_tentativa_turbo_ultra_v16(
+        df=df,
+        qtd_series=qtd_series,
+        k_star=k_star,
+        limite_series_padrao=LIMITE_SERIES_TURBO_ULTRA,
+    )
+
+    if not limitar_operacao(
+        qtd_series,
+        limite_series=LIMITE_SERIES_TURBO_ULTRA_EFETIVO,
+        contexto="TURBO++ ULTRA",
+        painel="⚙️ Modo TURBO++ ULTRA",
+    ):
+        st.stop()
+
     st.info("Executando Modo TURBO++ ULTRA...")
 
     col_pass = [c for c in df.columns if c.startswith("p")]
 
+
     # ============================================================
     # MOTORES PROFUNDOS
     # ============================================================
+
     # --- S6 PROFUNDO ---
     def s6_profundo_V157(df_local, idx_alvo):
         ult_local = df_local[col_pass].iloc[idx_alvo].values
