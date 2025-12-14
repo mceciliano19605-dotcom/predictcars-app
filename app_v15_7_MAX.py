@@ -695,6 +695,55 @@ def v16_registrar_volume_e_confiabilidade():
 # ============================================================
 
 # ============================================================
+# >>> FUNÇÃO AUXILIAR — AJUSTE DE AMBIENTE PARA MODO 6
+# ============================================================
+
+def ajustar_ambiente_modo6(
+    *,
+    df,
+    k_star,
+    nr_pct,
+    divergencia_s6_mc,
+    risco_composto,
+    previsibilidade="baixa",
+):
+    """
+    Ajusta volumes do Modo 6 sem bloquear execução.
+    Sempre retorna configuração válida.
+    """
+
+    # Valores base (coerentes com o Laudo V16)
+    volume_min = 3
+    volume_recomendado = 6
+    volume_max = 80
+
+    # Ajuste simples por previsibilidade
+    if previsibilidade == "alta":
+        volume_min = 6
+        volume_recomendado = 12
+        volume_max = 40
+    elif previsibilidade == "baixa":
+        volume_min = 3
+        volume_recomendado = 6
+        volume_max = 20
+
+    return {
+        "volume_min": volume_min,
+        "volume_recomendado": volume_recomendado,
+        "volume_max": volume_max,
+        "confiabilidade_estimada": 0.05,
+        "aviso_curto": (
+            f"Modo 6 ativo | Volumes: "
+            f"{volume_min}/{volume_recomendado}/{volume_max}"
+        ),
+    }
+
+# ============================================================
+# <<< FIM — FUNÇÃO AUXILIAR — AJUSTE DE AMBIENTE PARA MODO 6
+# ============================================================
+
+
+# ============================================================
 # Painel 1 — 📁 Carregar Histórico (Arquivo)
 # ============================================================
 if painel == "📁 Carregar Histórico (Arquivo)":
