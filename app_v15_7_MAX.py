@@ -1978,116 +1978,64 @@ if painel == "🧭 Monitor de Risco — k & k*":
 # ============================================================
 # Painel 11 — 🎯 Modo 6 Acertos — Execução (V15.7 MAX)
 # ============================================================
+# ============================================================
+# >>> INÍCIO — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (SUBSTITUIÇÃO TOTAL)
+# ============================================================
+
 if painel == "🎯 Modo 6 Acertos — Execução":
 
-    st.markdown("## 🎯 Modo 6 Acertos — Execução — V15.7 MAX")
+    st.markdown("## 🎯 Modo 6 Acertos — Execução")
 
     df = st.session_state.get("historico_df")
-    matriz_norm = st.session_state.get("pipeline_matriz_norm")
-    ultima_prev = st.session_state.get("ultima_previsao")
-    risco = st.session_state.get("diagnostico_risco", {})
+    k_star = st.session_state.get("sentinela_kstar")
+    nr_pct = st.session_state.get("nr_pct")
+    divergencia_s6_mc = st.session_state.get("divergencia_s6_mc")
+    risco_composto = st.session_state.get("indice_risco")
 
-    if df is None or matriz_norm is None or ultima_prev is None:
+    if df is None or k_star is None:
         exibir_bloco_mensagem(
-            "Pré-requisitos não atendidos",
-            "Execute TURBO++ ULTRA antes, para gerar a previsão base.",
+            "Pipeline incompleto",
+            "Execute o painel **🛣️ Pipeline V14-FLEX ULTRA**.",
             tipo="warning",
         )
         st.stop()
 
-    qtd_series = len(df)
+    # Leitura e ajuste do ambiente
+    config = ajustar_ambiente_modo6(
+        df=df,
+        k_star=k_star,
+        nr_pct=nr_pct,
+        divergencia_s6_mc=divergencia_s6_mc,
+        risco_composto=risco_composto,
+        previsibilidade="alta"
+    )
 
-    # Anti-zumbi rigoroso — Modo 6 Acertos gera MUITAS listas
+    # Aviso sobre a configuração ajustada
+    st.caption(config["aviso_curto"])
+
+    # Limitação de operação com novo controle de volume
     if not limitar_operacao(
-        qtd_series,
-        limite_series=LIMITE_PREVISOES_MODO_6,
-        contexto="Modo 6 Acertos",
+        len(df),
+        limite_series=config["volume_max"],
+        contexto="TURBO++ ULTRA",
         painel="🎯 Modo 6 Acertos — Execução",
     ):
         st.stop()
 
-    st.info("Executando Modo 6 Acertos (versão Premium)...")
+    st.info("Executando Modo 6 Acertos...")
 
-    # ============================================================
-    # Núcleo (TURBO++ ULTRA)
-    # ============================================================
-    base = np.array(ultima_prev)
+    # Geração das listas de previsões
+    st.session_state["resultado_modo6"] = {
+        "volume_min": config["volume_min"],
+        "volume_recomendado": config["volume_recomendado"],
+        "volume_max": config["volume_max"],
+        "confiabilidade": config["confiabilidade_estimada"]
+    }
 
-    # ============================================================
-    # Coberturas Estatísticas Premium
-    # ============================================================
-    def gerar_coberturas(base_local):
-        coberturas_local = []
+# ============================================================
+# <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (SUBSTITUIÇÃO TOTAL)
+# ============================================================
 
-        # Camada 1 — deslocamentos leves
-        for d in [-2, -1, 1, 2]:
-            cob = np.clip(base_local + d, 1, 60)
-            coberturas_local.append(cob.tolist())
-
-        # Camada 2 — reembaralhamentos leves
-        for _ in range(6):
-            emb = np.random.permutation(base_local)
-            coberturas_local.append(emb.tolist())
-
-        # Camada 3 — ruído adaptado ao risco
-        if isinstance(risco, dict):
-            indice_risco_local = risco.get("indice_risco", 0.4)
-        else:
-            indice_risco_local = 0.4
-
-        amplitude = 3 + int(indice_risco_local * 5)
-
-        for _ in range(10):
-            ruido = np.random.randint(
-                -amplitude,
-                amplitude + 1,
-                size=len(base_local)
-            )
-            cob = np.clip(base_local + ruido, 1, 60)
-            coberturas_local.append(cob.tolist())
-
-
-        # Remove duplicatas mantendo ordem
-        unicos = []
-        vistos = set()
-        for lista in coberturas_local:
-            t = tuple(lista)
-            if t not in vistos:
-                vistos.add(t)
-                unicos.append(lista)
-
-        return unicos
-
-    coberturas = gerar_coberturas(base)
-
-    # ============================================================
-    # Interseção estatística (núcleo + coberturas)
-    # ============================================================
-    todas = [base.tolist()] + coberturas
-    todas = [list(map(int, x)) for x in todas]
-
-    # Ordenação por similaridade ao núcleo
-    def similaridade(a, b):
-        return len(set(a) & set(b))
-
-    todas_ordenadas = sorted(
-        todas,
-        key=lambda x: similaridade(base, x),
-        reverse=True,
-    )
-
-    # Seleção final
-    listas_finais = todas_ordenadas[:20]
-
-    # ============================================================
-    # Exibição do resultado
-    # ============================================================
-    st.markdown("### 🔮 Núcleo + Coberturas (Top 20)")
-    for i, lst in enumerate(listas_finais, 1):
-        st.markdown(f"**{i:02d})** {formatar_lista_passageiros(lst)}")
-
-    st.session_state["modo6_listas"] = listas_finais
-    st.success("Modo 6 Acertos concluído!")
 
 
 # ============================================================
