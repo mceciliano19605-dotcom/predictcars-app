@@ -2038,53 +2038,52 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     df = st.session_state.get("historico_df")
     k_star = st.session_state.get("sentinela_kstar")
-    nr_pct = st.session_state.get("nr_pct")
-    divergencia_s6_mc = st.session_state.get("divergencia_s6_mc")
+    nr_pct = st.session_state.get("nr_percent")
+    divergencia_s6_mc = st.session_state.get("div_s6_mc")
     risco_composto = st.session_state.get("indice_risco")
+    ultima_prev = st.session_state.get("ultima_previsao")
 
-    if df is None or k_star is None:
+    if df is None or k_star is None or ultima_prev is None:
         exibir_bloco_mensagem(
             "Pipeline incompleto",
-            "Execute o painel **🛣️ Pipeline V14-FLEX ULTRA**.",
+            "Execute o pipeline até o **⚙️ Modo TURBO++ ULTRA**.",
             tipo="warning",
         )
         st.stop()
 
-    # Leitura e ajuste do ambiente
+    # Ajuste do ambiente (limitador, não bloqueador)
     config = ajustar_ambiente_modo6(
         df=df,
         k_star=k_star,
         nr_pct=nr_pct,
         divergencia_s6_mc=divergencia_s6_mc,
         risco_composto=risco_composto,
-        previsibilidade="alta"
+        previsibilidade="alta",
     )
 
-    # Aviso sobre a configuração ajustada
     st.caption(config["aviso_curto"])
 
-    # Limitação de operação com novo controle de volume
-    if not limitar_operacao(
-        len(df),
-        limite_series=config["volume_max"],
-        contexto="TURBO++ ULTRA",
-        painel="🎯 Modo 6 Acertos — Execução",
-    ):
-        st.stop()
+    # Geração REAL das listas (mínimo funcional)
+    volume = int(config["volume_recomendado"])
+    volume = max(1, min(volume, int(config["volume_max"])))
 
-    st.info("Executando Modo 6 Acertos...")
+    listas = []
+    base = ultima_prev
 
-    # Geração das listas de previsões
-    st.session_state["resultado_modo6"] = {
-        "volume_min": config["volume_min"],
-        "volume_recomendado": config["volume_recomendado"],
-        "volume_max": config["volume_max"],
-        "confiabilidade": config["confiabilidade_estimada"]
-    }
+    for i in range(volume):
+        ruido = np.random.randint(-5, 6, size=len(base))
+        nova = np.clip(np.array(base) + ruido, 1, 60).tolist()
+        listas.append(nova)
+
+    # Persistência oficial
+    st.session_state["modo6_listas"] = listas
+
+    st.success(f"Modo 6 executado — {len(listas)} listas geradas.")
 
 # ============================================================
 # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (SUBSTITUIÇÃO TOTAL)
 # ============================================================
+
 
 
 
