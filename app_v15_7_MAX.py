@@ -592,6 +592,99 @@ def v16_registrar_expectativa():
     st.session_state["expectativa_v16"] = expectativa
     return expectativa
 
+# ============================================================
+# CAMADA C — VOLUME & CONFIABILIDADE (V16)
+# Sistema INFORMA; humano DECIDE
+# ============================================================
+
+def v16_estimativa_confiabilidade_por_volume(
+    estado_alvo: Optional[Dict[str, Any]],
+    expectativa: Optional[Dict[str, Any]],
+    base_confiabilidade: Optional[float] = None,
+) -> Dict[int, float]:
+    """
+    Retorna um mapa {volume: confiabilidade_estimada}.
+    Não bloqueia execução; apenas informa trade-offs.
+    """
+    tipo = (estado_alvo or {}).get("tipo", "movimento_lento")
+    score_prev = (expectativa or {}).get("score_previsibilidade", 0.4)
+
+    # Base de confiabilidade (fallback seguro)
+    base = float(base_confiabilidade) if isinstance(base_confiabilidade, (int, float)) else score_prev
+
+    # Ajuste por tipo de alvo
+    if tipo == "parado":
+        fator = 1.15
+    elif tipo == "movimento_lento":
+        fator = 1.00
+    else:
+        fator = 0.80
+
+    volumes = [3, 6, 12, 20, 30, 50, 80]
+    estimativas: Dict[int, float] = {}
+
+    for v in volumes:
+        # Ganho marginal decrescente
+        ganho = 1.0 - (1.0 / max(1.0, np.log(v + 1)))
+        conf = base * fator * ganho
+        estimativas[v] = round(max(0.05, min(0.95, conf)), 3)
+
+    return estimativas
+
+
+def v16_calcular_volume_operacional(
+    estado_alvo: Optional[Dict[str, Any]],
+    expectativa: Optional[Dict[str, Any]],
+    confiabilidades: Dict[int, float],
+) -> Dict[str, Any]:
+    """
+    Consolida recomendações de volume sem impor decisão.
+    """
+    tipo = (estado_alvo or {}).get("tipo", "movimento_lento")
+    prev = (expectativa or {}).get("previsibilidade", "média")
+
+    # Volume recomendado por heurística qualitativa
+    if tipo == "parado" and prev == "alta":
+        recomendado = 30
+    elif tipo == "movimento_lento":
+        recomendado = 20
+    else:
+        recomendado = 6
+
+    # Limites técnicos (anti-zumbi conceitual, não bloqueante)
+    minimo = 3
+    maximo = max(confiabilidades.keys()) if confiabilidades else 30
+
+    return {
+        "minimo": minimo,
+        "recomendado": recomendado,
+        "maximo_tecnico": maximo,
+        "confiabilidades_estimadas": confiabilidades,
+        "comentario": (
+            "O sistema informa volumes e confiabilidades. "
+            "A decisão final de quantas previsões gerar é do usuário."
+        ),
+    }
+
+
+def v16_registrar_volume_e_confiabilidade():
+    estado = st.session_state.get("estado_alvo_v16")
+    expectativa = st.session_state.get("expectativa_v16")
+
+    confiabs = v16_estimativa_confiabilidade_por_volume(
+        estado_alvo=estado,
+        expectativa=expectativa,
+        base_confiabilidade=(expectativa or {}).get("score_previsibilidade"),
+    )
+
+    volume_op = v16_calcular_volume_operacional(
+        estado_alvo=estado,
+        expectativa=expectativa,
+        confiabilidades=confiabs,
+    )
+
+    st.session_state["volume_operacional_v16"] = volume_op
+    return volume_op
 
 # ============================================================
 # PARTE 1/8 — FIM
