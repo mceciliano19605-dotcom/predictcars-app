@@ -403,6 +403,7 @@ def construir_navegacao_v157() -> str:
         "🧪 Testes de Confiabilidade REAL",
         "📘 Relatório Final",
         "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
+         "🧠 Laudo Operacional V16",
     ]
 
     # ============================================================
@@ -1991,6 +1992,63 @@ if painel == "📘 Relatório Final":
     )
 
     st.success("Relatório Final gerado com sucesso!")
+# ============================================================
+# Painel X — 🧠 Laudo Operacional V16 (Estado, Expectativa, Volume)
+# ============================================================
+
+if painel == "🧠 Laudo Operacional V16":
+
+    st.markdown("## 🧠 Laudo Operacional V16 — Leitura do Ambiente")
+
+    # Garantir registros atualizados
+    estado = v16_registrar_estado_alvo()
+    expectativa = v16_registrar_expectativa()
+    volume_op = v16_registrar_volume_e_confiabilidade()
+
+    # --------------------------------------------------------
+    # 1) Estado do Alvo
+    # --------------------------------------------------------
+    st.markdown("### 🎯 Estado do Alvo")
+    st.info(
+        f"Tipo: **{estado['tipo']}**  \n"
+        f"Velocidade estimada: **{estado['velocidade']}**  \n"
+        f"Comentário: {estado['comentario']}"
+    )
+
+    # --------------------------------------------------------
+    # 2) Expectativa de Curto Prazo
+    # --------------------------------------------------------
+    st.markdown("### 🔮 Expectativa (1–3 séries)")
+    st.info(
+        f"Previsibilidade: **{expectativa['previsibilidade']}**  \n"
+        f"Erro esperado: **{expectativa['erro_esperado']}**  \n"
+        f"Chance de janela de ouro: **{expectativa['chance_janela_ouro']}**  \n\n"
+        f"{expectativa['comentario']}"
+    )
+
+    # --------------------------------------------------------
+    # 3) Volume x Confiabilidade
+    # --------------------------------------------------------
+    st.markdown("### 📊 Volume × Confiabilidade (informativo)")
+
+    confs = volume_op.get("confiabilidades_estimadas", {})
+    if confs:
+        df_conf = pd.DataFrame(
+            [{"Previsões": k, "Confiabilidade estimada": v} for k, v in confs.items()]
+        )
+        st.dataframe(df_conf, use_container_width=True)
+
+    st.warning(
+        f"📌 Volume mínimo: **{volume_op['minimo']}**  \n"
+        f"📌 Volume recomendado: **{volume_op['recomendado']}**  \n"
+        f"📌 Volume máximo técnico: **{volume_op['maximo_tecnico']}**  \n\n"
+        f"{volume_op['comentario']}"
+    )
+
+    st.success(
+        "O PredictCars informa o ambiente e os trade-offs.\n"
+        "A decisão final de quantas previsões gerar é do operador."
+    )
 
 # ============================================================
 # PARTE 7/8 — FIM
