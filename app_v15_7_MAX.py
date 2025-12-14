@@ -1582,10 +1582,8 @@ def _injetar_cfg_tentativa_turbo_ultra_v16(
 # <<< FIM — BLOCO 3/4 — ORQUESTRADOR → TURBO++ ULTRA (V16)
 # ============================================================
 
-
 # ============================================================
-# >>> SUBSTITUIR — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (V15.7 + V16)
-# (cole NO LUGAR do conteúdo atual do Painel 7, até antes de "MOTORES PROFUNDOS")
+# >>> PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (ANTI-ZUMBI LIMITADOR)
 # ============================================================
 
 if painel == "⚙️ Modo TURBO++ ULTRA":
@@ -1614,9 +1612,9 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 
     qtd_series = len(df)
 
-    # ============================================================
-    # V16 — ORQUESTRADOR (invisível) + ANTI-ZUMBI INTELIGENTE
-    # ============================================================
+    # ------------------------------------------------------------
+    # Anti-zumbi: LIMITADOR (não bloqueia execução)
+    # ------------------------------------------------------------
     LIMITE_SERIES_TURBO_ULTRA_EFETIVO = _injetar_cfg_tentativa_turbo_ultra_v16(
         df=df,
         qtd_series=qtd_series,
@@ -1624,17 +1622,20 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         limite_series_padrao=LIMITE_SERIES_TURBO_ULTRA,
     )
 
-    if not limitar_operacao(
+    limitar_operacao(
         qtd_series,
         limite_series=LIMITE_SERIES_TURBO_ULTRA_EFETIVO,
         contexto="TURBO++ ULTRA",
         painel="⚙️ Modo TURBO++ ULTRA",
-    ):
-        st.stop()
+    )
 
     st.info("Executando Modo TURBO++ ULTRA...")
 
     col_pass = [c for c in df.columns if c.startswith("p")]
+
+# ============================================================
+# <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA
+# ============================================================
 
 
     # ============================================================
