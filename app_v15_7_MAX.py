@@ -401,6 +401,7 @@ def construir_navegacao_v157() -> str:
         "🧭 Monitor de Risco — k & k*",
         "🎯 Modo 6 Acertos — Execução",
         "🧪 Testes de Confiabilidade REAL",
+        "🧪 Replay Curto — Expectativa 1–3 Séries",
         "📘 Relatório Final",
         "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
          "🧠 Laudo Operacional V16",
