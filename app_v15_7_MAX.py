@@ -2446,6 +2446,31 @@ if painel == "📘 Relatório Final":
 
     st.success("Relatório Final gerado com sucesso!")
 
+# ============================================================
+# Painel — ⏱️ Duração da Janela — Análise Histórica
+# (DIAGNÓSTICO PURO — NÃO altera fluxo, NÃO gera previsões)
+# ============================================================
+
+if painel == "⏱️ Duração da Janela — Análise Histórica":
+
+    st.markdown("## ⏱️ Duração da Janela — Análise Histórica")
+
+    st.info(
+        "Este painel será usado para **medir quanto tempo (em séries)** "
+        "as janelas favoráveis costumam durar **APÓS serem detectadas**.\n\n"
+        "📌 Importante:\n"
+        "- Não prevê entrada de janela\n"
+        "- Não decide operação\n"
+        "- Não altera motores\n\n"
+        "Serve apenas para **balizar a decisão humana de mandar bala ou não**."
+    )
+
+    st.warning(
+        "🚧 Painel em construção.\n\n"
+        "A lógica será adicionada na próxima etapa, "
+        "usando Replay Histórico e critérios já existentes (k*, NR%, divergência)."
+    )
+
 
 # ============================================================
 # Painel X — 🧠 Laudo Operacional V16 (Estado, Expectativa, Volume)
