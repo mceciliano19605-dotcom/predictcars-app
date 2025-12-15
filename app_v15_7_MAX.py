@@ -2174,31 +2174,23 @@ if painel == "🧪 Testes de Confiabilidade REAL":
 # Válido para V15.7 MAX e V16 Premium
 # ============================================================
 
-def _sanear_listas_previsao(
-    listas,
-    min_diferencas: int = 1,
-    referencia: list = None,
-):
+def sanidade_final_listas(listas):
     """
-    Aplica saneamento final nas listas de previsão:
+    Sanidade final das listas de previsão.
+    Regras:
     - Remove listas com números repetidos internamente
-    - Normaliza (ordena)
-    - Remove duplicatas por CONJUNTO
-    - Remove listas idênticas à referência (6/6)
-    - Exige diversidade mínima (min_diferencas)
+    - Remove permutações (ordem diferente, mesmos números)
+    - Remove duplicatas exatas
+    - Garante apenas listas válidas com 6 números distintos
     """
 
-    if not listas:
-        return []
-
-    saneadas = []
+    listas_saneadas = []
     vistos = set()
 
-    ref_set = set(referencia) if referencia else None
-
-    for lst in listas:
+    for lista in listas:
         try:
-            nums = [int(x) for x in lst]
+            # Normaliza para lista de inteiros
+            nums = list(map(int, lista))
         except Exception:
             continue
 
@@ -2207,30 +2199,19 @@ def _sanear_listas_previsao(
             continue
 
         if len(set(nums)) != 6:
-            # Exemplo eliminado: [11, 12, 32, 32, 37, 42]
+            # Elimina listas como [11, 12, 32, 32, 37, 42]
             continue
 
-        lst_norm = tuple(sorted(nums))
+        # Normaliza ordem para detectar permutações
+        chave = tuple(sorted(nums))
 
-        # Remove duplicatas por conjunto
-        if lst_norm in vistos:
+        if chave in vistos:
             continue
 
-        # Remove cópia total da referência (6/6)
-        if ref_set is not None:
-            inter = len(set(lst_norm) & ref_set)
+        vistos.add(chave)
+        listas_saneadas.append(nums)
 
-            if inter == len(ref_set):
-                continue
-
-            # Exige diversidade mínima
-            if (len(ref_set) - inter) < min_diferencas:
-                continue
-
-        vistos.add(lst_norm)
-        saneadas.append(list(lst_norm))
-
-    return saneadas
+    return listas_saneadas
 
 
 # ============================================================
@@ -2240,10 +2221,8 @@ def _sanear_listas_previsao(
 # Sanear listas do Modo 6 (V15.7)
 if "modo6_listas" in st.session_state:
     base_ref = st.session_state.get("ultima_previsao")
-    st.session_state["modo6_listas"] = _sanear_listas_previsao(
+    st.session_state["modo6_listas"] = sanidade_final_listas(
         st.session_state.get("modo6_listas", []),
-        min_diferencas=1,
-        referencia=base_ref,
     )
 
 # Sanear Execução V16 (se existir)
@@ -2253,10 +2232,8 @@ if "v16_execucao" in st.session_state:
 
     for chave in ["C2", "C3", "todas_listas"]:
         if chave in exec_v16:
-            exec_v16[chave] = _sanear_listas_previsao(
+            exec_v16[chave] = sanidade_final_listas(
                 exec_v16.get(chave, []),
-                min_diferencas=1,
-                referencia=base_ref,
             )
 
     st.session_state["v16_execucao"] = exec_v16
@@ -2264,6 +2241,7 @@ if "v16_execucao" in st.session_state:
 # ============================================================
 # PARTE 6/8 — FIM
 # ============================================================
+
 
 # ============================================================
 # PARTE 7/8 — INÍCIO
