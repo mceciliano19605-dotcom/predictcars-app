@@ -450,7 +450,7 @@ painel = construir_navegacao_v157()
 # CAMADA A — ESTADO DO ALVO (V16)
 # Observador puro — NÃO decide, NÃO bloqueia, NÃO gera previsões
 # ============================================================
-
+'''
 def v16_estimar_volatilidade_local(df: Optional[pd.DataFrame], janela: int = 30) -> float:
     try:
         matriz_norm = st.session_state.get("pipeline_matriz_norm")
@@ -515,7 +515,7 @@ def v16_registrar_estado_alvo():
     )
     st.session_state["estado_alvo_v16"] = estado
     return estado
-
+'''
 # ============================================================
 # CAMADA B — EXPECTATIVA DE CURTO PRAZO (V16)
 # Laudo observacional: horizonte 1–3 séries (NÃO decide)
