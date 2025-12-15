@@ -2508,6 +2508,39 @@ if painel == "📘 Relatório Final":
 
     st.success("Relatório Final gerado com sucesso!")
 
+    # ============================================================
+    # 6) 🔥 MANDAR BALA — VOLUME OPERACIONAL (NÃO SUBSTITUI TOP 10)
+    # ============================================================
+    st.markdown("### 🔥 Mandar Bala — Volume Operacional (Listas para Ação)")
+
+    total_listas = len(listas_m6) if isinstance(listas_m6, list) else 0
+
+    if total_listas <= 0:
+        st.info("Nenhuma lista do Modo 6 encontrada para operação.")
+    else:
+        LIMITE_VISUAL_BALA = 30  # pode ajustar depois (20 / 30 / 40)
+
+        qtd_bala = st.slider(
+            "Quantas listas mostrar para operação (Mandar Bala)?",
+            min_value=10,
+            max_value=int(min(LIMITE_VISUAL_BALA, total_listas)),
+            value=int(min(20, total_listas, LIMITE_VISUAL_BALA)),
+            step=1,
+        )
+
+        st.caption(
+            f"Mostrando **{qtd_bala}** de **{total_listas}** listas do Modo 6. "
+            "As **Top 10** acima permanecem como coberturas selecionadas."
+        )
+
+        for i, lst in enumerate(listas_m6[:qtd_bala], 1):
+            st.markdown(f"**🔥 {i:02d})** {formatar_lista_passageiros(lst)}")
+
+    
+
+
+
+
 # ============================================================
 # Painel — ⏱️ DURAÇÃO DA JANELA — ANÁLISE HISTÓRICA (V16)
 # Diagnóstico PURO | Mede quantas séries janelas favoráveis duraram
@@ -2602,9 +2635,6 @@ if painel == "⏱️ Duração da Janela — Análise Histórica":
         "👉 *Quando a janela abre, ela costuma durar quantas séries?*\n\n"
         "Use isso para **decidir até quando mandar bala**."
     )
-
-
-
 
 # ============================================================
 # Painel X — 🧠 Laudo Operacional V16 (Estado, Expectativa, Volume)
