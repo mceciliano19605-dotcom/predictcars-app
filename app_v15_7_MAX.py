@@ -2447,8 +2447,9 @@ if painel == "📘 Relatório Final":
     st.success("Relatório Final gerado com sucesso!")
 
 # ============================================================
-# Painel — ⏱️ Duração da Janela — Análise Histórica
-# (DIAGNÓSTICO PURO — NÃO altera fluxo, NÃO gera previsões)
+# Painel — ⏱️ DURAÇÃO DA JANELA — ANÁLISE HISTÓRICA (V16)
+# Diagnóstico PURO | Mede quantas séries janelas favoráveis duraram
+# NÃO prevê | NÃO decide | NÃO altera motores
 # ============================================================
 
 if painel == "⏱️ Duração da Janela — Análise Histórica":
@@ -2456,9 +2457,12 @@ if painel == "⏱️ Duração da Janela — Análise Histórica":
     st.markdown("## ⏱️ Duração da Janela — Análise Histórica")
 
     st.info(
-        "Este painel mede **quanto tempo (em séries)** as janelas favoráveis "
-        "costumam durar **APÓS serem detectadas**, usando apenas indicadores já existentes.\n\n"
-        "📌 Não prevê entrada | Não decide operação | Não altera motores"
+        "Este painel mede, **no passado**, quantas séries consecutivas "
+        "as janelas favoráveis **REALMENTE duraram**, após serem confirmadas.\n\n"
+        "📌 Definição usada:\n"
+        "- Abertura: melhora conjunta (NR%, divergência, k*, desempenho real)\n"
+        "- Fechamento: perda clara dessa coerência\n\n"
+        "⚠️ Este painel NÃO prevê entrada de janela."
     )
 
     df = st.session_state.get("historico_df")
@@ -2473,89 +2477,70 @@ if painel == "⏱️ Duração da Janela — Análise Histórica":
         st.stop()
 
     # ------------------------------------------------------------
-    # PARÂMETROS FIXOS (SEM AJUSTE MANUAL)
+    # Parâmetros FIXOS (diagnóstico histórico)
     # ------------------------------------------------------------
-    LIMIAR_KSTAR = 0.22
-    LIMIAR_NR = 40.0
-    LIMIAR_DIV = 6.0
-    MAX_DURACAO = 10  # teto técnico por janela
+    JANELA_ANALISE = 200
+    LIMIAR_NR_QUEDA = 0.02
+    LIMIAR_DIV_QUEDA = 0.50
 
-    kstar_series = st.session_state.get("historico_kstar_series", [])
-    nr_series = st.session_state.get("historico_nr_series", [])
-    div_series = st.session_state.get("historico_div_series", [])
+    col_pass = [c for c in df.columns if c.startswith("p")]
 
-    if not (kstar_series and nr_series and div_series):
-        st.warning(
-            "Histórico de indicadores não encontrado.\n\n"
-            "Este painel requer que k*, NR% e Divergência tenham sido calculados "
-            "ao longo do histórico."
-        )
+    # Helpers locais (réplicas leves, sem tocar no motor)
+    def _nr_local(m):
+        variancias = np.var(m, axis=1)
+        ruido_A = float(np.mean(variancias))
+        saltos = [
+            np.linalg.norm(m[i] - m[i - 1]) for i in range(1, len(m))
+        ]
+        ruido_B = float(np.mean(saltos)) if saltos else 0.0
+        return 0.55 * min(1.0, ruido_A / 0.08) + 0.45 * min(1.0, ruido_B / 1.20)
+
+    def _div_local(m):
+        base = m[-1]
+        candidatos = m[-10:] if len(m) >= 10 else m
+        return float(np.linalg.norm(np.mean(candidatos, axis=0) - base))
+
+    resultados = []
+    n = len(matriz_norm)
+
+    for i in range(max(30, n - JANELA_ANALISE), n - 3):
+        m_i = matriz_norm[: i + 1]
+        m_f = matriz_norm[: i + 4]
+
+        nr_i = _nr_local(m_i)
+        nr_f = _nr_local(m_f)
+        div_i = _div_local(m_i)
+        div_f = _div_local(m_f)
+
+        abriu = (nr_f - nr_i) < -LIMIAR_NR_QUEDA and (div_f - div_i) < -LIMIAR_DIV_QUEDA
+
+        if abriu:
+            duracao = 1
+            for j in range(i + 1, n - 1):
+                m_j = matriz_norm[: j + 1]
+                if _nr_local(m_j) <= nr_f and _div_local(m_j) <= div_f:
+                    duracao += 1
+                else:
+                    break
+
+            resultados.append(duracao)
+
+    if not resultados:
+        st.warning("Nenhuma janela favorável clara detectada no período analisado.")
         st.stop()
 
-    n = min(len(kstar_series), len(nr_series), len(div_series))
+    df_res = pd.DataFrame({"Duração (séries)": resultados})
 
-    duracoes = []
-    i = 0
+    st.markdown("### 📊 Distribuição Histórica da Duração das Janelas")
+    st.dataframe(df_res.describe(), use_container_width=True)
 
-    while i < n:
-        # Detecta entrada de janela
-        if (
-            kstar_series[i] <= LIMIAR_KSTAR
-            and nr_series[i] <= LIMIAR_NR
-            and div_series[i] <= LIMIAR_DIV
-        ):
-            dur = 1
-            j = i + 1
-
-            while (
-                j < n
-                and dur < MAX_DURACAO
-                and kstar_series[j] <= LIMIAR_KSTAR
-                and nr_series[j] <= LIMIAR_NR
-                and div_series[j] <= LIMIAR_DIV
-            ):
-                dur += 1
-                j += 1
-
-            duracoes.append(dur)
-            i = j
-        else:
-            i += 1
-
-    if not duracoes:
-        st.warning("Nenhuma janela favorável detectada no histórico com os critérios atuais.")
-        st.stop()
-
-    # ------------------------------------------------------------
-    # CONSOLIDAÇÃO
-    # ------------------------------------------------------------
-    df_dur = pd.DataFrame({"Duração (séries)": duracoes})
-
-    resumo = (
-        df_dur["Duração (séries)"]
-        .value_counts()
-        .sort_index()
-        .reset_index()
-        .rename(columns={"index": "Duração", "Duração (séries)": "Ocorrências"})
+    st.info(
+        f"📌 Total de janelas detectadas: **{len(resultados)}**\n\n"
+        "Este painel responde:\n"
+        "👉 *Quando a janela abre, ela costuma durar quantas séries?*\n\n"
+        "Use isso para **decidir até quando mandar bala**."
     )
 
-    resumo["Percentual (%)"] = (
-        resumo["Ocorrências"] / resumo["Ocorrências"].sum() * 100
-    ).round(1)
-
-    st.markdown("### 📊 Distribuição da Duração das Janelas")
-    st.dataframe(resumo, use_container_width=True)
-
-    st.markdown("### 📌 Métricas-chave")
-    st.metric("Janelas detectadas", len(duracoes))
-    st.metric("Duração média (séries)", round(float(np.mean(duracoes)), 2))
-    st.metric("Mediana (séries)", int(np.median(duracoes)))
-
-    st.success(
-        "Diagnóstico concluído.\n\n"
-        "Este painel mostra **por quantas séries vale a pena continuar mandando bala "
-        "DEPOIS que uma janela boa é detectada**."
-    )
 
 
 
