@@ -2166,9 +2166,11 @@ if painel == "🧪 Testes de Confiabilidade REAL":
     )
 
     st.success("Teste de Confiabilidade REAL concluído com sucesso!")
+
 # ============================================================
 # BLOCO — SANIDADE FINAL DAS LISTAS DE PREVISÃO
-# (Elimina permutações, duplicatas por conjunto e falsas coberturas)
+# (Elimina permutações, duplicatas por conjunto
+#  E listas com números repetidos internos)
 # Válido para V15.7 MAX e V16 Premium
 # ============================================================
 
@@ -2179,6 +2181,7 @@ def _sanear_listas_previsao(
 ):
     """
     Aplica saneamento final nas listas de previsão:
+    - Remove listas com números repetidos internamente
     - Normaliza (ordena)
     - Remove duplicatas por CONJUNTO
     - Remove listas idênticas à referência (6/6)
@@ -2195,11 +2198,19 @@ def _sanear_listas_previsao(
 
     for lst in listas:
         try:
-            lst_int = [int(x) for x in lst]
+            nums = [int(x) for x in lst]
         except Exception:
             continue
 
-        lst_norm = tuple(sorted(lst_int))
+        # 🔒 REGRA CRÍTICA — exatamente 6 números distintos
+        if len(nums) != 6:
+            continue
+
+        if len(set(nums)) != 6:
+            # Exemplo eliminado: [11, 12, 32, 32, 37, 42]
+            continue
+
+        lst_norm = tuple(sorted(nums))
 
         # Remove duplicatas por conjunto
         if lst_norm in vistos:
@@ -2208,8 +2219,10 @@ def _sanear_listas_previsao(
         # Remove cópia total da referência (6/6)
         if ref_set is not None:
             inter = len(set(lst_norm) & ref_set)
+
             if inter == len(ref_set):
                 continue
+
             # Exige diversidade mínima
             if (len(ref_set) - inter) < min_diferencas:
                 continue
@@ -2251,6 +2264,7 @@ if "v16_execucao" in st.session_state:
 # ============================================================
 # PARTE 6/8 — FIM
 # ============================================================
+
 # ============================================================
 # PARTE 7/8 — INÍCIO
 # ============================================================
