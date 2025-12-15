@@ -2189,8 +2189,7 @@ def sanidade_final_listas(listas):
 
     for lista in listas:
         try:
-            # Normaliza para lista de inteiros
-            nums = list(map(int, lista))
+            nums = [int(x) for x in lista]
         except Exception:
             continue
 
@@ -2199,7 +2198,7 @@ def sanidade_final_listas(listas):
             continue
 
         if len(set(nums)) != 6:
-            # Elimina listas como [11, 12, 32, 32, 37, 42]
+            # Exemplo eliminado: [11, 12, 32, 32, 37, 42]
             continue
 
         # Normaliza ordem para detectar permutações
@@ -2220,7 +2219,6 @@ def sanidade_final_listas(listas):
 
 # Sanear listas do Modo 6 (V15.7)
 if "modo6_listas" in st.session_state:
-    base_ref = st.session_state.get("ultima_previsao")
     st.session_state["modo6_listas"] = sanidade_final_listas(
         st.session_state.get("modo6_listas", []),
     )
@@ -2228,7 +2226,6 @@ if "modo6_listas" in st.session_state:
 # Sanear Execução V16 (se existir)
 if "v16_execucao" in st.session_state:
     exec_v16 = st.session_state.get("v16_execucao", {})
-    base_ref = exec_v16.get("C1")
 
     for chave in ["C2", "C3", "todas_listas"]:
         if chave in exec_v16:
@@ -2241,6 +2238,7 @@ if "v16_execucao" in st.session_state:
 # ============================================================
 # PARTE 6/8 — FIM
 # ============================================================
+
 
 
 # ============================================================
