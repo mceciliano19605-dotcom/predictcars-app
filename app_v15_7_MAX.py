@@ -1963,6 +1963,68 @@ if painel == "🧭 Monitor de Risco — k & k*":
 # ============================================================
 
 # ============================================================
+# BLOCO V16 — PROTOCOLO PRÉ-ECO / ECO
+# Observador tático — AJUSTA POSTURA PARA A PRÓXIMA SÉRIE
+# NÃO prevê, NÃO altera motor, NÃO bloqueia
+# ============================================================
+
+def v16_avaliar_pre_eco_eco():
+    """
+    Usa SOMENTE o estado ATUAL (última série do histórico)
+    para definir a postura de ataque da PRÓXIMA série.
+    """
+
+    k_star = st.session_state.get("sentinela_kstar")
+    nr = st.session_state.get("nr_percent")
+    div = st.session_state.get("div_s6_mc")
+    risco = (st.session_state.get("diagnostico_risco") or {}).get("indice_risco")
+
+    # Defaults defensivos
+    k_star = float(k_star) if isinstance(k_star, (int, float)) else 0.30
+    nr = float(nr) if isinstance(nr, (int, float)) else 50.0
+    div = float(div) if isinstance(div, (int, float)) else 6.0
+    risco = float(risco) if isinstance(risco, (int, float)) else 0.60
+
+    sinais_ok = 0
+
+    if k_star <= 0.30:
+        sinais_ok += 1
+    if nr <= 45.0:
+        sinais_ok += 1
+    if div <= 6.0:
+        sinais_ok += 1
+    if risco <= 0.55:
+        sinais_ok += 1
+
+    # Classificação
+    if sinais_ok >= 3:
+        status = "PRE_ECO_ATIVO"
+        postura = "ATIVA"
+        comentario = (
+            "🟡 PRÉ-ECO detectado — ambiente NÃO piora.\n"
+            "Postura ativa para a próxima série.\n"
+            "Modo 6 ligado, volume moderado."
+        )
+    else:
+        status = "SEM_ECO"
+        postura = "DEFENSIVA"
+        comentario = (
+            "🔴 Nenhum pré-eco — ambiente instável.\n"
+            "Operar apenas com coberturas."
+        )
+
+    resultado = {
+        "status": status,
+        "postura": postura,
+        "sinais_ok": sinais_ok,
+        "comentario": comentario,
+    }
+
+    st.session_state["v16_pre_eco"] = resultado
+    return resultado
+
+
+# ============================================================
 # Painel 11 — 🎯 Modo 6 Acertos — Execução (V15.7 MAX)
 # ============================================================
 # ============================================================
