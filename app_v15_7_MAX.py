@@ -402,6 +402,7 @@ def construir_navegacao_v157() -> str:
         "🎯 Modo 6 Acertos — Execução",
         "🧪 Testes de Confiabilidade REAL",
         "🧪 Replay Curto — Expectativa 1–3 Séries",
+        "⏱️ Duração da Janela — Análise Histórica",
         "📘 Relatório Final",
         "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
          "🧠 Laudo Operacional V16",
