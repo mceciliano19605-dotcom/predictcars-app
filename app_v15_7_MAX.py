@@ -2456,20 +2456,107 @@ if painel == "⏱️ Duração da Janela — Análise Histórica":
     st.markdown("## ⏱️ Duração da Janela — Análise Histórica")
 
     st.info(
-        "Este painel será usado para **medir quanto tempo (em séries)** "
-        "as janelas favoráveis costumam durar **APÓS serem detectadas**.\n\n"
-        "📌 Importante:\n"
-        "- Não prevê entrada de janela\n"
-        "- Não decide operação\n"
-        "- Não altera motores\n\n"
-        "Serve apenas para **balizar a decisão humana de mandar bala ou não**."
+        "Este painel mede **quanto tempo (em séries)** as janelas favoráveis "
+        "costumam durar **APÓS serem detectadas**, usando apenas indicadores já existentes.\n\n"
+        "📌 Não prevê entrada | Não decide operação | Não altera motores"
     )
 
-    st.warning(
-        "🚧 Painel em construção.\n\n"
-        "A lógica será adicionada na próxima etapa, "
-        "usando Replay Histórico e critérios já existentes (k*, NR%, divergência)."
+    df = st.session_state.get("historico_df")
+    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+
+    if df is None or matriz_norm is None:
+        exibir_bloco_mensagem(
+            "Pipeline incompleto",
+            "Execute **Carregar Histórico** e **Pipeline V14-FLEX ULTRA**.",
+            tipo="warning",
+        )
+        st.stop()
+
+    # ------------------------------------------------------------
+    # PARÂMETROS FIXOS (SEM AJUSTE MANUAL)
+    # ------------------------------------------------------------
+    LIMIAR_KSTAR = 0.22
+    LIMIAR_NR = 40.0
+    LIMIAR_DIV = 6.0
+    MAX_DURACAO = 10  # teto técnico por janela
+
+    kstar_series = st.session_state.get("historico_kstar_series", [])
+    nr_series = st.session_state.get("historico_nr_series", [])
+    div_series = st.session_state.get("historico_div_series", [])
+
+    if not (kstar_series and nr_series and div_series):
+        st.warning(
+            "Histórico de indicadores não encontrado.\n\n"
+            "Este painel requer que k*, NR% e Divergência tenham sido calculados "
+            "ao longo do histórico."
+        )
+        st.stop()
+
+    n = min(len(kstar_series), len(nr_series), len(div_series))
+
+    duracoes = []
+    i = 0
+
+    while i < n:
+        # Detecta entrada de janela
+        if (
+            kstar_series[i] <= LIMIAR_KSTAR
+            and nr_series[i] <= LIMIAR_NR
+            and div_series[i] <= LIMIAR_DIV
+        ):
+            dur = 1
+            j = i + 1
+
+            while (
+                j < n
+                and dur < MAX_DURACAO
+                and kstar_series[j] <= LIMIAR_KSTAR
+                and nr_series[j] <= LIMIAR_NR
+                and div_series[j] <= LIMIAR_DIV
+            ):
+                dur += 1
+                j += 1
+
+            duracoes.append(dur)
+            i = j
+        else:
+            i += 1
+
+    if not duracoes:
+        st.warning("Nenhuma janela favorável detectada no histórico com os critérios atuais.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # CONSOLIDAÇÃO
+    # ------------------------------------------------------------
+    df_dur = pd.DataFrame({"Duração (séries)": duracoes})
+
+    resumo = (
+        df_dur["Duração (séries)"]
+        .value_counts()
+        .sort_index()
+        .reset_index()
+        .rename(columns={"index": "Duração", "Duração (séries)": "Ocorrências"})
     )
+
+    resumo["Percentual (%)"] = (
+        resumo["Ocorrências"] / resumo["Ocorrências"].sum() * 100
+    ).round(1)
+
+    st.markdown("### 📊 Distribuição da Duração das Janelas")
+    st.dataframe(resumo, use_container_width=True)
+
+    st.markdown("### 📌 Métricas-chave")
+    st.metric("Janelas detectadas", len(duracoes))
+    st.metric("Duração média (séries)", round(float(np.mean(duracoes)), 2))
+    st.metric("Mediana (séries)", int(np.median(duracoes)))
+
+    st.success(
+        "Diagnóstico concluído.\n\n"
+        "Este painel mostra **por quantas séries vale a pena continuar mandando bala "
+        "DEPOIS que uma janela boa é detectada**."
+    )
+
 
 
 # ============================================================
