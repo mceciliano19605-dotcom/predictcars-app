@@ -2257,6 +2257,137 @@ if "v16_execucao" in st.session_state:
 # ============================================================
 
 # ============================================================
+# Painel — 🧪 Replay Curto — Expectativa 1–3 Séries (V16)
+# Diagnóstico apenas | NÃO gera previsões | NÃO altera fluxo
+# ============================================================
+if painel == "🧪 Replay Curto — Expectativa 1–3 Séries":
+
+    st.markdown("## 🧪 Replay Curto — Expectativa 1–3 Séries (Diagnóstico)")
+    st.caption(
+        "Validação no passado da expectativa de curto prazo (1–3 séries). "
+        "Este painel **não prevê números** e **não altera decisões**."
+    )
+
+    df = st.session_state.get("historico_df")
+    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+
+    if df is None or matriz_norm is None:
+        exibir_bloco_mensagem(
+            "Pipeline incompleto",
+            "Execute **Carregar Histórico** e **Pipeline V14-FLEX ULTRA**.",
+            tipo="warning",
+        )
+        st.stop()
+
+    # -------------------------------
+    # Parâmetros FIXOS (sem bifurcação)
+    # -------------------------------
+    JANELA_REPLAY = 80       # pontos do passado
+    HORIZONTE = 3            # 1–3 séries
+    LIMIAR_NR = 0.02         # queda mínima de NR% para considerar melhora
+    LIMIAR_DIV = 0.50        # queda mínima de divergência para considerar melhora
+
+    n = len(df)
+    if n < JANELA_REPLAY + HORIZONTE + 5:
+        exibir_bloco_mensagem(
+            "Histórico insuficiente",
+            "É necessário mais histórico para o replay curto.",
+            tipo="warning",
+        )
+        st.stop()
+
+    # -------------------------------
+    # Helpers locais (diagnóstico)
+    # -------------------------------
+    col_pass = [c for c in df.columns if c.startswith("p")]
+
+    def calc_nr_local(matriz):
+        # NR% aproximado (mesma lógica do painel, versão local)
+        variancias = np.var(matriz, axis=1)
+        ruido_A = float(np.mean(variancias))
+        saltos = []
+        for i in range(1, len(matriz)):
+            saltos.append(np.linalg.norm(matriz[i] - matriz[i - 1]))
+        ruido_B = float(np.mean(saltos)) if saltos else 0.0
+        return (0.55 * min(1.0, ruido_A / 0.08) + 0.45 * min(1.0, ruido_B / 1.20))
+
+    def calc_div_local(base, candidatos):
+        return float(np.linalg.norm(np.mean(candidatos, axis=0) - base))
+
+    def estado_sinal(nr_deriv, div_deriv, vel):
+        # 🟢 melhora curta
+        if nr_deriv < -LIMIAR_NR and div_deriv < -LIMIAR_DIV and vel < 0.75:
+            return "🟢 Melhora curta"
+        # 🔴 continuidade ruim
+        if nr_deriv > 0 or div_deriv > 0 or vel >= 0.80:
+            return "🔴 Continuidade ruim"
+        # 🟡 transição
+        return "🟡 Respiração / Transição"
+
+    # -------------------------------
+    # Replay
+    # -------------------------------
+    resultados = []
+    base_ini = n - JANELA_REPLAY - HORIZONTE
+
+    for i in range(base_ini, n - HORIZONTE):
+        # Janela até o ponto i
+        matriz_i = matriz_norm[: i + 1]
+        nr_i = calc_nr_local(matriz_i)
+
+        # Divergência local (proxy simples)
+        base = matriz_i[-1]
+        candidatos = matriz_i[-10:] if len(matriz_i) >= 10 else matriz_i
+        div_i = calc_div_local(base, candidatos)
+
+        # Velocidade (proxy simples)
+        vel = float(np.mean(np.std(matriz_i[-5:], axis=1)))
+
+        # Próximo trecho (1–3)
+        matriz_f = matriz_norm[: i + 1 + HORIZONTE]
+        nr_f = calc_nr_local(matriz_f)
+        base_f = matriz_f[-1]
+        candidatos_f = matriz_f[-10:] if len(matriz_f) >= 10 else matriz_f
+        div_f = calc_div_local(base_f, candidatos_f)
+
+        nr_deriv = nr_f - nr_i
+        div_deriv = div_f - div_i
+
+        estado = estado_sinal(nr_deriv, div_deriv, vel)
+
+        melhora_real = (nr_deriv < -LIMIAR_NR) or (div_deriv < -LIMIAR_DIV)
+
+        resultados.append({
+            "estado": estado,
+            "melhora_real": melhora_real
+        })
+
+    # -------------------------------
+    # Consolidação
+    # -------------------------------
+    df_res = pd.DataFrame(resultados)
+    resumo = (
+        df_res.groupby("estado")["melhora_real"]
+        .agg(["count", "mean"])
+        .reset_index()
+        .rename(columns={
+            "count": "Ocorrências",
+            "mean": "Taxa de Melhora"
+        })
+    )
+    resumo["Taxa de Melhora"] = (resumo["Taxa de Melhora"] * 100).round(1)
+
+    st.markdown("### 📊 Resultado do Replay Curto (passado)")
+    st.dataframe(resumo, use_container_width=True)
+
+    st.info(
+        "Este painel valida **se o estado 🟢 precede melhora real** no curto prazo "
+        "(1–3 séries) **mais vezes que o acaso**. "
+        "Ele **não prevê o futuro**, apenas qualifica a expectativa."
+    )
+
+
+# ============================================================
 # Painel 13 — 📘 Relatório Final — V15.7 MAX (Premium)
 # ============================================================
 if painel == "📘 Relatório Final":
