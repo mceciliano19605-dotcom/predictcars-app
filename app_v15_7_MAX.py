@@ -834,6 +834,138 @@ if painel == "📄 Carregar Histórico (Colar)":
 # BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
 # FASE 1 — OBSERVAÇÃO PURA | SEM IMPACTO OPERACIONAL
 # ============================================================
+# ============================================================
+# BLOCO — OBSERVAÇÃO HISTÓRICA OFFLINE (V16)
+# OPÇÃO B MÍNIMA | LEITURA PURA | NÃO DECIDE | NÃO OPERA
+# ============================================================
+
+def _pc_distancia_carros_offline(a, b):
+    """
+    Distância simples entre dois carros (listas de 6):
+    quantos passageiros mudaram (0..6).
+    Observacional, robusto e defensivo.
+    """
+    try:
+        sa = set(int(x) for x in a)
+        sb = set(int(x) for x in b)
+        inter = len(sa & sb)
+        return max(0, 6 - inter)
+    except Exception:
+        return None
+
+
+def _pc_estado_alvo_proxy_offline(dist):
+    """
+    Mapeia distância (0..6) em estado do alvo (proxy observacional).
+    NÃO é o estado V16 online. Uso EXCLUSIVO histórico.
+    """
+    if dist is None:
+        return None
+    if dist <= 1:
+        return "parado"
+    if dist <= 3:
+        return "movimento_lento"
+    if dist <= 5:
+        return "movimento"
+    return "movimento_brusco"
+
+
+def _pc_extrair_carro_offline(row):
+    """
+    Extrai os 6 passageiros de uma linha do histórico.
+    Compatível com p1..p6 ou colunas numéricas genéricas.
+    """
+    cols_p = ["p1", "p2", "p3", "p4", "p5", "p6"]
+    if all(c in row.index for c in cols_p):
+        return [row[c] for c in cols_p]
+
+    candidatos = []
+    for c in row.index:
+        if str(c).lower() == "k":
+            continue
+        try:
+            candidatos.append(int(row[c]))
+        except Exception:
+            continue
+
+    return candidatos[:6] if len(candidatos) >= 6 else None
+
+
+def construir_contexto_historico_offline_v16(df):
+    """
+    Constrói CONTEXTO HISTÓRICO OFFLINE mínimo:
+    - estado_alvo_proxy_historico
+    - delta_k_historico
+    - eventos_k_historico (enriquecido)
+    NÃO interfere em motores, painéis ou decisões.
+    """
+
+    if df is None or df.empty:
+        return
+
+    estado_proxy_hist = {}
+    delta_k_hist = {}
+    eventos_k = []
+
+    carro_prev = None
+    ultima_pos_k = None
+
+    for pos, (idx, row) in enumerate(df.iterrows()):
+        carro_atual = _pc_extrair_carro_offline(row)
+
+        dist = (
+            _pc_distancia_carros_offline(carro_prev, carro_atual)
+            if carro_prev is not None and carro_atual is not None
+            else None
+        )
+
+        estado_proxy = _pc_estado_alvo_proxy_offline(dist)
+        estado_proxy_hist[idx] = estado_proxy
+
+        # Evento k (observacional)
+        try:
+            k_val = int(row.get("k", 0))
+        except Exception:
+            k_val = 0
+
+        if k_val > 0:
+            delta = None if ultima_pos_k is None else int(pos - ultima_pos_k)
+            delta_k_hist[idx] = delta
+
+            eventos_k.append({
+                "serie_id": idx,
+                "pos": int(pos),
+                "k_valor": int(k_val),
+                "delta_series": delta,
+                "estado_alvo_proxy": estado_proxy,
+            })
+
+            ultima_pos_k = pos
+
+        carro_prev = carro_atual
+
+    # Persistência PASSIVA (session_state)
+    st.session_state["estado_alvo_proxy_historico"] = estado_proxy_hist
+    st.session_state["delta_k_historico"] = delta_k_hist
+    st.session_state["eventos_k_historico"] = eventos_k
+
+
+# ============================================================
+# EXECUÇÃO AUTOMÁTICA OFFLINE (SE HISTÓRICO EXISTIR)
+# NÃO BLOQUEIA | NÃO DECIDE | NÃO OPERA
+# ============================================================
+
+if "historico_df" in st.session_state:
+    try:
+        construir_contexto_historico_offline_v16(
+            st.session_state.get("historico_df")
+        )
+    except Exception:
+        pass
+
+# ============================================================
+# FIM — OBSERVAÇÃO HISTÓRICA OFFLINE (V16) — OPÇÃO B MÍNIMA
+# ============================================================
 
 def extrair_eventos_k_historico(
     df,
