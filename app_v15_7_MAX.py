@@ -834,6 +834,127 @@ if painel == "📄 Carregar Histórico (Colar)":
 # BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
 # FASE 1 — OBSERVAÇÃO PURA | SEM IMPACTO OPERACIONAL
 # ============================================================
+
+# ============================================================
+# BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
+# FASE 2 — REPLAY HISTÓRICO OBSERVACIONAL (MEMÓRIA REAL)
+# NÃO decide | NÃO prevê | NÃO altera motores | NÃO altera volumes
+# ============================================================
+
+def v16_replay_historico_observacional(
+    *,
+    df,
+    matriz_norm,
+    janela_max=800,
+):
+    """
+    Replay histórico OBSERVACIONAL.
+    Executa leitura silenciosa série-a-série para preencher memória
+    e eliminar campos None no Observador Histórico.
+
+    - Usa somente dados já calculados
+    - NÃO reexecuta motores pesados
+    - NÃO interfere no fluxo operacional
+    """
+
+    if df is None or matriz_norm is None:
+        return []
+
+    n_total = len(df)
+    inicio = max(0, n_total - int(janela_max))
+
+    registros = []
+
+    col_pass = [c for c in df.columns if c.startswith("p")]
+
+    for idx in range(inicio, n_total):
+
+        # --- NR% local (réplica leve) ---
+        try:
+            m = matriz_norm[: idx + 1]
+            variancias = np.var(m, axis=1)
+            ruido_A = float(np.mean(variancias))
+            saltos = [
+                np.linalg.norm(m[i] - m[i - 1])
+                for i in range(1, len(m))
+            ]
+            ruido_B = float(np.mean(saltos)) if saltos else 0.0
+            nr_pct = float(
+                (0.55 * min(1.0, ruido_A / 0.08) +
+                 0.45 * min(1.0, ruido_B / 1.20)) * 100.0
+            )
+        except Exception:
+            nr_pct = None
+
+        # --- Divergência local S6 vs MC (proxy leve) ---
+        try:
+            base = m[-1]
+            candidatos = m[-10:] if len(m) >= 10 else m
+            divergencia = float(
+                np.linalg.norm(np.mean(candidatos, axis=0) - base)
+            )
+        except Exception:
+            divergencia = None
+
+        # --- Velocidade / estado do alvo (heurística coerente) ---
+        try:
+            vel = float(
+                (nr_pct / 100.0 if nr_pct is not None else 0.5) +
+                (divergencia / 15.0 if divergencia is not None else 0.5)
+            ) / 2.0
+        except Exception:
+            vel = None
+
+        if vel is None:
+            estado = None
+        elif vel < 0.30:
+            estado = "parado"
+        elif vel < 0.55:
+            estado = "movimento_lento"
+        elif vel < 0.80:
+            estado = "movimento_rapido"
+        else:
+            estado = "disparado"
+
+        # --- k histórico ---
+        try:
+            k_val = int(df.iloc[idx].get("k", 0))
+        except Exception:
+            k_val = 0
+
+        registros.append({
+            "serie_id": idx,
+            "k_valor": k_val,
+            "estado_alvo": estado,
+            "nr_percent": nr_pct,
+            "div_s6_mc": divergencia,
+        })
+
+    return registros
+
+
+# ============================================================
+# EXECUÇÃO AUTOMÁTICA — REPLAY OBSERVACIONAL (SE HISTÓRICO EXISTIR)
+# ============================================================
+
+if (
+    "historico_df" in st.session_state
+    and "pipeline_matriz_norm" in st.session_state
+):
+    registros_obs = v16_replay_historico_observacional(
+        df=st.session_state.get("historico_df"),
+        matriz_norm=st.session_state.get("pipeline_matriz_norm"),
+        janela_max=800,  # DECISÃO DO COMANDO
+    )
+
+    st.session_state["observador_historico_v16"] = registros_obs
+
+# ============================================================
+# FIM — BLOCO OBSERVADOR HISTÓRICO (V16) — FASE 2
+# ============================================================
+
+
+
 # ============================================================
 # BLOCO — OBSERVAÇÃO HISTÓRICA OFFLINE (V16)
 # OPÇÃO B MÍNIMA | LEITURA PURA | NÃO DECIDE | NÃO OPERA
