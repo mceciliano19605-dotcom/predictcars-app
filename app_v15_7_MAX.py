@@ -679,6 +679,67 @@ def ajustar_ambiente_modo6(
 # <<< FIM — FUNÇÃO AUXILIAR — AJUSTE DE AMBIENTE PARA MODO 6
 # ============================================================
 
+# ============================================================
+# GATILHO ECO — OBSERVADOR PASSIVO (V16 PREMIUM)
+# NÃO decide | NÃO expande | NÃO altera volumes
+# Apenas sinaliza prontidão para ECO
+# ============================================================
+
+def avaliar_gatilho_eco(
+    k_star_atual: float,
+    k_star_anterior: float | None,
+    divergencia_atual: float,
+    divergencia_anterior: float | None,
+    nr_percent_atual: float,
+    intersecao_atual: int | None = None,
+    intersecao_anterior: int | None = None,
+):
+    """
+    Avalia se houve ECO real após entrada de nova série.
+    Retorna dict com status e mensagem.
+    """
+
+    if k_star_anterior is None or divergencia_anterior is None:
+        return {
+            "eco": False,
+            "mensagem": "Gatilho ECO aguardando histórico comparativo.",
+        }
+
+    criterios_ok = 0
+
+    # Critério 1 — k* não piora
+    if k_star_atual <= k_star_anterior:
+        criterios_ok += 1
+
+    # Critério 2 — divergência não piora
+    if divergencia_atual <= divergencia_anterior:
+        criterios_ok += 1
+
+    # Critério 3 — NR% sob controle
+    if nr_percent_atual <= 40.0:
+        criterios_ok += 1
+
+    # Critério 4 — interseção melhora (se disponível)
+    if intersecao_atual is not None and intersecao_anterior is not None:
+        if intersecao_atual > intersecao_anterior:
+            criterios_ok += 1
+
+    if criterios_ok >= 3:
+        return {
+            "eco": True,
+            "mensagem": "🟢 ECO detectado — expansão autorizável (decisão humana).",
+        }
+
+    return {
+        "eco": False,
+        "mensagem": "🟡 Sem ECO confirmado — manter PRÉ-ECO.",
+    }
+
+# ============================================================
+# FIM — GATILHO ECO (OBSERVADOR PASSIVO)
+# ============================================================
+
+
 
 # ============================================================
 # Painel 1 — 📁 Carregar Histórico (Arquivo)
