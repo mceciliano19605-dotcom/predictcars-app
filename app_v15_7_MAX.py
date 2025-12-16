@@ -2384,7 +2384,7 @@ if painel == "📘 Relatório Final":
     st.markdown("## 📘 Relatório Final — V15.7 MAX — V16 Premium Profundo")
 
     ultima_prev = st.session_state.get("ultima_previsao")
-    listas_m6 = st.session_state.get("modo6_listas")
+    listas_m6_totais = st.session_state.get("modo6_listas")  # 🔥 UNIVERSO TOTAL
     risco = st.session_state.get("diagnostico_risco")
     nr_percent = st.session_state.get("nr_percent")
     k_star = st.session_state.get("sentinela_kstar")
@@ -2398,7 +2398,7 @@ if painel == "📘 Relatório Final":
         )
         st.stop()
 
-    if listas_m6 is None:
+    if not listas_m6_totais:
         exibir_bloco_mensagem(
             "Modo 6 Acertos ainda não executado",
             "Vá ao painel **🎯 Modo 6 Acertos — Execução**.",
@@ -2422,10 +2422,12 @@ if painel == "📘 Relatório Final":
     st.success(formatar_lista_passageiros(ultima_prev))
 
     # ============================================================
-    # 2) Coberturas (Top 10)
+    # 2) Coberturas — TOP 10 (PRIORIDADE, NÃO BLOQUEIO)
     # ============================================================
     st.markdown("### 🛡️ Coberturas Selecionadas (Top 10)")
-    for i, lst in enumerate(listas_m6[:10], 1):
+    listas_top10 = listas_m6_totais[:10]
+
+    for i, lst in enumerate(listas_top10, 1):
         st.markdown(f"**{i:02d})** {formatar_lista_passageiros(lst)}")
 
     # ============================================================
@@ -2439,28 +2441,17 @@ if painel == "📘 Relatório Final":
         f"- 📉 **Divergência S6 vs MC**: **{risco['divergencia']:.4f}**\n"
     )
 
-    exibir_bloco_mensagem(
-        "Indicadores do Ambiente — Premium",
-        corpo,
-        tipo="info",
-    )
+    exibir_bloco_mensagem("Indicadores do Ambiente — Premium", corpo, tipo="info")
 
     # ============================================================
     # 4) Diagnóstico de Risco Composto
     # ============================================================
     st.markdown("### 🧭 Diagnóstico de Risco Composto")
 
-    indice_risco = risco["indice_risco"]
-    classe_risco = risco["classe_risco"]
-
-    corpo = (
-        f"- Índice Composto de Risco: **{indice_risco:.4f}**\n"
-        f"- Classe de Risco: {classe_risco}\n"
-    )
-
     exibir_bloco_mensagem(
         "Resumo do Risco Composto",
-        corpo,
+        f"- Índice Composto de Risco: **{risco['indice_risco']:.4f}**\n"
+        f"- Classe de Risco: {risco['classe_risco']}\n",
         tipo="info",
     )
 
@@ -2469,72 +2460,51 @@ if painel == "📘 Relatório Final":
     # ============================================================
     st.markdown("### 🧩 Orientação Final — V16 Premium")
 
-    if indice_risco < 0.30:
-        orientacao = (
-            "🟢 **Ambiente favorável** — Combinação de Núcleo + Coberturas leves.\n"
-            "A agressividade pode ser moderada → priorizar listas mais enxutas."
-        )
-    elif indice_risco < 0.55:
-        orientacao = (
-            "🟡 **Ambiente equilibrado** — Núcleo ainda opera bem.\n"
-            "Manter coberturas e reforçar listas auxiliares."
-        )
-    elif indice_risco < 0.80:
-        orientacao = (
-            "🟠 **Ambiente turbulento** — Priorizar coberturas e reduzir peso do núcleo.\n"
-            "Avaliar divergência e ruído antes de decisões finais."
-        )
-    else:
-        orientacao = (
-            "🔴 **Ambiente crítico** — Operar com máxima cautela, priorizando estabilização.\n"
-            "Evitar agressividade e monitorar S6 vs MC."
-        )
-
     exibir_bloco_mensagem(
         "Orientação Premium",
-        orientacao,
+        "🟡 **Ambiente equilibrado** — Núcleo opera, mas com cautela.\n"
+        "As **Top 10** são recomendadas. Listas adicionais elevam o risco.",
         tipo="info",
     )
 
     st.success("Relatório Final gerado com sucesso!")
 
     # ============================================================
-    # 6) 🔥 MANDAR BALA — VOLUME OPERACIONAL (SLIDER SEGURO)
+    # 6) 🔥 MANDAR BALA — VOLUME OPERACIONAL (SEM BLOQUEIO)
     # ============================================================
     st.markdown("### 🔥 Mandar Bala — Volume Operacional (Listas para Ação)")
 
-    total_listas = len(listas_m6) if isinstance(listas_m6, list) else 0
+    total_listas = len(listas_m6_totais)
+    LIMITE_VISUAL_BALA = total_listas
 
-    if total_listas <= 0:
-        st.info("Nenhuma lista do Modo 6 encontrada para operação.")
-    else:
-        LIMITE_VISUAL_BALA = 30
+    qtd_bala = st.slider(
+        "Quantas listas mostrar para operação (Mandar Bala)?",
+        min_value=1,
+        max_value=LIMITE_VISUAL_BALA,
+        value=min(10, LIMITE_VISUAL_BALA),
+        step=1,
+    )
 
-        max_slider = min(LIMITE_VISUAL_BALA, total_listas)
-        min_slider = 1
-        valor_padrao = min(10, max_slider)
-
-        qtd_bala = st.slider(
-            "Quantas listas mostrar para operação (Mandar Bala)?",
-            min_value=min_slider,
-            max_value=max_slider,
-            value=valor_padrao,
-            step=1,
+    if qtd_bala > 10:
+        st.warning(
+            "⚠️ **ALERTA DE RISCO**: você está operando além das Top 10.\n"
+            "Essas listas têm menor prioridade estatística."
         )
 
-        st.caption(
-            f"Mostrando **{qtd_bala}** de **{total_listas}** listas do Modo 6. "
-            "As **Top 10** acima permanecem como coberturas selecionadas."
-        )
+    st.caption(
+        f"Mostrando **{qtd_bala}** de **{total_listas}** listas disponíveis. "
+        "Top 10 acima são apenas **priorização**, não bloqueio."
+    )
 
-        for i, lst in enumerate(listas_m6[:qtd_bala], 1):
-            st.markdown(f"**🔥 {i:02d})** {formatar_lista_passageiros(lst)}")
+    for i, lst in enumerate(listas_m6_totais[:qtd_bala], 1):
+        st.markdown(f"**🔥 {i:02d})** {formatar_lista_passageiros(lst)}")
 
 # ============================================================
 # Painel — ⏱️ DURAÇÃO DA JANELA — ANÁLISE HISTÓRICA (V16)
 # Diagnóstico PURO | Mede quantas séries janelas favoráveis duraram
 # NÃO prevê | NÃO decide | NÃO altera motores
 # ============================================================
+
 
 
 if painel == "⏱️ Duração da Janela — Análise Histórica":
