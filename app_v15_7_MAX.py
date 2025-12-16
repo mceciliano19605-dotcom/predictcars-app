@@ -996,6 +996,56 @@ if painel == "📊 Observador k — Histórico":
 # FIM — Painel Observador Histórico de Eventos k
 # ============================================================
 
+# ============================================================
+# Painel X — 🧪 Observação Histórica — Eventos k (V16)
+# LEITURA PURA | SEM DECISÃO | SEM IMPACTO OPERACIONAL
+# ============================================================
+
+if painel == "🧪 Observação Histórica — Eventos k":
+
+    st.markdown("## 🧪 Observação Histórica — Eventos k")
+    st.caption("Leitura histórica pura. Não gera alertas, não decide, não interfere no sistema.")
+
+    eventos_k = st.session_state.get("eventos_k_historico", [])
+
+    if not eventos_k:
+        st.info("Nenhum evento k encontrado no histórico carregado.")
+        st.stop()
+
+    df_eventos = pd.DataFrame(eventos_k)
+
+    # Organização visual mínima
+    colunas_ordem = [
+        "serie_id",
+        "k_valor",
+        "delta_series",
+        "estado_alvo",
+        "k_star",
+        "nr_percent",
+        "div_s6_mc",
+        "pre_eco",
+        "eco",
+    ]
+
+    colunas_existentes = [c for c in colunas_ordem if c in df_eventos.columns]
+    df_eventos = df_eventos[colunas_existentes]
+
+    st.markdown("### 📊 Tabela de Eventos k (Histórico)")
+    st.dataframe(
+        df_eventos,
+        use_container_width=True,
+        height=500,
+    )
+
+    st.caption(
+        "Cada linha representa uma série onde k ≥ 1 apareceu. "
+        "Os campos mostram apenas o contexto do ambiente naquele momento."
+    )
+
+# ============================================================
+# FIM — Painel Observação Histórica — Eventos k
+# ============================================================
+        
 
 # ============================================================
 # Painel 2 — 🛰️ Sentinelas — k* (Ambiente de Risco)
