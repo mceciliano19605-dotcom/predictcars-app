@@ -2062,26 +2062,48 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     st.caption(config["aviso_curto"])
 
-    # Geração REAL das listas (mínimo funcional)
+    # ============================================================
+    # GERAÇÃO DAS LISTAS — UNIVERSO TOTAL
+    # ============================================================
     volume = int(config["volume_recomendado"])
     volume = max(1, min(volume, int(config["volume_max"])))
 
-    listas = []
+    listas_totais = []
     base = ultima_prev
 
-    for i in range(volume):
+    for _ in range(volume):
         ruido = np.random.randint(-5, 6, size=len(base))
         nova = np.clip(np.array(base) + ruido, 1, 60).tolist()
-        listas.append(nova)
+        listas_totais.append(nova)
 
-    # Persistência oficial
-    st.session_state["modo6_listas"] = listas
+    # ============================================================
+    # SANIDADE BÁSICA (SEM PRIORIZAÇÃO)
+    # ============================================================
+    listas_totais = sanidade_final_listas(listas_totais)
 
-    st.success(f"Modo 6 executado — {len(listas)} listas geradas.")
+    # ============================================================
+    # PRIORIZAÇÃO — TOP 10 (APENAS RECOMENDAÇÃO)
+    # ============================================================
+    listas_top10 = listas_totais[:10]
+
+    # ============================================================
+    # PERSISTÊNCIA OFICIAL (SEPARADA)
+    # ============================================================
+    st.session_state["modo6_listas_totais"] = listas_totais
+    st.session_state["modo6_listas_top10"] = listas_top10
+
+    # Mantido por compatibilidade (NÃO usar para Mandar Bala)
+    st.session_state["modo6_listas"] = listas_totais
+
+    st.success(
+        f"Modo 6 executado — {len(listas_totais)} listas totais | "
+        f"{len(listas_top10)} priorizadas (Top 10)."
+    )
 
 # ============================================================
 # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (SUBSTITUIÇÃO TOTAL)
 # ============================================================
+
 
 
 
