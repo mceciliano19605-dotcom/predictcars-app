@@ -2920,6 +2920,126 @@ if painel == "📘 Relatório Final":
 # NÃO prevê | NÃO decide | NÃO altera motores
 # ============================================================
 
+# ============================================================
+# Painel — 🔍 Cruzamento Histórico do k (Observacional)
+# V16 | LEITURA PURA | NÃO DECIDE | NÃO ALTERA MOTORES
+# ============================================================
+
+if painel == "🔍 Cruzamento Histórico do k":
+
+    st.markdown("## 🔍 Cruzamento Histórico do k")
+    st.caption(
+        "Leitura observacional do histórico. "
+        "Este painel NÃO interfere em decisões, volumes ou modos."
+    )
+
+    eventos = st.session_state.get("eventos_k_historico", [])
+
+    if not eventos:
+        exibir_bloco_mensagem(
+            "Nenhum evento k encontrado",
+            "Carregue o histórico para analisar os eventos k.",
+            tipo="warning",
+        )
+        st.stop()
+
+    df_k = pd.DataFrame(eventos)
+
+    # ============================================================
+    # FILTROS SIMPLES (OBSERVACIONAIS)
+    # ============================================================
+    st.markdown("### 🎛️ Filtros Observacionais")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        filtro_estado = st.multiselect(
+            "Estado do alvo",
+            options=sorted(df_k["estado_alvo"].dropna().unique().tolist()),
+            default=None,
+        )
+
+    with col2:
+        filtro_pre_eco = st.selectbox(
+            "PRÉ-ECO",
+            options=["Todos", "Sim", "Não"],
+            index=0,
+        )
+
+    with col3:
+        filtro_eco = st.selectbox(
+            "ECO",
+            options=["Todos", "Sim", "Não"],
+            index=0,
+        )
+
+    df_f = df_k.copy()
+
+    if filtro_estado:
+        df_f = df_f[df_f["estado_alvo"].isin(filtro_estado)]
+
+    if filtro_pre_eco != "Todos":
+        df_f = df_f[df_f["pre_eco"] == (filtro_pre_eco == "Sim")]
+
+    if filtro_eco != "Todos":
+        df_f = df_f[df_f["eco"] == (filtro_eco == "Sim")]
+
+    # ============================================================
+    # MÉTRICAS RESUMIDAS
+    # ============================================================
+    st.markdown("### 📊 Resumo Estatístico")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Eventos k", len(df_f))
+
+    with col2:
+        st.metric(
+            "Δ médio entre ks",
+            round(df_f["delta_series"].dropna().mean(), 2)
+            if "delta_series" in df_f else "—",
+        )
+
+    with col3:
+        st.metric(
+            "k médio",
+            round(df_f["k_valor"].mean(), 2)
+            if "k_valor" in df_f else "—",
+        )
+
+    with col4:
+        st.metric(
+            "Máx k observado",
+            int(df_f["k_valor"].max())
+            if "k_valor" in df_f else "—",
+        )
+
+    # ============================================================
+    # TABELA FINAL (LEITURA CRUA)
+    # ============================================================
+    st.markdown("### 📋 Eventos k — Histórico")
+
+    st.dataframe(
+        df_f[
+            [
+                "serie_id",
+                "k_valor",
+                "delta_series",
+                "estado_alvo",
+                "k_star",
+                "nr_percent",
+                "div_s6_mc",
+                "pre_eco",
+                "eco",
+            ]
+        ].sort_values("serie_id"),
+        use_container_width=True,
+    )
+
+# ============================================================
+# FIM — Painel Cruzamento Histórico do k
+# ============================================================
 
 
 if painel == "⏱️ Duração da Janela — Análise Histórica":
