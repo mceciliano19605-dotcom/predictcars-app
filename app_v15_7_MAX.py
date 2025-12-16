@@ -2499,7 +2499,7 @@ if painel == "📘 Relatório Final":
     st.success("Relatório Final gerado com sucesso!")
 
     # ============================================================
-    # 6) 🔥 MANDAR BALA — VOLUME OPERACIONAL (NÃO SUBSTITUI TOP 10)
+    # 6) 🔥 MANDAR BALA — VOLUME OPERACIONAL (SLIDER SEGURO)
     # ============================================================
     st.markdown("### 🔥 Mandar Bala — Volume Operacional (Listas para Ação)")
 
@@ -2508,13 +2508,17 @@ if painel == "📘 Relatório Final":
     if total_listas <= 0:
         st.info("Nenhuma lista do Modo 6 encontrada para operação.")
     else:
-        LIMITE_VISUAL_BALA = 30  # pode ajustar depois (20 / 30 / 40)
+        LIMITE_VISUAL_BALA = 30
+
+        max_slider = min(LIMITE_VISUAL_BALA, total_listas)
+        min_slider = 1
+        valor_padrao = min(10, max_slider)
 
         qtd_bala = st.slider(
             "Quantas listas mostrar para operação (Mandar Bala)?",
-            min_value=10,
-            max_value=int(min(LIMITE_VISUAL_BALA, total_listas)),
-            value=int(min(20, total_listas, LIMITE_VISUAL_BALA)),
+            min_value=min_slider,
+            max_value=max_slider,
+            value=valor_padrao,
             step=1,
         )
 
@@ -2526,16 +2530,12 @@ if painel == "📘 Relatório Final":
         for i, lst in enumerate(listas_m6[:qtd_bala], 1):
             st.markdown(f"**🔥 {i:02d})** {formatar_lista_passageiros(lst)}")
 
-    
-
-
-
-
 # ============================================================
 # Painel — ⏱️ DURAÇÃO DA JANELA — ANÁLISE HISTÓRICA (V16)
 # Diagnóstico PURO | Mede quantas séries janelas favoráveis duraram
 # NÃO prevê | NÃO decide | NÃO altera motores
 # ============================================================
+
 
 if painel == "⏱️ Duração da Janela — Análise Histórica":
 
