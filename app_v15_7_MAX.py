@@ -2023,6 +2023,50 @@ def v16_avaliar_pre_eco_eco():
     st.session_state["v16_pre_eco"] = resultado
     return resultado
 
+# ============================================================
+# FUNÇÃO — SANIDADE FINAL DAS LISTAS (DISPONÍVEL AO MODO 6)
+# Remove listas inválidas, duplicatas e permutações
+# Válido para V15.7 MAX e V16 Premium
+# ============================================================
+
+def sanidade_final_listas(listas):
+    """
+    Sanidade final das listas de previsão.
+    Regras:
+    - Remove listas com números repetidos internamente
+    - Remove permutações (ordem diferente, mesmos números)
+    - Remove duplicatas exatas
+    - Garante apenas listas válidas com 6 números distintos
+    """
+    if not listas:
+        return []
+
+    listas_saneadas = []
+    vistos = set()
+
+    for lista in listas:
+        try:
+            nums = [int(x) for x in lista]
+        except Exception:
+            continue
+
+        # exatamente 6 números distintos
+        if len(nums) != 6 or len(set(nums)) != 6:
+            continue
+
+        chave = tuple(sorted(nums))
+        if chave in vistos:
+            continue
+
+        vistos.add(chave)
+        listas_saneadas.append(nums)
+
+    return listas_saneadas
+
+# ============================================================
+# FIM — FUNÇÃO SANIDADE FINAL DAS LISTAS
+# ============================================================
+
 
 # ============================================================
 # Painel 11 — 🎯 Modo 6 Acertos — Execução (V15.7 MAX)
