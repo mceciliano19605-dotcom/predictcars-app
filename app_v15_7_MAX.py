@@ -829,6 +829,107 @@ if painel == "📄 Carregar Histórico (Colar)":
             "Agora prossiga para o painel **🛣️ Pipeline V14-FLEX ULTRA**.",
             tipo="success",
         )
+# ============================================================
+# BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
+# FASE 1 — OBSERVAÇÃO PURA | SEM IMPACTO OPERACIONAL
+# ============================================================
+
+def extrair_eventos_k_historico(
+    df,
+    estados_alvo=None,
+    k_star_series=None,
+    nr_percent_series=None,
+    divergencia_series=None,
+    pre_eco_series=None,
+    eco_series=None,
+):
+    """
+    Extrai eventos k do histórico com contexto.
+    NÃO decide, NÃO filtra operacionalmente, NÃO altera motores.
+    Retorna lista de dicionários observacionais.
+    """
+
+    if df is None or df.empty:
+        return []
+
+    eventos = []
+    ultima_serie_k = None
+
+    for idx, row in df.iterrows():
+        # Espera-se que o histórico tenha coluna 'k'
+        k_valor = row.get("k", 0)
+
+        if k_valor and k_valor > 0:
+            # Delta desde último k
+            if ultima_serie_k is None:
+                delta = None
+            else:
+                delta = idx - ultima_serie_k
+
+            evento = {
+                "serie_id": idx,
+                "k_valor": int(k_valor),
+                "delta_series": delta,
+                "estado_alvo": (
+                    estados_alvo.get(idx)
+                    if isinstance(estados_alvo, dict)
+                    else None
+                ),
+                "k_star": (
+                    k_star_series.get(idx)
+                    if isinstance(k_star_series, dict)
+                    else None
+                ),
+                "nr_percent": (
+                    nr_percent_series.get(idx)
+                    if isinstance(nr_percent_series, dict)
+                    else None
+                ),
+                "div_s6_mc": (
+                    divergencia_series.get(idx)
+                    if isinstance(divergencia_series, dict)
+                    else None
+                ),
+                "pre_eco": (
+                    pre_eco_series.get(idx)
+                    if isinstance(pre_eco_series, dict)
+                    else False
+                ),
+                "eco": (
+                    eco_series.get(idx)
+                    if isinstance(eco_series, dict)
+                    else False
+                ),
+            }
+
+            eventos.append(evento)
+            ultima_serie_k = idx
+
+    return eventos
+
+
+# ============================================================
+# EXECUÇÃO AUTOMÁTICA (APENAS SE HISTÓRICO EXISTIR)
+# ============================================================
+
+if "historico_df" in st.session_state:
+    df_hist = st.session_state.get("historico_df")
+
+    eventos_k = extrair_eventos_k_historico(
+        df=df_hist,
+        estados_alvo=st.session_state.get("estado_alvo_historico"),
+        k_star_series=st.session_state.get("kstar_historico"),
+        nr_percent_series=st.session_state.get("nr_historico"),
+        divergencia_series=st.session_state.get("div_s6_mc_historico"),
+        pre_eco_series=st.session_state.get("pre_eco_historico"),
+        eco_series=st.session_state.get("eco_historico"),
+    )
+
+    st.session_state["eventos_k_historico"] = eventos_k
+
+# ============================================================
+# BLOCO — FIM OBSERVADOR HISTÓRICO DE EVENTOS k
+# ============================================================
 
 # ============================================================
 # Painel 2 — 🛰️ Sentinelas — k* (Ambiente de Risco)
