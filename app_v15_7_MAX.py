@@ -2068,11 +2068,12 @@ def sanidade_final_listas(listas):
 # ============================================================
 
 
+
 # ============================================================
 # Painel 11 — 🎯 Modo 6 Acertos — Execução (V15.7 MAX)
 # ============================================================
 # ============================================================
-# >>> INÍCIO — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (SUBSTITUIÇÃO TOTAL)
+# >>> INÍCIO — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
 
 if painel == "🎯 Modo 6 Acertos — Execução":
@@ -2094,7 +2095,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         )
         st.stop()
 
-    # Ajuste do ambiente (limitador, não bloqueador)
+    # -----------------------------
+    # AJUSTE DE AMBIENTE (PRÉ-ECO)
+    # -----------------------------
     config = ajustar_ambiente_modo6(
         df=df,
         k_star=k_star,
@@ -2104,48 +2107,65 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         previsibilidade="alta",
     )
 
-    st.caption(config["aviso_curto"])
+    st.caption(config["aviso_curto"] + " | PRÉ-ECO técnico ativo")
 
-    # ============================================================
-    # GERAÇÃO DAS LISTAS — UNIVERSO TOTAL
-    # ============================================================
+    # Volume alvo (respeita NORMAL e proteções)
     volume = int(config["volume_recomendado"])
     volume = max(1, min(volume, int(config["volume_max"])))
 
-    listas_totais = []
-    base = ultima_prev
+    # -----------------------------
+    # BASES (ULTRA + SHADOW)
+    # -----------------------------
+    base_ultra = ultima_prev[:]  # núcleo
+    base_shadow = ultima_prev[:]
 
-    for _ in range(volume):
-        ruido = np.random.randint(-5, 6, size=len(base))
+    # deslocamento leve (shadow base)
+    for idx in np.random.choice(range(len(base_shadow)), size=2, replace=False):
+        base_shadow[idx] = int(np.clip(base_shadow[idx] + np.random.choice([-1, 1]), 1, 60))
+
+    # -----------------------------
+    # GERAÇÃO PRÉ-ECO (RUÍDO MARGINAL)
+    # -----------------------------
+    listas_brutas = []
+    for i in range(volume):
+        usar_shadow = (i % 10) >= 7  # ~30% shadow
+        base = base_shadow if usar_shadow else base_ultra
+
+        # ruído marginal PRÉ-ECO
+        ruido = np.random.randint(-7, 8, size=len(base))
         nova = np.clip(np.array(base) + ruido, 1, 60).tolist()
-        listas_totais.append(nova)
 
-    # ============================================================
-    # SANIDADE BÁSICA (SEM PRIORIZAÇÃO)
-    # ============================================================
-    listas_totais = sanidade_final_listas(listas_totais)
+        # envelope mínimo: 1 passageiro fora do núcleo
+        if np.random.rand() < 0.35:
+            j = np.random.randint(0, len(nova))
+            nova[j] = int(np.clip(nova[j] + np.random.choice([-2, 2]), 1, 60))
 
-    # ============================================================
-    # PRIORIZAÇÃO — TOP 10 (APENAS RECOMENDAÇÃO)
-    # ============================================================
+        listas_brutas.append(nova)
+
+    # -----------------------------
+    # SANIDADE (LIMPEZA, SEM PRIORIZAR)
+    # -----------------------------
+    listas_totais = sanidade_final_listas(listas_brutas)
+
+    # -----------------------------
+    # PRIORIZAÇÃO (TOP 10)
+    # -----------------------------
     listas_top10 = listas_totais[:10]
 
-    # ============================================================
-    # PERSISTÊNCIA OFICIAL (SEPARADA)
-    # ============================================================
+    # -----------------------------
+    # PERSISTÊNCIA SEPARADA
+    # -----------------------------
     st.session_state["modo6_listas_totais"] = listas_totais
     st.session_state["modo6_listas_top10"] = listas_top10
-
-    # Mantido por compatibilidade (NÃO usar para Mandar Bala)
-    st.session_state["modo6_listas"] = listas_totais
+    st.session_state["modo6_listas"] = listas_totais  # compatibilidade
 
     st.success(
-        f"Modo 6 executado — {len(listas_totais)} listas totais | "
+        f"Modo 6 (PRÉ-ECO) — {len(listas_totais)} listas totais | "
         f"{len(listas_top10)} priorizadas (Top 10)."
     )
 
 # ============================================================
-# <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (SUBSTITUIÇÃO TOTAL)
+# <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
 
 
