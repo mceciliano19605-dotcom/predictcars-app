@@ -932,6 +932,72 @@ if "historico_df" in st.session_state:
 # ============================================================
 
 # ============================================================
+# Painel — 📊 Observador Histórico de Eventos k (V16)
+# FASE 1 — OBSERVAÇÃO PURA | NÃO DECIDE | NÃO OPERA
+# ============================================================
+
+if painel == "📊 Observador k — Histórico":
+
+    st.markdown("## 📊 Observador Histórico de Eventos k")
+    st.caption(
+        "Leitura puramente observacional. "
+        "Este painel **não influencia** previsões, volumes ou decisões."
+    )
+
+    eventos = st.session_state.get("eventos_k_historico")
+
+    if not eventos:
+        exibir_bloco_mensagem(
+            "Nenhum evento k disponível",
+            "Carregue um histórico válido para observar eventos k.",
+            tipo="info",
+        )
+        st.stop()
+
+    df_k = pd.DataFrame(eventos)
+
+    st.markdown("### 🔍 Tabela de Eventos k (Histórico)")
+    st.dataframe(
+        df_k,
+        use_container_width=True,
+        height=420,
+    )
+
+    # Métricas simples (somente leitura)
+    st.markdown("### 📈 Métricas Observacionais Básicas")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric(
+            "Total de eventos k",
+            len(df_k),
+        )
+
+    with col2:
+        delta_vals = df_k["delta_series"].dropna()
+        st.metric(
+            "Δ médio entre ks",
+            round(delta_vals.mean(), 2) if not delta_vals.empty else "—",
+        )
+
+    with col3:
+        st.metric(
+            "Δ mínimo observado",
+            int(delta_vals.min()) if not delta_vals.empty else "—",
+        )
+
+    st.info(
+        "Interpretação é humana. "
+        "Nenhum uso operacional é feito a partir destes dados."
+    )
+
+# ============================================================
+# FIM — Painel Observador Histórico de Eventos k
+# ============================================================
+
+
+# ============================================================
 # Painel 2 — 🛰️ Sentinelas — k* (Ambiente de Risco)
 # ============================================================
 
