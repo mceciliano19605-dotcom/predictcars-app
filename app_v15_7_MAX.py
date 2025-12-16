@@ -998,54 +998,202 @@ if painel == "📊 Observador k — Histórico":
 # ============================================================
 
 # ============================================================
-# Painel X — 🧪 Observação Histórica — Eventos k (V16)
-# LEITURA PURA | SEM DECISÃO | SEM IMPACTO OPERACIONAL
+# Observação Histórica — Eventos k (V16)
+# Leitura passiva do histórico. Não interfere em decisões.
+# + CRUZAMENTO k × ESTADO DO ALVO (PROXY)
 # ============================================================
 
-if painel == "🧪 Observação Histórica — Eventos k":
+def _pc_distancia_carros(a, b):
+    """
+    Distância simples entre dois carros (listas de 6):
+    quantos passageiros mudaram (0..6).
+    """
+    try:
+        sa = set([int(x) for x in a])
+        sb = set([int(x) for x in b])
+        inter = len(sa & sb)
+        return max(0, 6 - inter)
+    except Exception:
+        return None
 
-    st.markdown("## 🧪 Observação Histórica — Eventos k")
-    st.caption("Leitura histórica pura. Não gera alertas, não decide, não interfere no sistema.")
 
-    eventos_k = st.session_state.get("eventos_k_historico", [])
+def _pc_estado_alvo_proxy(dist):
+    """
+    Mapeia distância (0..6) em estado do alvo (proxy observacional).
+    """
+    if dist is None:
+        return None
+    if dist <= 1:
+        return "parado"
+    if dist <= 3:
+        return "movimento_lento"
+    if dist <= 5:
+        return "movimento"
+    return "movimento_brusco"
 
-    if not eventos_k:
-        st.info("Nenhum evento k encontrado no histórico carregado.")
+
+def _pc_extrair_carro_row(row):
+    """
+    Extrai os 6 passageiros da linha do df.
+    Tentativa 1: colunas numéricas (6 colunas)
+    Tentativa 2: colunas p1..p6 (se existir)
+    """
+    # Caso já tenha colunas p1..p6
+    cols_p = ["p1", "p2", "p3", "p4", "p5", "p6"]
+    if all(c in row.index for c in cols_p):
+        return [row[c] for c in cols_p]
+
+    # Caso seja DF com colunas misturadas: pega primeiros 6 inteiros que não sejam 'k'
+    candidatos = []
+    for c in row.index:
+        if str(c).lower() == "k":
+            continue
+        try:
+            v = int(row[c])
+            candidatos.append(v)
+        except Exception:
+            continue
+
+    if len(candidatos) >= 6:
+        return candidatos[:6]
+
+    return None
+
+
+def extrair_eventos_k_historico_com_proxy(df):
+    """
+    Eventos k + delta + estado do alvo (proxy) calculado do próprio histórico.
+    NÃO depende de estado_alvo_historico/kstar_historico/etc.
+    """
+    if df is None or df.empty:
+        return [], {}
+
+    eventos = []
+    ultima_pos_k = None
+
+    # Para estatística
+    cont_estados = {"parado": 0, "movimento_lento": 0, "movimento": 0, "movimento_brusco": 0, "None": 0}
+
+    # Vamos usar posição sequencial (0..n-1) para delta
+    rows = list(df.iterrows())
+
+    carro_prev = None
+
+    for pos, (idx, row) in enumerate(rows):
+        k_val = row.get("k", 0)
+        carro_atual = _pc_extrair_carro_row(row)
+
+        dist = _pc_distancia_carros(carro_prev, carro_atual) if (carro_prev is not None and carro_atual is not None) else None
+        estado = _pc_estado_alvo_proxy(dist)
+
+        # Contagem estados (para todas as séries, não só eventos k)
+        if estado is None:
+            cont_estados["None"] += 1
+        else:
+            cont_estados[estado] += 1
+
+        # Evento k
+        try:
+            k_int = int(k_val) if k_val is not None else 0
+        except Exception:
+            k_int = 0
+
+        if k_int > 0:
+            delta = None if ultima_pos_k is None else int(pos - ultima_pos_k)
+
+            eventos.append({
+                "serie_id": idx,
+                "pos": int(pos),
+                "k_valor": int(k_int),
+                "delta_series": delta,
+                "distancia_prev": dist,
+                "estado_alvo_proxy": estado,
+            })
+
+            ultima_pos_k = pos
+
+        carro_prev = carro_atual
+
+    return eventos, cont_estados
+
+
+# ============================================================
+# PAINEL (VISUALIZAÇÃO)
+# ============================================================
+
+if painel == "Observação Histórica — Eventos k":
+
+    st.markdown("## Observação Histórica — Eventos k")
+    st.caption("Leitura passiva do histórico. Não interfere em decisões.")
+
+    df_hist = st.session_state.get("historico_df")
+
+    if df_hist is None or df_hist.empty:
+        exibir_bloco_mensagem(
+            "Histórico ausente",
+            "Carregue o histórico primeiro (Painel 1 / 1B).",
+            tipo="warning",
+        )
         st.stop()
 
-    df_eventos = pd.DataFrame(eventos_k)
+    eventos_k, cont_estados = extrair_eventos_k_historico_com_proxy(df_hist)
+    st.session_state["eventos_k_historico"] = eventos_k
 
-    # Organização visual mínima
-    colunas_ordem = [
-        "serie_id",
-        "k_valor",
-        "delta_series",
-        "estado_alvo",
-        "k_star",
-        "nr_percent",
-        "div_s6_mc",
-        "pre_eco",
-        "eco",
-    ]
+    # ===========================
+    # Resumo estatístico
+    # ===========================
+    total_eventos = len(eventos_k)
 
-    colunas_existentes = [c for c in colunas_ordem if c in df_eventos.columns]
-    df_eventos = df_eventos[colunas_existentes]
+    deltas = [e["delta_series"] for e in eventos_k if isinstance(e.get("delta_series"), int)]
+    delta_medio = round(sum(deltas) / max(1, len(deltas)), 2) if deltas else None
+    max_k = max([e.get("k_valor", 0) for e in eventos_k], default=0)
 
-    st.markdown("### 📊 Tabela de Eventos k (Histórico)")
-    st.dataframe(
-        df_eventos,
-        use_container_width=True,
-        height=500,
+    st.markdown("### Resumo Estatístico Simples")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total de eventos k", f"{total_eventos}")
+    c2.metric("Δ médio entre ks", f"{delta_medio}" if delta_medio is not None else "—")
+    c3.metric("Máx k observado", f"{max_k}")
+
+    st.markdown("### Distribuição do Estado do Alvo (PROXY no histórico)")
+    total_series = sum(cont_estados.values()) if isinstance(cont_estados, dict) else 0
+    if total_series > 0:
+        corpo = (
+            f"- parado: **{cont_estados.get('parado', 0)}**\n"
+            f"- movimento_lento: **{cont_estados.get('movimento_lento', 0)}**\n"
+            f"- movimento: **{cont_estados.get('movimento', 0)}**\n"
+            f"- movimento_brusco: **{cont_estados.get('movimento_brusco', 0)}**\n"
+        )
+        exibir_bloco_mensagem("Estado do alvo (proxy)", corpo, tipo="info")
+    else:
+        st.info("Não foi possível calcular distribuição de estado (proxy).")
+
+    # ===========================
+    # Tabela de eventos k
+    # ===========================
+    st.markdown("### 📋 Tabela de Eventos k (com estado proxy)")
+    if total_eventos == 0:
+        st.info("Nenhum evento k encontrado no histórico.")
+        st.stop()
+
+    mostrar = st.slider(
+        "Quantos eventos k mostrar (mais recentes)?",
+        min_value=20,
+        max_value=min(300, total_eventos),
+        value=min(80, total_eventos),
+        step=10,
     )
 
-    st.caption(
-        "Cada linha representa uma série onde k ≥ 1 apareceu. "
-        "Os campos mostram apenas o contexto do ambiente naquele momento."
-    )
+    # Mostra os mais recentes
+    df_evt = pd.DataFrame(eventos_k[-mostrar:])
+    st.dataframe(df_evt, use_container_width=True)
+
+    st.caption("Obs.: estado_alvo_proxy é calculado por mudança entre carros consecutivos (distância 0..6).")
+    st.caption("k*/NR%/div/PRÉ-ECO/ECO ainda não estão historificados por série — isso é a próxima evolução (opcional).")
 
 # ============================================================
-# FIM — Painel Observação Histórica — Eventos k
+# FIM — Observação Histórica — Eventos k (V16)
 # ============================================================
+
         
 
 # ============================================================
