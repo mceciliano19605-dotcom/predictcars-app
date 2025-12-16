@@ -391,6 +391,7 @@ def construir_navegacao_v157() -> str:
         "📁 Carregar Histórico (Arquivo)",
         "📄 Carregar Histórico (Colar)",
         "🛰️ Sentinelas — k* (Ambiente de Risco)",
+        "📊 Observação Histórica — Eventos k",
         "🛣️ Pipeline V14-FLEX ULTRA",
         "🔁 Replay LIGHT",
         "🔁 Replay ULTRA",
@@ -1129,6 +1130,56 @@ if painel == "🛰️ Sentinelas — k* (Ambiente de Risco)":
             f"O regime identificado para o histórico atual é:\n\n{regime}",
             tipo="info",
         )
+
+# ============================================================
+# Painel X — 📊 Observação Histórica — Eventos k (V16)
+# ============================================================
+
+if painel == "📊 Observação Histórica — Eventos k":
+
+    st.markdown("## 📊 Observação Histórica — Eventos k")
+    st.caption("Leitura passiva do histórico. Não interfere em decisões.")
+
+    eventos = st.session_state.get("eventos_k_historico", [])
+
+    if not eventos:
+        st.info("Nenhum evento k encontrado no histórico carregado.")
+        st.stop()
+
+    df_eventos = pd.DataFrame(eventos)
+
+    st.markdown("### 📋 Tabela de Eventos k")
+    st.dataframe(df_eventos, use_container_width=True)
+
+    # Resumo rápido
+    st.markdown("### 📈 Resumo Estatístico Simples")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric("Total de eventos k", len(df_eventos))
+
+    with col2:
+        media_delta = (
+            df_eventos["delta_series"].dropna().mean()
+            if "delta_series" in df_eventos
+            else None
+        )
+        st.metric(
+            "Δ médio entre ks",
+            f"{media_delta:.2f}" if media_delta else "—",
+        )
+
+    with col3:
+        st.metric(
+            "Máx k observado",
+            df_eventos["k_valor"].max() if "k_valor" in df_eventos else "—",
+        )
+
+# ============================================================
+# FIM — Painel X — Observação Histórica — Eventos k
+# ============================================================
+
 
 # ============================================================
 # Painel 3 — 🛣️ Pipeline V14-FLEX ULTRA (Preparação)
