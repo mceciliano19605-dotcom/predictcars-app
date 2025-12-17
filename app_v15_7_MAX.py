@@ -119,7 +119,7 @@ def _pc16_distancia_media(v: np.ndarray, centro: np.ndarray) -> float:
     return float(np.mean(np.abs(v - centro)))
 
 
-@st.cache_data(show_spinner=False)
+
 def pc16_calcular_continuidade_por_janelas(
     historico_df: pd.DataFrame,
     janela: int = 60,
