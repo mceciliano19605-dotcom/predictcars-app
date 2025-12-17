@@ -79,6 +79,165 @@ if "sentinela_kstar" not in st.session_state:
 if "diagnostico_risco" not in st.session_state:
     st.session_state["diagnostico_risco"] = None
 
+
+# ============================================================
+# V16 PREMIUM — INSTRUMENTAÇÃO RETROSPECTIVA (ERRO POR REGIME)
+# (PAINEL OBSERVACIONAL PERMANENTE — NÃO MUDA MOTOR)
+# ============================================================
+
+def _pc16_normalizar_series_6(historico_df: pd.DataFrame) -> np.ndarray:
+    """
+    Extrai as 6 colunas de passageiros do histórico, converte para int e ordena cada série.
+    Retorna matriz shape (N, 6). Falhas retornam array vazio.
+    """
+    if historico_df is None or len(historico_df) < 10:
+        return np.zeros((0, 6), dtype=float)
+
+    # Tentativa conservadora: pegar as 6 primeiras colunas numéricas do DF
+    # (mantém jeitão FLEX: histórico pode ter coluna 'k' no fim, etc.)
+    df = historico_df.copy()
+
+    # Mantém apenas colunas numéricas candidatas
+    cols_num = []
+    for c in df.columns:
+        try:
+            _ = pd.to_numeric(df[c], errors="coerce")
+            cols_num.append(c)
+        except Exception:
+            pass
+
+    if len(cols_num) < 6:
+        return np.zeros((0, 6), dtype=float)
+
+    # Pega as 6 primeiras colunas numéricas como passageiros
+    cand = df[cols_num].apply(pd.to_numeric, errors="coerce").iloc[:, :6].dropna()
+    if len(cand) < 10:
+        return np.zeros((0, 6), dtype=float)
+
+    arr = cand.values.astype(float)
+    arr.sort(axis=1)  # ordena cada série
+    return arr
+
+
+def _pc16_distancia_media(v: np.ndarray, centro: np.ndarray) -> float:
+    """
+    Distância média absoluta (L1 média) entre vetor de 6 e centro de 6.
+    """
+    return float(np.mean(np.abs(v - centro)))
+
+
+@st.cache_data(show_spinner=False)
+def pc16_calcular_continuidade_por_janelas(
+    historico_df: pd.DataFrame,
+    janela: int = 60,
+    step: int = 1,
+    usar_quantis: bool = True
+) -> Dict[str, Any]:
+    """
+    Analisa retrospectivamente o histórico em janelas móveis.
+    Para cada janela [t-janela, t), calcula:
+      - 'dx_janela': dispersão média das séries da janela em relação ao centróide da janela
+      - 'erro_prox': erro da PRÓXIMA série (t) em relação ao centróide da janela (proxy de 'erro contido')
+    Classifica regime por dx_janela (ECO / PRE / RUIM) e compara erro_prox por regime.
+
+    Retorna dict com DataFrame e resumo.
+    """
+    X = _pc16_normalizar_series_6(historico_df)
+    n = X.shape[0]
+    if n < (janela + 5):
+        return {
+            "ok": False,
+            "motivo": f"Histórico insuficiente para janela={janela}. Séries válidas: {n}.",
+            "df": pd.DataFrame(),
+            "resumo": {}
+        }
+
+    rows = []
+    # percorre janelas, garantindo que exista a "próxima" série t
+    for t in range(janela, n - 1, step):
+        bloco = X[t - janela:t, :]
+        centro = np.mean(bloco, axis=0)
+
+        # dx_janela: média das distâncias das séries da janela ao centróide
+        dists = [ _pc16_distancia_media(bloco[i], centro) for i in range(bloco.shape[0]) ]
+        dx_janela = float(np.mean(dists))
+
+        # erro_prox: distância da série seguinte (t) ao centróide da janela
+        prox = X[t, :]
+        erro_prox = _pc16_distancia_media(prox, centro)
+
+        rows.append({
+            "t": t,  # índice da série (0-based dentro do array)
+            "dx_janela": dx_janela,
+            "erro_prox": erro_prox
+        })
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return {
+            "ok": False,
+            "motivo": "Não foi possível gerar janelas (df vazio).",
+            "df": pd.DataFrame(),
+            "resumo": {}
+        }
+
+    # Classificação de regime (ECO/PRE/RUIM) baseada em dx_janela
+    if usar_quantis:
+        q1 = float(df["dx_janela"].quantile(0.33))
+        q2 = float(df["dx_janela"].quantile(0.66))
+    else:
+        # fallback conservador: thresholds fixos (raramente usado)
+        q1, q2 = 0.30, 0.45
+
+    def _rotulo(dx: float) -> str:
+        if dx <= q1:
+            return "ECO"
+        elif dx <= q2:
+            return "PRE"
+        return "RUIM"
+
+    df["regime"] = df["dx_janela"].apply(_rotulo)
+
+    # Métricas resumo
+    resumo = {}
+    for reg in ["ECO", "PRE", "RUIM"]:
+        sub = df[df["regime"] == reg]
+        if len(sub) == 0:
+            resumo[reg] = {"n": 0}
+            continue
+
+        resumo[reg] = {
+            "n": int(len(sub)),
+            "dx_janela_medio": float(sub["dx_janela"].mean()),
+            "erro_prox_medio": float(sub["erro_prox"].mean()),
+            "erro_prox_mediana": float(sub["erro_prox"].median()),
+        }
+
+    # Métrica única que queremos: diferença ECO vs RUIM no erro_prox médio
+    if resumo.get("ECO", {}).get("n", 0) > 0 and resumo.get("RUIM", {}).get("n", 0) > 0:
+        diff = resumo["RUIM"]["erro_prox_medio"] - resumo["ECO"]["erro_prox_medio"]
+    else:
+        diff = None
+
+    resumo_geral = {
+        "janela": int(janela),
+        "step": int(step),
+        "q1_dx": q1,
+        "q2_dx": q2,
+        "diff_ruim_menos_eco_no_erro": diff,
+        "n_total_janelas": int(len(df))
+    }
+
+    return {
+        "ok": True,
+        "motivo": "",
+        "df": df,
+        "resumo": resumo,
+        "resumo_geral": resumo_geral
+    }
+
+
+
 # ============================================================
 # Função utilitária — formatador geral
 # ============================================================
@@ -407,6 +566,7 @@ def construir_navegacao_v157() -> str:
         "📘 Relatório Final",
         "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
          "🧠 Laudo Operacional V16",
+         "📊 V16 Premium — Erro por Regime (Retrospectivo)",
          "🎯 Compressão do Alvo — Observacional (V16)",
     ]
 
@@ -835,6 +995,83 @@ if painel == "📄 Carregar Histórico (Colar)":
 # BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
 # FASE 1 — OBSERVAÇÃO PURA | SEM IMPACTO OPERACIONAL
 # ============================================================
+
+# ============================================================
+# PAINEL — 📊 V16 PREMIUM — ERRO POR REGIME (RETROSPECTIVO)
+# (INSTRUMENTAÇÃO: mede continuidade do erro por janelas)
+# ============================================================
+elif painel == "📊 V16 Premium — Erro por Regime (Retrospectivo)":
+    st.subheader("📊 V16 Premium — Erro por Regime (Retrospectivo)")
+    st.caption("Instrumentação retrospectiva: janelas móveis → regime (ECO/PRE/RUIM) por dispersão da janela "
+               "e erro da PRÓXIMA série como proxy de 'erro contido'. Não altera motor. Não escolhe passageiros.")
+
+    if "historico_df" not in st.session_state or st.session_state["historico_df"] is None or len(st.session_state["historico_df"]) < 50:
+        st.warning("Histórico insuficiente ou não carregado. Carregue o histórico primeiro.")
+    else:
+        historico_df = st.session_state["historico_df"]
+
+        # 🔒 Anti-zumbi (painel leve): automático e invisível
+        # Limita custo: janela e step fixos (sem controles)
+        janela = 60
+        step = 1
+
+        with st.spinner("Calculando análise retrospectiva por janelas (V16 Premium)..."):
+            out = pc16_calcular_continuidade_por_janelas(
+                historico_df=historico_df,
+                janela=janela,
+                step=step,
+                usar_quantis=True
+            )
+
+        if not out.get("ok", False):
+            st.error(f"Falha na análise: {out.get('motivo','Erro desconhecido')}")
+        else:
+            resumo_geral = out.get("resumo_geral", {})
+            resumo = out.get("resumo", {})
+            df = out.get("df", pd.DataFrame())
+
+            st.markdown("### ✅ Resultado objetivo (continuidade do erro)")
+            diff = resumo_geral.get("diff_ruim_menos_eco_no_erro", None)
+            if diff is None:
+                st.info("Ainda não há base suficiente para comparar ECO vs RUIM (poucas janelas em algum regime).")
+            else:
+                st.write(f"**Diferença RUIM − ECO no erro médio (erro_prox):** `{diff:.6f}` (quanto maior, melhor para ECO)")
+
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Janelas", str(resumo_geral.get("n_total_janelas", "—")))
+            col2.metric("Janela (W)", str(resumo_geral.get("janela", "—")))
+            col3.metric("q1 dx (ECO≤)", f"{resumo_geral.get('q1_dx', 0):.6f}")
+            col4.metric("q2 dx (PRE≤)", f"{resumo_geral.get('q2_dx', 0):.6f}")
+
+            st.markdown("### 🧭 Tabela por Regime (ECO / PRE / RUIM)")
+            linhas = []
+            for reg in ["ECO", "PRE", "RUIM"]:
+                r = resumo.get(reg, {"n": 0})
+                linhas.append({
+                    "Regime": reg,
+                    "n_janelas": r.get("n", 0),
+                    "dx_janela_medio": r.get("dx_janela_medio", None),
+                    "erro_prox_medio": r.get("erro_prox_medio", None),
+                    "erro_prox_mediana": r.get("erro_prox_mediana", None),
+                })
+            df_reg = pd.DataFrame(linhas)
+            st.dataframe(df_reg, use_container_width=True)
+
+            st.markdown("### 🔎 Amostra das janelas (para auditoria)")
+            st.caption("Mostra as primeiras linhas para você validar a lógica. "
+                       "t é o índice 0-based dentro do array; serve como referência interna.")
+            st.dataframe(df.head(50), use_container_width=True)
+
+            st.markdown("### 🧠 Leitura operacional (objetiva)")
+            st.write(
+                "- Se **ECO** apresentar **erro_prox_medio** consistentemente menor que **RUIM**, "
+                "isso sustenta matematicamente que, em estados ECO, **repetir o processo tende a manter erro contido**.\n"
+                "- Esse painel não escolhe passageiros. Ele apenas **autoriza** a fase seguinte: "
+                "**concentração para buscar 6** quando o regime realmente sustentar."
+            )
+
+
+
 
 # ============================================================
 # PAINEL V16 — 🎯 Compressão do Alvo (OBSERVACIONAL)
