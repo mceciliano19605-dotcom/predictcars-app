@@ -87,36 +87,29 @@ if "diagnostico_risco" not in st.session_state:
 
 def _pc16_normalizar_series_6(historico_df: pd.DataFrame) -> np.ndarray:
     """
-    Extrai as 6 colunas de passageiros do histórico, converte para int e ordena cada série.
-    Retorna matriz shape (N, 6). Falhas retornam array vazio.
+    Extrai exatamente as colunas p1..p6 do histórico V15.7 MAX.
+    Retorna matriz shape (N, 6) com cada série ordenada.
     """
-    if historico_df is None or len(historico_df) < 10:
+    if historico_df is None or historico_df.empty:
         return np.zeros((0, 6), dtype=float)
 
-    # Tentativa conservadora: pegar as 6 primeiras colunas numéricas do DF
-    # (mantém jeitão FLEX: histórico pode ter coluna 'k' no fim, etc.)
-    df = historico_df.copy()
+    colunas_esperadas = ["p1", "p2", "p3", "p4", "p5", "p6"]
+    for c in colunas_esperadas:
+        if c not in historico_df.columns:
+            return np.zeros((0, 6), dtype=float)
 
-    # Mantém apenas colunas numéricas candidatas
-    cols_num = []
-    for c in df.columns:
-        try:
-            _ = pd.to_numeric(df[c], errors="coerce")
-            cols_num.append(c)
-        except Exception:
-            pass
-
-    if len(cols_num) < 6:
+    try:
+        dfp = historico_df[colunas_esperadas].astype(float).dropna()
+    except Exception:
         return np.zeros((0, 6), dtype=float)
 
-    # Pega as 6 primeiras colunas numéricas como passageiros
-    cand = df[cols_num].apply(pd.to_numeric, errors="coerce").iloc[:, :6].dropna()
-    if len(cand) < 10:
+    if len(dfp) < 10:
         return np.zeros((0, 6), dtype=float)
 
-    arr = cand.values.astype(float)
-    arr.sort(axis=1)  # ordena cada série
+    arr = dfp.values
+    arr.sort(axis=1)
     return arr
+
 
 
 def _pc16_distancia_media(v: np.ndarray, centro: np.ndarray) -> float:
