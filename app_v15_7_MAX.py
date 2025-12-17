@@ -407,6 +407,7 @@ def construir_navegacao_v157() -> str:
         "📘 Relatório Final",
         "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
          "🧠 Laudo Operacional V16",
+         "🎯 Compressão do Alvo — Observacional (V16)",
     ]
 
     # ============================================================
@@ -1371,6 +1372,130 @@ if painel == "📊 Observador k — Histórico":
 # ============================================================
 # FIM — Painel Observador Histórico de Eventos k
 # ============================================================
+
+# ============================================================
+# Painel — 🎯 Compressão do Alvo — Observacional (V16)
+# LEITURA PURA | NÃO DECIDE | NÃO ALTERA MOTORES
+# Objetivo: medir se o alvo está REALMENTE "na mira"
+# ============================================================
+
+if painel == "🎯 Compressão do Alvo — Observacional (V16)":
+
+    st.markdown("## 🎯 Compressão do Alvo — Observacional (V16)")
+    st.caption(
+        "Painel **observacional puro**.\n\n"
+        "Ele NÃO gera previsões, NÃO altera volumes e NÃO interfere no fluxo.\n"
+        "Serve para responder: **o alvo está realmente comprimido / na mira?**"
+    )
+
+    df = st.session_state.get("historico_df")
+    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+
+    if df is None or matriz_norm is None:
+        exibir_bloco_mensagem(
+            "Pipeline incompleto",
+            "Execute **Carregar Histórico** e **Pipeline V14-FLEX ULTRA** antes.",
+            tipo="warning",
+        )
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Parâmetros fixos (observacionais)
+    # ------------------------------------------------------------
+    JANELA_ANALISE = 120   # últimas séries
+    JANELA_LOCAL = 8       # microjanela para dispersão
+    LIMIAR_COMPRESSAO = 0.65  # heurístico (não decisório)
+
+    n = len(matriz_norm)
+    if n < JANELA_ANALISE + JANELA_LOCAL:
+        exibir_bloco_mensagem(
+            "Histórico insuficiente",
+            "São necessárias mais séries para analisar compressão do alvo.",
+            tipo="warning",
+        )
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Cálculo da compressão
+    # ------------------------------------------------------------
+    dispersoes = []
+    centroides = []
+
+    for i in range(n - JANELA_ANALISE, n):
+        janela = matriz_norm[max(0, i - JANELA_LOCAL): i + 1]
+        centro = np.mean(janela, axis=0)
+        centroides.append(centro)
+
+        dist = np.mean(
+            [np.linalg.norm(linha - centro) for linha in janela]
+        )
+        dispersoes.append(dist)
+
+    dispersao_media = float(np.mean(dispersoes))
+    dispersao_std = float(np.std(dispersoes))
+
+    # Compressão relativa (quanto menor a dispersão, maior a compressão)
+    compressao_score = 1.0 - min(1.0, dispersao_media / (dispersao_media + dispersao_std + 1e-6))
+    compressao_score = float(round(compressao_score, 4))
+
+    # ------------------------------------------------------------
+    # Interpretação QUALITATIVA (não decisória)
+    # ------------------------------------------------------------
+    if compressao_score >= 0.75:
+        leitura = "🟢 Alvo fortemente comprimido"
+        comentario = (
+            "O histórico recente mostra **alta repetição estrutural**.\n"
+            "O sistema está operando em zona de foco.\n"
+            "Quando combinado com PRÉ-ECO / ECO, **permite acelerar**."
+        )
+    elif compressao_score >= LIMIAR_COMPRESSAO:
+        leitura = "🟡 Compressão moderada"
+        comentario = (
+            "Existe coerência estrutural, mas ainda com respiração.\n"
+            "Bom para operação equilibrada."
+        )
+    else:
+        leitura = "🔴 Alvo disperso"
+        comentario = (
+            "Alta variabilidade estrutural.\n"
+            "Mesmo que k apareça, **não indica alvo na mira**."
+        )
+
+    # ------------------------------------------------------------
+    # Exibição
+    # ------------------------------------------------------------
+    st.markdown("### 📐 Métrica de Compressão do Alvo")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric("Score de Compressão", compressao_score)
+
+    with col2:
+        st.metric("Dispersão média", round(dispersao_media, 4))
+
+    with col3:
+        st.metric("Volatilidade da dispersão", round(dispersao_std, 4))
+
+    exibir_bloco_mensagem(
+        "Leitura Observacional",
+        f"**{leitura}**\n\n{comentario}",
+        tipo="info",
+    )
+
+    st.info(
+        "📌 Interpretação correta:\n"
+        "- **Compressão NÃO prevê**\n"
+        "- **Compressão NÃO decide**\n"
+        "- Compressão **aumenta convicção** quando outros sinais já são positivos\n"
+        "- Serve para **pisar mais fundo**, não para apertar o gatilho sozinho"
+    )
+
+# ============================================================
+# FIM — Painel 🎯 Compressão do Alvo — Observacional (V16)
+# ============================================================
+
+
 
 # ============================================================
 # Observação Histórica — Eventos k (V16)
