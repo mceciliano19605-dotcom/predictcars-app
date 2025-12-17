@@ -836,6 +836,128 @@ if painel == "📄 Carregar Histórico (Colar)":
 # ============================================================
 
 # ============================================================
+# PAINEL V16 — 🎯 Compressão do Alvo (OBSERVACIONAL)
+# Leitura pura | NÃO prevê | NÃO decide | NÃO altera motores
+# ============================================================
+
+if painel == "🎯 Compressão do Alvo (Observacional)":
+
+    st.markdown("## 🎯 Compressão do Alvo — Leitura Observacional (V16)")
+    st.caption(
+        "Este painel mede **se o erro provável está comprimindo**.\n\n"
+        "⚠️ Não prevê números, não sugere volume, não altera o fluxo."
+    )
+
+    # -----------------------------
+    # Coleta de sinais já existentes
+    # -----------------------------
+    nr = st.session_state.get("nr_percent")
+    div = st.session_state.get("div_s6_mc")
+    k_star = st.session_state.get("sentinela_kstar")
+    risco = (st.session_state.get("diagnostico_risco") or {}).get("indice_risco")
+
+    df = st.session_state.get("historico_df")
+
+    if df is None or nr is None or div is None or k_star is None or risco is None:
+        exibir_bloco_mensagem(
+            "Pré-requisitos ausentes",
+            "Execute os painéis de Sentinela, Ruído, Divergência e Monitor de Risco.",
+            tipo="warning",
+        )
+        st.stop()
+
+    # -----------------------------
+    # 1) Estabilidade do ruído
+    # -----------------------------
+    nr_ok = nr < 45.0
+
+    # -----------------------------
+    # 2) Convergência dos motores
+    # -----------------------------
+    div_ok = div < 5.0
+
+    # -----------------------------
+    # 3) Regime não-hostil
+    # -----------------------------
+    risco_ok = risco < 0.55
+
+    # -----------------------------
+    # 4) k como marcador NORMAL (não extremo)
+    # -----------------------------
+    k_ok = 0.10 <= k_star <= 0.35
+
+    # -----------------------------
+    # 5) Repetição estrutural (passageiros)
+    # -----------------------------
+    col_pass = [c for c in df.columns if c.startswith("p")]
+    ultimos = df[col_pass].iloc[-10:].values
+
+    repeticoes = []
+    for i in range(len(ultimos) - 1):
+        repeticoes.append(len(set(ultimos[i]) & set(ultimos[i + 1])))
+
+    repeticao_media = float(np.mean(repeticoes)) if repeticoes else 0.0
+    repeticao_ok = repeticao_media >= 2.5
+
+    # -----------------------------
+    # Consolidação OBSERVACIONAL
+    # -----------------------------
+    sinais = {
+        "NR% estável": nr_ok,
+        "Convergência S6 × MC": div_ok,
+        "Risco controlado": risco_ok,
+        "k em faixa normal": k_ok,
+        "Repetição estrutural": repeticao_ok,
+    }
+
+    positivos = sum(1 for v in sinais.values() if v)
+
+    # -----------------------------
+    # Exibição
+    # -----------------------------
+    st.markdown("### 📊 Sinais de Compressão do Erro")
+
+    for nome, ok in sinais.items():
+        st.markdown(
+            f"- {'🟢' if ok else '🔴'} **{nome}**"
+        )
+
+    st.markdown("### 🧠 Leitura Consolidada")
+
+    if positivos >= 4:
+        leitura = (
+            "🟢 **Alta compressão do erro provável**.\n\n"
+            "O alvo está mais bem definido do que o normal.\n"
+            "Se houver PRÉ-ECO / ECO, a convicção operacional aumenta."
+        )
+    elif positivos == 3:
+        leitura = (
+            "🟡 **Compressão parcial**.\n\n"
+            "Há foco emergente, mas ainda com dispersão residual."
+        )
+    else:
+        leitura = (
+            "🔴 **Sem compressão clara**.\n\n"
+            "Erro ainda espalhado. Operar com cautela."
+        )
+
+    exibir_bloco_mensagem(
+        "Compressão do Alvo — Diagnóstico",
+        leitura,
+        tipo="info",
+    )
+
+    st.caption(
+        f"Sinais positivos: {positivos}/5 | "
+        "Este painel **não autoriza nem bloqueia** nenhuma ação."
+    )
+
+# ============================================================
+# FIM — PAINEL V16 — COMPRESSÃO DO ALVO (OBSERVACIONAL)
+# ============================================================
+
+
+# ============================================================
 # BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
 # FASE 2 — REPLAY HISTÓRICO OBSERVACIONAL (MEMÓRIA REAL)
 # NÃO decide | NÃO prevê | NÃO altera motores | NÃO altera volumes
