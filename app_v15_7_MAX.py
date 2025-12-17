@@ -989,79 +989,123 @@ if painel == "📄 Carregar Histórico (Colar)":
 # FASE 1 — OBSERVAÇÃO PURA | SEM IMPACTO OPERACIONAL
 # ============================================================
 
+
 # ============================================================
 # PAINEL — 📊 V16 PREMIUM — ERRO POR REGIME (RETROSPECTIVO)
 # (INSTRUMENTAÇÃO: mede continuidade do erro por janelas)
 # ============================================================
 elif painel == "📊 V16 Premium — Erro por Regime (Retrospectivo)":
+
     st.subheader("📊 V16 Premium — Erro por Regime (Retrospectivo)")
-    st.caption("Instrumentação retrospectiva: janelas móveis → regime (ECO/PRE/RUIM) por dispersão da janela "
-               "e erro da PRÓXIMA série como proxy de 'erro contido'. Não altera motor. Não escolhe passageiros.")
+    st.caption(
+        "Instrumentação retrospectiva: janelas móveis → regime (ECO/PRE/RUIM) "
+        "por dispersão da janela e erro da PRÓXIMA série como proxy de 'erro contido'. "
+        "Não altera motor. Não escolhe passageiros."
+    )
 
-    if "historico_df" not in st.session_state or st.session_state["historico_df"] is None or len(st.session_state["historico_df"]) < 50:
-        st.warning("Histórico insuficiente ou não carregado. Carregue o histórico primeiro.")
+    # ============================================================
+    # Localização ROBUSTA do histórico (padrão oficial V16)
+    # ============================================================
+    _, historico_df = v16_identificar_df_base()
+
+    if historico_df is None or historico_df.empty:
+        st.warning(
+            "Histórico não encontrado no estado atual do app.\n\n"
+            "👉 Recarregue o histórico e volte diretamente a este painel."
+        )
+        st.stop()
+
+    if len(historico_df) < 100:
+        st.warning(
+            f"Histórico muito curto para análise retrospectiva.\n\n"
+            f"Séries detectadas: {len(historico_df)}"
+        )
+        st.stop()
+
+    # 🔒 Anti-zumbi automático (painel leve, invisível)
+    janela = 60
+    step = 1
+
+    with st.spinner("Calculando análise retrospectiva por janelas (V16 Premium)..."):
+        out = pc16_calcular_continuidade_por_janelas(
+            historico_df=historico_df,
+            janela=janela,
+            step=step,
+            usar_quantis=True
+        )
+
+    if not out.get("ok", False):
+        st.error(f"Falha na análise: {out.get('motivo','Erro desconhecido')}")
+        st.stop()
+
+    resumo_geral = out.get("resumo_geral", {})
+    resumo = out.get("resumo", {})
+    df = out.get("df", pd.DataFrame())
+
+    # ============================================================
+    # RESULTADO OBJETIVO
+    # ============================================================
+    st.markdown("### ✅ Resultado objetivo — Continuidade do erro")
+
+    diff = resumo_geral.get("diff_ruim_menos_eco_no_erro", None)
+    if diff is None:
+        st.info(
+            "Ainda não há base suficiente para comparar ECO vs RUIM.\n\n"
+            "Isso ocorre quando algum regime tem poucas janelas."
+        )
     else:
-        historico_df = st.session_state["historico_df"]
+        st.write(
+            f"**Diferença RUIM − ECO no erro médio (erro_prox):** "
+            f"`{diff:.6f}`\n\n"
+            "➡️ Valores positivos indicam erro menor em ECO."
+        )
 
-        # 🔒 Anti-zumbi (painel leve): automático e invisível
-        # Limita custo: janela e step fixos (sem controles)
-        janela = 60
-        step = 1
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total de janelas", str(resumo_geral.get("n_total_janelas", "—")))
+    col2.metric("Janela (W)", str(resumo_geral.get("janela", "—")))
+    col3.metric("q1 dx (ECO ≤)", f"{resumo_geral.get('q1_dx', 0):.6f}")
+    col4.metric("q2 dx (PRE ≤)", f"{resumo_geral.get('q2_dx', 0):.6f}")
 
-        with st.spinner("Calculando análise retrospectiva por janelas (V16 Premium)..."):
-            out = pc16_calcular_continuidade_por_janelas(
-                historico_df=historico_df,
-                janela=janela,
-                step=step,
-                usar_quantis=True
-            )
+    # ============================================================
+    # TABELA POR REGIME
+    # ============================================================
+    st.markdown("### 🧭 Tabela por Regime (ECO / PRE / RUIM)")
 
-        if not out.get("ok", False):
-            st.error(f"Falha na análise: {out.get('motivo','Erro desconhecido')}")
-        else:
-            resumo_geral = out.get("resumo_geral", {})
-            resumo = out.get("resumo", {})
-            df = out.get("df", pd.DataFrame())
+    linhas = []
+    for reg in ["ECO", "PRE", "RUIM"]:
+        r = resumo.get(reg, {"n": 0})
+        linhas.append({
+            "Regime": reg,
+            "n_janelas": r.get("n", 0),
+            "dx_janela_medio": r.get("dx_janela_medio"),
+            "erro_prox_medio": r.get("erro_prox_medio"),
+            "erro_prox_mediana": r.get("erro_prox_mediana"),
+        })
 
-            st.markdown("### ✅ Resultado objetivo (continuidade do erro)")
-            diff = resumo_geral.get("diff_ruim_menos_eco_no_erro", None)
-            if diff is None:
-                st.info("Ainda não há base suficiente para comparar ECO vs RUIM (poucas janelas em algum regime).")
-            else:
-                st.write(f"**Diferença RUIM − ECO no erro médio (erro_prox):** `{diff:.6f}` (quanto maior, melhor para ECO)")
+    df_reg = pd.DataFrame(linhas)
+    st.dataframe(df_reg, use_container_width=True)
 
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Janelas", str(resumo_geral.get("n_total_janelas", "—")))
-            col2.metric("Janela (W)", str(resumo_geral.get("janela", "—")))
-            col3.metric("q1 dx (ECO≤)", f"{resumo_geral.get('q1_dx', 0):.6f}")
-            col4.metric("q2 dx (PRE≤)", f"{resumo_geral.get('q2_dx', 0):.6f}")
+    # ============================================================
+    # AUDITORIA LEVE
+    # ============================================================
+    st.markdown("### 🔎 Amostra das janelas (auditoria leve)")
+    st.caption(
+        "Exibe as primeiras linhas apenas para validação conceitual. "
+        "`t` é um índice interno (0-based)."
+    )
+    st.dataframe(df.head(50), use_container_width=True)
 
-            st.markdown("### 🧭 Tabela por Regime (ECO / PRE / RUIM)")
-            linhas = []
-            for reg in ["ECO", "PRE", "RUIM"]:
-                r = resumo.get(reg, {"n": 0})
-                linhas.append({
-                    "Regime": reg,
-                    "n_janelas": r.get("n", 0),
-                    "dx_janela_medio": r.get("dx_janela_medio", None),
-                    "erro_prox_medio": r.get("erro_prox_medio", None),
-                    "erro_prox_mediana": r.get("erro_prox_mediana", None),
-                })
-            df_reg = pd.DataFrame(linhas)
-            st.dataframe(df_reg, use_container_width=True)
-
-            st.markdown("### 🔎 Amostra das janelas (para auditoria)")
-            st.caption("Mostra as primeiras linhas para você validar a lógica. "
-                       "t é o índice 0-based dentro do array; serve como referência interna.")
-            st.dataframe(df.head(50), use_container_width=True)
-
-            st.markdown("### 🧠 Leitura operacional (objetiva)")
-            st.write(
-                "- Se **ECO** apresentar **erro_prox_medio** consistentemente menor que **RUIM**, "
-                "isso sustenta matematicamente que, em estados ECO, **repetir o processo tende a manter erro contido**.\n"
-                "- Esse painel não escolhe passageiros. Ele apenas **autoriza** a fase seguinte: "
-                "**concentração para buscar 6** quando o regime realmente sustentar."
-            )
+    # ============================================================
+    # LEITURA OPERACIONAL
+    # ============================================================
+    st.markdown("### 🧠 Leitura operacional (objetiva)")
+    st.write(
+        "- Se **ECO** apresentar **erro_prox_medio** consistentemente menor que **RUIM**, "
+        "isso sustenta matematicamente que, em estados ECO, **o erro tende a permanecer contido**.\n"
+        "- Este painel **não escolhe passageiros**.\n"
+        "- Ele **autoriza** (ou não) a fase seguinte: **concentração para buscar 6**, "
+        "sem alterar motor ou fluxo."
+    )
 
 
 
