@@ -529,6 +529,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+
 # ============================================================
 # Construção da Navegação — V15.7 MAX
 # ============================================================
@@ -564,25 +566,17 @@ def construir_navegacao_v157() -> str:
     ]
 
     # ============================================================
-    # 🔐 REGISTRO ANTECIPADO — V16 PREMIUM
-    # Painel: 📊 V16 Premium — EXATO por Regime (Proxy)
-    # ============================================================
-    try:
-        v16_registrar_painel_exato_proxy__no_router()
-    except Exception:
-        pass
-    # ============================================================
-    # 🔐 FIM DO REGISTRO ANTECIPADO — V16 PREMIUM
-    # ============================================================
-
-    # ============================================================
-    # INTEGRAÇÃO OFICIAL V16 PREMIUM — PAINÉIS ADICIONAIS
-    # (Os painéis abaixo são SOMADOS ao menu do V15.7 MAX)
+    # INTEGRAÇÃO V16 — PAINÉIS OBSERVACIONAIS
     # ============================================================
     try:
         opcoes_v16 = v16_obter_paineis()
     except Exception:
         opcoes_v16 = []
+
+    # 🔴 GARANTIA EXPLÍCITA — painel novo sempre aparece no menu
+    painel_exato = "📊 V16 Premium — EXATO por Regime (Proxy)"
+    if painel_exato not in opcoes_v16:
+        opcoes_v16.append(painel_exato)
 
     # Combinação final
     opcoes = opcoes_base + opcoes_v16
@@ -597,7 +591,6 @@ def construir_navegacao_v157() -> str:
     )
 
     return painel
-
 
 
 
