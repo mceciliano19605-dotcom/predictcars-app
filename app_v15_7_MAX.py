@@ -5768,129 +5768,13 @@ if "painel" in locals() and painel == "📊 V16 Premium — PRÉ-ECO | Contribui
 if painel == "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos":
 
     st.title("📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos Consistentes")
-    st.caption(
-        "Observacional • Retrospectivo • Objetivo  \n"
-        "Identifica passageiros que REDUZEM a chance de EXATO (≥2 / ≥3).  \n"
-        "❌ Não gera listas • ❌ Não decide • ✅ Apoia limpeza do Modo 6"
+    st.info(
+        "Painel temporariamente desativado.\n\n"
+        "Motivo: aguardando ligação CANÔNICA com a estrutura de passageiros "
+        "gerada pelo Pipeline V14-FLEX ULTRA.\n\n"
+        "Este bloqueio é intencional para evitar análises incorretas."
     )
-
-    # --------------------------------------------------------
-    # Parâmetros FIXOS (canônicos)
-    # --------------------------------------------------------
-    W = 60
-    ALPHA = 1
-    AMIN = 12
-    BMIN = 40
-
-    st.markdown(
-        f"""
-**Critério fixo**
-- Janela: **{W}**
-- Suavização Laplace: **α = {ALPHA}**
-- Amostra mínima: **A ≥ {AMIN}**, **B ≥ {BMIN}**
-- Evento-alvo: **Hit3 (principal)** + Hit2 (suporte)
-"""
-    )
-
-    # --------------------------------------------------------
-    # Histórico base (canônico V16)
-    # --------------------------------------------------------
-    nome_df, df_base = v16_identificar_df_base()
-
-    if df_base is None:
-        st.warning(
-            "Histórico não encontrado. "
-            "Use primeiro um painel de Carregar Histórico e depois volte aqui."
-        )
-        st.stop()
-
-    # Extrai carros do DataFrame detectado
-    cols_num = [c for c in df_base.columns if str(c).lower() in ["n1","n2","n3","n4","n5","n6"]]
-    if len(cols_num) < 6:
-        st.warning("Histórico detectado, mas colunas numéricas insuficientes.")
-        st.stop()
-
-    historico = [
-        [int(row[c]) for c in cols_num[:6]]
-        for _, row in df_base.iterrows()
-    ]
-
-    n = len(historico)
-    if n < (W + 2):
-        st.warning("Histórico insuficiente para análise ANTI-EXATO.")
-        st.stop()
-
-
-
-    # --------------------------------------------------------
-    # Construção das janelas móveis
-    # --------------------------------------------------------
-    def contar_hits(car_a, car_b):
-        return len(set(car_a).intersection(set(car_b)))
-
-    resultados = []
-
-    for t in range(n - W - 1, n - 1):
-        janela = historico[t - W + 1 : t + 1]
-        alvo = historico[t + 1]
-
-        for car in janela:
-            hits = contar_hits(car, alvo)
-            resultados.append({
-                "passageiros": car,
-                "hit2": 1 if hits >= 2 else 0,
-                "hit3": 1 if hits >= 3 else 0,
-            })
-
-    df = pd.DataFrame(resultados)
-
-    universo = sorted({p for car in df["passageiros"] for p in car})
-
-    linhas = []
-
-    for p in universo:
-        presente = df["passageiros"].apply(lambda x: p in x)
-
-        A = presente.sum()
-        B = (~presente).sum()
-
-        if A < AMIN or B < BMIN:
-            classe = "INSUFICIENTE"
-        else:
-            a3 = df.loc[presente, "hit3"].sum()
-            b3 = df.loc[~presente, "hit3"].sum()
-
-            p1 = (a3 + ALPHA) / (A + 2 * ALPHA)
-            p0 = (b3 + ALPHA) / (B + 2 * ALPHA)
-
-            delta = p1 - p0
-            lift = p1 / p0 if p0 > 0 else 1.0
-
-            if delta < 0 and lift <= 0.92:
-                classe = "NOCIVO CONSISTENTE"
-            else:
-                classe = "NEUTRO"
-
-        linhas.append({
-            "passageiro": p,
-            "A_presente": int(A),
-            "B_ausente": int(B),
-            "classe": classe,
-        })
-
-    df_out = pd.DataFrame(linhas).sort_values("classe")
-
-    st.markdown("### 🧾 Classificação de Passageiros")
-    st.dataframe(df_out, use_container_width=True, hide_index=True)
-
-    st.markdown(
-        """
-🧠 **Como usar este painel**
-- Passageiros **NOCIVOS CONSISTENTES** são candidatos a **EVITAR** no Modo 6
-- Não é corte automático
-- Serve para **limpar listas**, não para criar novas
-"""
-    )
+    st.stop()
 
 
 # ============================================================
