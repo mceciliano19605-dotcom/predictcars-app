@@ -558,10 +558,22 @@ def construir_navegacao_v157() -> str:
         "⏱️ Duração da Janela — Análise Histórica",
         "📘 Relatório Final",
         "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
-         "🧠 Laudo Operacional V16",
-         "📊 V16 Premium — Erro por Regime (Retrospectivo)",
-         "🎯 Compressão do Alvo — Observacional (V16)",
+        "🧠 Laudo Operacional V16",
+        "📊 V16 Premium — Erro por Regime (Retrospectivo)",
+        "🎯 Compressão do Alvo — Observacional (V16)",
     ]
+
+    # ============================================================
+    # 🔐 REGISTRO ANTECIPADO — V16 PREMIUM
+    # Painel: 📊 V16 Premium — EXATO por Regime (Proxy)
+    # ============================================================
+    try:
+        v16_registrar_painel_exato_proxy__no_router()
+    except Exception:
+        pass
+    # ============================================================
+    # 🔐 FIM DO REGISTRO ANTECIPADO — V16 PREMIUM
+    # ============================================================
 
     # ============================================================
     # INTEGRAÇÃO OFICIAL V16 PREMIUM — PAINÉIS ADICIONAIS
@@ -579,22 +591,13 @@ def construir_navegacao_v157() -> str:
     # Renderização do menu
     # ------------------------------------------------------------
     painel = st.sidebar.selectbox(
-        "Selecione um painel:",
+        "Escolha o painel:",
         opcoes,
-    )
-
-    st.sidebar.markdown("---")
-    st.sidebar.markdown(
-        """
-        <p class="gray-text">
-        PredictCars V15.7 MAX · V16 Premium Profundo<br>
-        Núcleo + Coberturas + Interseção Estatística
-        </p>
-        """,
-        unsafe_allow_html=True,
+        index=0,
     )
 
     return painel
+
 
 
 
