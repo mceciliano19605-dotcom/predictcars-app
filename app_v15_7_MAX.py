@@ -2207,13 +2207,21 @@ if painel == "🛣️ Pipeline V14-FLEX ULTRA":
         tipo="info",
     )
 
-    # Salvando na sessão para módulos seguintes
+    # ============================================================
+    # Salvando na sessão para módulos seguintes (CANÔNICO)
+    # ============================================================
+    st.session_state["pipeline_col_pass"] = col_pass
     st.session_state["pipeline_clusters"] = clusters
     st.session_state["pipeline_centroides"] = centroides
     st.session_state["pipeline_matriz_norm"] = matriz_norm
     st.session_state["pipeline_estrada"] = estrada
 
     st.success("Pipeline FLEX ULTRA concluído com sucesso!")
+
+# ============================================================
+# PARTE 3/8 — FIM
+# ============================================================
+
 
 # ============================================================
 # Painel 4 — 🔁 Replay LIGHT
