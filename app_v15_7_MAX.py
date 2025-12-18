@@ -5793,18 +5793,35 @@ if painel == "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos":
     )
 
     # --------------------------------------------------------
-    # Histórico base
+    # Histórico base (robusto)
     # --------------------------------------------------------
-    if "historico_carros" not in st.session_state:
+    historico = None
+
+    # Caso 1: lista de carros já pronta
+    if "historico_carros" in st.session_state:
+        historico = st.session_state["historico_carros"]
+
+    # Caso 2: DataFrame de histórico (mais comum no V15.7)
+    elif "historico_df" in st.session_state:
+        dfh = st.session_state["historico_df"]
+        cols_num = [c for c in dfh.columns if str(c).lower() in ["n1","n2","n3","n4","n5","n6"]]
+        if len(cols_num) >= 6:
+            historico = [
+                [int(row[c]) for c in cols_num[:6]]
+                for _, row in dfh.iterrows()
+            ]
+            # guarda para reutilização
+            st.session_state["historico_carros"] = historico
+
+    if historico is None:
         st.warning("Histórico não encontrado. Carregue o histórico primeiro.")
         st.stop()
 
-    historico = st.session_state["historico_carros"]
     n = len(historico)
-
     if n < (W + 2):
         st.warning("Histórico insuficiente para análise ANTI-EXATO.")
         st.stop()
+
 
     # --------------------------------------------------------
     # Construção das janelas móveis
