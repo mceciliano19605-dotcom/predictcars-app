@@ -5776,18 +5776,132 @@ if "painel" in locals() and painel == "📊 V16 Premium — PRÉ-ECO | Contribui
 if painel == "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos":
 
     st.title("📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos Consistentes")
-    st.info(
-        "Painel temporariamente desativado.\n\n"
-        "Motivo: aguardando ligação CANÔNICA com a estrutura de passageiros "
-        "gerada pelo Pipeline V14-FLEX ULTRA.\n\n"
-        "Este bloqueio é intencional para evitar análises incorretas."
+    st.caption(
+        "Observacional • Retrospectivo • Objetivo\n"
+        "Identifica passageiros que REDUZEM a chance de EXATO (≥2 / ≥3).\n"
+        "❌ Não gera listas • ❌ Não decide • ✅ Apoia limpeza do Modo 6"
     )
-    st.stop()
 
+    # --------------------------------------------------------
+    # Parâmetros FIXOS (canônicos)
+    # --------------------------------------------------------
+    W = 60
+    ALPHA = 1
+    AMIN = 12
+    BMIN = 40
+
+    st.markdown(
+        f"""
+**Critério fixo**
+- Janela: **{W}**
+- Suavização Laplace: **α = {ALPHA}**
+- Amostra mínima: **A ≥ {AMIN}**, **B ≥ {BMIN}**
+- Evento-alvo: **Hit3 (principal)** + Hit2 (suporte)
+"""
+    )
+
+    # --------------------------------------------------------
+    # Fonte CANÔNICA de passageiros (Pipeline V14-FLEX ULTRA)
+    # --------------------------------------------------------
+    if "pipeline_col_pass" not in st.session_state:
+        st.warning(
+            "Fonte canônica de passageiros não encontrada.\n\n"
+            "Execute primeiro o painel 🛣️ Pipeline V14-FLEX ULTRA."
+        )
+        st.stop()
+
+    col_pass = st.session_state["pipeline_col_pass"]
+
+    nome_df, df_base = v16_identificar_df_base()
+    if df_base is None:
+        st.warning("Histórico não encontrado. Carregue o histórico e rode o Pipeline.")
+        st.stop()
+
+    if len(col_pass) < 6:
+        st.warning("Fonte de passageiros inválida (menos de 6 colunas).")
+        st.stop()
+
+    historico = df_base[col_pass].astype(int).values.tolist()
+    n = len(historico)
+
+    if n < (W + 2):
+        st.warning("Histórico insuficiente para análise ANTI-EXATO.")
+        st.stop()
+
+    # --------------------------------------------------------
+    # Construção das janelas móveis
+    # --------------------------------------------------------
+    def contar_hits(car_a, car_b):
+        return len(set(car_a).intersection(set(car_b)))
+
+    resultados = []
+
+    for t in range(n - W - 1, n - 1):
+        janela = historico[t - W + 1 : t + 1]
+        alvo = historico[t + 1]
+
+        for car in janela:
+            hits = contar_hits(car, alvo)
+            resultados.append({
+                "passageiros": car,
+                "hit2": 1 if hits >= 2 else 0,
+                "hit3": 1 if hits >= 3 else 0,
+            })
+
+    df = pd.DataFrame(resultados)
+
+    universo = sorted({p for car in df["passageiros"] for p in car})
+
+    linhas = []
+
+    for p in universo:
+        presente = df["passageiros"].apply(lambda x: p in x)
+
+        A = int(presente.sum())
+        B = int((~presente).sum())
+
+        if A < AMIN or B < BMIN:
+            classe = "INSUFICIENTE"
+        else:
+            a3 = df.loc[presente, "hit3"].sum()
+            b3 = df.loc[~presente, "hit3"].sum()
+
+            p1 = (a3 + ALPHA) / (A + 2 * ALPHA)
+            p0 = (b3 + ALPHA) / (B + 2 * ALPHA)
+
+            delta = p1 - p0
+            lift = p1 / p0 if p0 > 0 else 1.0
+
+            if delta < 0 and lift <= 0.92:
+                classe = "NOCIVO CONSISTENTE"
+            else:
+                classe = "NEUTRO"
+
+        linhas.append({
+            "passageiro": p,
+            "A_presente": A,
+            "B_ausente": B,
+            "classe": classe,
+        })
+
+    df_out = pd.DataFrame(linhas).sort_values("classe")
+
+    st.markdown("### 🧾 Classificação de Passageiros")
+    st.dataframe(df_out, use_container_width=True, hide_index=True)
+
+    st.markdown(
+        """
+🧠 **Como usar este painel**
+- Passageiros **NOCIVOS CONSISTENTES** são candidatos a **EVITAR** no Modo 6
+- Não é corte automático
+- Serve para **limpar listas**, não para criar novas
+"""
+    )
 
 # ============================================================
 # ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS (DEFINITIVO)
 # ============================================================
+
 
 if painel == "🧠 Laudo Operacional V16":
     v16_renderizar_laudo_operacional_v16()
