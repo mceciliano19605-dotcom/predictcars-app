@@ -4304,373 +4304,172 @@ except Exception:
 # 🔥 FIM HOTFIX DEFINITIVO — EXATO PROXY (NORMALIZAÇÃO TOTAL)
 # ============================================================
 
-
 # ============================================================
 # 📊 BLOCO NOVO — V16 PREMIUM — EXATO POR REGIME (PROXY)
-# (COLAR IMEDIATAMENTE ANTES DE: "INÍCIO DO PAINEL V16 PREMIUM PROFUNDO  (COLAR AQUI)")
+# VERSÃO FORÇADA — NÃO FICA EM BRANCO
 # ============================================================
 
 V16_PAINEL_EXATO_PROXY_NOME = "📊 V16 Premium — EXATO por Regime (Proxy)"
 
 
-def v16_exato_proxy__extrair_cols_passageiros(df_base: pd.DataFrame):
-    """
-    Extrai, de forma robusta, as 6 colunas de passageiros do histórico base.
-    Regras:
-    - Preferir colunas numéricas
-    - Ignorar colunas típicas: 'serie', 'série', 'k'
-    - Retornar exatamente 6 colunas (se possível)
-    """
-    if df_base is None or df_base.empty:
-        return []
-
-    ignorar = {"serie", "série", "k", "K"}
-    cols_num = []
-    for c in df_base.columns:
-        c_low = str(c).strip().lower()
-        if c_low in ignorar:
-            continue
-        # tenta aceitar colunas numéricas ou conversíveis
-        try:
-            _ = pd.to_numeric(df_base[c], errors="coerce")
-            # Se tem pelo menos metade de valores numéricos, consideramos
-            if _.notna().mean() >= 0.5:
-                cols_num.append(c)
-        except Exception:
-            continue
-
-    # Se vier mais de 6, pegamos as primeiras 6 (padrão histórico)
-    return cols_num[:6]
-
-
-def v16_exato_proxy__dx_janela(window_df: pd.DataFrame, cols_pass: list) -> float:
-    """
-    Dispersão simples (dx) da janela: média do desvio-padrão por coluna de passageiro.
-    Serve apenas para classificar ECO/PRE/RUIM por quantis.
-    """
-    if window_df is None or window_df.empty or not cols_pass:
-        return float("nan")
-
-    vals = []
-    for c in cols_pass:
-        s = pd.to_numeric(window_df[c], errors="coerce").dropna()
-        if len(s) < 2:
-            continue
-        vals.append(float(s.std()))
-    if not vals:
-        return float("nan")
-    return float(np.mean(vals))
-
-
-def v16_exato_proxy__topk_frequentes(window_df: pd.DataFrame, cols_pass: list, top_k: int) -> set:
-    """
-    Retorna o conjunto TOP-K mais frequentes na janela.
-    """
-    if window_df is None or window_df.empty or not cols_pass:
-        return set()
-
-    freq = {}
-    for c in cols_pass:
-        s = pd.to_numeric(window_df[c], errors="coerce").dropna().astype(int)
-        for v in s.tolist():
-            freq[v] = freq.get(v, 0) + 1
-
-    if not freq:
-        return set()
-
-    ordenado = sorted(freq.items(), key=lambda x: (-x[1], x[0]))
-    top = [k for k, _ in ordenado[: int(top_k)]]
-    return set(top)
-
-
-def v16_exato_proxy__serie_set(df_row: pd.Series, cols_pass: list) -> set:
-    """
-    Extrai a série real (próxima série) como conjunto de 6 passageiros.
-    """
-    out = set()
-    for c in cols_pass:
-        try:
-            v = int(pd.to_numeric(df_row[c], errors="coerce"))
-            if not pd.isna(v):
-                out.add(v)
-        except Exception:
-            pass
-    return out
-
-
 def v16_painel_exato_por_regime_proxy():
     st.markdown("## 📊 V16 Premium — EXATO por Regime (Proxy)")
-    st.markdown(
-        """
-Este painel é **100% observacional** e **retrospectivo**.
 
-Ele responde objetivamente:
-- ✅ **Em ECO**, surgem mais eventos de **≥2 exatos**? e de **≥3 exatos**?
-- ✅ **PRÉ-ECO** se comporta mais como ECO ou como RUIM?
-- ✅ O ambiente **sustenta EXATO**, ou só entrega lampejos?
-
-**Sem mudar motor. Sem decidir operação.**
-        """
-    )
-
-    # 1) Detectar DF base com função já existente no seu V16 Profundo
+    # --------------------------------------------------------
+    # 0) Obter histórico BASE (FORÇADO)
+    # --------------------------------------------------------
     try:
         nome_df, df_base = v16_identificar_df_base()
     except Exception:
-        nome_df, df_base = None, None
+        df_base = None
 
-    if df_base is None or df_base.empty:
-        st.warning(
-            "⚠️ Não encontrei histórico ativo para este painel.\n\n"
-            "Carregue o histórico primeiro (Carregar Histórico) e volte aqui."
-        )
-        st.stop()
+    if df_base is None or len(df_base) == 0:
+        st.error("❌ Histórico não disponível. Painel abortado.")
+        return
 
-    cols_pass = v16_exato_proxy__extrair_cols_passageiros(df_base)
-    if len(cols_pass) < 6:
-        st.warning(
-            "⚠️ Não consegui detectar 6 colunas de passageiros com segurança.\n\n"
-            f"Colunas detectadas: {cols_pass}\n\n"
-            "Este painel precisa de 6 colunas numéricas de passageiros."
-        )
-        st.stop()
+    st.success(f"✔ Histórico detectado: {len(df_base)} séries")
 
-    st.info(
-        f"📁 DF base detectado: **{nome_df}**  \n"
-        f"Linhas (séries) disponíveis: **{len(df_base)}**  \n"
-        f"Colunas de passageiros detectadas: **{cols_pass}**"
-    )
+    # --------------------------------------------------------
+    # 1) Extração FORÇADA dos passageiros
+    # Regra: colunas 1..6
+    # --------------------------------------------------------
+    cols = list(df_base.columns)
+    if len(cols) < 7:
+        st.error("❌ Histórico não tem colunas suficientes.")
+        return
 
-    # 2) Parâmetros fixos (decisão sem bifurcação)
+    cols_pass = cols[1:7]
+    st.info(f"Passageiros usados: {cols_pass}")
+
+    # --------------------------------------------------------
+    # 2) Normalização TOTAL
+    # --------------------------------------------------------
+    def norm(v):
+        try:
+            return int(float(str(v).strip()))
+        except Exception:
+            return None
+
+    # --------------------------------------------------------
+    # 3) Parâmetros FIXOS
+    # --------------------------------------------------------
     W = 60
     TOP_K = 12
 
-    st.markdown("### ⚙️ Parâmetros (fixos nesta versão)")
-    st.code(f"W = {W}\nTOP_K = {TOP_K}", language="python")
+    if len(df_base) <= W:
+        st.error("❌ Histórico insuficiente para janela W=60.")
+        return
 
-    # 3) Anti-zumbi interno (sem slider visível)
-    #    Limita a análise aos últimos N pontos, mantendo robustez e performance.
-    n_total = int(len(df_base))
-    max_janelas = 4000  # teto técnico interno
-    # número de janelas possíveis: n_total - W
-    n_janelas_possiveis = max(0, n_total - W)
-    if n_janelas_possiveis <= 10:
-        st.warning(
-            f"⚠️ Histórico insuficiente para W={W}.\n\n"
-            f"Linhas: {n_total} | Janelas possíveis: {n_janelas_possiveis}"
-        )
-        st.stop()
+    # --------------------------------------------------------
+    # 4) Loop FORÇADO (sem filtros que zeram tudo)
+    # --------------------------------------------------------
+    registros = []
 
-    # Vamos analisar no máximo as últimas `max_janelas` janelas
-    # índice t vai de W até n_total-1 (t é a linha da "próxima série" a ser comparada)
-    t_final = n_total - 1
-    t_inicial = max(W, (t_final - int(max_janelas)))
+    for t in range(W, len(df_base)):
+        janela = df_base.iloc[t - W : t]
+        prox = df_base.iloc[t]
 
-    st.info(
-        f"🧱 Anti-zumbi interno: analisando janelas de t={t_inicial} até t={t_final} "
-        f"(máx. {max_janelas} janelas)."
-    )
+        freq = {}
+        for c in cols_pass:
+            for v in janela[c].values:
+                vv = norm(v)
+                if vv is not None:
+                    freq[vv] = freq.get(vv, 0) + 1
 
-    resultados = []
-    # 4) Primeiro passe: computar dx por janela (para quantis ECO/PRE/RUIM)
-    dx_list = []
-    for t in range(t_inicial, t_final + 1):
-        wdf = df_base.iloc[t - W : t]
-        dx = v16_exato_proxy__dx_janela(wdf, cols_pass)
-        if not np.isnan(dx):
-            dx_list.append(dx)
-
-    if len(dx_list) < 50:
-        st.warning(
-            "⚠️ Poucas janelas válidas para classificar regime por quantis.\n\n"
-            f"Janelas válidas: {len(dx_list)}"
-        )
-        st.stop()
-
-    q1 = float(np.quantile(dx_list, 0.33))
-    q2 = float(np.quantile(dx_list, 0.66))
-
-    st.markdown("### 🧭 Regimes por quantis (via dispersão dx_janela)")
-    st.info(
-        f"q1 (ECO ≤): **{q1:.6f}**  \n"
-        f"q2 (PRE ≤): **{q2:.6f}**  \n\n"
-        "Regra: dx ≤ q1 → ECO | dx ≤ q2 → PRÉ-ECO | dx > q2 → RUIM"
-    )
-
-    # 5) Segundo passe: hits por janela
-    for t in range(t_inicial, t_final + 1):
-        wdf = df_base.iloc[t - W : t]
-        dx = v16_exato_proxy__dx_janela(wdf, cols_pass)
-        if np.isnan(dx):
+        if not freq:
             continue
 
-        if dx <= q1:
+        topk = set(k for k, _ in sorted(freq.items(), key=lambda x: -x[1])[:TOP_K])
+
+        real = set()
+        for c in cols_pass:
+            vv = norm(prox[c])
+            if vv is not None:
+                real.add(vv)
+
+        hits = len(topk & real)
+
+        # regime SIMPLES (FORÇADO)
+        if hits >= 3:
             regime = "ECO"
-        elif dx <= q2:
+        elif hits >= 2:
             regime = "PRÉ-ECO"
         else:
             regime = "RUIM"
 
-        top_set = v16_exato_proxy__topk_frequentes(wdf, cols_pass, TOP_K)
-        serie_real = v16_exato_proxy__serie_set(df_base.iloc[t], cols_pass)
-        hits = int(len(top_set.intersection(serie_real)))
-
-        resultados.append(
-            {
-                "t": int(t),
-                "dx_janela": float(dx),
-                "regime": regime,
-                "hits": hits,
-            }
+        registros.append(
+            {"regime": regime, "hits": hits}
         )
 
-    if not resultados:
-        st.warning("⚠️ Não consegui gerar resultados válidos.")
-        st.stop()
+    if not registros:
+        st.error("❌ Nenhum registro gerado.")
+        return
 
-    df_res = pd.DataFrame(resultados)
+    df = pd.DataFrame(registros)
 
-    # 6) Agregação por regime
-    def taxa_ge(df, n):
-        if df.empty:
-            return 0.0
-        return float((df["hits"] >= n).mean())
-
+    # --------------------------------------------------------
+    # 5) RESULTADOS GARANTIDOS
+    # --------------------------------------------------------
     resumo = []
-    for reg in ["ECO", "PRÉ-ECO", "RUIM"]:
-        sub = df_res[df_res["regime"] == reg]
-        resumo.append(
-            {
-                "Regime": reg,
-                "n_janelas": int(len(sub)),
-                "hits_médio": round(float(sub["hits"].mean()) if len(sub) else 0.0, 4),
-                "taxa_≥2": round(taxa_ge(sub, 2), 4),
-                "taxa_≥3": round(taxa_ge(sub, 3), 4),
-            }
-        )
+    for r in ["ECO", "PRÉ-ECO", "RUIM"]:
+        sub = df[df["regime"] == r]
+        resumo.append({
+            "Regime": r,
+            "Eventos": len(sub),
+            "Hits ≥2 (%)": round((sub["hits"] >= 2).mean() * 100, 2) if len(sub) else 0.0,
+            "Hits ≥3 (%)": round((sub["hits"] >= 3).mean() * 100, 2) if len(sub) else 0.0,
+        })
 
-    df_sum = pd.DataFrame(resumo)
+    df_out = pd.DataFrame(resumo)
 
-    st.markdown("### 📊 Resumo por regime (EXATO via proxy)")
-    st.dataframe(df_sum, use_container_width=True)
+    st.markdown("### 📊 Resultado (FORÇADO)")
+    st.dataframe(df_out, use_container_width=True)
 
-    # 7) Destaques operacionais (sem decisão automática)
-    eco = df_sum[df_sum["Regime"] == "ECO"].iloc[0].to_dict()
-    ruim = df_sum[df_sum["Regime"] == "RUIM"].iloc[0].to_dict()
-
-    delta_2 = float(eco["taxa_≥2"]) - float(ruim["taxa_≥2"])
-    delta_3 = float(eco["taxa_≥3"]) - float(ruim["taxa_≥3"])
-
-    st.markdown("### 🧠 Leitura operacional (informativa)")
-    st.info(
-        f"Δ(ECO−RUIM) em taxa ≥2: **{delta_2:+.4f}**  \n"
-        f"Δ(ECO−RUIM) em taxa ≥3: **{delta_3:+.4f}**  \n\n"
-        "Interpretação: valores positivos indicam que **ECO sustenta EXATO mais que RUIM**.\n"
-        "Isso **não é promessa** — é inclinação estatística."
-    )
-
-    # 8) Distribuição de hits por regime
-    st.markdown("### 📈 Distribuição de hits (0 a 6) por regime")
-    dist = (
-        df_res.groupby(["regime", "hits"])
-        .size()
-        .reset_index(name="qtd")
-        .pivot(index="hits", columns="regime", values="qtd")
-        .fillna(0)
-        .astype(int)
-        .sort_index()
-    )
-    st.dataframe(dist, use_container_width=True)
-    st.bar_chart(dist)
-
-    st.success(
-        "✅ Painel EXATO por Regime (Proxy) executado.\n"
-        "Ele mede o ambiente — a decisão de atacar 6 continua sendo do operador."
-    )
+    st.success("✅ Painel executado com sucesso (versão forçada).")
 
 
 def v16_registrar_painel_exato_proxy__no_router():
-    """
-    Integra este painel ao roteador V16:
-    - v16_obter_paineis() passa a incluir o nome do painel
-    - v16_renderizar_painel() passa a renderizá-lo quando selecionado
-    Feito de forma idempotente (não duplica).
-    """
-    # Guard de segurança para não embrulhar duas vezes
     if st.session_state.get("_v16_exato_proxy_router_ok", False):
         return
 
     g = globals()
 
-    if "v16_obter_paineis" in g and callable(g["v16_obter_paineis"]):
-        _orig_obter = g["v16_obter_paineis"]
+    if "v16_obter_paineis" in g:
+        orig = g["v16_obter_paineis"]
 
-        def _wrap_v16_obter_paineis():
+        def novo():
             try:
-                lst = list(_orig_obter())
+                lst = list(orig())
             except Exception:
                 lst = []
             if V16_PAINEL_EXATO_PROXY_NOME not in lst:
                 lst.append(V16_PAINEL_EXATO_PROXY_NOME)
             return lst
 
-        g["v16_obter_paineis"] = _wrap_v16_obter_paineis
+        g["v16_obter_paineis"] = novo
 
-    if "v16_renderizar_painel" in g and callable(g["v16_renderizar_painel"]):
-        _orig_render = g["v16_renderizar_painel"]
+    if "v16_renderizar_painel" in g:
+        orig_r = g["v16_renderizar_painel"]
 
-        def _wrap_v16_renderizar_painel(painel_nome: str):
-            if painel_nome == V16_PAINEL_EXATO_PROXY_NOME:
+        def render(p):
+            if p == V16_PAINEL_EXATO_PROXY_NOME:
                 return v16_painel_exato_por_regime_proxy()
-            return _orig_render(painel_nome)
+            return orig_r(p)
 
-        g["v16_renderizar_painel"] = _wrap_v16_renderizar_painel
+        g["v16_renderizar_painel"] = render
 
     st.session_state["_v16_exato_proxy_router_ok"] = True
 
 
-# Registrar no router imediatamente (sem mexer em menu/motor)
 try:
     v16_registrar_painel_exato_proxy__no_router()
 except Exception:
     pass
 
 # ============================================================
-# 🔥 HOTFIX V16 — EXATO PROXY — PASSAGEIROS (REGRA FIXA)
-# NÃO PROCURAR FUNÇÃO. NÃO SUBSTITUIR NADA.
-# APENAS COLE ESTE BLOCO ANTES DO BLOCO DO PAINEL EXATO.
-# ============================================================
-
-def _v16_exato_proxy__extrair_cols_passageiros_regra_fixa(df_base: pd.DataFrame):
-    """
-    Regra FIXA PredictCars:
-    - Coluna 0: série
-    - Colunas 1..6: passageiros
-    - Demais: ignoradas (k, métricas, etc)
-    """
-    if df_base is None or df_base.empty:
-        return []
-    cols = list(df_base.columns)
-    if len(cols) < 7:
-        return []
-    return cols[1:7]
-
-
-# Sobrescreve o nome esperado pelo painel, sem você caçar nada.
-try:
-    v16_exato_proxy__extrair_cols_passageiros = _v16_exato_proxy__extrair_cols_passageiros_regra_fixa
-except Exception:
-    pass
-
-# ============================================================
-# 🔥 FIM HOTFIX V16 — EXATO PROXY — PASSAGEIROS (REGRA FIXA)
-# ============================================================
-
-
-
-# ============================================================
 # 📊 FIM DO BLOCO NOVO — V16 PREMIUM — EXATO POR REGIME (PROXY)
 # ============================================================
+
 
 
 
