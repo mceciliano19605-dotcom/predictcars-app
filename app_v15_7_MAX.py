@@ -567,6 +567,7 @@ def construir_navegacao_v157() -> str:
         "📊 V16 Premium — Passageiros Recorrentes em ECO (Interseção)",
         "🎯 Compressão do Alvo — Observacional (V16)",
         "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
+        "📊 V16 Premium — PRÉ-ECO | Contribuição de Passageiros",
     ]
 
     # ------------------------------------------------------------
@@ -5224,6 +5225,542 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
     st.markdown("\n".join(comentario_regime))
 
     st.success("Painel V16 Premium Profundo executado com sucesso!")
+
+# ======================================================================
+# 📊 V16 PREMIUM — PRÉ-ECO | CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
+# (CTRL+F ESTE BLOCO)
+# ======================================================================
+
+def _v16_laplace_rate(sucessos: int, total: int, alpha: int = 1) -> float:
+    # Suavização Laplace: (a+α)/(A+2α)
+    if total <= 0:
+        return 0.0
+    return float((sucessos + alpha) / (total + 2 * alpha))
+
+def _v16_wilson_ci(p: float, n: int, z: float = 1.96) -> Tuple[float, float]:
+    # Wilson score interval para proporção
+    if n <= 0:
+        return (0.0, 1.0)
+    denom = 1.0 + (z**2) / n
+    center = (p + (z**2) / (2*n)) / denom
+    margin = (z / denom) * math.sqrt((p*(1-p)/n) + (z**2)/(4*(n**2)))
+    lo = max(0.0, center - margin)
+    hi = min(1.0, center + margin)
+    return (lo, hi)
+
+def _v16_delta_ci_worstcase(p1_ci: Tuple[float, float], p0_ci: Tuple[float, float]) -> Tuple[float, float]:
+    # IC conservador para Δ = P1 - P0 usando pior caso:
+    # Δ_lo = P1_lo - P0_hi ; Δ_hi = P1_hi - P0_lo
+    return (p1_ci[0] - p0_ci[1], p1_ci[1] - p0_ci[0])
+
+def _v16_safe_float(x, default: float = 0.0) -> float:
+    try:
+        if x is None:
+            return default
+        v = float(x)
+        if np.isnan(v):
+            return default
+        return v
+    except Exception:
+        return default
+
+def _v16_build_pre_eco_mask(df_ctx: pd.DataFrame,
+                           teto_nr: float,
+                           teto_div: float,
+                           kstar_delta_max: float = 0.0) -> pd.Series:
+    """
+    PRÉ-ECO = prontidão objetiva:
+      - NR% não explode
+      - Divergência não hostil
+      - k* não piora (Δk* <= kstar_delta_max)
+      - Laudo não hostil (se existir coluna)
+    """
+    # Colunas esperadas (se existirem): 'kstar', 'nr', 'div', 'laudo_hostil'
+    nr = df_ctx["nr"] if "nr" in df_ctx.columns else pd.Series([np.nan]*len(df_ctx))
+    div = df_ctx["div"] if "div" in df_ctx.columns else pd.Series([np.nan]*len(df_ctx))
+    kstar = df_ctx["kstar"] if "kstar" in df_ctx.columns else pd.Series([np.nan]*len(df_ctx))
+
+    # Δk*
+    kstar_prev = kstar.shift(1)
+    dk = (kstar - kstar_prev)
+
+    ok_nr = nr.apply(lambda v: _v16_safe_float(v, 999.0) <= teto_nr)
+    ok_div = div.apply(lambda v: _v16_safe_float(v, 999.0) <= teto_div)
+    ok_k = dk.apply(lambda v: _v16_safe_float(v, 999.0) <= kstar_delta_max)
+
+    if "laudo_hostil" in df_ctx.columns:
+        # laudo_hostil True = hostil, então queremos False
+        ok_laudo = (~df_ctx["laudo_hostil"].fillna(False)).astype(bool)
+    else:
+        ok_laudo = pd.Series([True]*len(df_ctx))
+
+    preeco = (ok_nr & ok_div & ok_k & ok_laudo)
+    return preeco
+
+def _v16_hits_exatos(car_a: List[int], car_b: List[int]) -> int:
+    # acertos exatos = interseção simples
+    sa = set(car_a)
+    sb = set(car_b)
+    return len(sa.intersection(sb))
+
+def _v16_extract_car_numbers(row: Any) -> List[int]:
+    """
+    Extrator robusto: tenta pegar lista/tupla/np.array; se for string, tenta parsear dígitos.
+    Mantém só ints >=0.
+    """
+    if row is None:
+        return []
+    if isinstance(row, (list, tuple, np.ndarray)):
+        out = []
+        for v in row:
+            try:
+                out.append(int(v))
+            except Exception:
+                pass
+        return out
+    if isinstance(row, str):
+        # Extrai números inteiros de uma string
+        nums = []
+        cur = ""
+        for ch in row:
+            if ch.isdigit():
+                cur += ch
+            else:
+                if cur != "":
+                    nums.append(int(cur))
+                    cur = ""
+        if cur != "":
+            nums.append(int(cur))
+        return nums
+    # fallback
+    try:
+        return [int(row)]
+    except Exception:
+        return []
+
+def _v16_compute_contrib_table(historico_carros: List[List[int]],
+                               df_ctx: pd.DataFrame,
+                               preeco_mask: pd.Series,
+                               w: int = 60,
+                               alpha: int = 1,
+                               amin: int = 6,
+                               bmin: int = 20) -> pd.DataFrame:
+    """
+    Contribuição de passageiros no PRÉ-ECO:
+      Para cada t (dentro janela), observa passageiros do carro real em t,
+      e mede hit2/hit3 do próximo alvo (t+1).
+    """
+    n = len(historico_carros)
+    if n < (w + 2):
+        return pd.DataFrame()
+
+    # Índices válidos: precisamos de t e t+1 existirem
+    t_ini = max(0, n - w - 2)
+    t_fim = n - 2  # último t que ainda tem t+1
+
+    # Subconjunto analisado
+    idxs = list(range(t_ini, t_fim + 1))
+
+    # PRÉ-ECO alinhado em t
+    preeco_sub = preeco_mask.iloc[idxs].reset_index(drop=True) if len(preeco_mask) >= n else pd.Series([False]*len(idxs))
+
+    # Monta targets hit2/hit3 do alvo (t+1) com referência no t?
+    # Aqui seguimos a definição observacional: hits exatos entre carro(t) e carro(t+1).
+    # (Não é acerto do sistema; é dinâmica do alvo entre séries consecutivas.)
+    hit2 = []
+    hit3 = []
+    passageiros_t = []
+
+    for t in idxs:
+        car_t = historico_carros[t]
+        car_next = historico_carros[t+1]
+        h = _v16_hits_exatos(car_t, car_next)
+        hit2.append(1 if h >= 2 else 0)
+        hit3.append(1 if h >= 3 else 0)
+        passageiros_t.append(set(car_t))
+
+    # Filtra só PRÉ-ECO
+    rows = []
+    for i, t in enumerate(idxs):
+        if bool(preeco_sub.iloc[i]):
+            rows.append((i, passageiros_t[i], hit2[i], hit3[i]))
+
+    if len(rows) < 5:
+        return pd.DataFrame()
+
+    # Universo de passageiros observados no PRÉ-ECO
+    universo = set()
+    for _, ps, _, _ in rows:
+        universo |= set(ps)
+    universo = sorted(list(universo))
+
+    # Base rates (para suporte)
+    base_hit2 = sum(r[2] for r in rows) / max(1, len(rows))
+    base_hit3 = sum(r[3] for r in rows) / max(1, len(rows))
+
+    # Para cada passageiro p: conta A/B/a/b para hit2 e hit3
+    data = []
+    for p in universo:
+        A = 0
+        B = 0
+
+        a2 = 0
+        b2 = 0
+        a3 = 0
+        b3 = 0
+
+        for _, ps, y2, y3 in rows:
+            if p in ps:
+                A += 1
+                a2 += y2
+                a3 += y3
+            else:
+                B += 1
+                b2 += y2
+                b3 += y3
+
+        # Gates
+        if A < amin or B < bmin:
+            cls = "INSUFICIENTE"
+        else:
+            cls = "PENDENTE"  # define abaixo
+
+        # Taxas suavizadas
+        p1_2 = _v16_laplace_rate(a2, A, alpha=alpha)
+        p0_2 = _v16_laplace_rate(b2, B, alpha=alpha)
+        p1_3 = _v16_laplace_rate(a3, A, alpha=alpha)
+        p0_3 = _v16_laplace_rate(b3, B, alpha=alpha)
+
+        # Lifts
+        lift2 = (p1_2 / p0_2) if p0_2 > 0 else np.nan
+        lift3 = (p1_3 / p0_3) if p0_3 > 0 else np.nan
+
+        # IC Wilson para proporções (usando p sem Laplace para CI, mais “puro”)
+        raw_p1_2 = (a2 / A) if A > 0 else 0.0
+        raw_p0_2 = (b2 / B) if B > 0 else 0.0
+        raw_p1_3 = (a3 / A) if A > 0 else 0.0
+        raw_p0_3 = (b3 / B) if B > 0 else 0.0
+
+        ci_p1_2 = _v16_wilson_ci(raw_p1_2, A)
+        ci_p0_2 = _v16_wilson_ci(raw_p0_2, B)
+        ci_p1_3 = _v16_wilson_ci(raw_p1_3, A)
+        ci_p0_3 = _v16_wilson_ci(raw_p0_3, B)
+
+        # Δ e IC conservador
+        d2 = p1_2 - p0_2
+        d3 = p1_3 - p0_3
+
+        ci_d2 = _v16_delta_ci_worstcase(ci_p1_2, ci_p0_2)
+        ci_d3 = _v16_delta_ci_worstcase(ci_p1_3, ci_p0_3)
+
+        # Score (z aprox): z = Δ / SE(Δ) (SE aprox com raw, para não “embelezar”)
+        se2 = math.sqrt((raw_p1_2*(1-raw_p1_2)/max(1, A)) + (raw_p0_2*(1-raw_p0_2)/max(1, B)))
+        se3 = math.sqrt((raw_p1_3*(1-raw_p1_3)/max(1, A)) + (raw_p0_3*(1-raw_p0_3)/max(1, B)))
+
+        z2 = ( (raw_p1_2 - raw_p0_2) / se2 ) if se2 > 0 else 0.0
+        z3 = ( (raw_p1_3 - raw_p0_3) / se3 ) if se3 > 0 else 0.0
+
+        score = (2.0 * z3) + (1.0 * z2)
+
+        # Classificação (só se não for insuficiente)
+        if cls != "INSUFICIENTE":
+            # Regras conservadoras (fixas)
+            leader = (ci_d3[0] > 0.0) and (not np.isnan(lift3)) and (lift3 >= 1.10) and (score >= 1.0)
+            discard = (ci_d3[1] < 0.0) and (not np.isnan(lift3)) and (lift3 <= 0.90) and (score <= -1.0)
+
+            if leader:
+                cls = "LÍDER"
+            elif discard:
+                cls = "DESCARTÁVEL"
+            else:
+                cls = "NEUTRO"
+
+        data.append({
+            "passageiro": int(p),
+            "A_presente": int(A),
+            "a_hit2": int(a2),
+            "a_hit3": int(a3),
+            "B_ausente": int(B),
+            "b_hit2": int(b2),
+            "b_hit3": int(b3),
+            "P1_hit2": float(p1_2),
+            "P0_hit2": float(p0_2),
+            "Δ_hit2": float(d2),
+            "Lift_hit2": float(lift2) if not np.isnan(lift2) else np.nan,
+            "ICΔ_hit2_lo": float(ci_d2[0]),
+            "ICΔ_hit2_hi": float(ci_d2[1]),
+            "P1_hit3": float(p1_3),
+            "P0_hit3": float(p0_3),
+            "Δ_hit3": float(d3),
+            "Lift_hit3": float(lift3) if not np.isnan(lift3) else np.nan,
+            "ICΔ_hit3_lo": float(ci_d3[0]),
+            "ICΔ_hit3_hi": float(ci_d3[1]),
+            "z_hit2": float(z2),
+            "z_hit3": float(z3),
+            "score": float(score),
+            "classe": cls,
+            "base_hit2_preEco": float(base_hit2),
+            "base_hit3_preEco": float(base_hit3),
+        })
+
+    df = pd.DataFrame(data)
+    if df.empty:
+        return df
+
+    # Ordenação: primeiro líderes por score, depois neutros, depois descartáveis, depois insuficientes
+    ordem = {"LÍDER": 0, "NEUTRO": 1, "DESCARTÁVEL": 2, "INSUFICIENTE": 3}
+    df["ordem_classe"] = df["classe"].map(ordem).fillna(9).astype(int)
+    df = df.sort_values(by=["ordem_classe", "score"], ascending=[True, False]).drop(columns=["ordem_classe"])
+    return df
+
+def _v16_pairwise_coocorrencia(preeco_rows_passageiros: List[set], top_n: int = 25) -> pd.DataFrame:
+    """
+    Coocorrência (Jaccard) entre passageiros dentro do PRÉ-ECO.
+    Retorna top pares com maior Jaccard (para alertar líder condicionado).
+    """
+    if len(preeco_rows_passageiros) < 8:
+        return pd.DataFrame()
+
+    # Universo
+    uni = set()
+    for s in preeco_rows_passageiros:
+        uni |= set(s)
+    uni = sorted(list(uni))
+
+    # Contagens de presença
+    pres = {p: 0 for p in uni}
+    for s in preeco_rows_passageiros:
+        for p in s:
+            pres[p] += 1
+
+    # Pairs
+    pairs = []
+    uni_len = len(uni)
+    for i in range(uni_len):
+        p = uni[i]
+        for j in range(i+1, uni_len):
+            q = uni[j]
+            inter = 0
+            union = 0
+            for s in preeco_rows_passageiros:
+                ip = (p in s)
+                iq = (q in s)
+                if ip or iq:
+                    union += 1
+                    if ip and iq:
+                        inter += 1
+            if union > 0:
+                jac = inter / union
+                if jac > 0:
+                    pairs.append((p, q, inter, union, jac))
+
+    if not pairs:
+        return pd.DataFrame()
+
+    dfp = pd.DataFrame(pairs, columns=["p", "q", "inter", "union", "jaccard"])
+    dfp = dfp.sort_values(by="jaccard", ascending=False).head(top_n)
+    return dfp
+
+# ----------------------------------------------------------------------
+# 📊 PAINEL — V16 PREMIUM — PRÉ-ECO | CONTRIBUIÇÃO DE PASSAGEIROS
+# ----------------------------------------------------------------------
+if "painel" in locals() and painel == "📊 V16 Premium — PRÉ-ECO | Contribuição de Passageiros":
+    st.title("📊 V16 Premium — PRÉ-ECO | Contribuição de Passageiros")
+    st.caption("Observacional, retrospectivo, objetivo e replicável. ❌ Sem motor. ❌ Sem listas. ✅ Só EXATO (Hit2/Hit3).")
+
+    # -----------------------------
+    # Parâmetros FIXOS (comando)
+    # -----------------------------
+    W_FIXO = 60
+    ALPHA = 1
+    AMIN = 6
+    BMIN = 20
+
+    with st.expander("🔒 Critério fixo (transparência total)", expanded=True):
+        st.markdown(
+            f"""
+- **Janela W:** `{W_FIXO}` (fixo)
+- **Suavização Laplace α:** `{ALPHA}` (fixo)
+- **Amin / Bmin:** `{AMIN}` / `{BMIN}` (fixo)
+- **Foco:** Hit3 (peso 2) + Hit2 (peso 1) → **score**
+- **PRÉ-ECO:** filtro objetivo (NR, divergência, Δk*, laudo hostil se existir)
+"""
+        )
+
+    # -----------------------------
+    # Coleta do histórico (somente leitura)
+    # -----------------------------
+    # Tentamos chaves prováveis sem quebrar o app
+    historico_carros = None
+
+    # Opção 1: já existe lista pronta em session_state
+    for k in ["historico_carros", "historico", "carros_historico", "dados_historico_carros"]:
+        if k in st.session_state and st.session_state[k] is not None:
+            historico_carros = st.session_state[k]
+            break
+
+    # Opção 2: tenta montar a partir de um DataFrame de histórico
+    if historico_carros is None:
+        for kdf in ["df_historico", "df", "dados", "historico_df"]:
+            if kdf in st.session_state and isinstance(st.session_state[kdf], pd.DataFrame):
+                dfh = st.session_state[kdf].copy()
+                # Tenta inferir colunas com números
+                cols_num = [c for c in dfh.columns if str(c).lower().strip() in ["n1","n2","n3","n4","n5","n6","a","b","c","d","e","f"]]
+                if len(cols_num) >= 5:
+                    historico_carros = []
+                    for _, r in dfh.iterrows():
+                        car = []
+                        for c in cols_num[:6]:
+                            try:
+                                car.append(int(r[c]))
+                            except Exception:
+                                pass
+                        historico_carros.append(car)
+                break
+
+    if not historico_carros or len(historico_carros) < (W_FIXO + 2):
+        st.warning("Histórico insuficiente para o painel (precisa de W+2 séries). Carregue histórico completo e rode novamente.")
+        st.stop()
+
+    n_total = len(historico_carros)
+    st.info(f"📁 Histórico detectado: **{n_total} séries**. Janela analisada: **últimas {W_FIXO} séries úteis (com alvo t+1)**.")
+
+    # -----------------------------
+    # Contexto de métricas (k*, NR, diverg, laudo)
+    # -----------------------------
+    # Este painel NÃO inventa métricas: ele lê o que existir.
+    # Se não existir, ele opera com defaults conservadores → PRÉ-ECO vira “raríssimo” (ou vazio).
+    df_ctx = pd.DataFrame({"idx": list(range(n_total))})
+
+    # Tenta puxar séries de k*, NR, divergência, laudo hostil (se já existirem no seu app)
+    # Chaves prováveis (mantendo robusto)
+    series_map = [
+        ("kstar", ["kstar_series", "serie_kstar", "kstar_hist", "kstar_por_serie"]),
+        ("nr",    ["nr_series", "serie_nr", "nr_hist", "nr_por_serie"]),
+        ("div",   ["div_series", "serie_div", "div_hist", "divergencia_series", "div_s6_mc_series"]),
+        ("laudo_hostil", ["laudo_hostil_series", "serie_laudo_hostil"]),
+    ]
+
+    for col, keys in series_map:
+        val = None
+        for kk in keys:
+            if kk in st.session_state and st.session_state[kk] is not None:
+                val = st.session_state[kk]
+                break
+        if val is not None:
+            try:
+                s = pd.Series(list(val))
+                if len(s) >= n_total:
+                    s = s.iloc[:n_total]
+                else:
+                    # completa com NaN
+                    s = s.reindex(range(n_total))
+                df_ctx[col] = s
+            except Exception:
+                pass
+
+    # Tetos PRÉ-ECO (fixos/visíveis — mas não “otimizáveis”)
+    # Se você já tiver tetos globais no app, você pode substituir por leitura deles.
+    teto_nr = 0.20
+    teto_div = 0.35
+
+    colA, colB, colC = st.columns(3)
+    with colA:
+        st.metric("🔎 Teto NR% (PRÉ-ECO)", f"{teto_nr:.2f}")
+    with colB:
+        st.metric("🔎 Teto Diverg (PRÉ-ECO)", f"{teto_div:.2f}")
+    with colC:
+        st.metric("🔎 Δk* máx (PRÉ-ECO)", "≤ 0.00")
+
+    preeco_mask = _v16_build_pre_eco_mask(df_ctx=df_ctx, teto_nr=teto_nr, teto_div=teto_div, kstar_delta_max=0.0)
+
+    # Aplica janela W (final do histórico)
+    t_ini = max(0, n_total - W_FIXO - 2)
+    t_fim = n_total - 2
+    preeco_sub = preeco_mask.iloc[t_ini:t_fim+1].reset_index(drop=True)
+
+    qtd_preeco = int(preeco_sub.sum())
+    st.success(f"🟡 Rodadas PRÉ-ECO detectadas (na janela): **{qtd_preeco}** / {len(preeco_sub)}")
+
+    if qtd_preeco < 5:
+        st.warning("PRÉ-ECO muito raro nesta janela (ou métricas ausentes). O painel mantém honestidade: sem base, sem classificação forte.")
+        # ainda assim tentamos rodar; provavelmente vai dar vazio/insuficiente.
+
+    # -----------------------------
+    # Calcula tabela de contribuição
+    # -----------------------------
+    df_contrib = _v16_compute_contrib_table(
+        historico_carros=historico_carros,
+        df_ctx=df_ctx,
+        preeco_mask=preeco_mask,
+        w=W_FIXO,
+        alpha=ALPHA,
+        amin=AMIN,
+        bmin=BMIN
+    )
+
+    if df_contrib.empty:
+        st.warning("Sem dados suficientes para medir contribuição (PRÉ-ECO insuficiente ou janela curta).")
+        st.stop()
+
+    # -----------------------------
+    # Visões (Líder / Neutro / Descartável / Insuficiente)
+    # -----------------------------
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("🏁 LÍDERES", int((df_contrib["classe"] == "LÍDER").sum()))
+    with c2:
+        st.metric("⚪ NEUTROS", int((df_contrib["classe"] == "NEUTRO").sum()))
+    with c3:
+        st.metric("❌ DESCARTÁVEIS", int((df_contrib["classe"] == "DESCARTÁVEL").sum()))
+    with c4:
+        st.metric("🟡 INSUF.", int((df_contrib["classe"] == "INSUFICIENTE").sum()))
+
+    st.markdown("### 🧾 Tabela completa (ordenada por classe → score)")
+    st.dataframe(
+        df_contrib,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.markdown("---")
+    st.markdown("### 🏁 Top LÍDERES (PRÉ-ECO)")
+    st.dataframe(
+        df_contrib[df_contrib["classe"] == "LÍDER"].head(25),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.markdown("### ❌ Top DESCARTÁVEIS (PRÉ-ECO)")
+    st.dataframe(
+        df_contrib[df_contrib["classe"] == "DESCARTÁVEL"].head(25),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # -----------------------------
+    # Coocorrência (Líder condicionado)
+    # -----------------------------
+    st.markdown("---")
+    st.markdown("### 🔗 Coocorrência (Jaccard) — alerta de “líder condicionado”")
+
+    # Reconstroi sets PRÉ-ECO na janela
+    idxs = list(range(t_ini, t_fim + 1))
+    preeco_rows_sets = []
+    for t in idxs:
+        if bool(preeco_mask.iloc[t]):
+            preeco_rows_sets.append(set(historico_carros[t]))
+
+    df_pairs = _v16_pairwise_coocorrencia(preeco_rows_sets, top_n=30)
+    if df_pairs.empty:
+        st.info("Coocorrência insuficiente para análise robusta nesta janela (ou PRÉ-ECO raro).")
+    else:
+        st.dataframe(df_pairs, use_container_width=True, hide_index=True)
+        st.caption("Quanto maior o Jaccard, mais “colados” os passageiros aparecem. Isso NÃO é corte — é alerta observacional.")
+
+    st.markdown("---")
+    st.caption("🔒 Este painel é 100% observacional: não gera listas, não decide, não altera motor. Ele mede contribuição condicional no PRÉ-ECO (Hit2/Hit3).")
+
 
 
 # ============================================================
