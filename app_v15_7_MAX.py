@@ -4575,6 +4575,39 @@ except Exception:
     pass
 
 # ============================================================
+# 🔥 HOTFIX V16 — EXATO PROXY — PASSAGEIROS (REGRA FIXA)
+# NÃO PROCURAR FUNÇÃO. NÃO SUBSTITUIR NADA.
+# APENAS COLE ESTE BLOCO ANTES DO BLOCO DO PAINEL EXATO.
+# ============================================================
+
+def _v16_exato_proxy__extrair_cols_passageiros_regra_fixa(df_base: pd.DataFrame):
+    """
+    Regra FIXA PredictCars:
+    - Coluna 0: série
+    - Colunas 1..6: passageiros
+    - Demais: ignoradas (k, métricas, etc)
+    """
+    if df_base is None or df_base.empty:
+        return []
+    cols = list(df_base.columns)
+    if len(cols) < 7:
+        return []
+    return cols[1:7]
+
+
+# Sobrescreve o nome esperado pelo painel, sem você caçar nada.
+try:
+    v16_exato_proxy__extrair_cols_passageiros = _v16_exato_proxy__extrair_cols_passageiros_regra_fixa
+except Exception:
+    pass
+
+# ============================================================
+# 🔥 FIM HOTFIX V16 — EXATO PROXY — PASSAGEIROS (REGRA FIXA)
+# ============================================================
+
+
+
+# ============================================================
 # 📊 FIM DO BLOCO NOVO — V16 PREMIUM — EXATO POR REGIME (PROXY)
 # ============================================================
 
