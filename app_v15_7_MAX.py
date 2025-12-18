@@ -564,6 +564,7 @@ def construir_navegacao_v157() -> str:
         "📊 V16 Premium — Erro por Regime (Retrospectivo)",
         "📊 V16 Premium — EXATO por Regime (Proxy)",
         "📊 V16 Premium — PRÉ-ECO → ECO (Persistência & Continuidade)",
+        "📊 V16 Premium — Passageiros Recorrentes em ECO (Interseção)",
         "🎯 Compressão do Alvo — Observacional (V16)",
         "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
     ]
@@ -589,6 +590,7 @@ def construir_navegacao_v157() -> str:
 # Ativação da Navegação
 # ============================================================
 painel = construir_navegacao_v157()
+
 
 
 
@@ -4799,6 +4801,299 @@ except Exception:
 # 📊 FIM DO BLOCO NOVO — V16 PREMIUM — PRÉ-ECO → ECO (PERSISTÊNCIA & CONTINUIDADE)
 # ============================================================
 
+# ============================================================
+# 📊 BLOCO NOVO — V16 PREMIUM — PASSAGEIROS RECORRENTES EM ECO (INTERSEÇÃO)
+# (COLAR IMEDIATAMENTE ANTES DE: "INÍCIO DO PAINEL V16 PREMIUM PROFUNDO  (COLAR AQUI)")
+# ============================================================
+
+V16_PAINEL_ECO_RECORRENTES_NOME = "📊 V16 Premium — Passageiros Recorrentes em ECO (Interseção)"
+
+
+def v16_painel_passageiros_recorrentes_eco_intersecao():
+    st.markdown("## 📊 V16 Premium — Passageiros Recorrentes em ECO (Interseção)")
+    st.markdown(
+        """
+Este painel é **100% observacional** e **retrospectivo**.
+
+Ele responde:
+- ✅ Em **trechos ECO**, quais passageiros aparecem de forma **recorrente** (persistência)?
+- ✅ Em blocos ECO **consecutivos**, qual é a **interseção** real dos TOP-K por janela?
+- ✅ Quais são os **passageiros ECO-resilientes** (candidatos estruturais para EXATO)?
+
+**Sem mudar motor. Sem decidir operação.**
+        """
+    )
+
+    # --------------------------------------------------------
+    # 0) Histórico base (robusto, sem caça)
+    # --------------------------------------------------------
+    try:
+        nome_df, df_base = v16_identificar_df_base()
+    except Exception:
+        nome_df, df_base = None, None
+
+    if df_base is None or len(df_base) == 0:
+        st.warning("⚠️ Histórico não disponível. Carregue o histórico e volte aqui.")
+        return
+
+    cols = list(df_base.columns)
+    if len(cols) < 7:
+        st.error("❌ Histórico insuficiente: precisa de (série + 6 passageiros).")
+        return
+
+    cols_pass = cols[1:7]
+    st.success(f"✔ Histórico detectado: {len(df_base)} séries")
+    st.info(f"Passageiros usados: {cols_pass}")
+
+    # --------------------------------------------------------
+    # 1) Normalização TOTAL (robusta)
+    # --------------------------------------------------------
+    def norm(v):
+        try:
+            return int(float(str(v).strip().replace(",", ".")))
+        except Exception:
+            return None
+
+    # --------------------------------------------------------
+    # 2) Parâmetros FIXOS (sem bifurcação)
+    # --------------------------------------------------------
+    W = 60
+    TOP_K = 12
+    RUN_MIN = 3            # só consideramos "bloco ECO" com pelo menos 3 janelas ECO consecutivas
+    MAX_JANELAS = 4000     # anti-zumbi interno
+
+    if len(df_base) <= W + 5:
+        st.error(f"❌ Histórico insuficiente para W={W}.")
+        return
+
+    t_final = len(df_base) - 1
+    t_inicial = max(W, t_final - MAX_JANELAS)
+
+    st.markdown("### ⚙️ Parâmetros (fixos)")
+    st.code(
+        f"W = {W}\nTOP_K = {TOP_K}\nRUN_MIN = {RUN_MIN}\nMAX_JANELAS = {MAX_JANELAS}",
+        language="python",
+    )
+    st.info(f"🧱 Anti-zumbi interno: analisando t={t_inicial} até t={t_final} (máx {MAX_JANELAS} janelas).")
+
+    # --------------------------------------------------------
+    # 3) Funções internas (dx, topk)
+    # --------------------------------------------------------
+    def dx_janela(window_df):
+        vals = []
+        for c in cols_pass:
+            s = [norm(x) for x in window_df[c].values]
+            s = [x for x in s if x is not None]
+            if len(s) >= 2:
+                vals.append(float(np.std(s, ddof=1)))
+        if not vals:
+            return None
+        return float(np.mean(vals))
+
+    def topk_frequentes(window_df):
+        freq = {}
+        for c in cols_pass:
+            for x in window_df[c].values:
+                vv = norm(x)
+                if vv is not None:
+                    freq[vv] = freq.get(vv, 0) + 1
+        if not freq:
+            return set()
+        ordenado = sorted(freq.items(), key=lambda x: (-x[1], x[0]))
+        return set(k for k, _ in ordenado[:TOP_K])
+
+    # --------------------------------------------------------
+    # 4) Primeiro passe: dx por t + quantis para ECO/PRE/RUIM
+    # --------------------------------------------------------
+    dx_list = []
+    dx_por_t = {}
+    for t in range(t_inicial, t_final + 1):
+        wdf = df_base.iloc[t - W : t]
+        dx = dx_janela(wdf)
+        if dx is not None:
+            dx_list.append(dx)
+            dx_por_t[t] = dx
+
+    if len(dx_list) < 80:
+        st.error(f"❌ Poucas janelas válidas para quantis. Válidas: {len(dx_list)}")
+        return
+
+    q1 = float(np.quantile(dx_list, 0.33))
+    q2 = float(np.quantile(dx_list, 0.66))
+
+    st.markdown("### 🧭 Regimes por quantis (dx_janela)")
+    st.info(
+        f"q1 (ECO ≤): **{q1:.6f}**  \n"
+        f"q2 (PRÉ-ECO ≤): **{q2:.6f}**  \n\n"
+        "Regra: dx ≤ q1 → ECO | dx ≤ q2 → PRÉ-ECO | dx > q2 → RUIM"
+    )
+
+    # --------------------------------------------------------
+    # 5) Segundo passe: regime por t + TOP-K por t (apenas ECO)
+    # --------------------------------------------------------
+    regime_por_t = {}
+    top_por_t = {}
+
+    for t in range(t_inicial, t_final + 1):
+        dx = dx_por_t.get(t)
+        if dx is None:
+            continue
+
+        if dx <= q1:
+            regime = "ECO"
+        elif dx <= q2:
+            regime = "PRÉ-ECO"
+        else:
+            regime = "RUIM"
+
+        regime_por_t[t] = regime
+
+        if regime == "ECO":
+            wdf = df_base.iloc[t - W : t]
+            top_por_t[t] = topk_frequentes(wdf)
+
+    if not top_por_t:
+        st.warning("⚠️ Nenhuma janela ECO detectada neste recorte.")
+        return
+
+    # --------------------------------------------------------
+    # 6) Detectar blocos ECO consecutivos (runs)
+    # --------------------------------------------------------
+    ts_eco = sorted(top_por_t.keys())
+
+    runs = []
+    start = ts_eco[0]
+    prev = ts_eco[0]
+    for t in ts_eco[1:]:
+        if t == prev + 1:
+            prev = t
+        else:
+            runs.append((start, prev))
+            start = t
+            prev = t
+    runs.append((start, prev))
+
+    # filtrar runs curtos
+    runs = [r for r in runs if (r[1] - r[0] + 1) >= RUN_MIN]
+
+    st.markdown("### 🟢 Blocos ECO consecutivos (detectados)")
+    st.info(
+        f"Total de runs ECO (≥ {RUN_MIN}): **{len(runs)}**  \n"
+        f"Total de janelas ECO: **{len(ts_eco)}**"
+    )
+
+    if not runs:
+        st.warning("⚠️ Existem janelas ECO, mas nenhuma sequência ECO longa o suficiente (RUN_MIN).")
+        return
+
+    # --------------------------------------------------------
+    # 7) Para cada run ECO: interseções cumulativas e persistência
+    # --------------------------------------------------------
+    resumo_runs = []
+    contagem_passageiros_eco = {}  # persistência global em ECO (conta presença em TOP-K por janela)
+    total_janelas_eco = 0
+
+    for (a, b) in runs:
+        ts = list(range(a, b + 1))
+        sets = [top_por_t[t] for t in ts if t in top_por_t]
+        if len(sets) < RUN_MIN:
+            continue
+
+        # persistência global
+        for s in sets:
+            for p in s:
+                contagem_passageiros_eco[p] = contagem_passageiros_eco.get(p, 0) + 1
+
+        total_janelas_eco += len(sets)
+
+        # interseções cumulativas (2..min(6, len))
+        inter_2 = None
+        inter_3 = None
+        inter_4 = None
+        inter_5 = None
+        inter_6 = None
+
+        def inter_size(n):
+            if len(sets) < n:
+                return None
+            inter = sets[0].copy()
+            for i in range(1, n):
+                inter &= sets[i]
+            return len(inter)
+
+        inter_2 = inter_size(2)
+        inter_3 = inter_size(3)
+        inter_4 = inter_size(4)
+        inter_5 = inter_size(5)
+        inter_6 = inter_size(6)
+
+        # score simples do run (informativo): inter_3 e inter_4 pesam mais
+        score_run = 0
+        if inter_2 is not None: score_run += inter_2
+        if inter_3 is not None: score_run += 2 * inter_3
+        if inter_4 is not None: score_run += 3 * inter_4
+
+        resumo_runs.append(
+            {
+                "t_ini": int(a),
+                "t_fim": int(b),
+                "len_run": int(b - a + 1),
+                "inter_2": inter_2 if inter_2 is not None else 0,
+                "inter_3": inter_3 if inter_3 is not None else 0,
+                "inter_4": inter_4 if inter_4 is not None else 0,
+                "inter_5": inter_5 if inter_5 is not None else 0,
+                "inter_6": inter_6 if inter_6 is not None else 0,
+                "score_run": int(score_run),
+            }
+        )
+
+    if not resumo_runs:
+        st.warning("⚠️ Não consegui consolidar runs ECO (depois de filtros).")
+        return
+
+    df_runs = pd.DataFrame(resumo_runs).sort_values(["score_run", "len_run", "t_fim"], ascending=[False, False, False])
+
+    st.markdown("### 📊 Runs ECO — Interseção TOP-K (cumulativa)")
+    st.dataframe(df_runs, use_container_width=True)
+
+    # --------------------------------------------------------
+    # 8) Passageiros ECO-resilientes (persistência global em ECO)
+    # --------------------------------------------------------
+    st.markdown("### 🎯 Passageiros ECO-resilientes (persistência em TOP-K durante ECO)")
+
+    if total_janelas_eco <= 0:
+        st.warning("⚠️ Total de janelas ECO inválido.")
+        return
+
+    itens = []
+    for p, cnt in contagem_passageiros_eco.items():
+        itens.append(
+            {
+                "passageiro": int(p),
+                "presencas_em_ECO": int(cnt),
+                "taxa_presenca_ECO": round(float(cnt) / float(total_janelas_eco), 4),
+            }
+        )
+
+    df_p = pd.DataFrame(itens).sort_values(["taxa_presenca_ECO", "presencas_em_ECO", "passageiro"], ascending=[False, False, True])
+
+    st.info(f"Total de janelas ECO consideradas (em runs): **{total_janelas_eco}**")
+    st.dataframe(df_p.head(25), use_container_width=True)
+
+    # lista curta (top 12)
+    top12 = df_p.head(12)["passageiro"].tolist()
+    st.success("✅ Lista curta (TOP 12 ECO-resilientes) — informativa (não é previsão):")
+    st.code(", ".join(str(x) for x in top12))
+
+    st.success(
+        "✅ Painel Passageiros Recorrentes em ECO executado.\n"
+        "Ele mede persistência/interseção — a decisão de ataque e montagem para 6 continua humana."
+    )
+
+
+# ============================================================
+# 📊 FIM DO BLOCO NOVO — V16 PREMIUM — PASSAGEIROS RECORRENTES EM ECO (INTERSEÇÃO)
+# ============================================================
 
 
 # ============================================================
@@ -4935,8 +5230,6 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 # ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS (DEFINITIVO)
 # ============================================================
 
-# --- V16 PREMIUM — ROTEAMENTO DIRETO (SEM DEPENDER DE LISTAS) ---
-
 if painel == "🧠 Laudo Operacional V16":
     v16_renderizar_laudo_operacional_v16()
     st.stop()
@@ -4953,6 +5246,10 @@ if painel == "📊 V16 Premium — PRÉ-ECO → ECO (Persistência & Continuidad
     v16_painel_pre_eco_persistencia_continuidade()
     st.stop()
 
+if painel == "📊 V16 Premium — Passageiros Recorrentes em ECO (Interseção)":
+    v16_painel_passageiros_recorrentes_eco_intersecao()
+    st.stop()
+
 if painel == "🎯 Compressão do Alvo — Observacional (V16)":
     v16_painel_compressao_alvo()
     st.stop()
@@ -4964,4 +5261,5 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 # ============================================================
 # FIM DO ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS
 # ============================================================
+
 
