@@ -4244,6 +4244,67 @@ def v16_registrar_volume_e_confiabilidade():
 # PARTE 8/8 — INÍCIO
 # ============================================================
 
+
+# ============================================================
+# 🔥 HOTFIX DEFINITIVO — EXATO PROXY (NORMALIZAÇÃO TOTAL)
+# NÃO PROCURAR FUNÇÃO
+# NÃO SUBSTITUIR CÓDIGO EXISTENTE
+# ESTE BLOCO SOBRESCREVE O COMPORTAMENTO INTERNAMENTE
+# ============================================================
+
+def _v16_exato_proxy__normalizar_serie(valor):
+    """
+    Converte qualquer coisa em inteiro válido de passageiro.
+    Aceita:
+    - int
+    - float
+    - string ('12', '12.0', ' 12 ')
+    Retorna None se inválido.
+    """
+    try:
+        if valor is None:
+            return None
+        if isinstance(valor, str):
+            valor = valor.strip().replace(",", ".")
+        v = int(float(valor))
+        return v
+    except Exception:
+        return None
+
+
+def _v16_exato_proxy__topk_frequentes_FIX(window_df: pd.DataFrame, cols_pass: list, top_k: int) -> set:
+    freq = {}
+    for c in cols_pass:
+        for v in window_df[c].values:
+            vv = _v16_exato_proxy__normalizar_serie(v)
+            if vv is not None:
+                freq[vv] = freq.get(vv, 0) + 1
+    if not freq:
+        return set()
+    return set(k for k, _ in sorted(freq.items(), key=lambda x: (-x[1], x[0]))[:top_k])
+
+
+def _v16_exato_proxy__serie_set_FIX(df_row: pd.Series, cols_pass: list) -> set:
+    out = set()
+    for c in cols_pass:
+        vv = _v16_exato_proxy__normalizar_serie(df_row[c])
+        if vv is not None:
+            out.add(vv)
+    return out
+
+
+# 🔒 SOBRESCREVE FUNÇÕES USADAS PELO PAINEL (SEM VOCÊ CAÇAR NADA)
+try:
+    v16_exato_proxy__topk_frequentes = _v16_exato_proxy__topk_frequentes_FIX
+    v16_exato_proxy__serie_set = _v16_exato_proxy__serie_set_FIX
+except Exception:
+    pass
+
+# ============================================================
+# 🔥 FIM HOTFIX DEFINITIVO — EXATO PROXY (NORMALIZAÇÃO TOTAL)
+# ============================================================
+
+
 # ============================================================
 # 📊 BLOCO NOVO — V16 PREMIUM — EXATO POR REGIME (PROXY)
 # (COLAR IMEDIATAMENTE ANTES DE: "INÍCIO DO PAINEL V16 PREMIUM PROFUNDO  (COLAR AQUI)")
