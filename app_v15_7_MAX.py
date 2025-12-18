@@ -4932,29 +4932,36 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 
 
 # ============================================================
-# ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS (COM FALLBACK)
+# ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS (DEFINITIVO)
 # ============================================================
 
-# ✅ Fallback direto: se o painel estiver no menu base, ele ainda assim renderiza
+# --- V16 PREMIUM — ROTEAMENTO DIRETO (SEM DEPENDER DE LISTAS) ---
+
+if painel == "🧠 Laudo Operacional V16":
+    v16_renderizar_laudo_operacional_v16()
+    st.stop()
+
+if painel == "📊 V16 Premium — Erro por Regime (Retrospectivo)":
+    v16_painel_erro_por_regime_retrospectivo()
+    st.stop()
+
 if painel == "📊 V16 Premium — EXATO por Regime (Proxy)":
-    try:
-        v16_painel_exato_por_regime_proxy()
-    except Exception as _e:
-        st.error(f"❌ Erro ao executar painel EXATO por Regime (Proxy): {_e}")
+    v16_painel_exato_por_regime_proxy()
     st.stop()
 
-try:
-    _opcoes_v16_router = v16_obter_paineis()
-except Exception:
-    _opcoes_v16_router = []
+if painel == "📊 V16 Premium — PRÉ-ECO → ECO (Persistência & Continuidade)":
+    v16_painel_pre_eco_persistencia_continuidade()
+    st.stop()
 
-if painel in _opcoes_v16_router:
-    try:
-        v16_renderizar_painel(painel)
-    except Exception as _e:
-        st.error(f"❌ Erro ao executar painel V16 via roteador: {_e}")
+if painel == "🎯 Compressão do Alvo — Observacional (V16)":
+    v16_painel_compressao_alvo()
+    st.stop()
+
+if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
+    v16_painel_premium_profundo()
     st.stop()
 
 # ============================================================
-# FIM ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS (COM FALLBACK)
+# FIM DO ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS
 # ============================================================
+
