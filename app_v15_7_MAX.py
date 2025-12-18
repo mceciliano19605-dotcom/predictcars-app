@@ -4604,17 +4604,29 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 
 
 # ============================================================
-# ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS
+# ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS (COM FALLBACK)
 # ============================================================
+
+# ✅ Fallback direto: se o painel estiver no menu base, ele ainda assim renderiza
+if painel == "📊 V16 Premium — EXATO por Regime (Proxy)":
+    try:
+        v16_painel_exato_por_regime_proxy()
+    except Exception as _e:
+        st.error(f"❌ Erro ao executar painel EXATO por Regime (Proxy): {_e}")
+    st.stop()
+
 try:
     _opcoes_v16_router = v16_obter_paineis()
 except Exception:
     _opcoes_v16_router = []
 
 if painel in _opcoes_v16_router:
-    v16_renderizar_painel(painel)
+    try:
+        v16_renderizar_painel(painel)
+    except Exception as _e:
+        st.error(f"❌ Erro ao executar painel V16 via roteador: {_e}")
     st.stop()
 
 # ============================================================
-# PARTE 8/8 — FIM
+# FIM ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS (COM FALLBACK)
 # ============================================================
