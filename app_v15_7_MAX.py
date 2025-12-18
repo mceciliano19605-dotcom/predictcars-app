@@ -4470,6 +4470,341 @@ except Exception:
 # 📊 FIM DO BLOCO NOVO — V16 PREMIUM — EXATO POR REGIME (PROXY)
 # ============================================================
 
+# ============================================================
+# 📊 BLOCO NOVO — V16 PREMIUM — PRÉ-ECO → ECO (PERSISTÊNCIA & CONTINUIDADE)
+# (COLAR ENTRE: FIM DO EXATO PROXY  e  INÍCIO DO V16 PREMIUM PROFUNDO)
+# ============================================================
+
+V16_PAINEL_PRE_ECO_PERSIST_NOME = "📊 V16 Premium — PRÉ-ECO → ECO (Persistência & Continuidade)"
+
+
+def v16_painel_pre_eco_persistencia_continuidade():
+    st.markdown("## 📊 V16 Premium — PRÉ-ECO → ECO (Persistência & Continuidade)")
+    st.markdown(
+        """
+Este painel é **100% observacional** e **retrospectivo**.
+
+Ele responde:
+- ✅ Qual % de **PRÉ-ECO** vira **ECO** em **1–3 séries**?
+- ✅ Como separar **PRÉ-ECO fraco** vs **PRÉ-ECO forte**?
+- ✅ Quais são os **últimos PRÉ-ECO fortes** (para prontidão humana)?
+
+**Sem mudar motor. Sem decidir operação.**
+        """
+    )
+
+    # --------------------------------------------------------
+    # 0) Histórico base (obrigatório)
+    # --------------------------------------------------------
+    try:
+        nome_df, df_base = v16_identificar_df_base()
+    except Exception:
+        nome_df, df_base = None, None
+
+    if df_base is None or len(df_base) == 0:
+        st.warning("⚠️ Histórico não disponível. Carregue o histórico e volte aqui.")
+        return
+
+    cols = list(df_base.columns)
+    if len(cols) < 7:
+        st.error("❌ Histórico não tem colunas suficientes (precisa: série + 6 passageiros).")
+        return
+
+    cols_pass = cols[1:7]
+
+    st.success(f"✔ Histórico detectado: {len(df_base)} séries")
+    st.info(f"Passageiros usados: {cols_pass}")
+
+    # --------------------------------------------------------
+    # 1) Normalização TOTAL (robusta)
+    # --------------------------------------------------------
+    def norm(v):
+        try:
+            return int(float(str(v).strip().replace(",", ".")))
+        except Exception:
+            return None
+
+    # --------------------------------------------------------
+    # 2) Parâmetros FIXOS (decisão sem bifurcação)
+    # --------------------------------------------------------
+    W = 60
+    TOP_K = 12
+    LOOKAHEAD_MAX = 3
+    RUN_BACK = 5
+    MAX_JANELAS = 4000  # anti-zumbi interno
+
+    if len(df_base) <= W + LOOKAHEAD_MAX:
+        st.error(f"❌ Histórico insuficiente para W={W} + lookahead.")
+        return
+
+    # Anti-zumbi: só últimas MAX_JANELAS
+    t_final = len(df_base) - 1
+    t_inicial = max(W, t_final - MAX_JANELAS)
+
+    st.markdown("### ⚙️ Parâmetros (fixos)")
+    st.code(
+        f"W = {W}\nTOP_K = {TOP_K}\nLOOKAHEAD_MAX = {LOOKAHEAD_MAX}\nRUN_BACK = {RUN_BACK}\nMAX_JANELAS = {MAX_JANELAS}",
+        language="python",
+    )
+
+    st.info(f"🧱 Anti-zumbi interno: analisando t={t_inicial} até t={t_final} (máx {MAX_JANELAS} janelas).")
+
+    # --------------------------------------------------------
+    # 3) Funções internas (dx, topk, real, hits)
+    # --------------------------------------------------------
+    def dx_janela(window_df):
+        vals = []
+        for c in cols_pass:
+            s = [norm(x) for x in window_df[c].values]
+            s = [x for x in s if x is not None]
+            if len(s) >= 2:
+                vals.append(float(np.std(s, ddof=1)))
+        if not vals:
+            return None
+        return float(np.mean(vals))
+
+    def topk_frequentes(window_df):
+        freq = {}
+        for c in cols_pass:
+            for x in window_df[c].values:
+                vv = norm(x)
+                if vv is not None:
+                    freq[vv] = freq.get(vv, 0) + 1
+        if not freq:
+            return set()
+        return set(k for k, _ in sorted(freq.items(), key=lambda x: (-x[1], x[0]))[:TOP_K])
+
+    def serie_real_set(df_row):
+        out = set()
+        for c in cols_pass:
+            vv = norm(df_row[c])
+            if vv is not None:
+                out.add(vv)
+        return out
+
+    # --------------------------------------------------------
+    # 4) Primeiro passe: dx_list para quantis ECO/PRE/RUIM
+    # --------------------------------------------------------
+    dx_list = []
+    dx_por_t = {}
+    for t in range(t_inicial, t_final + 1):
+        wdf = df_base.iloc[t - W : t]
+        dx = dx_janela(wdf)
+        if dx is not None:
+            dx_list.append(dx)
+            dx_por_t[t] = dx
+
+    if len(dx_list) < 80:
+        st.error(f"❌ Poucas janelas válidas para quantis. Válidas: {len(dx_list)}")
+        return
+
+    q1 = float(np.quantile(dx_list, 0.33))
+    q2 = float(np.quantile(dx_list, 0.66))
+
+    st.markdown("### 🧭 Regimes por quantis (dx_janela)")
+    st.info(
+        f"q1 (ECO ≤): **{q1:.6f}**  \n"
+        f"q2 (PRÉ-ECO ≤): **{q2:.6f}**  \n\n"
+        "Regra: dx ≤ q1 → ECO | dx ≤ q2 → PRÉ-ECO | dx > q2 → RUIM"
+    )
+
+    # --------------------------------------------------------
+    # 5) Segundo passe: regime + hits por t
+    # --------------------------------------------------------
+    registros = []
+    regime_por_t = {}
+    hits_por_t = {}
+
+    for t in range(t_inicial, t_final + 1):
+        if t not in dx_por_t:
+            continue
+
+        dx = dx_por_t[t]
+        if dx <= q1:
+            regime = "ECO"
+        elif dx <= q2:
+            regime = "PRÉ-ECO"
+        else:
+            regime = "RUIM"
+
+        wdf = df_base.iloc[t - W : t]
+        top = topk_frequentes(wdf)
+        real = serie_real_set(df_base.iloc[t])
+        hits = int(len(top & real))
+
+        regime_por_t[t] = regime
+        hits_por_t[t] = hits
+
+        registros.append({"t": int(t), "dx": float(dx), "regime": regime, "hits": hits})
+
+    if not registros:
+        st.error("❌ Não houve registros válidos.")
+        return
+
+    df = pd.DataFrame(registros)
+
+    # --------------------------------------------------------
+    # 6) Persistência PRÉ-ECO (run_len_pre)
+    # --------------------------------------------------------
+    run_len_pre = {}
+    current = 0
+    for t in sorted(regime_por_t.keys()):
+        if regime_por_t[t] == "PRÉ-ECO":
+            current += 1
+        else:
+            current = 0
+        run_len_pre[t] = current
+
+    # --------------------------------------------------------
+    # 7) PRÉ-ECO → ECO em 1..3 séries (taxas)
+    # --------------------------------------------------------
+    total_pre = 0
+    vira_eco_1 = 0
+    vira_eco_2 = 0
+    vira_eco_3 = 0
+
+    eventos_pre = []
+
+    for t in sorted(regime_por_t.keys()):
+        if regime_por_t[t] != "PRÉ-ECO":
+            continue
+
+        total_pre += 1
+
+        r1 = regime_por_t.get(t + 1)
+        r2 = regime_por_t.get(t + 2)
+        r3 = regime_por_t.get(t + 3)
+
+        ok1 = (r1 == "ECO")
+        ok2 = (r1 == "ECO") or (r2 == "ECO")
+        ok3 = (r1 == "ECO") or (r2 == "ECO") or (r3 == "ECO")
+
+        vira_eco_1 += 1 if ok1 else 0
+        vira_eco_2 += 1 if ok2 else 0
+        vira_eco_3 += 1 if ok3 else 0
+
+        # dx trend e repetição de hits>=2 (últimos RUN_BACK)
+        ts = [x for x in range(t - (RUN_BACK - 1), t + 1) if x in dx_por_t and x in hits_por_t and x in regime_por_t]
+        dx_seq = [dx_por_t[x] for x in ts]
+        hit_seq = [hits_por_t[x] for x in ts]
+        hits_2plus = sum(1 for h in hit_seq if h >= 2)
+
+        dx_trend = "estável"
+        if len(dx_seq) >= 2:
+            if dx_seq[-1] < dx_seq[0]:
+                dx_trend = "caindo"
+            elif dx_seq[-1] > dx_seq[0]:
+                dx_trend = "subindo"
+
+        # Score simples (informativo): persistência + hits repetidos + dx caindo
+        score = 0
+        score += min(run_len_pre.get(t, 0), 12)            # 0..12
+        score += hits_2plus                               # 0..5
+        score += 2 if dx_trend == "caindo" else 0
+        score -= 2 if dx_trend == "subindo" else 0
+        score += 1 if ok3 else 0
+
+        eventos_pre.append(
+            {
+                "t": int(t),
+                "run_len_pre": int(run_len_pre.get(t, 0)),
+                "hits_t": int(hits_por_t.get(t, 0)),
+                "hits_2plus_ult5": int(hits_2plus),
+                "dx_trend_ult5": dx_trend,
+                "vira_ECO_em_1": bool(ok1),
+                "vira_ECO_em_2": bool(ok2),
+                "vira_ECO_em_3": bool(ok3),
+                "score_pre_forte": int(score),
+            }
+        )
+
+    if total_pre == 0:
+        st.error("❌ Não houve eventos PRÉ-ECO para avaliar.")
+        return
+
+    taxa1 = vira_eco_1 / total_pre
+    taxa2 = vira_eco_2 / total_pre
+    taxa3 = vira_eco_3 / total_pre
+
+    st.markdown("### ✅ Taxas PRÉ-ECO → ECO (objetivas)")
+    st.dataframe(
+        pd.DataFrame(
+            [{
+                "Eventos PRÉ-ECO": int(total_pre),
+                "Vira ECO em 1": round(taxa1, 4),
+                "Vira ECO em 2": round(taxa2, 4),
+                "Vira ECO em 3": round(taxa3, 4),
+            }]
+        ),
+        use_container_width=True
+    )
+
+    # --------------------------------------------------------
+    # 8) Top PRÉ-ECO fortes recentes (guia humano)
+    # --------------------------------------------------------
+    df_evt = pd.DataFrame(eventos_pre).sort_values(["t"], ascending=True)
+
+    # Top 10 recentes com maior score
+    df_top = (
+        df_evt.sort_values(["score_pre_forte", "t"], ascending=[False, False])
+        .head(10)
+        .copy()
+    )
+
+    st.markdown("### 🟡 Top 10 PRÉ-ECO fortes (recentes / score)")
+    st.dataframe(df_top, use_container_width=True)
+
+    st.success(
+        "✅ Painel PRÉ-ECO → ECO executado.\n"
+        "Ele mede persistência/continuidade — a decisão de prontidão continua humana."
+    )
+
+
+def v16_registrar_painel_pre_eco_persist__no_router():
+    """
+    Integra este painel ao roteador V16 (idempotente).
+    """
+    if st.session_state.get("_v16_pre_eco_persist_router_ok", False):
+        return
+
+    g = globals()
+
+    if "v16_obter_paineis" in g and callable(g["v16_obter_paineis"]):
+        _orig_obter = g["v16_obter_paineis"]
+
+        def _wrap_v16_obter_paineis__pre_eco():
+            try:
+                lst = list(_orig_obter())
+            except Exception:
+                lst = []
+            if V16_PAINEL_PRE_ECO_PERSIST_NOME not in lst:
+                lst.append(V16_PAINEL_PRE_ECO_PERSIST_NOME)
+            return lst
+
+        g["v16_obter_paineis"] = _wrap_v16_obter_paineis__pre_eco
+
+    if "v16_renderizar_painel" in g and callable(g["v16_renderizar_painel"]):
+        _orig_render = g["v16_renderizar_painel"]
+
+        def _wrap_v16_renderizar_painel__pre_eco(painel_nome: str):
+            if painel_nome == V16_PAINEL_PRE_ECO_PERSIST_NOME:
+                return v16_painel_pre_eco_persistencia_continuidade()
+            return _orig_render(painel_nome)
+
+        g["v16_renderizar_painel"] = _wrap_v16_renderizar_painel__pre_eco
+
+    st.session_state["_v16_pre_eco_persist_router_ok"] = True
+
+
+# Registrar no router imediatamente (sem mexer em menu/motor)
+try:
+    v16_registrar_painel_pre_eco_persist__no_router()
+except Exception:
+    pass
+
+# ============================================================
+# 📊 FIM DO BLOCO NOVO — V16 PREMIUM — PRÉ-ECO → ECO (PERSISTÊNCIA & CONTINUIDADE)
+# ============================================================
 
 
 
