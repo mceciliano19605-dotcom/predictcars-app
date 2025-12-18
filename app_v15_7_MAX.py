@@ -530,7 +530,6 @@ st.markdown(
 )
 
 
-
 # ============================================================
 # Construção da Navegação — V15.7 MAX
 # ============================================================
@@ -559,27 +558,20 @@ def construir_navegacao_v157() -> str:
         "🧪 Replay Curto — Expectativa 1–3 Séries",
         "⏱️ Duração da Janela — Análise Histórica",
         "📘 Relatório Final",
-        "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
+
+        # ===== V16 PREMIUM (BASE VISÍVEL) =====
         "🧠 Laudo Operacional V16",
         "📊 V16 Premium — Erro por Regime (Retrospectivo)",
+        "📊 V16 Premium — EXATO por Regime (Proxy)",
+        "📊 V16 Premium — PRÉ-ECO → ECO (Persistência & Continuidade)",
         "🎯 Compressão do Alvo — Observacional (V16)",
+        "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
     ]
 
-    # ============================================================
-    # INTEGRAÇÃO V16 — PAINÉIS OBSERVACIONAIS
-    # ============================================================
-    try:
-        opcoes_v16 = v16_obter_paineis()
-    except Exception:
-        opcoes_v16 = []
-
-    # 🔴 GARANTIA EXPLÍCITA — painel novo sempre aparece no menu
-    painel_exato = "📊 V16 Premium — EXATO por Regime (Proxy)"
-    if painel_exato not in opcoes_v16:
-        opcoes_v16.append(painel_exato)
-
-    # Combinação final
-    opcoes = opcoes_base + opcoes_v16
+    # ------------------------------------------------------------
+    # Combinação final (V15.7 + V16)
+    # ------------------------------------------------------------
+    opcoes = opcoes_base
 
     # ------------------------------------------------------------
     # Renderização do menu
@@ -593,11 +585,12 @@ def construir_navegacao_v157() -> str:
     return painel
 
 
-
 # ============================================================
 # Ativação da Navegação
 # ============================================================
 painel = construir_navegacao_v157()
+
+
 
 # ============================================================
 # CAMADA A — ESTADO DO ALVO (V16)
