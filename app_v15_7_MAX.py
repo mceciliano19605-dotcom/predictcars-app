@@ -569,6 +569,9 @@ def construir_navegacao_v157() -> str:
         "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
         "📊 V16 Premium — PRÉ-ECO | Contribuição de Passageiros",
         "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos",
+        "🧭 Checklist Operacional — Decisão (AGORA)",
+        "📊 V16 Premium — Backtest Rápido do Pacote (N=60)",
+    
     ]
 
     # ------------------------------------------------------------
@@ -5897,6 +5900,193 @@ if painel == "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos":
 - Serve para **limpar listas**, não para criar novas
 """
     )
+
+# ============================================================
+# PAINEL — 🧭 CHECKLIST OPERACIONAL — DECISÃO (AGORA)
+# ============================================================
+if painel == "🧭 Checklist Operacional — Decisão (AGORA)":
+
+    st.markdown("## 🧭 Checklist Operacional — Decisão (AGORA)")
+    st.caption(
+        "Checklist obrigatório ANTES do Modo 6 / Mandar Bala.\n"
+        "Não calcula, não cria listas, não decide automaticamente."
+    )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # 1) Estrada
+    # --------------------------------------------------------
+    st.markdown("### 1️⃣ Estrada permite ataque?")
+    st.markdown(
+        "- k* **não piorou**\n"
+        "- NR% **não explodiu**\n"
+        "- Divergência **não disparou**"
+    )
+    estrada_ok = st.radio(
+        "Resultado da leitura da estrada:",
+        ["SIM", "NÃO"],
+        horizontal=True,
+    )
+
+    # --------------------------------------------------------
+    # 2) Regime
+    # --------------------------------------------------------
+    st.markdown("### 2️⃣ Regime jogável?")
+    regime = st.radio(
+        "Regime identificado:",
+        ["OURO", "PRATA", "RUIM"],
+        horizontal=True,
+    )
+
+    # --------------------------------------------------------
+    # 3) Eixo
+    # --------------------------------------------------------
+    st.markdown("### 3️⃣ Existe eixo claro nas listas?")
+    eixo = st.radio(
+        "Eixo identificado:",
+        ["SIM", "NÃO"],
+        horizontal=True,
+    )
+
+    # --------------------------------------------------------
+    # 4) Nocivos
+    # --------------------------------------------------------
+    st.markdown("### 4️⃣ Nocivos concentrados nas mesmas listas?")
+    nocivos = st.radio(
+        "Nocivos:",
+        ["SIM", "NÃO"],
+        horizontal=True,
+    )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # 5) Decisão humana
+    # --------------------------------------------------------
+    st.markdown("### 5️⃣ Decisão final (humana)")
+    acao = st.radio(
+        "Ação escolhida:",
+        [
+            "CONCENTRAR (6–8 listas)",
+            "EQUILIBRAR (8–10 listas)",
+            "EXPANDIR COM CRITÉRIO (10–12 listas)",
+            "SEGURAR / NÃO ESCALAR",
+        ],
+    )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # Síntese
+    # --------------------------------------------------------
+    st.markdown("### 🧾 Síntese da decisão")
+    st.write(
+        {
+            "Estrada OK": estrada_ok,
+            "Regime": regime,
+            "Eixo": eixo,
+            "Nocivos concentrados": nocivos,
+            "Ação escolhida": acao,
+        }
+    )
+
+    st.success(
+        "Checklist concluído. "
+        "A decisão da rodada está FECHADA aqui. "
+        "Prossiga para o Modo 6 e execução."
+    )
+
+
+# ============================================================
+# PAINEL V16 PREMIUM — BACKTEST RÁPIDO DO PACOTE (N = 60)
+# ============================================================
+
+if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
+
+    st.subheader("📊 V16 Premium — Backtest Rápido do Pacote (N = 60)")
+    st.caption(
+        "Ensaio estatístico do pacote ATUAL de listas sobre os últimos 60 alvos. "
+        "Não é previsão. Não decide volume. Mede apenas resistência sob pressão."
+    )
+
+    # -------------------------------
+    # Validações mínimas
+    # -------------------------------
+    if "pacote_listas_atual" not in st.session_state:
+        st.warning("Nenhum pacote de listas foi gerado ainda.")
+        st.stop()
+
+    pacote = st.session_state.get("pacote_listas_atual", [])
+
+    if not pacote:
+        st.warning("Pacote de listas vazio. Gere listas antes de rodar o backtest.")
+        st.stop()
+
+    if historico_df.shape[0] < 60:
+        st.warning("Histórico insuficiente para backtest (mínimo: 60 alvos).")
+        st.stop()
+
+    # -------------------------------
+    # Preparação do histórico
+    # -------------------------------
+    ultimos_60 = historico_df.tail(60)
+
+    resultados = {
+        ">=3": 0,
+        ">=4": 0,
+        ">=5": 0,
+        ">=6": 0,
+    }
+
+    total_testes = 0
+
+    # -------------------------------
+    # Execução do backtest
+    # -------------------------------
+    for _, linha in ultimos_60.iterrows():
+
+        alvo = set(linha["numeros"])
+
+        for lista in pacote:
+            acertos = len(set(lista) & alvo)
+            total_testes += 1
+
+            if acertos >= 3:
+                resultados[">=3"] += 1
+            if acertos >= 4:
+                resultados[">=4"] += 1
+            if acertos >= 5:
+                resultados[">=5"] += 1
+            if acertos >= 6:
+                resultados[">=6"] += 1
+
+    # -------------------------------
+    # Cálculo das porcentagens
+    # -------------------------------
+    perc = {
+        k: (v / total_testes) * 100 if total_testes > 0 else 0.0
+        for k, v in resultados.items()
+    }
+
+    # -------------------------------
+    # Exibição
+    # -------------------------------
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("≥ 3 acertos", f"{perc['>=3']:.2f}%")
+    col2.metric("≥ 4 acertos", f"{perc['>=4']:.2f}%")
+    col3.metric("≥ 5 acertos", f"{perc['>=5']:.2f}%")
+    col4.metric("≥ 6 acertos", f"{resultados['>=6']} ocorrências")
+
+    st.info(
+        "📌 Interpretação correta:\n"
+        "- Percentuais baixos indicam palco escorregadio\n"
+        "- Percentuais estáveis indicam pacote resiliente\n"
+        "- Isso NÃO prevê o próximo alvo\n"
+        "- Serve apenas para calibrar postura e volume"
+    )
+
 
 # ============================================================
 # ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS (DEFINITIVO)
