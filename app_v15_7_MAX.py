@@ -6067,6 +6067,15 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
         st.stop()
 
     # ------------------------------------------------------------
+    # Identificação das colunas de passageiros
+    # ------------------------------------------------------------
+    colunas_passageiros = [c for c in historico_df.columns if c.lower().startswith("p")]
+
+    if not colunas_passageiros:
+        st.error("Não foi possível identificar colunas de passageiros no histórico.")
+        st.stop()
+
+    # ------------------------------------------------------------
     # Preparação do histórico (últimos 60 alvos)
     # ------------------------------------------------------------
     ultimos_60 = historico_df.tail(60)
@@ -6085,7 +6094,8 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
     # ------------------------------------------------------------
     for _, linha in ultimos_60.iterrows():
 
-        alvo = set(linha["numeros"])
+        # Alvo reconstruído a partir das colunas reais
+        alvo = set(int(linha[c]) for c in colunas_passageiros if pd.notna(linha[c]))
 
         for lista in pacote:
             acertos = len(set(lista) & alvo)
@@ -6125,6 +6135,7 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
         "- Isso NÃO prevê o próximo alvo\n"
         "- Serve apenas para calibrar postura e volume"
     )
+
 
 
 
