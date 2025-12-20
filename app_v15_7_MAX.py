@@ -3724,6 +3724,9 @@ if painel == "📘 Relatório Final":
 
     st.markdown("## 📘 Relatório Final — V15.7 MAX — V16 Premium Profundo")
 
+    # ------------------------------------------------------------
+    # Recuperação de dados consolidados
+    # ------------------------------------------------------------
     ultima_prev = st.session_state.get("ultima_previsao")
     listas_m6_totais = st.session_state.get("modo6_listas")  # 🔥 UNIVERSO TOTAL
     risco = st.session_state.get("diagnostico_risco")
@@ -3731,6 +3734,9 @@ if painel == "📘 Relatório Final":
     k_star = st.session_state.get("sentinela_kstar")
     divergencia = st.session_state.get("div_s6_mc")
 
+    # ------------------------------------------------------------
+    # Validações mínimas
+    # ------------------------------------------------------------
     if ultima_prev is None:
         exibir_bloco_mensagem(
             "Nenhuma previsão encontrada",
@@ -3755,6 +3761,34 @@ if painel == "📘 Relatório Final":
             "nr_percent": nr_percent or 35.0,
             "divergencia": divergencia or 4.0,
         }
+
+    # ============================================================
+    # V16 — REGISTRO DO PACOTE FINAL (BACKTEST RÁPIDO DO PACOTE)
+    # ============================================================
+    # Registro explícito do pacote consolidado (núcleo + Modo 6)
+    # NÃO decide | NÃO filtra | NÃO altera motores
+    # ============================================================
+
+    try:
+        pacote_final = []
+
+        # Núcleo
+        if ultima_prev:
+            pacote_final.append(ultima_prev)
+
+        # Universo completo do Modo 6
+        if listas_m6_totais:
+            pacote_final.extend(listas_m6_totais)
+
+        if pacote_final:
+            st.session_state["pacote_listas_atual"] = pacote_final.copy()
+            st.session_state["pacote_origem"] = "RELATORIO_FINAL"
+            st.session_state["pacote_timestamp"] = pd.Timestamp.now()
+
+            st.caption("📦 Pacote final registrado para backtest (V16 Premium).")
+
+    except Exception as e:
+        st.warning(f"Falha ao registrar pacote para backtest: {e}")
 
     # ============================================================
     # 1) Previsão principal (Núcleo)
@@ -3839,6 +3873,7 @@ if painel == "📘 Relatório Final":
 
     for i, lst in enumerate(listas_m6_totais[:qtd_bala], 1):
         st.markdown(f"**🔥 {i:02d})** {formatar_lista_passageiros(lst)}")
+
 
 # ============================================================
 # Painel — ⏱️ DURAÇÃO DA JANELA — ANÁLISE HISTÓRICA (V16)
