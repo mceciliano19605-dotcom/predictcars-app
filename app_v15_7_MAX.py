@@ -3772,11 +3772,9 @@ if painel == "📘 Relatório Final":
     try:
         pacote_final = []
 
-        # Núcleo
         if ultima_prev:
             pacote_final.append(ultima_prev)
 
-        # Universo completo do Modo 6
         if listas_m6_totais:
             pacote_final.extend(listas_m6_totais)
 
@@ -3789,6 +3787,66 @@ if painel == "📘 Relatório Final":
 
     except Exception as e:
         st.warning(f"Falha ao registrar pacote para backtest: {e}")
+
+    # ============================================================
+    # 📍 ESTADO OPERACIONAL ATUAL — LEITURA EXPLÍCITA (V16)
+    # ============================================================
+    # Informativo | Não prescritivo | Não decide | Não sugere volume
+    # ============================================================
+
+    st.markdown("### 📍 Estado Operacional Atual")
+
+    k_star_atual = k_star
+    nr_atual = nr_percent
+    div_atual = divergencia
+
+    estado_operacional = "RUÍDO"
+    justificativa = []
+
+    if k_star_atual is not None:
+        justificativa.append(f"k*={k_star_atual:.4f}")
+    if nr_atual is not None:
+        justificativa.append(f"NR%={nr_atual:.2f}%")
+    if div_atual is not None:
+        justificativa.append(f"Div={div_atual:.4f}")
+
+    if (
+        k_star_atual is not None and k_star_atual < 0.20
+        and nr_atual is not None and nr_atual < 40.0
+        and div_atual is not None and div_atual < 6.0
+    ):
+        estado_operacional = "ECO"
+    elif (
+        k_star_atual is not None and k_star_atual < 0.25
+        and nr_atual is not None and nr_atual < 55.0
+    ):
+        estado_operacional = "PRÉ-ECO"
+    else:
+        estado_operacional = "RUÍDO"
+
+    if estado_operacional == "ECO":
+        st.success(
+            f"🟢 **ECO** — Meio sustenta continuidade.\n\n"
+            f"Leitura: {', '.join(justificativa)}\n\n"
+            f"*Autoriza ousadia consciente. Não garante acerto.*"
+        )
+    elif estado_operacional == "PRÉ-ECO":
+        st.warning(
+            f"🟡 **PRÉ-ECO** — Meio em transição.\n\n"
+            f"Leitura: {', '.join(justificativa)}\n\n"
+            f"*Autoriza conversa sobre postura. Não autoriza ataque.*"
+        )
+    else:
+        st.error(
+            f"🔴 **RUÍDO** — Meio instável.\n\n"
+            f"Leitura: {', '.join(justificativa)}\n\n"
+            f"*Postura defensiva. Evitar pressão.*"
+        )
+
+    st.caption(
+        "📌 Esta leitura é informativa. "
+        "Não decide volume, não escolhe listas e não automatiza ações."
+    )
 
     # ============================================================
     # 1) Previsão principal (Núcleo)
@@ -3873,6 +3931,7 @@ if painel == "📘 Relatório Final":
 
     for i, lst in enumerate(listas_m6_totais[:qtd_bala], 1):
         st.markdown(f"**🔥 {i:02d})** {formatar_lista_passageiros(lst)}")
+
 
 
 # ============================================================
