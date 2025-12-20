@@ -6036,7 +6036,6 @@ if painel == "🧭 Checklist Operacional — Decisão (AGORA)":
 # ============================================================
 # PAINEL V16 PREMIUM — BACKTEST RÁPIDO DO PACOTE (N = 60)
 # ============================================================
-
 if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
 
     st.subheader("📊 V16 Premium — Backtest Rápido do Pacote (N = 60)")
@@ -6045,26 +6044,31 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
         "Não é previsão. Não decide volume. Mede apenas resistência sob pressão."
     )
 
-    # -------------------------------
-    # Validações mínimas
-    # -------------------------------
-    if "pacote_listas_atual" not in st.session_state:
-        st.warning("Nenhum pacote de listas foi gerado ainda.")
-        st.stop()
+    # ------------------------------------------------------------
+    # Recuperação segura do histórico
+    # ------------------------------------------------------------
+    historico_df = st.session_state.get("historico_df")
 
-    pacote = st.session_state.get("pacote_listas_atual", [])
-
-    if not pacote:
-        st.warning("Pacote de listas vazio. Gere listas antes de rodar o backtest.")
+    if historico_df is None or historico_df.empty:
+        st.warning("Histórico não encontrado. Carregue o histórico antes.")
         st.stop()
 
     if historico_df.shape[0] < 60:
-        st.warning("Histórico insuficiente para backtest (mínimo: 60 alvos).")
+        st.warning("Histórico insuficiente para backtest (mínimo: 60 séries).")
         st.stop()
 
-    # -------------------------------
-    # Preparação do histórico
-    # -------------------------------
+    # ------------------------------------------------------------
+    # Recuperação do pacote congelado
+    # ------------------------------------------------------------
+    pacote = st.session_state.get("pacote_listas_atual")
+
+    if not pacote:
+        st.warning("Nenhum pacote de listas foi registrado ainda.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Preparação do histórico (últimos 60 alvos)
+    # ------------------------------------------------------------
     ultimos_60 = historico_df.tail(60)
 
     resultados = {
@@ -6076,9 +6080,9 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
 
     total_testes = 0
 
-    # -------------------------------
+    # ------------------------------------------------------------
     # Execução do backtest
-    # -------------------------------
+    # ------------------------------------------------------------
     for _, linha in ultimos_60.iterrows():
 
         alvo = set(linha["numeros"])
@@ -6096,17 +6100,17 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
             if acertos >= 6:
                 resultados[">=6"] += 1
 
-    # -------------------------------
+    # ------------------------------------------------------------
     # Cálculo das porcentagens
-    # -------------------------------
+    # ------------------------------------------------------------
     perc = {
         k: (v / total_testes) * 100 if total_testes > 0 else 0.0
         for k, v in resultados.items()
     }
 
-    # -------------------------------
+    # ------------------------------------------------------------
     # Exibição
-    # -------------------------------
+    # ------------------------------------------------------------
     col1, col2, col3, col4 = st.columns(4)
 
     col1.metric("≥ 3 acertos", f"{perc['>=3']:.2f}%")
@@ -6121,6 +6125,7 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
         "- Isso NÃO prevê o próximo alvo\n"
         "- Serve apenas para calibrar postura e volume"
     )
+
 
 
 # ============================================================
