@@ -899,29 +899,55 @@ if painel == "📁 Carregar Histórico (Arquivo)":
 
     st.markdown("## 📁 Carregar Histórico — V15.7 MAX")
 
+    st.markdown(
+        "Envie um arquivo de histórico em formato **FLEX ULTRA**.\n\n"
+        "📌 Regra universal: o **último valor da linha é sempre k**, "
+        "independente da quantidade de passageiros."
+    )
+
     arquivo = st.file_uploader(
-        "Envie o arquivo de histórico (formato FLEX ULTRA)",
+        "Envie o arquivo de histórico",
         type=["txt", "csv"],
     )
 
-    if arquivo is not None:
-        conteudo = arquivo.getvalue().decode("utf-8")
-        df = analisar_historico_flex_ultra(conteudo)
-
-        st.session_state["historico_df"] = df
-
-        metricas = calcular_metricas_basicas_historico(df)
-        exibir_resumo_inicial_historico(metricas)
-
-        st.success("Histórico carregado com sucesso!")
-        st.dataframe(df.head(20))
-
-    else:
+    if arquivo is None:
         exibir_bloco_mensagem(
             "Aguardando arquivo de histórico",
-            "Envie seu arquivo para iniciar o processamento do PredictCars V15.7 MAX.",
+            "Envie seu arquivo para iniciar o processamento do PredictCars.",
             tipo="info",
         )
+        st.stop()
+
+    try:
+        conteudo = arquivo.getvalue().decode("utf-8")
+        linhas = conteudo.strip().split("\n")
+
+        if not limitar_operacao(
+            len(linhas),
+            limite_series=LIMITE_SERIES_REPLAY_ULTRA,
+            contexto="Carregar Histórico (Arquivo)",
+            painel="📁 Carregar Histórico (Arquivo)",
+        ):
+            st.stop()
+
+        df = carregar_historico_universal(linhas)
+
+    except Exception as erro:
+        exibir_bloco_mensagem(
+            "Erro ao processar histórico",
+            f"Detalhes técnicos: {erro}",
+            tipo="error",
+        )
+        st.stop()
+
+    st.session_state["historico_df"] = df
+
+    metricas = calcular_metricas_basicas_historico(df)
+    exibir_resumo_inicial_historico(metricas)
+
+    st.success("Histórico carregado com sucesso!")
+    st.dataframe(df.head(20))
+
 
 # ============================================================
 # Painel 1B — 📄 Carregar Histórico (Colar)
@@ -931,15 +957,34 @@ if painel == "📄 Carregar Histórico (Colar)":
     st.markdown("## 📄 Carregar Histórico — Copiar e Colar (V15.7 MAX)")
 
     st.markdown(
-        "Cole abaixo o conteúdo completo do histórico em formato **FLEX ULTRA** "
-        "(linhas como `C123;12;34;56;23;45;2`)."
+        "Cole abaixo o conteúdo completo do histórico em formato **FLEX ULTRA**.\n\n"
+        "📌 Regra universal:\n"
+        "- Cada linha começa com o identificador (ex: C123)\n"
+        "- Seguem **N passageiros (quantidade livre)**\n"
+        "- **Último valor da linha é sempre k**\n\n"
+        "Exemplos válidos:\n"
+        "`C10;20;32;49;54;62;0`\n"
+        "`C5790;4;5;6;23;35;43;0`\n"
+        "`C15;01;02;03;04;05;06;07;08;09;10;1`"
     )
 
     texto = st.text_area(
         "Cole aqui o histórico completo",
-        height=300,
-        placeholder="C1;41;5;4;52;30;33;0\nC2;9;39;37;49;43;41;1\n..."
+        height=320,
+        placeholder=(
+            "C1;41;5;4;52;30;33;0\n"
+            "C2;9;39;37;49;43;41;1\n"
+            "C3;1;2;3;4;5;6;7;8;9;1"
+        ),
     )
+
+    if not texto.strip():
+        exibir_bloco_mensagem(
+            "Nenhum dado encontrado",
+            "Cole o conteúdo do histórico FLEX ULTRA para continuar.",
+            tipo="warning",
+        )
+        st.stop()
 
     if st.button("📥 Processar Histórico (Copiar e Colar)"):
 
@@ -949,21 +994,12 @@ if painel == "📄 Carregar Histórico (Colar)":
             len(linhas),
             limite_series=LIMITE_SERIES_REPLAY_ULTRA,
             contexto="Carregar Histórico (Copiar e Colar)",
-            painel="📄 Carregar Histórico (Copiar e Colar)",
+            painel="📄 Carregar Histórico (Colar)",
         ):
             st.stop()
 
-        if not texto.strip():
-            exibir_bloco_mensagem(
-                "Nenhum dado encontrado",
-                "Cole o conteúdo do histórico FLEX ULTRA para continuar.",
-                tipo="warning",
-            )
-            st.stop()
-
         try:
-            conteudo = "\n".join(linhas)
-            df = analisar_historico_flex_ultra(conteudo)
+            df = carregar_historico_universal(linhas)
         except Exception as erro:
             exibir_bloco_mensagem(
                 "Erro ao processar histórico",
@@ -980,6 +1016,7 @@ if painel == "📄 Carregar Histórico (Colar)":
             "Agora prossiga para o painel **🛣️ Pipeline V14-FLEX ULTRA**.",
             tipo="success",
         )
+
 # ============================================================
 # BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
 # FASE 1 — OBSERVAÇÃO PURA | SEM IMPACTO OPERACIONAL
