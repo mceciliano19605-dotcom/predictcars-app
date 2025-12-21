@@ -797,6 +797,15 @@ def pc_modo_especial_mvp2_avaliar_pacote(df_hist, pacote_listas):
     df_out = df_out.sort_values("__ord").drop(columns=["__ord"])
 
     return df_out, int(len(df_hist))
+def _pc_extrair_carro_row(row):
+    """
+    Extrai os 6 passageiros da linha do histórico.
+    Espera colunas p1..p6 (padrão do PredictCars).
+    """
+    try:
+        return [int(row[f"p{i}"]) for i in range(1, 7)]
+    except Exception:
+        return None
 
 # ============================================================
 # 🔵 FIM — FUNÇÕES DO MODO ESPECIAL MVP2
