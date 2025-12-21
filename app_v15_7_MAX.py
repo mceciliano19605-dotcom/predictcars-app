@@ -24,6 +24,55 @@ import pandas as pd
 import streamlit as st
 
 # ============================================================
+# FUNÇÃO — CARREGAMENTO UNIVERSAL DE HISTÓRICO (FLEX ULTRA)
+# REGRA FIXA:
+# - Último valor da linha = k
+# - Quantidade de passageiros é LIVRE
+# ============================================================
+def carregar_historico_universal(linhas):
+    """
+    Formato esperado (exemplos válidos):
+    C10;20;32;49;54;62;0
+    C5790;4;5;6;23;35;43;0
+    C15;01;02;03;04;05;06;07;08;09;10;1
+    """
+
+    registros = []
+
+    for idx, linha in enumerate(linhas, start=1):
+        linha = linha.strip()
+
+        if not linha:
+            continue
+
+        partes = linha.split(";")
+
+        if len(partes) < 3:
+            raise ValueError(f"Linha {idx} inválida (campos insuficientes): {linha}")
+
+        try:
+            valores = partes[1:]          # ignora identificador
+            k = int(valores[-1])          # último valor é k
+            passageiros = [int(x) for x in valores[:-1]]
+        except ValueError:
+            raise ValueError(f"Linha {idx} contém valores não numéricos: {linha}")
+
+        if not passageiros:
+            raise ValueError(f"Linha {idx} sem passageiros válidos: {linha}")
+
+        registro = {f"p{i+1}": p for i, p in enumerate(passageiros)}
+        registro["k"] = k
+        registro["serie"] = idx
+
+        registros.append(registro)
+
+    if not registros:
+        raise ValueError("Histórico vazio ou inválido.")
+
+    return pd.DataFrame(registros)
+
+
+# ============================================================
 # V16 PREMIUM — IMPORTAÇÃO OFICIAL
 # (Não altera nada do V15.7, apenas registra os painéis novos)
 # ============================================================
