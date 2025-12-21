@@ -626,8 +626,9 @@ def construir_navegacao_v157() -> str:
     # ------------------------------------------------------------
     # Combinação final (V15.7 + V16)
     # ------------------------------------------------------------
-    opcoes = opcoes_base
-
+    opcoes = opcoes_base + [
+        "🔵 MODO ESPECIAL — Evento Condicionado",
+    ]    
     # ------------------------------------------------------------
     # Renderização do menu
     # ------------------------------------------------------------
@@ -645,7 +646,136 @@ def construir_navegacao_v157() -> str:
 # ============================================================
 painel = construir_navegacao_v157()
 
+# ============================================================
+# MODO ESPECIAL — EVENTO CONDICIONADO (C2955)
+# AVALIAÇÃO MULTI-ORÇAMENTO | OBSERVACIONAL | 6 OU NADA
+# ============================================================
 
+def pc_especial_avaliar_pacote_contem_6(carro, alvo):
+    """
+    Retorna True se o carro contém TODOS os 6 números do alvo.
+    Régua BINÁRIA: 6 ou nada.
+    """
+    try:
+        return set(alvo).issubset(set(carro))
+    except Exception:
+        return False
+
+
+def pc_especial_avaliar_historico_pacote(historico_df, pacote):
+    """
+    Percorre o histórico rodada a rodada e verifica se,
+    em alguma rodada, algum carro do pacote contém os 6.
+    Retorna contagem de sucessos.
+    """
+    if historico_df is None or historico_df.empty:
+        return {
+            "rodadas": 0,
+            "sucessos": 0,
+        }
+
+    col_pass = [c for c in historico_df.columns if c.startswith("p")]
+    rodadas = 0
+    sucessos = 0
+
+    for _, row in historico_df.iterrows():
+        try:
+            alvo = [int(row[c]) for c in col_pass[:6]]
+        except Exception:
+            continue
+
+        rodadas += 1
+
+        for carro in pacote:
+            if pc_especial_avaliar_pacote_contem_6(carro, alvo):
+                sucessos += 1
+                break  # sucesso binário por rodada
+
+    return {
+        "rodadas": rodadas,
+        "sucessos": sucessos,
+    }
+
+# ============================================================
+# PAINEL — 🔵 MODO ESPECIAL (Evento Condicionado C2955)
+# Avaliação MULTI-ORÇAMENTO | Observacional
+# ============================================================
+
+if painel == "🔵 MODO ESPECIAL — Evento Condicionado":
+
+    st.markdown("## 🔵 MODO ESPECIAL — Evento Condicionado (C2955)")
+    st.caption(
+        "Avaliação OBSERVACIONAL de pacotes já gerados.\n\n"
+        "✔ Régua: **6 ou nada**\n"
+        "✔ Sem aprendizado\n"
+        "✔ Sem interferência no Modo Normal\n"
+        "✔ Decisão HUMANA (Rogério + Auri)"
+    )
+
+    historico_df = st.session_state.get("historico_df")
+    pacotes = st.session_state.get("ultima_previsao")
+
+    if historico_df is None or pacotes is None:
+        exibir_bloco_mensagem(
+            "Pré-requisitos ausentes",
+            "É necessário:\n"
+            "- Histórico carregado\n"
+            "- Pacotes já gerados pelo Modo Normal",
+            tipo="warning",
+        )
+        st.stop()
+
+    # -----------------------------
+    # Seleção MULTI-ORÇAMENTO
+    # -----------------------------
+    orcamentos_disponiveis = [6, 42, 168, 504, 1260, 2772]
+
+    orcamentos_sel = st.multiselect(
+        "Selecione os orçamentos a avaliar (observacional):",
+        options=orcamentos_disponiveis,
+        default=[42],
+    )
+
+    if not orcamentos_sel:
+        st.warning("Selecione ao menos um orçamento.")
+        st.stop()
+
+    # -----------------------------
+    # Execução da avaliação
+    # -----------------------------
+    resultados = []
+
+    for orc in orcamentos_sel:
+        # MVP: pacote não é filtrado por custo real ainda
+        pacote = pacotes
+
+        out = pc_especial_avaliar_historico_pacote(
+            historico_df=historico_df,
+            pacote=pacote,
+        )
+
+        rodadas = out["rodadas"]
+        sucessos = out["sucessos"]
+        taxa = (sucessos / rodadas) if rodadas > 0 else 0.0
+
+        resultados.append({
+            "Orçamento": orc,
+            "Rodadas avaliadas": rodadas,
+            "Sucessos (6/6)": sucessos,
+            "Taxa de sucesso": round(taxa * 100, 2),
+        })
+
+    df_res = pd.DataFrame(resultados)
+
+    st.markdown("### 📊 Resultado comparativo (observacional)")
+    st.dataframe(df_res, use_container_width=True)
+
+    st.info(
+        "📌 Interpretação:\n"
+        "- O sistema **não escolhe** orçamento\n"
+        "- Não há ranking automático\n"
+        "- Rogério + Auri analisam os dados e decidem fora do sistema"
+    )
 
 
 # ============================================================
