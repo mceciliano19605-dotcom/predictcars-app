@@ -696,6 +696,115 @@ def pc_especial_avaliar_historico_pacote(historico_df, pacote):
         "sucessos": sucessos,
     }
 
+
+# ============================================================
+# 🔵 MODO ESPECIAL — MVP2 (2–6 acertos + Estado do Alvo PROXY)
+# OBSERVACIONAL | NÃO decide | NÃO gera pacotes | NÃO aprende
+# ============================================================
+
+def _pc_contar_hits_lista_vs_alvo(lista, alvo_set):
+    """
+    Retorna quantidade de acertos (interseção) entre uma lista (carro) e o alvo (set).
+    """
+    try:
+        s = set(int(x) for x in lista)
+    except Exception:
+        return 0
+    return len(s & alvo_set)
+
+def _pc_melhor_hit_do_pacote(pacote_listas, alvo_set):
+    """
+    Dado um pacote (listas de previsão), retorna o MELHOR hit (0..6) encontrado contra o alvo.
+    """
+    if not pacote_listas:
+        return 0
+    best = 0
+    for lst in pacote_listas:
+        h = _pc_contar_hits_lista_vs_alvo(lst, alvo_set)
+        if h > best:
+            best = h
+            if best >= 6:
+                break
+    return best
+
+def pc_modo_especial_mvp2_avaliar_pacote(df_hist, pacote_listas):
+    """
+    MVP2:
+    - Para cada série do histórico, computa:
+        estado_alvo_proxy (parado/lento/brusco/None) via distância entre carros consecutivos
+        melhor_hit (0..6) do pacote contra o alvo daquela série
+    - Consolida em tabela: Estado x Hits(2..6) [contagem EXATA]
+    Retorna (df_resumo, total_series_avaliadas).
+    """
+    if df_hist is None or df_hist.empty:
+        return pd.DataFrame(), 0
+
+    # Usa helpers já existentes no seu app:
+    # _pc_extrair_carro_row(row)
+    # _pc_distancia_carros(prev, atual)
+    # _pc_estado_alvo_proxy(dist)
+    if not pacote_listas:
+        return pd.DataFrame(), int(len(df_hist))
+
+    cont = {
+        "parado": {2: 0, 3: 0, 4: 0, 5: 0, 6: 0},
+        "movimento_lento": {2: 0, 3: 0, 4: 0, 5: 0, 6: 0},
+        "movimento_brusco": {2: 0, 3: 0, 4: 0, 5: 0, 6: 0},
+        "None": {2: 0, 3: 0, 4: 0, 5: 0, 6: 0},
+    }
+
+    rows = list(df_hist.iterrows())
+    carro_prev = None
+
+    for pos, (idx, row) in enumerate(rows):
+        carro_atual = _pc_extrair_carro_row(row)
+        dist = _pc_distancia_carros(carro_prev, carro_atual) if (carro_prev is not None and carro_atual is not None) else None
+        estado = _pc_estado_alvo_proxy(dist)
+
+        # Normaliza estado para chaves do dicionário
+        if estado not in ["parado", "movimento_lento", "movimento_brusco"]:
+            estado_key = "None"
+        else:
+            estado_key = estado
+
+        # alvo = a própria série do histórico (carro_atual)
+        if carro_atual is None:
+            carro_prev = carro_atual
+            continue
+
+        alvo_set = set(int(x) for x in carro_atual)
+        best_hit = _pc_melhor_hit_do_pacote(pacote_listas, alvo_set)
+
+        # Contagem EXATA apenas para 2..6
+        if best_hit in [2, 3, 4, 5, 6]:
+            cont[estado_key][best_hit] += 1
+
+        carro_prev = carro_atual
+
+    # Monta DF Estado x (2..6)
+    out = []
+    for estado_key in ["parado", "movimento_lento", "movimento_brusco", "None"]:
+        linha = {"Estado": estado_key}
+        for h in [2, 3, 4, 5, 6]:
+            linha[str(h)] = int(cont[estado_key][h])
+        out.append(linha)
+
+    df_out = pd.DataFrame(out)
+
+    # Ordena estados de forma humana (parado, lento, brusco, None)
+    ordem = {"parado": 0, "movimento_lento": 1, "movimento_brusco": 2, "None": 3}
+    df_out["__ord"] = df_out["Estado"].map(ordem).fillna(9).astype(int)
+    df_out = df_out.sort_values("__ord").drop(columns=["__ord"])
+
+    return df_out, int(len(df_hist))
+
+# ============================================================
+# 🔵 FIM — FUNÇÕES DO MODO ESPECIAL MVP2
+# ============================================================
+
+
+
+
 # ============================================================
 # PAINEL — 🔵 MODO ESPECIAL (Evento Condicionado C2955)
 # Avaliação MULTI-ORÇAMENTO | Observacional
@@ -706,21 +815,38 @@ if painel == "🔵 MODO ESPECIAL — Evento Condicionado":
     st.markdown("## 🔵 MODO ESPECIAL — Evento Condicionado (C2955)")
     st.caption(
         "Avaliação OBSERVACIONAL de pacotes já gerados.\n\n"
-        "✔ Régua: **6 ou nada**\n"
+        "✔ Régua extrema: **6 ou nada** (MVP1)\n"
+        "✔ Avaliação realista: **2–6 por estado do alvo** (MVP2)\n"
         "✔ Sem aprendizado\n"
         "✔ Sem interferência no Modo Normal\n"
         "✔ Decisão HUMANA (Rogério + Auri)"
     )
 
     historico_df = st.session_state.get("historico_df")
-    pacotes = st.session_state.get("ultima_previsao")
 
-    if historico_df is None or pacotes is None:
+    # ============================================================
+    # ✅ CORREÇÃO: garantir que "pacotes" seja sempre LISTA DE LISTAS
+    # (para não dar erro silencioso quando vier um único jogo do TURBO)
+    # ============================================================
+    pacotes_raw = st.session_state.get("ultima_previsao")
+
+    if pacotes_raw is None:
+        pacotes = []
+    elif isinstance(pacotes_raw, list) and len(pacotes_raw) > 0 and isinstance(pacotes_raw[0], int):
+        # caso seja uma lista simples (ex: [4,13,34,39,43,47])
+        pacotes = [pacotes_raw]
+    elif isinstance(pacotes_raw, list):
+        # caso já seja lista de listas
+        pacotes = pacotes_raw
+    else:
+        pacotes = []
+
+    if historico_df is None or historico_df.empty or not pacotes:
         exibir_bloco_mensagem(
             "Pré-requisitos ausentes",
             "É necessário:\n"
             "- Histórico carregado\n"
-            "- Pacotes já gerados pelo Modo Normal",
+            "- Pacotes já gerados pelo Modo Normal (TURBO / Modo 6)",
             tipo="warning",
         )
         st.stop()
@@ -740,48 +866,66 @@ if painel == "🔵 MODO ESPECIAL — Evento Condicionado":
         st.warning("Selecione ao menos um orçamento.")
         st.stop()
 
-    # -----------------------------
-    # Execução da avaliação
-    # -----------------------------
-    resultados = []
+    # ============================================================
+    # MVP2 — Avaliação 2–6 acertos × Estado do Alvo (OBSERVACIONAL)
+    # ============================================================
 
-    for orc in orcamentos_sel:
-        # MVP: pacote não é filtrado por custo real ainda
-        pacote = pacotes
-
-        out = pc_especial_avaliar_historico_pacote(
-            historico_df=historico_df,
-            pacote=pacote,
-        )
-
-        rodadas = out["rodadas"]
-        sucessos = out["sucessos"]
-        taxa = (sucessos / rodadas) if rodadas > 0 else 0.0
-
-        resultados.append({
-            "Orçamento": orc,
-            "Rodadas avaliadas": rodadas,
-            "Sucessos (6/6)": sucessos,
-            "Taxa de sucesso": round(taxa * 100, 2),
-        })
-
-    df_res = pd.DataFrame(resultados)
-
-    st.markdown("### 📊 Resultado comparativo (observacional)")
-    st.dataframe(df_res, use_container_width=True)
-
-    st.info(
-        "📌 Interpretação:\n"
-        "- O sistema **não escolhe** orçamento\n"
-        "- Não há ranking automático\n"
-        "- Rogério + Auri analisam os dados e decidem fora do sistema"
+    st.markdown("### 📊 Resultado comparativo — MVP2 (2–6 × Estado do Alvo)")
+    st.caption(
+        "Leitura realista de aproximação.\n"
+        "🟢 parado | 🟡 movimento lento | 🔴 movimento brusco\n"
+        "O sistema **não decide**."
     )
 
+    linhas = []
+
+    for orc in orcamentos_sel:
+        # MVP atual: orçamento ainda não filtra pacote
+        pacote = pacotes
+
+        df_mvp2, total_series = pc_modo_especial_mvp2_avaliar_pacote(
+            df_hist=historico_df,
+            pacote_listas=pacote,
+        )
+
+        if df_mvp2 is None or df_mvp2.empty:
+            linhas.append({
+                "Orçamento": orc,
+                "Estado": "N/A",
+                "Séries": int(total_series),
+                "2": 0, "3": 0, "4": 0, "5": 0, "6": 0
+            })
+            continue
+
+        for _, r in df_mvp2.iterrows():
+            linhas.append({
+                "Orçamento": int(orc),
+                "Estado": str(r["Estado"]),
+                "Séries": int(total_series),
+                "2": int(r["2"]),
+                "3": int(r["3"]),
+                "4": int(r["4"]),
+                "5": int(r["5"]),
+                "6": int(r["6"]),
+            })
+
+    df_cmp = pd.DataFrame(linhas)
+
+    st.dataframe(df_cmp, use_container_width=True, height=420)
+
+    st.info(
+        "📌 Interpretação HUMANA:\n"
+        "- 🟢 Mais 4/5 em 'parado' → janela boa para mandar bala\n"
+        "- 🟡 Predomínio de 3/4 → cautela, mas tentativa válida\n"
+        "- 🔴 Quase só 2/3 → reduzir agressividade\n"
+        "- 6 é raro; 4/5 indicam proximidade real"
+    )
 
 # ============================================================
 # CAMADA A — ESTADO DO ALVO (V16)
 # Observador puro — NÃO decide, NÃO bloqueia, NÃO gera previsões
 # ============================================================
+
 
 # ============================================================
 # CAMADA B — EXPECTATIVA DE CURTO PRAZO (V16)
