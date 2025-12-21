@@ -3977,6 +3977,28 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         f"{len(listas_top10)} priorizadas (Top 10)."
     )
 
+    # ============================================================
+    # VISUALIZAÇÃO — LISTAS GERADAS PELO MODO 6 (SOMENTE LEITURA)
+    # NÃO altera método | NÃO altera decisão | NÃO interfere no fluxo
+    # ============================================================
+
+    with st.expander("🔍 Visualizar listas do Modo 6 (somente leitura)", expanded=False):
+
+        listas_vis = st.session_state.get("modo6_listas_totais")
+
+        if not listas_vis:
+            st.info("Nenhuma lista disponível para visualização.")
+        else:
+            st.caption(
+                "Listas geradas pelo **Modo 6 (PRÉ-ECO)**.\n\n"
+                "⚠️ Exibição apenas para inspeção humana.\n"
+                "⚠️ Não há priorização, filtragem ou decisão automática aqui."
+            )
+
+            for i, lst in enumerate(listas_vis, start=1):
+                st.code(f"Lista {i}: {sorted(lst)}", language="python")
+
+
 # ============================================================
 # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
