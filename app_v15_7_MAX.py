@@ -866,28 +866,92 @@ if painel == "🔵 MODO ESPECIAL — Evento Condicionado":
     historico_df = st.session_state.get("historico_df")
 
     # ============================================================
-    # ✅ CORREÇÃO: garantir que "pacotes" seja sempre LISTA DE LISTAS
-    # (para não dar erro silencioso quando vier um único jogo do TURBO)
+    # 🔵 SELETOR DE FONTE DO PACOTE (TURBO × MODO 6)
+    # OBSERVACIONAL | NÃO decide | NÃO aprende | NÃO interfere
     # ============================================================
-    pacotes_raw = st.session_state.get("ultima_previsao")
 
-    if pacotes_raw is None:
-        pacotes = []
-    elif isinstance(pacotes_raw, list) and len(pacotes_raw) > 0 and isinstance(pacotes_raw[0], int):
-        # caso seja uma lista simples (ex: [4,13,34,39,43,47])
-        pacotes = [pacotes_raw]
-    elif isinstance(pacotes_raw, list):
-        # caso já seja lista de listas
-        pacotes = pacotes_raw
-    else:
-        pacotes = []
+    pacote_turbo_raw = st.session_state.get("ultima_previsao")
 
-    if historico_df is None or historico_df.empty or not pacotes:
+    pacote_m6_total = (
+        st.session_state.get("modo6_listas_totais")
+        or st.session_state.get("modo6_listas")
+        or []
+    )
+
+    pacote_m6_top10 = st.session_state.get("modo6_listas_top10") or []
+
+    fontes = []
+    if pacote_turbo_raw:
+        fontes.append("TURBO (núcleo)")
+    if pacote_m6_total:
+        fontes.append("MODO 6 (TOTAL)")
+    if pacote_m6_top10:
+        fontes.append("MODO 6 (TOP 10)")
+    if pacote_turbo_raw and pacote_m6_total:
+        fontes.append("MIX (TURBO + M6 TOTAL)")
+
+    if not fontes:
         exibir_bloco_mensagem(
             "Pré-requisitos ausentes",
             "É necessário:\n"
             "- Histórico carregado\n"
-            "- Pacotes já gerados pelo Modo Normal (TURBO / Modo 6)",
+            "- Pacotes gerados pelo TURBO ou Modo 6",
+            tipo="warning",
+        )
+        st.stop()
+
+    idx_default = fontes.index("MODO 6 (TOTAL)") if "MODO 6 (TOTAL)" in fontes else 0
+
+    fonte_escolhida = st.selectbox(
+        "Fonte do pacote para avaliação (observacional):",
+        options=fontes,
+        index=idx_default,
+    )
+
+    # -----------------------------
+    # Construção do pacote ativo
+    # -----------------------------
+    if fonte_escolhida == "TURBO (núcleo)":
+        pacotes_raw = pacote_turbo_raw
+    elif fonte_escolhida == "MODO 6 (TOTAL)":
+        pacotes_raw = pacote_m6_total
+    elif fonte_escolhida == "MODO 6 (TOP 10)":
+        pacotes_raw = pacote_m6_top10
+    else:
+        mix = []
+
+        if isinstance(pacote_turbo_raw, list):
+            if pacote_turbo_raw and isinstance(pacote_turbo_raw[0], int):
+                mix.append(pacote_turbo_raw)
+            else:
+                mix.extend(pacote_turbo_raw)
+
+        if isinstance(pacote_m6_total, list):
+            mix.extend(pacote_m6_total)
+
+        pacotes_raw = mix
+
+    # ============================================================
+    # ✅ NORMALIZAÇÃO FINAL — LISTA DE LISTAS
+    # ============================================================
+    if pacotes_raw is None:
+        pacotes = []
+    elif isinstance(pacotes_raw, list) and pacotes_raw and isinstance(pacotes_raw[0], int):
+        pacotes = [pacotes_raw]
+    elif isinstance(pacotes_raw, list):
+        pacotes = pacotes_raw
+    else:
+        pacotes = []
+
+    st.caption(
+        f"Pacote ativo: **{fonte_escolhida}** | "
+        f"Listas avaliadas: **{len(pacotes)}**"
+    )
+
+    if historico_df is None or historico_df.empty or not pacotes:
+        exibir_bloco_mensagem(
+            "Pré-requisitos ausentes",
+            "Histórico vazio ou pacote inválido.",
             tipo="warning",
         )
         st.stop()
@@ -908,7 +972,7 @@ if painel == "🔵 MODO ESPECIAL — Evento Condicionado":
         st.stop()
 
     # ============================================================
-    # MVP2 — Avaliação 2–6 acertos × Estado do Alvo (OBSERVACIONAL)
+    # MVP2 — Avaliação 2–6 × Estado do Alvo (OBSERVACIONAL)
     # ============================================================
 
     st.markdown("### 📊 Resultado comparativo — MVP2 (2–6 × Estado do Alvo)")
@@ -921,12 +985,9 @@ if painel == "🔵 MODO ESPECIAL — Evento Condicionado":
     linhas = []
 
     for orc in orcamentos_sel:
-        # MVP atual: orçamento ainda não filtra pacote
-        pacote = pacotes
-
         df_mvp2, total_series = pc_modo_especial_mvp2_avaliar_pacote(
             df_hist=historico_df,
-            pacote_listas=pacote,
+            pacote_listas=pacotes,
         )
 
         if df_mvp2 is None or df_mvp2.empty:
@@ -961,6 +1022,7 @@ if painel == "🔵 MODO ESPECIAL — Evento Condicionado":
         "- 🔴 Quase só 2/3 → reduzir agressividade\n"
         "- 6 é raro; 4/5 indicam proximidade real"
     )
+
 
 # ============================================================
 # CAMADA A — ESTADO DO ALVO (V16)
