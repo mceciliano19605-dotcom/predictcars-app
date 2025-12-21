@@ -3225,12 +3225,19 @@ def _injetar_cfg_tentativa_turbo_ultra_v16(
 # ============================================================
 
 # ============================================================
-# >>> PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (ANTI-ZUMBI LIMITADOR)
+# >>> PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3 — VOLUME POR ORÇAMENTO)
 # ============================================================
 
 if painel == "⚙️ Modo TURBO++ ULTRA":
 
-    st.markdown("## ⚙️ Modo TURBO++ ULTRA — V15.7 MAX")
+    st.markdown("## ⚙️ Modo TURBO++ ULTRA — MVP3")
+    st.caption(
+        "Exploração controlada.\n\n"
+        "✔ Lógica original preservada\n"
+        "✔ Anti-zumbi mantido\n"
+        "✔ Volume liberado por orçamento\n"
+        "✔ Sem decisão automática"
+    )
 
     df = st.session_state.get("historico_df")
     matriz_norm = st.session_state.get("pipeline_matriz_norm")
@@ -3255,7 +3262,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     qtd_series = len(df)
 
     # ------------------------------------------------------------
-    # Anti-zumbi: LIMITADOR (não bloqueia execução)
+    # Anti-zumbi: LIMITADOR (mantido exatamente como antes)
     # ------------------------------------------------------------
     LIMITE_SERIES_TURBO_ULTRA_EFETIVO = _injetar_cfg_tentativa_turbo_ultra_v16(
         df=df,
@@ -3271,13 +3278,70 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         painel="⚙️ Modo TURBO++ ULTRA",
     )
 
+    # ------------------------------------------------------------
+    # Seleção de ORÇAMENTO → libera volume (MVP3)
+    # ------------------------------------------------------------
+    orcamentos_disponiveis = [6, 42, 168, 504, 1260, 2772]
+
+    orcamento = st.selectbox(
+        "Selecione o orçamento para o TURBO++ ULTRA:",
+        options=orcamentos_disponiveis,
+        index=1,
+    )
+
+    mapa_execucoes = {
+        6: 1,
+        42: 1,
+        168: 3,
+        504: 6,
+        1260: 10,
+        2772: 20,
+    }
+
+    n_exec = mapa_execucoes.get(int(orcamento), 1)
+
+    st.info(
+        f"🔢 Orçamento selecionado: **{orcamento}**\n\n"
+        f"▶️ Execuções do TURBO++ ULTRA: **{n_exec}**\n\n"
+        "As listas geradas mantêm o mesmo perfil estatístico."
+    )
+
+    # ------------------------------------------------------------
+    # Execução TURBO++ ULTRA (replicada)
+    # ------------------------------------------------------------
     st.info("Executando Modo TURBO++ ULTRA...")
 
-    col_pass = [c for c in df.columns if c.startswith("p")]
+    todas_listas = []
+
+    for _ in range(n_exec):
+        try:
+            lista = turbo_ultra_v15_7(df)
+            if lista and isinstance(lista, list):
+                todas_listas.append(lista)
+        except Exception:
+            continue
+
+    if not todas_listas:
+        st.error("Falha na geração das listas TURBO++ ULTRA.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Persistência do pacote (usado pelo Modo 6 e Modo Especial)
+    # ------------------------------------------------------------
+    st.session_state["ultima_previsao"] = todas_listas
+
+    st.success(
+        f"✅ TURBO++ ULTRA executado com sucesso.\n\n"
+        f"📦 Listas geradas: **{len(todas_listas)}**"
+    )
+
+    st.markdown("### 🔮 Listas geradas (amostra)")
+    st.write(todas_listas[: min(5, len(todas_listas))])
 
 # ============================================================
-# <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA
+# <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3)
 # ============================================================
+
 
 
     # ============================================================
