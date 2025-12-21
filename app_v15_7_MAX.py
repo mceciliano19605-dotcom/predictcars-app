@@ -712,12 +712,14 @@ def _pc_contar_hits_lista_vs_alvo(lista, alvo_set):
         return 0
     return len(s & alvo_set)
 
+
 def _pc_melhor_hit_do_pacote(pacote_listas, alvo_set):
     """
     Dado um pacote (listas de previsão), retorna o MELHOR hit (0..6) encontrado contra o alvo.
     """
     if not pacote_listas:
         return 0
+
     best = 0
     for lst in pacote_listas:
         h = _pc_contar_hits_lista_vs_alvo(lst, alvo_set)
@@ -727,11 +729,57 @@ def _pc_melhor_hit_do_pacote(pacote_listas, alvo_set):
                 break
     return best
 
+
+def _pc_extrair_carro_row(row):
+    """
+    Extrai os 6 passageiros da linha do histórico.
+    Espera colunas p1..p6 (padrão do PredictCars).
+    """
+    try:
+        return [int(row[f"p{i}"]) for i in range(1, 7)]
+    except Exception:
+        return None
+
+
+def _pc_distancia_carros(carro_a, carro_b):
+    """
+    Distância simples entre dois carros (proxy):
+    número de passageiros diferentes.
+    """
+    if carro_a is None or carro_b is None:
+        return None
+    try:
+        return len(set(carro_a) ^ set(carro_b))
+    except Exception:
+        return None
+
+
+def _pc_estado_alvo_proxy(dist):
+    """
+    Classificação simples do estado do alvo (proxy),
+    baseada na distância entre carros consecutivos.
+    """
+    if dist is None:
+        return "None"
+
+    try:
+        d = float(dist)
+    except Exception:
+        return "None"
+
+    if d <= 1:
+        return "parado"
+    elif d <= 3:
+        return "movimento_lento"
+    else:
+        return "movimento_brusco"
+
+
 def pc_modo_especial_mvp2_avaliar_pacote(df_hist, pacote_listas):
     """
     MVP2:
     - Para cada série do histórico, computa:
-        estado_alvo_proxy (parado/lento/brusco/None) via distância entre carros consecutivos
+        estado_alvo_proxy (parado/lento/brusco/None)
         melhor_hit (0..6) do pacote contra o alvo daquela série
     - Consolida em tabela: Estado x Hits(2..6) [contagem EXATA]
     Retorna (df_resumo, total_series_avaliadas).
@@ -739,10 +787,6 @@ def pc_modo_especial_mvp2_avaliar_pacote(df_hist, pacote_listas):
     if df_hist is None or df_hist.empty:
         return pd.DataFrame(), 0
 
-    # Usa helpers já existentes no seu app:
-    # _pc_extrair_carro_row(row)
-    # _pc_distancia_carros(prev, atual)
-    # _pc_estado_alvo_proxy(dist)
     if not pacote_listas:
         return pd.DataFrame(), int(len(df_hist))
 
@@ -756,32 +800,30 @@ def pc_modo_especial_mvp2_avaliar_pacote(df_hist, pacote_listas):
     rows = list(df_hist.iterrows())
     carro_prev = None
 
-    for pos, (idx, row) in enumerate(rows):
+    for _, row in rows:
         carro_atual = _pc_extrair_carro_row(row)
-        dist = _pc_distancia_carros(carro_prev, carro_atual) if (carro_prev is not None and carro_atual is not None) else None
+
+        dist = (
+            _pc_distancia_carros(carro_prev, carro_atual)
+            if carro_prev is not None and carro_atual is not None
+            else None
+        )
+
         estado = _pc_estado_alvo_proxy(dist)
+        estado_key = estado if estado in cont else "None"
 
-        # Normaliza estado para chaves do dicionário
-        if estado not in ["parado", "movimento_lento", "movimento_brusco"]:
-            estado_key = "None"
-        else:
-            estado_key = estado
-
-        # alvo = a própria série do histórico (carro_atual)
         if carro_atual is None:
             carro_prev = carro_atual
             continue
 
-        alvo_set = set(int(x) for x in carro_atual)
+        alvo_set = set(carro_atual)
         best_hit = _pc_melhor_hit_do_pacote(pacote_listas, alvo_set)
 
-        # Contagem EXATA apenas para 2..6
         if best_hit in [2, 3, 4, 5, 6]:
             cont[estado_key][best_hit] += 1
 
         carro_prev = carro_atual
 
-    # Monta DF Estado x (2..6)
     out = []
     for estado_key in ["parado", "movimento_lento", "movimento_brusco", "None"]:
         linha = {"Estado": estado_key}
@@ -791,21 +833,11 @@ def pc_modo_especial_mvp2_avaliar_pacote(df_hist, pacote_listas):
 
     df_out = pd.DataFrame(out)
 
-    # Ordena estados de forma humana (parado, lento, brusco, None)
     ordem = {"parado": 0, "movimento_lento": 1, "movimento_brusco": 2, "None": 3}
     df_out["__ord"] = df_out["Estado"].map(ordem).fillna(9).astype(int)
     df_out = df_out.sort_values("__ord").drop(columns=["__ord"])
 
     return df_out, int(len(df_hist))
-def _pc_extrair_carro_row(row):
-    """
-    Extrai os 6 passageiros da linha do histórico.
-    Espera colunas p1..p6 (padrão do PredictCars).
-    """
-    try:
-        return [int(row[f"p{i}"]) for i in range(1, 7)]
-    except Exception:
-        return None
 
 # ============================================================
 # 🔵 FIM — FUNÇÕES DO MODO ESPECIAL MVP2
