@@ -3883,10 +3883,23 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     risco_composto = st.session_state.get("indice_risco")
     ultima_prev = st.session_state.get("ultima_previsao")
 
-    if df is None or k_star is None or ultima_prev is None:
+    # ============================================================
+    # GUARDA AJUSTADA — CRITÉRIO MÍNIMO DE ENTRADA
+    # NÃO altera método | NÃO toca PRÉ-ECO | NÃO força geração
+    # ============================================================
+    pipeline_fechado = (
+        st.session_state.get("pipeline_flex_ultra_concluido") is True
+    )
+
+    if df is None or k_star is None or not pipeline_fechado:
         exibir_bloco_mensagem(
             "Pipeline incompleto",
-            "Execute o pipeline até o **⚙️ Modo TURBO++ ULTRA**.",
+            "É necessário:\n"
+            "- Histórico carregado\n"
+            "- Pipeline V14-FLEX ULTRA executado\n"
+            "- TURBO++ ULTRA executado ao menos uma vez\n\n"
+            "ℹ️ O TURBO pode se recusar a gerar listas — isso é válido.\n"
+            "O **Modo 6 (PRÉ-ECO)** depende do **estado do pipeline**, não do resultado do TURBO.",
             tipo="warning",
         )
         st.stop()
@@ -3912,12 +3925,18 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # -----------------------------
     # BASES (ULTRA + SHADOW)
     # -----------------------------
-    base_ultra = ultima_prev[:]  # núcleo
-    base_shadow = ultima_prev[:]
+    # Se TURBO não gerou listas, usa fallback defensivo (não muda método)
+    if ultima_prev and isinstance(ultima_prev, list):
+        base_ultra = ultima_prev[:]
+    else:
+        base_ultra = np.random.choice(range(1, 61), size=6, replace=False).tolist()
 
-    # deslocamento leve (shadow base)
+    base_shadow = base_ultra[:]
+
     for idx in np.random.choice(range(len(base_shadow)), size=2, replace=False):
-        base_shadow[idx] = int(np.clip(base_shadow[idx] + np.random.choice([-1, 1]), 1, 60))
+        base_shadow[idx] = int(
+            np.clip(base_shadow[idx] + np.random.choice([-1, 1]), 1, 60)
+        )
 
     # -----------------------------
     # GERAÇÃO PRÉ-ECO (RUÍDO MARGINAL)
@@ -3927,11 +3946,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         usar_shadow = (i % 10) >= 7  # ~30% shadow
         base = base_shadow if usar_shadow else base_ultra
 
-        # ruído marginal PRÉ-ECO
         ruido = np.random.randint(-7, 8, size=len(base))
         nova = np.clip(np.array(base) + ruido, 1, 60).tolist()
 
-        # envelope mínimo: 1 passageiro fora do núcleo
         if np.random.rand() < 0.35:
             j = np.random.randint(0, len(nova))
             nova[j] = int(np.clip(nova[j] + np.random.choice([-2, 2]), 1, 60))
@@ -3963,6 +3980,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 # ============================================================
 # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
+
 
 
 
