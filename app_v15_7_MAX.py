@@ -3262,7 +3262,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     qtd_series = len(df)
 
     # ------------------------------------------------------------
-    # Anti-zumbi: LIMITADOR (mantido)
+    # Anti-zumbi: LIMITADOR (COMPORTAMENTO ORIGINAL)
     # ------------------------------------------------------------
     LIMITE_SERIES_TURBO_ULTRA_EFETIVO = _injetar_cfg_tentativa_turbo_ultra_v16(
         df=df,
@@ -3271,16 +3271,13 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         limite_series_padrao=LIMITE_SERIES_TURBO_ULTRA,
     )
 
-    bloqueado = limitar_operacao(
+    limitar_operacao(
         qtd_series,
         limite_series=LIMITE_SERIES_TURBO_ULTRA_EFETIVO,
         contexto="TURBO++ ULTRA",
         painel="⚙️ Modo TURBO++ ULTRA",
-        retornar_status=True,
     )
-
-    if bloqueado:
-        st.stop()
+    # ⬆️ se bloquear, a própria função já dá st.stop()
 
     # ------------------------------------------------------------
     # Orçamento → libera volume (MVP3)
@@ -3351,6 +3348,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 # ============================================================
 # <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3)
 # ============================================================
+
 
 
 
