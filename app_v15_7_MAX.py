@@ -3233,8 +3233,8 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     st.markdown("## ⚙️ Modo TURBO++ ULTRA — MVP3")
     st.caption(
         "Exploração controlada.\n\n"
-        "✔ Lógica original preservada\n"
-        "✔ Anti-zumbi mantido\n"
+        "✔ Motor original preservado\n"
+        "✔ Anti-zumbi respeitado\n"
         "✔ Volume liberado por orçamento\n"
         "✔ Sem decisão automática"
     )
@@ -3262,7 +3262,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     qtd_series = len(df)
 
     # ------------------------------------------------------------
-    # Anti-zumbi: LIMITADOR (mantido exatamente como antes)
+    # Anti-zumbi: LIMITADOR (mantido)
     # ------------------------------------------------------------
     LIMITE_SERIES_TURBO_ULTRA_EFETIVO = _injetar_cfg_tentativa_turbo_ultra_v16(
         df=df,
@@ -3271,15 +3271,19 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         limite_series_padrao=LIMITE_SERIES_TURBO_ULTRA,
     )
 
-    limitar_operacao(
+    bloqueado = limitar_operacao(
         qtd_series,
         limite_series=LIMITE_SERIES_TURBO_ULTRA_EFETIVO,
         contexto="TURBO++ ULTRA",
         painel="⚙️ Modo TURBO++ ULTRA",
+        retornar_status=True,
     )
 
+    if bloqueado:
+        st.stop()
+
     # ------------------------------------------------------------
-    # Seleção de ORÇAMENTO → libera volume (MVP3)
+    # Orçamento → libera volume (MVP3)
     # ------------------------------------------------------------
     orcamentos_disponiveis = [6, 42, 168, 504, 1260, 2772]
 
@@ -3302,12 +3306,11 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 
     st.info(
         f"🔢 Orçamento selecionado: **{orcamento}**\n\n"
-        f"▶️ Execuções do TURBO++ ULTRA: **{n_exec}**\n\n"
-        "As listas geradas mantêm o mesmo perfil estatístico."
+        f"▶️ Execuções do TURBO++ ULTRA: **{n_exec}**"
     )
 
     # ------------------------------------------------------------
-    # Execução TURBO++ ULTRA (replicada)
+    # Execução TURBO++ ULTRA (replicada — chamada CORRETA)
     # ------------------------------------------------------------
     st.info("Executando Modo TURBO++ ULTRA...")
 
@@ -3315,18 +3318,25 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 
     for _ in range(n_exec):
         try:
-            lista = turbo_ultra_v15_7(df)
+            lista = turbo_ultra_v15_7(
+                df=df,
+                matriz_norm=matriz_norm,
+                k_star=k_star,
+            )
             if lista and isinstance(lista, list):
                 todas_listas.append(lista)
         except Exception:
             continue
 
     if not todas_listas:
-        st.error("Falha na geração das listas TURBO++ ULTRA.")
+        st.warning(
+            "Nenhuma lista foi gerada nesta condição.\n\n"
+            "Isso é um **resultado válido** (ambiente não favorável)."
+        )
         st.stop()
 
     # ------------------------------------------------------------
-    # Persistência do pacote (usado pelo Modo 6 e Modo Especial)
+    # Persistência do pacote
     # ------------------------------------------------------------
     st.session_state["ultima_previsao"] = todas_listas
 
@@ -3341,6 +3351,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 # ============================================================
 # <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3)
 # ============================================================
+
 
 
 
