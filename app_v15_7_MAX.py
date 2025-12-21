@@ -3387,10 +3387,18 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         except Exception:
             continue
 
+    # ============================================================
+    # ✅ FECHAMENTO TÉCNICO DO PIPELINE (OBRIGATÓRIO)
+    # Mesmo quando nenhuma lista é gerada
+    # NÃO altera motor | NÃO força geração | NÃO decide
+    # ============================================================
+    st.session_state["pipeline_flex_ultra_concluido"] = True
+
     if not todas_listas:
         st.warning(
             "Nenhuma lista foi gerada nesta condição.\n\n"
-            "Isso é um **resultado válido** (ambiente não favorável)."
+            "Isso é um **resultado válido** (ambiente não favorável).\n\n"
+            "🔒 Pipeline FLEX ULTRA foi **marcado como CONCLUÍDO**."
         )
         st.stop()
 
@@ -3410,9 +3418,6 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 # ============================================================
 # <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3)
 # ============================================================
-
-
-
 
 
     # ============================================================
