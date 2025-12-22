@@ -1668,10 +1668,17 @@ if painel == "📄 Carregar Histórico (Colar)":
             )
             st.stop()
 
+        # ----------------------------------------------------
+        # Registro do histórico (fenômeno)
+        # ----------------------------------------------------
         st.session_state["historico_df"] = df
 
-        # Reutiliza exatamente o mesmo BLOCO A + B
-        st.experimental_rerun()
+        # ----------------------------------------------------
+        # Reexecuta a app para aplicar BLOCO A + B corretamente
+        # (API atual do Streamlit)
+        # ----------------------------------------------------
+        st.rerun()
+
 
 
 
