@@ -642,9 +642,17 @@ def construir_navegacao_v157() -> str:
 
 
 # ============================================================
-# Ativação da Navegação
+# Ativação da Navegação — V15.7 MAX
 # ============================================================
+
 painel = construir_navegacao_v157()
+
+# ============================================================
+# DEBUG MINIMAL — CONFIRMA PAINEL ATIVO
+# (temporário, pode remover depois)
+# ============================================================
+st.sidebar.caption(f"Painel ativo: {painel}")
+
 
 # ============================================================
 # MODO ESPECIAL — EVENTO CONDICIONADO (C2955)
