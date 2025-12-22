@@ -1641,57 +1641,33 @@ if "Carregar Histórico (Colar)" in painel:
         "- **Último valor da linha é sempre k**"
     )
 
-    texto = st.text_area(
-        "Cole aqui o histórico completo",
-        height=320,
-        key="pc_colar_historico_texto",
-    )
+    with st.form("form_colar_historico"):
 
-    if st.button(
-        "📥 Processar Histórico (Copiar e Colar)",
-        key="pc_colar_historico_btn",
-    ):
+        texto = st.text_area(
+            "Cole aqui o histórico completo",
+            height=320,
+        )
 
-        # ✅ validação CORRETA (após clique)
+        submitted = st.form_submit_button(
+            "📥 Processar Histórico (Copiar e Colar)"
+        )
+
+    if submitted:
+
         if not texto.strip():
-            exibir_bloco_mensagem(
-                "Histórico vazio",
-                "Cole o conteúdo do histórico FLEX ULTRA para continuar.",
-                tipo="error",
-            )
+            st.error("Histórico vazio")
             st.stop()
 
         linhas = texto.strip().split("\n")
 
-        if not limitar_operacao(
-            len(linhas),
-            limite_series=LIMITE_SERIES_REPLAY_ULTRA,
-            contexto="Carregar Histórico (Copiar e Colar)",
-            painel="📄 Carregar Histórico (Colar)",
-        ):
-            st.stop()
+        df = carregar_historico_universal(linhas)
 
-        try:
-            df = carregar_historico_universal(linhas)
-        except Exception as erro:
-            exibir_bloco_mensagem(
-                "Erro ao processar histórico",
-                f"Detalhes técnicos: {erro}",
-                tipo="error",
-            )
-            st.stop()
-
-        # Registro do fenômeno
         st.session_state["historico_df"] = df
 
-        exibir_bloco_mensagem(
-            "Histórico carregado com sucesso!",
-            f"Séries carregadas: **{len(df)}**\n\n"
-            "Agora prossiga para o painel **🛣️ Pipeline V14-FLEX ULTRA**.",
-            tipo="success",
-        )
+        st.success(f"Histórico carregado: {len(df)} séries")
 
         st.rerun()
+
 
 
 
