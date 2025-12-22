@@ -4110,7 +4110,6 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     # ============================================================
     # GUARDA AJUSTADA — CRITÉRIO MÍNIMO DE ENTRADA
-    # NÃO altera método | NÃO toca PRÉ-ECO | NÃO força geração
     # ============================================================
     pipeline_fechado = (
         st.session_state.get("pipeline_flex_ultra_concluido") is True
@@ -4129,9 +4128,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         )
         st.stop()
 
-    # -----------------------------
+    # ============================================================
     # AJUSTE DE AMBIENTE (PRÉ-ECO)
-    # -----------------------------
+    # ============================================================
     config = ajustar_ambiente_modo6(
         df=df,
         k_star=k_star,
@@ -4143,59 +4142,119 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     st.caption(config["aviso_curto"] + " | PRÉ-ECO técnico ativo")
 
-    # Volume alvo (respeita NORMAL e proteções)
     volume = int(config["volume_recomendado"])
     volume = max(1, min(volume, int(config["volume_max"])))
 
-    # -----------------------------
-    # BASES (ULTRA + SHADOW)
-    # -----------------------------
-    # Se TURBO não gerou listas, usa fallback defensivo (não muda método)
+    # ============================================================
+    # 🔒 BLOCO UNIVERSAL — DETECÇÃO DO FENÔMENO
+    # ============================================================
+    pc_n_passageiros = st.session_state.get("pc_n_passageiros")
+    pc_n_set_detectado = st.session_state.get("pc_n_set_detectado")
+    pc_universo_set = st.session_state.get("pc_universo_set")
+
+    # Fallback robusto caso o bloco universal ainda não exista
+    if pc_n_passageiros is None or not pc_universo_set:
+        colunas = list(df.columns)
+        col_pass = colunas[1:-1]
+
+        contagens = []
+        universo_tmp = []
+
+        for _, row in df.iterrows():
+            vals = [int(v) for v in row[col_pass] if pd.notna(v)]
+            if vals:
+                contagens.append(len(vals))
+                universo_tmp.extend(vals)
+
+        if contagens:
+            pc_n_passageiros = int(pd.Series(contagens).mode().iloc[0])
+        else:
+            pc_n_passageiros = 6  # fallback final defensivo
+
+        pc_universo_set = sorted(set(universo_tmp)) if universo_tmp else list(range(1, 61))
+
+    n_alvo = int(pc_n_passageiros)
+    universo = list(pc_universo_set)
+    umin, umax = min(universo), max(universo)
+
+    # ============================================================
+    # FUNÇÕES INTERNAS — AJUSTE UNIVERSAL
+    # ============================================================
+    def _snap_universo(v: int) -> int:
+        if v in universo:
+            return v
+        return min(universo, key=lambda x: abs(x - v))
+
+    def _ajustar_para_n(lista, n_target: int):
+        seen = set()
+        out = []
+        for x in lista:
+            sx = _snap_universo(int(np.clip(x, umin, umax)))
+            if sx not in seen:
+                seen.add(sx)
+                out.append(sx)
+        if len(out) > n_target:
+            return out[:n_target]
+        while len(out) < n_target:
+            cand = _snap_universo(int(np.random.choice(universo)))
+            if cand not in seen:
+                seen.add(cand)
+                out.append(cand)
+        return out
+
+    # ============================================================
+    # BASE ULTRA + SHADOW — COMPATÍVEL COM O FENÔMENO
+    # ============================================================
     if ultima_prev and isinstance(ultima_prev, list):
-        base_ultra = ultima_prev[:]
+        if ultima_prev and isinstance(ultima_prev[0], int):
+            base_ultra = _ajustar_para_n(ultima_prev[:], n_alvo)
+        else:
+            base_ultra = _ajustar_para_n(ultima_prev[0], n_alvo)
     else:
-        base_ultra = np.random.choice(range(1, 61), size=6, replace=False).tolist()
+        base_ultra = np.random.choice(universo, size=n_alvo, replace=False).tolist()
 
     base_shadow = base_ultra[:]
 
-    for idx in np.random.choice(range(len(base_shadow)), size=2, replace=False):
-        base_shadow[idx] = int(
-            np.clip(base_shadow[idx] + np.random.choice([-1, 1]), 1, 60)
-        )
+    if len(base_shadow) >= 2:
+        for idx in np.random.choice(range(len(base_shadow)), size=2, replace=False):
+            desloc = np.random.choice([-1, 1])
+            base_shadow[idx] = _snap_universo(
+                int(np.clip(base_shadow[idx] + desloc, umin, umax))
+            )
 
-    # -----------------------------
-    # GERAÇÃO PRÉ-ECO (RUÍDO MARGINAL)
-    # -----------------------------
+    # ============================================================
+    # GERAÇÃO PRÉ-ECO — RUÍDO MARGINAL (UNIVERSAL)
+    # ============================================================
     listas_brutas = []
+
     for i in range(volume):
-        usar_shadow = (i % 10) >= 7  # ~30% shadow
+        usar_shadow = (i % 10) >= 7
         base = base_shadow if usar_shadow else base_ultra
 
         ruido = np.random.randint(-7, 8, size=len(base))
-        nova = np.clip(np.array(base) + ruido, 1, 60).tolist()
+        nova = [
+            _snap_universo(int(np.clip(b + r, umin, umax)))
+            for b, r in zip(base, ruido)
+        ]
 
         if np.random.rand() < 0.35:
             j = np.random.randint(0, len(nova))
-            nova[j] = int(np.clip(nova[j] + np.random.choice([-2, 2]), 1, 60))
+            nova[j] = _snap_universo(
+                int(np.clip(nova[j] + np.random.choice([-2, 2]), umin, umax))
+            )
 
+        nova = _ajustar_para_n(nova, n_alvo)
         listas_brutas.append(nova)
 
-    # -----------------------------
-    # SANIDADE (LIMPEZA, SEM PRIORIZAR)
-    # -----------------------------
+    # ============================================================
+    # SANIDADE FINAL (SEM PRIORIZAR)
+    # ============================================================
     listas_totais = sanidade_final_listas(listas_brutas)
-
-    # -----------------------------
-    # PRIORIZAÇÃO (TOP 10)
-    # -----------------------------
     listas_top10 = listas_totais[:10]
 
-    # -----------------------------
-    # PERSISTÊNCIA SEPARADA
-    # -----------------------------
     st.session_state["modo6_listas_totais"] = listas_totais
     st.session_state["modo6_listas_top10"] = listas_top10
-    st.session_state["modo6_listas"] = listas_totais  # compatibilidade
+    st.session_state["modo6_listas"] = listas_totais
 
     st.success(
         f"Modo 6 (PRÉ-ECO) — {len(listas_totais)} listas totais | "
@@ -4203,15 +4262,11 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     )
 
     # ============================================================
-    # VISUALIZAÇÃO — LISTAS GERADAS PELO MODO 6 (SOMENTE LEITURA)
-    # NÃO altera método | NÃO altera decisão | NÃO interfere no fluxo
+    # VISUALIZAÇÃO — SOMENTE LEITURA
     # ============================================================
-
     with st.expander("🔍 Visualizar listas do Modo 6 (somente leitura)", expanded=False):
 
-        listas_vis = st.session_state.get("modo6_listas_totais")
-
-        if not listas_vis:
+        if not listas_totais:
             st.info("Nenhuma lista disponível para visualização.")
         else:
             st.caption(
@@ -4220,13 +4275,14 @@ if painel == "🎯 Modo 6 Acertos — Execução":
                 "⚠️ Não há priorização, filtragem ou decisão automática aqui."
             )
 
-            for i, lst in enumerate(listas_vis, start=1):
+            for i, lst in enumerate(listas_totais, start=1):
                 st.code(f"Lista {i}: {sorted(lst)}", language="python")
 
 
 # ============================================================
 # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
+
 
 
 
