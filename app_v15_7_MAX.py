@@ -1622,20 +1622,6 @@ if painel == "📁 Carregar Histórico (Arquivo)":
 # Painel 1B — 📄 Carregar Histórico (Colar)
 # ============================================================
 if "Carregar Histórico (Colar)" in painel:
-    
-        st.write("DEBUG: Painel COLAR ativo")
-
-    texto = st.text_area(
-        "Cole aqui o histórico completo",
-        height=320,
-    )
-
-    if st.button("📥 Processar Histórico (Copiar e Colar)"):
-
-        st.write("DEBUG: Botão clicado")
-
-
-
 
     st.markdown("## 📄 Carregar Histórico — Copiar e Colar (V15.7 MAX)")
 
@@ -1647,29 +1633,21 @@ if "Carregar Histórico (Colar)" in painel:
         "- **Último valor da linha é sempre k**"
     )
 
-    # --------------------------------------------------------
-    # FORMULÁRIO (SOLUÇÃO DEFINITIVA PARA BOTÃO)
-    # --------------------------------------------------------
-    with st.form(key="pc_form_historico_colar"):
+    texto = st.text_area(
+        "Cole aqui o histórico completo",
+        height=320,
+        key="pc_texto_colar_historico",
+    )
 
-        texto = st.text_area(
-            "Cole aqui o histórico completo",
-            height=320,
-        )
-
-        submitted = st.form_submit_button(
-            "📥 Processar Histórico (Copiar e Colar)"
-        )
-
-    # --------------------------------------------------------
-    # PROCESSAMENTO (FORA DO FORM)
-    # --------------------------------------------------------
-    if submitted:
+    if st.button(
+        "📥 Processar Histórico (Copiar e Colar)",
+        key="pc_btn_colar_historico",
+    ):
 
         if not texto.strip():
             exibir_bloco_mensagem(
                 "Histórico vazio",
-                "Não é possível processar: nenhum dado foi colado.",
+                "Cole o conteúdo do histórico FLEX ULTRA para continuar.",
                 tipo="error",
             )
             st.stop()
@@ -1697,9 +1675,13 @@ if "Carregar Histórico (Colar)" in painel:
         # Registro do fenômeno
         st.session_state["historico_df"] = df
 
-        st.success(f"Histórico processado com sucesso: {len(df)} séries")
+        exibir_bloco_mensagem(
+            "Histórico carregado com sucesso!",
+            f"Séries carregadas: **{len(df)}**\n\n"
+            "Agora prossiga para o painel **🛣️ Pipeline V14-FLEX ULTRA**.",
+            tipo="success",
+        )
 
-        # Rerun para aplicar BLOCO A + B + C
         st.rerun()
 
 
@@ -1707,6 +1689,7 @@ if "Carregar Histórico (Colar)" in painel:
 # BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
 # FASE 1 — OBSERVAÇÃO PURA | SEM IMPACTO OPERACIONAL
 # ============================================================
+
 
 
 
