@@ -1633,24 +1633,24 @@ if painel == "📄 Carregar Histórico (Colar)":
         "- **Último valor da linha é sempre k**"
     )
 
-    texto = st.text_area(
-        "Cole aqui o histórico completo",
-        height=320,
-        key="pc_texto_historico_colar",  # 🔑 KEY OBRIGATÓRIA
-    )
+    # --------------------------------------------------------
+    # FORMULÁRIO (SOLUÇÃO DEFINITIVA PARA BOTÃO)
+    # --------------------------------------------------------
+    with st.form(key="pc_form_historico_colar"):
 
-    # Aviso passivo (não bloqueia)
-    if not texto.strip():
-        exibir_bloco_mensagem(
-            "Nenhum dado encontrado",
-            "Cole o conteúdo do histórico FLEX ULTRA para continuar.",
-            tipo="warning",
+        texto = st.text_area(
+            "Cole aqui o histórico completo",
+            height=320,
         )
 
-    if st.button(
-        "📥 Processar Histórico (Copiar e Colar)",
-        key="pc_btn_processar_historico_colar",  # 🔑 KEY OBRIGATÓRIA
-    ):
+        submitted = st.form_submit_button(
+            "📥 Processar Histórico (Copiar e Colar)"
+        )
+
+    # --------------------------------------------------------
+    # PROCESSAMENTO (FORA DO FORM)
+    # --------------------------------------------------------
+    if submitted:
 
         if not texto.strip():
             exibir_bloco_mensagem(
@@ -1680,19 +1680,12 @@ if painel == "📄 Carregar Histórico (Colar)":
             )
             st.stop()
 
-        # ----------------------------------------------------
-        # Registro do histórico (fenômeno)
-        # ----------------------------------------------------
+        # Registro do fenômeno
         st.session_state["historico_df"] = df
 
-        # ----------------------------------------------------
-        # Confirmação VISÍVEL (antes do rerun)
-        # ----------------------------------------------------
-        st.success(f"Histórico processado: {len(df)} séries")
+        st.success(f"Histórico processado com sucesso: {len(df)} séries")
 
-        # ----------------------------------------------------
-        # Reexecuta a app
-        # ----------------------------------------------------
+        # Rerun para aplicar BLOCO A + B + C
         st.rerun()
 
 
@@ -1700,6 +1693,7 @@ if painel == "📄 Carregar Histórico (Colar)":
 # BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
 # FASE 1 — OBSERVAÇÃO PURA | SEM IMPACTO OPERACIONAL
 # ============================================================
+
 
 
 
