@@ -850,6 +850,110 @@ def pc_modo_especial_mvp2_avaliar_pacote(df_hist, pacote_listas):
 # PAINEL — 🔵 MODO ESPECIAL (Evento Condicionado C2955)
 # Avaliação MULTI-ORÇAMENTO | Observacional
 # ============================================================
+# ============================================================
+# 🔵 MVP4 — ANÁLISE DE COMPOSIÇÕES DE COBERTURA (OBSERVACIONAL)
+#     Núcleo / Fronteira automáticos — Sem execução
+# ============================================================
+
+st.subheader("🔵 MVP4 — Análise de Composições de Cobertura")
+
+st.markdown("""
+Este painel **não gera previsões**, **não executa pacotes** e **não decide**.
+
+Seu objetivo é **analisar composições de cobertura possíveis**
+a partir das listas existentes, **sem interferir no Modo Normal**.
+""")
+
+# ------------------------------------------------------------
+# Leitura segura das listas-base (somente leitura)
+# ------------------------------------------------------------
+listas_base = (
+    st.session_state.get("modo6_listas_top10")
+    or st.session_state.get("modo6_listas_totais")
+    or st.session_state.get("modo6_listas")
+)
+
+if not listas_base:
+    st.info("Nenhuma lista base disponível. Execute o Modo 6 antes de usar o MVP4.")
+else:
+    st.success(f"Listas-base detectadas: {len(listas_base)} listas (somente leitura)")
+
+    # ------------------------------------------------------------
+    # Extração automática de frequências
+    # ------------------------------------------------------------
+    from collections import Counter
+    from math import comb
+
+    todas_dezenas = [n for lista in listas_base for n in lista]
+    freq = Counter(todas_dezenas)
+
+    # ------------------------------------------------------------
+    # Classificação: Núcleo / Fronteira / Ruído
+    # ------------------------------------------------------------
+    nucleo = sorted([n for n, c in freq.items() if c >= 3])
+    fronteira = sorted([n for n, c in freq.items() if c == 2])
+    ruido = sorted([n for n, c in freq.items() if c == 1])
+
+    st.markdown("### 🧠 Extração Automática")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("**🧱 Núcleo**")
+        st.write(nucleo if nucleo else "—")
+        if len(nucleo) < 4:
+            st.warning("Núcleo fraco (<4).")
+        if len(nucleo) > 5:
+            st.warning("Núcleo grande (>5). Possível rigidez.")
+
+    with col2:
+        st.markdown("**🟡 Fronteira**")
+        st.write(fronteira if fronteira else "—")
+        if len(fronteira) > 6:
+            st.warning("Fronteira grande. Ambiguidade elevada.")
+
+    with col3:
+        st.markdown("**🔴 Ruído**")
+        st.write(ruido if ruido else "—")
+        st.caption("Ruído é automaticamente excluído de carros >6.")
+
+    # ------------------------------------------------------------
+    # Definição das composições candidatas (FIXAS)
+    # ------------------------------------------------------------
+    st.markdown("### 📦 Composições Candidatas (Análise)")
+
+    composicoes = [
+        {"nome": "C1 — Foco puro", "desc": "6 × carros de 6", "mix": [(6, 6)]},
+        {"nome": "C2 — Proteção leve", "desc": "4 × 6 + 1 × 7", "mix": [(6, 4), (7, 1)]},
+        {"nome": "C3 — Proteção + ambiguidade", "desc": "2 × 6 + 1 × 7 + 1 × 8", "mix": [(6, 2), (7, 1), (8, 1)]},
+        {"nome": "C4 — Envelope compacto", "desc": "1 × 8", "mix": [(8, 1)]},
+        {"nome": "C5 — Envelope amplo", "desc": "1 × 9", "mix": [(9, 1)]},
+    ]
+
+    for comp in composicoes:
+        custo_total = 0
+        comb_total = 0
+
+        for m, qtd in comp["mix"]:
+            comb_m = comb(m, 6)
+            custo_m = comb_m * 6
+            custo_total += custo_m * qtd
+            comb_total += comb_m * qtd
+
+        with st.expander(f"📘 {comp['nome']}"):
+            st.write(comp["desc"])
+            st.write(f"• Cobertura combinatória total: **{comb_total}** combinações de 6")
+            st.write(f"• Custo teórico total (régua PredictCars): **{custo_total}**")
+
+            if len(nucleo) < 4:
+                st.warning("⚠️ Núcleo fraco — qualquer envelope pode diluir sinal.")
+            if len(fronteira) > 6:
+                st.warning("⚠️ Fronteira extensa — risco de ilusão de cobertura.")
+
+    st.info("""
+📌 Este painel **não executa** nenhuma composição.
+Ele serve para **comparar efeitos**, **visualizar custos** e
+**apoiar uma decisão humana consciente**.
+""")
 
 if painel == "🔵 MODO ESPECIAL — Evento Condicionado":
 
