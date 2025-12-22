@@ -1622,6 +1622,20 @@ if painel == "📁 Carregar Histórico (Arquivo)":
 # Painel 1B — 📄 Carregar Histórico (Colar)
 # ============================================================
 if "Carregar Histórico (Colar)" in painel:
+    
+        st.write("DEBUG: Painel COLAR ativo")
+
+    texto = st.text_area(
+        "Cole aqui o histórico completo",
+        height=320,
+    )
+
+    if st.button("📥 Processar Histórico (Copiar e Colar)"):
+
+        st.write("DEBUG: Botão clicado")
+
+
+
 
     st.markdown("## 📄 Carregar Histórico — Copiar e Colar (V15.7 MAX)")
 
