@@ -1636,9 +1636,10 @@ if painel == "📄 Carregar Histórico (Colar)":
     texto = st.text_area(
         "Cole aqui o histórico completo",
         height=320,
+        key="pc_texto_historico_colar",  # 🔑 KEY OBRIGATÓRIA
     )
 
-    # Aviso passivo — NÃO bloqueia o botão
+    # Aviso passivo (não bloqueia)
     if not texto.strip():
         exibir_bloco_mensagem(
             "Nenhum dado encontrado",
@@ -1646,7 +1647,10 @@ if painel == "📄 Carregar Histórico (Colar)":
             tipo="warning",
         )
 
-    if st.button("📥 Processar Histórico (Copiar e Colar)"):
+    if st.button(
+        "📥 Processar Histórico (Copiar e Colar)",
+        key="pc_btn_processar_historico_colar",  # 🔑 KEY OBRIGATÓRIA
+    ):
 
         if not texto.strip():
             exibir_bloco_mensagem(
@@ -1682,7 +1686,12 @@ if painel == "📄 Carregar Histórico (Colar)":
         st.session_state["historico_df"] = df
 
         # ----------------------------------------------------
-        # Reexecuta a app para aplicar BLOCO A + B corretamente
+        # Confirmação VISÍVEL (antes do rerun)
+        # ----------------------------------------------------
+        st.success(f"Histórico processado: {len(df)} séries")
+
+        # ----------------------------------------------------
+        # Reexecuta a app
         # ----------------------------------------------------
         st.rerun()
 
@@ -1691,6 +1700,7 @@ if painel == "📄 Carregar Histórico (Colar)":
 # BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
 # FASE 1 — OBSERVAÇÃO PURA | SEM IMPACTO OPERACIONAL
 # ============================================================
+
 
 
 
