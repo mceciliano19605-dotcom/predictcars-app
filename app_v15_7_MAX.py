@@ -1633,26 +1633,20 @@ if "Carregar Histórico (Colar)" in painel:
 
     st.markdown("## 📄 Carregar Histórico — Copiar e Colar (V15.7 MAX)")
 
-    st.markdown(
-        "Cole abaixo o conteúdo completo do histórico em formato **FLEX ULTRA**.\n\n"
-        "📌 Regra universal:\n"
-        "- Cada linha começa com o identificador (ex: C123)\n"
-        "- Seguem **N passageiros (quantidade livre)**\n"
-        "- **Último valor da linha é sempre k**"
+    texto = st.text_area(
+        "Cole aqui o histórico completo",
+        height=320,
+        key="pc_colar_texto_simples",
     )
 
-    with st.form("form_colar_historico"):
+    clicked = st.button(
+        "📥 Processar Histórico (Copiar e Colar)",
+        key="pc_colar_btn_simples",
+    )
 
-        texto = st.text_area(
-            "Cole aqui o histórico completo",
-            height=320,
-        )
+    if clicked:
 
-        submitted = st.form_submit_button(
-            "📥 Processar Histórico (Copiar e Colar)"
-        )
-
-    if submitted:
+        st.write("PROCESSANDO HISTÓRICO...")
 
         if not texto.strip():
             st.error("Histórico vazio")
@@ -1664,9 +1658,8 @@ if "Carregar Histórico (Colar)" in painel:
 
         st.session_state["historico_df"] = df
 
-        st.success(f"Histórico carregado: {len(df)} séries")
+        st.success(f"Histórico carregado com sucesso: {len(df)} séries")
 
-        st.rerun()
 
 
 
