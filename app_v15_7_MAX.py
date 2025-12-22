@@ -1638,15 +1638,23 @@ if painel == "📄 Carregar Histórico (Colar)":
         height=320,
     )
 
+    # Aviso passivo — NÃO bloqueia o botão
     if not texto.strip():
         exibir_bloco_mensagem(
             "Nenhum dado encontrado",
             "Cole o conteúdo do histórico FLEX ULTRA para continuar.",
             tipo="warning",
         )
-        st.stop()
 
     if st.button("📥 Processar Histórico (Copiar e Colar)"):
+
+        if not texto.strip():
+            exibir_bloco_mensagem(
+                "Histórico vazio",
+                "Não é possível processar: nenhum dado foi colado.",
+                tipo="error",
+            )
+            st.stop()
 
         linhas = texto.strip().split("\n")
 
@@ -1675,17 +1683,15 @@ if painel == "📄 Carregar Histórico (Colar)":
 
         # ----------------------------------------------------
         # Reexecuta a app para aplicar BLOCO A + B corretamente
-        # (API atual do Streamlit)
         # ----------------------------------------------------
         st.rerun()
-
-
 
 
 # ============================================================
 # BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
 # FASE 1 — OBSERVAÇÃO PURA | SEM IMPACTO OPERACIONAL
 # ============================================================
+
 
 
 # ============================================================
