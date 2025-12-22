@@ -1644,14 +1644,15 @@ if "Carregar Histórico (Colar)" in painel:
     texto = st.text_area(
         "Cole aqui o histórico completo",
         height=320,
-        key="pc_texto_colar_historico",
+        key="pc_colar_historico_texto",
     )
 
     if st.button(
         "📥 Processar Histórico (Copiar e Colar)",
-        key="pc_btn_colar_historico",
+        key="pc_colar_historico_btn",
     ):
 
+        # ✅ validação CORRETA (após clique)
         if not texto.strip():
             exibir_bloco_mensagem(
                 "Histórico vazio",
@@ -1691,6 +1692,7 @@ if "Carregar Histórico (Colar)" in painel:
         )
 
         st.rerun()
+
 
 
 # ============================================================
