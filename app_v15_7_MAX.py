@@ -1277,6 +1277,7 @@ def v16_registrar_volume_e_confiabilidade():
 
 # ============================================================
 # >>> FUNÇÃO AUXILIAR — AJUSTE DE AMBIENTE PARA MODO 6
+# (UNIVERSAL — respeita o fenômeno detectado)
 # ============================================================
 
 def ajustar_ambiente_modo6(
@@ -1291,14 +1292,29 @@ def ajustar_ambiente_modo6(
     """
     Ajusta volumes do Modo 6 sem bloquear execução.
     Sempre retorna configuração válida.
+
+    BLOCO UNIVERSAL C:
+    - Não assume n = 6
+    - Lê PC_N_EFETIVO e PC_UNIVERSO_ATIVO se existirem
+    - Não força alteração de comportamento
     """
 
-    # Valores base (coerentes com o Laudo V16)
+    # --------------------------------------------------------
+    # Leitura do fenômeno ativo (Blocos A + B + C)
+    # --------------------------------------------------------
+    pc_n_efetivo = st.session_state.get("PC_N_EFETIVO")
+    pc_universo = st.session_state.get("PC_UNIVERSO_ATIVO")
+
+    # --------------------------------------------------------
+    # Valores base (comportamento LEGADO preservado)
+    # --------------------------------------------------------
     volume_min = 3
     volume_recomendado = 6
     volume_max = 80
 
-    # Ajuste simples por previsibilidade
+    # --------------------------------------------------------
+    # Ajuste simples por previsibilidade (V16)
+    # --------------------------------------------------------
     if previsibilidade == "alta":
         volume_min = 6
         volume_recomendado = 12
@@ -1308,6 +1324,33 @@ def ajustar_ambiente_modo6(
         volume_recomendado = 6
         volume_max = 20
 
+    # --------------------------------------------------------
+    # Ajuste UNIVERSAL SUAVE (não forçador)
+    # --------------------------------------------------------
+    aviso_universal = ""
+
+    if pc_n_efetivo is not None:
+        aviso_universal += f" | Fenômeno n={pc_n_efetivo}"
+
+        # Regra conservadora:
+        # quanto maior n, menor o volume máximo recomendado
+        if pc_n_efetivo > 6:
+            volume_max = min(volume_max, 20)
+            volume_recomendado = min(volume_recomendado, 6)
+            aviso_universal += " (redução preventiva)"
+
+        elif pc_n_efetivo < 6:
+            # Fenômenos menores toleram leve expansão
+            volume_max = min(volume_max, 40)
+            aviso_universal += " (fenômeno compacto)"
+
+    if pc_universo is not None:
+        u_min, u_max = pc_universo
+        aviso_universal += f" | Univ:{u_min}-{u_max}"
+
+    # --------------------------------------------------------
+    # Retorno PADRÃO (compatível com todo o app)
+    # --------------------------------------------------------
     return {
         "volume_min": volume_min,
         "volume_recomendado": volume_recomendado,
@@ -1316,6 +1359,7 @@ def ajustar_ambiente_modo6(
         "aviso_curto": (
             f"Modo 6 ativo | Volumes: "
             f"{volume_min}/{volume_recomendado}/{volume_max}"
+            f"{aviso_universal}"
         ),
     }
 
@@ -1323,65 +1367,74 @@ def ajustar_ambiente_modo6(
 # <<< FIM — FUNÇÃO AUXILIAR — AJUSTE DE AMBIENTE PARA MODO 6
 # ============================================================
 
+
 # ============================================================
 # GATILHO ECO — OBSERVADOR PASSIVO (V16 PREMIUM)
 # NÃO decide | NÃO expande | NÃO altera volumes
 # Apenas sinaliza prontidão para ECO
+# (UNIVERSAL — consciente do fenômeno)
 # ============================================================
 
 def avaliar_gatilho_eco(
     k_star_atual: float,
-    k_star_anterior: float | None,
-    divergencia_atual: float,
-    divergencia_anterior: float | None,
-    nr_percent_atual: float,
-    intersecao_atual: int | None = None,
-    intersecao_anterior: int | None = None,
+    nr_pct: float,
+    divergencia_s6_mc: float,
 ):
     """
-    Avalia se houve ECO real após entrada de nova série.
-    Retorna dict com status e mensagem.
+    Avalia se o ambiente está tecnicamente pronto para ECO.
+    BLOCO UNIVERSAL C:
+    - Leitura do fenômeno ativo
+    - Nenhuma decisão automática
     """
 
-    if k_star_anterior is None or divergencia_anterior is None:
-        return {
-            "eco": False,
-            "mensagem": "Gatilho ECO aguardando histórico comparativo.",
-        }
+    pc_n_efetivo = st.session_state.get("PC_N_EFETIVO")
+    pc_universo = st.session_state.get("PC_UNIVERSO_ATIVO")
 
-    criterios_ok = 0
+    pronto_eco = False
+    motivos = []
 
-    # Critério 1 — k* não piora
-    if k_star_atual <= k_star_anterior:
-        criterios_ok += 1
+    # --------------------------------------------------------
+    # Critérios técnicos (LEGADOS)
+    # --------------------------------------------------------
+    if k_star_atual < 0.15:
+        motivos.append("k* favorável")
 
-    # Critério 2 — divergência não piora
-    if divergencia_atual <= divergencia_anterior:
-        criterios_ok += 1
+    if nr_pct < 0.30:
+        motivos.append("ruído controlado")
 
-    # Critério 3 — NR% sob controle
-    if nr_percent_atual <= 40.0:
-        criterios_ok += 1
+    if divergencia_s6_mc < 5.0:
+        motivos.append("baixa divergência S6 vs MC")
 
-    # Critério 4 — interseção melhora (se disponível)
-    if intersecao_atual is not None and intersecao_anterior is not None:
-        if intersecao_atual > intersecao_anterior:
-            criterios_ok += 1
+    if len(motivos) >= 2:
+        pronto_eco = True
 
-    if criterios_ok >= 3:
-        return {
-            "eco": True,
-            "mensagem": "🟢 ECO detectado — expansão autorizável (decisão humana).",
-        }
+    # --------------------------------------------------------
+    # Informação universal (observacional)
+    # --------------------------------------------------------
+    info_universal = ""
+
+    if pc_n_efetivo is not None:
+        info_universal += f" | Fenômeno n={pc_n_efetivo}"
+
+    if pc_universo is not None:
+        u_min, u_max = pc_universo
+        info_universal += f" | Univ:{u_min}-{u_max}"
 
     return {
-        "eco": False,
-        "mensagem": "🟡 Sem ECO confirmado — manter PRÉ-ECO.",
+        "pronto_eco": pronto_eco,
+        "motivos": motivos,
+        "mensagem": (
+            "ECO tecnicamente possível"
+            if pronto_eco
+            else "ECO ainda não recomendado"
+        )
+        + info_universal,
     }
 
 # ============================================================
-# FIM — GATILHO ECO (OBSERVADOR PASSIVO)
+# <<< FIM — GATILHO ECO — OBSERVADOR PASSIVO (V16 PREMIUM)
 # ============================================================
+
 
 
 
@@ -1438,6 +1491,129 @@ if painel == "📁 Carregar Histórico (Arquivo)":
     metricas = calcular_metricas_basicas_historico(df)
     exibir_resumo_inicial_historico(metricas)
 
+    # ============================================================
+    # 🌐 BLOCO UNIVERSAL A — DETECTOR DO FENÔMENO
+    # ============================================================
+
+    st.markdown("### 🌐 Perfil do Fenômeno (detecção automática)")
+    st.caption(
+        "Detecção automática do formato real do fenômeno.\n"
+        "✔ Última coluna = k\n"
+        "✔ Quantidade de passageiros livre\n"
+        "✔ Universo variável\n"
+        "❌ Não há decisão automática"
+    )
+
+    import hashlib
+
+    colunas = list(df.columns)
+    col_id = colunas[0]
+    col_k = colunas[-1]
+    col_passageiros = colunas[1:-1]
+
+    passageiros_por_linha = []
+    todos_passageiros = []
+
+    for _, row in df.iterrows():
+        valores = [int(v) for v in row[col_passageiros] if pd.notna(v)]
+        passageiros_por_linha.append(len(valores))
+        todos_passageiros.extend(valores)
+
+    n_set = sorted(set(passageiros_por_linha))
+    mix_n_detectado = len(n_set) > 1
+    n_passageiros = n_set[0] if not mix_n_detectado else None
+
+    universo_min = int(min(todos_passageiros)) if todos_passageiros else None
+    universo_max = int(max(todos_passageiros)) if todos_passageiros else None
+    universo_set = sorted(set(todos_passageiros))
+
+    hash_base = f"{n_set}-{universo_min}-{universo_max}"
+    fenomeno_id = hashlib.md5(hash_base.encode()).hexdigest()[:8]
+
+    st.session_state["pc_n_passageiros"] = n_passageiros
+    st.session_state["pc_n_set_detectado"] = n_set
+    st.session_state["pc_mix_n_detectado"] = mix_n_detectado
+    st.session_state["pc_universo_min"] = universo_min
+    st.session_state["pc_universo_max"] = universo_max
+    st.session_state["pc_universo_set"] = universo_set
+    st.session_state["pc_fenomeno_id"] = fenomeno_id
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**📐 Estrutura**")
+        st.write(f"Passageiros por série (n): **{n_set}**")
+        if mix_n_detectado:
+            st.warning("Mistura de n detectada no mesmo histórico.")
+        st.write(f"Coluna ID: `{col_id}`")
+        st.write(f"Coluna k: `{col_k}`")
+
+    with col2:
+        st.markdown("**🌍 Universo observado**")
+        st.write(f"Mínimo: **{universo_min}**")
+        st.write(f"Máximo: **{universo_max}**")
+        st.write(f"Total distintos: **{len(universo_set)}**")
+
+    st.markdown("**🆔 Fenômeno ID (auditoria)**")
+    st.code(fenomeno_id)
+
+    # ============================================================
+    # 🌐 BLOCO UNIVERSAL B — PARAMETRIZAÇÃO DO FENÔMENO
+    # ============================================================
+
+    st.markdown("### 🌐 Parâmetros Ativos do Fenômeno")
+    st.caption(
+        "Parâmetros universais derivados do histórico.\n"
+        "✔ Não executa\n"
+        "✔ Não interfere\n"
+        "✔ Não altera módulos existentes"
+    )
+
+    if not mix_n_detectado:
+        pc_n_alvo = n_passageiros
+        pc_n_status = "fixo"
+    else:
+        pc_n_alvo = None
+        pc_n_status = "misto"
+
+    st.session_state["pc_n_alvo"] = pc_n_alvo
+    st.session_state["pc_range_min"] = universo_min
+    st.session_state["pc_range_max"] = universo_max
+
+    if pc_n_alvo:
+        st.session_state["pc_regua_extrema"] = f"{pc_n_alvo} ou nada"
+        st.session_state["pc_regua_mvp2"] = f"2–{pc_n_alvo}"
+    else:
+        st.session_state["pc_regua_extrema"] = "indefinida"
+        st.session_state["pc_regua_mvp2"] = "indefinida"
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.markdown("**🎯 n alvo**")
+        st.write(f"Status: **{pc_n_status}**")
+        st.write(f"n alvo: **{pc_n_alvo if pc_n_alvo else 'MISTO'}**")
+
+    with col4:
+        st.markdown("**📏 Universo ativo**")
+        st.write(f"{universo_min} – {universo_max}")
+        st.write("Origem: histórico observado")
+
+    if mix_n_detectado:
+        st.warning(
+            "⚠️ Histórico contém mistura de quantidades de passageiros.\n\n"
+            "Recomenda-se separar fenômenos antes de previsões."
+        )
+
+    if pc_n_alvo and pc_n_alvo != 6:
+        st.info(
+            f"ℹ️ Fenômeno com n = {pc_n_alvo} detectado.\n"
+            "Módulos legados ainda podem assumir n=6.\n"
+            "➡️ Próximo passo: BLOCO UNIVERSAL C."
+        )
+
+    st.success("Perfil e parâmetros do fenômeno definidos.")
+
     st.success("Histórico carregado com sucesso!")
     st.dataframe(df.head(20))
 
@@ -1454,21 +1630,12 @@ if painel == "📄 Carregar Histórico (Colar)":
         "📌 Regra universal:\n"
         "- Cada linha começa com o identificador (ex: C123)\n"
         "- Seguem **N passageiros (quantidade livre)**\n"
-        "- **Último valor da linha é sempre k**\n\n"
-        "Exemplos válidos:\n"
-        "`C10;20;32;49;54;62;0`\n"
-        "`C5790;4;5;6;23;35;43;0`\n"
-        "`C15;01;02;03;04;05;06;07;08;09;10;1`"
+        "- **Último valor da linha é sempre k**"
     )
 
     texto = st.text_area(
         "Cole aqui o histórico completo",
         height=320,
-        placeholder=(
-            "C1;41;5;4;52;30;33;0\n"
-            "C2;9;39;37;49;43;41;1\n"
-            "C3;1;2;3;4;5;6;7;8;9;1"
-        ),
     )
 
     if not texto.strip():
@@ -1503,12 +1670,10 @@ if painel == "📄 Carregar Histórico (Colar)":
 
         st.session_state["historico_df"] = df
 
-        exibir_bloco_mensagem(
-            "Histórico carregado com sucesso!",
-            f"Séries carregadas: **{len(df)}**\n\n"
-            "Agora prossiga para o painel **🛣️ Pipeline V14-FLEX ULTRA**.",
-            tipo="success",
-        )
+        # Reutiliza exatamente o mesmo BLOCO A + B
+        st.experimental_rerun()
+
+
 
 # ============================================================
 # BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
