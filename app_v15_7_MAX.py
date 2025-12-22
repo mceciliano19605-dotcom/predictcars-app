@@ -1621,7 +1621,7 @@ if painel == "📁 Carregar Histórico (Arquivo)":
 # ============================================================
 # Painel 1B — 📄 Carregar Histórico (Colar)
 # ============================================================
-if painel == "📄 Carregar Histórico (Colar)":
+if "Carregar Histórico (Colar)" in panel:
 
     st.markdown("## 📄 Carregar Histórico — Copiar e Colar (V15.7 MAX)")
 
