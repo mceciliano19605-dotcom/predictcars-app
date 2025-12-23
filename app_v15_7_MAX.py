@@ -160,6 +160,100 @@ if st.session_state.get("historico_df") is not None:
         st.session_state["historico_df"]
     )
 
+# ============================================================
+# V16 PREMIUM — INFRAESTRUTURA UNIVERSAL
+# (REGRAS CANÔNICAS + ORÇAMENTO CONDICIONADO)
+# ============================================================
+
+# -----------------------------
+# REGRA CANÔNICA: LISTAS >= n_real
+# -----------------------------
+def validar_lista_vs_n_real(lista, n_real):
+    return isinstance(lista, (list, tuple)) and len(lista) >= int(n_real)
+
+# -----------------------------
+# ORÇAMENTOS CONDICIONADOS (TABELAS)
+# -----------------------------
+ORCAMENTOS_CONDICIONADOS = {
+    5: {
+        5: 3,
+        6: 18,
+        7: 63,
+        8: 168,
+        9: 378,
+        10: 756,
+    },
+    6: {
+        6: 6,
+        7: 42,
+        8: 168,
+        9: 504,
+        10: 1260,
+        11: 2772,
+    },
+    15: {
+        15: 3.5,
+        16: 56,
+        17: 476,
+    },
+}
+
+# -----------------------------
+# RESOLUÇÃO DE ORÇAMENTO
+# -----------------------------
+def resolver_orcamento(n_real, tamanho_lista, orcamento_manual=None):
+    """
+    Prioridade:
+    1) Orçamento manual (se fornecido)
+    2) Tabela condicionada por n_real
+    3) None (não avalia custo)
+    """
+    if orcamento_manual is not None:
+        try:
+            return float(orcamento_manual)
+        except Exception:
+            return None
+
+    tabela = ORCAMENTOS_CONDICIONADOS.get(int(n_real))
+    if not tabela:
+        return None
+
+    return tabela.get(int(tamanho_lista))
+
+# -----------------------------
+# AVALIAÇÃO UNIVERSAL (OBSERVACIONAL)
+# -----------------------------
+def avaliar_listas_universal(listas, alvo_real, n_real, orcamento_manual=None):
+    """
+    Retorna métricas OBSERVACIONAIS:
+    - acertos / n_real
+    - custo (se disponível)
+    """
+    resultados = []
+    alvo_set = set(int(v) for v in alvo_real if int(v) > 0)
+
+    for idx, lst in enumerate(listas, start=1):
+        if not validar_lista_vs_n_real(lst, n_real):
+            continue
+
+        lst_set = set(int(v) for v in lst if int(v) > 0)
+        acertos = len(alvo_set.intersection(lst_set))
+        custo = resolver_orcamento(n_real, len(lst), orcamento_manual)
+
+        resultados.append({
+            "lista_id": idx,
+            "tamanho_lista": len(lst),
+            "acertos": acertos,
+            "n_real": int(n_real),
+            "score": f"{acertos}/{int(n_real)}",
+            "custo": custo,
+        })
+
+    return resultados
+
+
+
+
 
 # ============================================================
 # GUARDAS DE SEGURANÇA POR n_alvo
@@ -664,6 +758,10 @@ def construir_navegacao_v157() -> str:
         "📉 Painel de Divergência S6 vs MC",
         "🧭 Monitor de Risco — k & k*",
         "🎯 Modo 6 Acertos — Execução",
+
+        # ===== NOVO PAINEL UNIVERSAL =====
+        "🌐 Modo Universal — Avaliação Observacional",
+
         "🧪 Testes de Confiabilidade REAL",
         "🧪 Replay Curto — Expectativa 1–3 Séries",
         "⏱️ Duração da Janela — Análise Histórica",
@@ -681,8 +779,16 @@ def construir_navegacao_v157() -> str:
         "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos",
         "🧭 Checklist Operacional — Decisão (AGORA)",
         "📊 V16 Premium — Backtest Rápido do Pacote (N=60)",
-    
     ]
+
+    painel = st.sidebar.radio(
+        "📌 Selecione o painel:",
+        opcoes_base,
+    )
+
+    return painel
+
+
 
     # ------------------------------------------------------------
     # Combinação final (V15.7 + V16)
@@ -6932,100 +7038,81 @@ if painel == "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos":
     )
 
 # ============================================================
-# PAINEL — 🧭 CHECKLIST OPERACIONAL — DECISÃO (AGORA)
+# PAINEL — 🌐 MODO UNIVERSAL — AVALIAÇÃO OBSERVACIONAL
+# (N-AGNÓSTICO • SEM DECISÃO • SEM GERAÇÃO)
 # ============================================================
-if painel == "🧭 Checklist Operacional — Decisão (AGORA)":
 
-    st.markdown("## 🧭 Checklist Operacional — Decisão (AGORA)")
+if painel == "🌐 Modo Universal — Avaliação Observacional":
+
+    st.title("🌐 Modo Universal — Avaliação Observacional")
     st.caption(
-        "Checklist obrigatório ANTES do Modo 6 / Mandar Bala.\n"
-        "Não calcula, não cria listas, não decide automaticamente."
+        "Observacional • N-agnóstico • Sem geração • Sem decisão\n"
+        "Avalia listas existentes contra o alvo real (n_real)."
     )
 
-    st.markdown("---")
+    df = st.session_state.get("historico_df")
+    n_real = st.session_state.get("n_alvo")
+    listas = st.session_state.get("modo6_listas_totais") or []
 
-    # --------------------------------------------------------
-    # 1) Estrada
-    # --------------------------------------------------------
-    st.markdown("### 1️⃣ Estrada permite ataque?")
-    st.markdown(
-        "- k* **não piorou**\n"
-        "- NR% **não explodiu**\n"
-        "- Divergência **não disparou**"
-    )
-    estrada_ok = st.radio(
-        "Resultado da leitura da estrada:",
-        ["SIM", "NÃO"],
-        horizontal=True,
-    )
+    if df is None or n_real is None:
+        st.warning(
+            "Histórico ou n_real não disponível.\n\n"
+            "Carregue o histórico antes de usar este painel."
+        )
+        st.stop()
 
-    # --------------------------------------------------------
-    # 2) Regime
-    # --------------------------------------------------------
-    st.markdown("### 2️⃣ Regime jogável?")
-    regime = st.radio(
-        "Regime identificado:",
-        ["OURO", "PRATA", "RUIM"],
-        horizontal=True,
+    # -----------------------------
+    # Alvo real (última série válida)
+    # -----------------------------
+    col_pass = [c for c in df.columns if c.startswith("p")]
+    alvo_real = (
+        df[col_pass]
+        .iloc[-1]
+        .dropna()
+        .astype(int)
+        .tolist()
     )
 
-    # --------------------------------------------------------
-    # 3) Eixo
-    # --------------------------------------------------------
-    st.markdown("### 3️⃣ Existe eixo claro nas listas?")
-    eixo = st.radio(
-        "Eixo identificado:",
-        ["SIM", "NÃO"],
-        horizontal=True,
+    if not listas:
+        st.info("Nenhuma lista disponível para avaliação.")
+        st.stop()
+
+    # -----------------------------
+    # Orçamento manual (opcional)
+    # -----------------------------
+    st.subheader("🔢 Orçamento (opcional)")
+    orcamento_manual = st.text_input(
+        "Informe um orçamento manual (opcional)",
+        value="",
+        help="Se preenchido, substitui a tabela condicionada."
+    )
+    if orcamento_manual == "":
+        orcamento_manual = None
+
+    # -----------------------------
+    # Avaliação observacional
+    # -----------------------------
+    resultados = avaliar_listas_universal(
+        listas=listas,
+        alvo_real=alvo_real,
+        n_real=n_real,
+        orcamento_manual=orcamento_manual,
     )
 
-    # --------------------------------------------------------
-    # 4) Nocivos
-    # --------------------------------------------------------
-    st.markdown("### 4️⃣ Nocivos concentrados nas mesmas listas?")
-    nocivos = st.radio(
-        "Nocivos:",
-        ["SIM", "NÃO"],
-        horizontal=True,
+    if not resultados:
+        st.info("Nenhuma lista válida para avaliação (listas < n_real são ignoradas).")
+        st.stop()
+
+    df_out = pd.DataFrame(resultados)
+
+    st.subheader("📊 Resultados (acertos / n_real)")
+    st.dataframe(df_out, use_container_width=True, hide_index=True)
+
+    st.caption(
+        "Leitura sempre relativa ao n_real.\n"
+        "Listas com tamanho menor que n_real são descartadas automaticamente."
     )
 
-    st.markdown("---")
-
-    # --------------------------------------------------------
-    # 5) Decisão humana
-    # --------------------------------------------------------
-    st.markdown("### 5️⃣ Decisão final (humana)")
-    acao = st.radio(
-        "Ação escolhida:",
-        [
-            "CONCENTRAR (6–8 listas)",
-            "EQUILIBRAR (8–10 listas)",
-            "EXPANDIR COM CRITÉRIO (10–12 listas)",
-            "SEGURAR / NÃO ESCALAR",
-        ],
-    )
-
-    st.markdown("---")
-
-    # --------------------------------------------------------
-    # Síntese
-    # --------------------------------------------------------
-    st.markdown("### 🧾 Síntese da decisão")
-    st.write(
-        {
-            "Estrada OK": estrada_ok,
-            "Regime": regime,
-            "Eixo": eixo,
-            "Nocivos concentrados": nocivos,
-            "Ação escolhida": acao,
-        }
-    )
-
-    st.success(
-        "Checklist concluído. "
-        "A decisão da rodada está FECHADA aqui. "
-        "Prossiga para o Modo 6 e execução."
-    )
 
 
 # ============================================================
