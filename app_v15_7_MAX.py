@@ -759,14 +759,10 @@ def construir_navegacao_v157() -> str:
         "🧭 Monitor de Risco — k & k*",
         "🎯 Modo 6 Acertos — Execução",
 
-        # ===== NOVO PAINEL UNIVERSAL =====
-        "🌐 Modo Universal — Avaliação Observacional",
-
-        "🧪 Testes de Confiabilidade REAL",
-        "🧪 Replay Curto — Expectativa 1–3 Séries",
-        "⏱️ Duração da Janela — Análise Histórica",
-        "📘 Relatório Final",
-
+        # ===== MVPs UNIVERSAIS (OBSERVACIONAIS) =====
+        "💰 MVP-U2 — Orçamento Universal",
+        "🧩 MVP-U3 — Cobertura Universal",
+        
         # ===== V16 PREMIUM (BASE VISÍVEL) =====
         "🧠 Laudo Operacional V16",
         "📊 V16 Premium — Erro por Regime (Retrospectivo)",
