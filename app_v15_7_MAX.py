@@ -4525,6 +4525,303 @@ if painel == "📊 V16 Premium — Orçamento Universal":
 """
     )
 
+# ============================================================
+# MVP-U3 — COBERTURA UNIVERSAL (OBSERVACIONAL)
+# NÃO GERA LISTAS • NÃO DECIDE • NÃO ALTERA MOTOR
+# ============================================================
+if painel == "🧩 MVP-U3 — Cobertura Universal":
+
+    st.markdown("## 🧩 MVP-U3 — Cobertura Universal (Observacional)")
+    st.caption(
+        "Avalia cobertura, redundância e custo teórico do pacote ATUAL.\n"
+        "Funciona para qualquer n_alvo (5, 6, 15, etc.).\n"
+        "❌ Não gera listas • ❌ Não decide • ✅ Apenas mede"
+    )
+
+    # ------------------------------------------------------------
+    # Recuperação segura do histórico
+    # ------------------------------------------------------------
+    historico_df = st.session_state.get("historico_df")
+    if historico_df is None or historico_df.empty:
+        st.warning("Histórico não encontrado. Carregue o histórico antes.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Recuperação do pacote congelado
+    # ------------------------------------------------------------
+    pacote = (
+        st.session_state.get("pacote_listas_atual")
+        or st.session_state.get("modo6_listas_totais")
+    )
+
+    if not pacote:
+        st.warning("Nenhum pacote de listas disponível para avaliação.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Detecção canônica de n_alvo
+    # ------------------------------------------------------------
+    n_alvo = st.session_state.get("n_alvo")
+    if not n_alvo or n_alvo <= 0:
+        st.warning("n_alvo não detectado. Execute o carregamento do histórico.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Universo real observado no histórico
+    # ------------------------------------------------------------
+    col_pass = [c for c in historico_df.columns if c.startswith("p")]
+    universo = sorted(
+        {
+            int(v)
+            for _, row in historico_df.iterrows()
+            for v in row[col_pass]
+            if pd.notna(v) and int(v) > 0
+        }
+    )
+
+    if not universo:
+        st.warning("Universo vazio. Histórico inválido.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Métricas de cobertura
+    # ------------------------------------------------------------
+    total_listas = len(pacote)
+
+    tamanhos = [len(set(lst)) for lst in pacote]
+    validas = [lst for lst in pacote if len(set(lst)) >= n_alvo]
+
+    cobertura_unica = set()
+    for lst in validas:
+        cobertura_unica.update(lst)
+
+    taxa_validas = len(validas) / total_listas if total_listas else 0.0
+    cobertura_pct = (
+        len(cobertura_unica) / len(universo) * 100 if universo else 0.0
+    )
+
+    # Redundância média
+    freq = {}
+    for lst in validas:
+        for x in lst:
+            freq[x] = freq.get(x, 0) + 1
+
+    redundancia_media = (
+        sum(freq.values()) / len(freq) if freq else 0.0
+    )
+
+    # ------------------------------------------------------------
+    # Exibição — Métricas principais
+    # ------------------------------------------------------------
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Listas totais", total_listas)
+    col2.metric("Listas ≥ n_alvo", f"{len(validas)} ({taxa_validas*100:.1f}%)")
+    col3.metric("Cobertura do universo", f"{cobertura_pct:.1f}%")
+    col4.metric("Redundância média", f"{redundancia_media:.2f}")
+
+    # ------------------------------------------------------------
+    # Diagnóstico textual (OBSERVACIONAL)
+    # ------------------------------------------------------------
+    st.markdown("### 🧠 Leitura observacional")
+
+    if taxa_validas < 0.6:
+        st.warning(
+            "Poucas listas atingem o tamanho mínimo do fenômeno.\n"
+            "Cobertura estrutural fraca."
+        )
+    elif cobertura_pct < 40:
+        st.warning(
+            "Cobertura baixa do universo observado.\n"
+            "Pacote concentrado demais."
+        )
+    else:
+        st.success(
+            "Cobertura estrutural aceitável para o fenômeno atual.\n"
+            "Pacote coerente sob critério universal."
+        )
+
+    st.info(
+        "📌 Este painel NÃO decide execução.\n"
+        "Use apenas como régua de cobertura e redundância."
+    )
+
+# ============================================================
+# <<< FIM — MVP-U3 — COBERTURA UNIVERSAL
+# ============================================================
+
+# ============================================================
+# MVP-U4 — EFICIÊNCIA MARGINAL POR CUSTO (OBSERVACIONAL)
+# NÃO GERA LISTAS • NÃO DECIDE • NÃO ALTERA MOTOR
+# ============================================================
+if painel == "📈 MVP-U4 — Eficiência Marginal por Custo":
+
+    st.markdown("## 📈 MVP-U4 — Eficiência Marginal por Custo (Observacional)")
+    st.caption(
+        "Avalia quanto de cobertura adicional é obtida por unidade extra de orçamento.\n"
+        "Depende de U2 (Orçamento) e U3 (Cobertura).\n"
+        "❌ Não gera listas • ❌ Não decide • ✅ Apenas mede"
+    )
+
+    # ------------------------------------------------------------
+    # Recuperação do histórico e n_alvo
+    # ------------------------------------------------------------
+    historico_df = st.session_state.get("historico_df")
+    n_alvo = st.session_state.get("n_alvo")
+
+    if historico_df is None or historico_df.empty or not n_alvo:
+        st.warning("Histórico ou n_alvo indisponível. Carregue o histórico primeiro.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Recuperação do pacote congelado
+    # ------------------------------------------------------------
+    pacote = (
+        st.session_state.get("pacote_listas_atual")
+        or st.session_state.get("modo6_listas_totais")
+    )
+
+    if not pacote:
+        st.warning("Nenhum pacote disponível para análise.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Universo real observado
+    # ------------------------------------------------------------
+    col_pass = [c for c in historico_df.columns if c.startswith("p")]
+    universo = sorted(
+        {
+            int(v)
+            for _, row in historico_df.iterrows()
+            for v in row[col_pass]
+            if pd.notna(v) and int(v) > 0
+        }
+    )
+
+    if not universo:
+        st.warning("Universo vazio. Histórico inválido.")
+        st.stop()
+
+    universo_size = len(universo)
+
+    # ------------------------------------------------------------
+    # Tabela canônica de custo (mesma do MVP-U2)
+    # ------------------------------------------------------------
+    TABELA_CUSTO = {
+        5:  {5: 3,   6: 18,   7: 63,   8: 168,   9: 378,   10: 756},
+        6:  {6: 6,   7: 42,   8: 168,  9: 504,   10: 1260, 11: 2772},
+        15: {15: 3.5, 16: 56, 17: 476},
+    }
+
+    # ------------------------------------------------------------
+    # Agrupamento por tamanho de lista (≥ n_alvo)
+    # ------------------------------------------------------------
+    grupos = {}
+    for lst in pacote:
+        if len(set(lst)) >= n_alvo:
+            k = len(set(lst))
+            grupos.setdefault(k, []).append(lst)
+
+    if not grupos:
+        st.warning("Nenhuma lista válida (≥ n_alvo) encontrada.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Cálculo de cobertura por grupo
+    # ------------------------------------------------------------
+    linhas = []
+
+    for tamanho, listas in sorted(grupos.items()):
+        cobertura = set()
+        for lst in listas:
+            cobertura.update(lst)
+
+        cobertura_pct = len(cobertura) / universo_size * 100
+
+        custo = None
+        if n_alvo in TABELA_CUSTO and tamanho in TABELA_CUSTO[n_alvo]:
+            custo = TABELA_CUSTO[n_alvo][tamanho]
+
+        linhas.append({
+            "n_lista": tamanho,
+            "cobertura_pct": cobertura_pct,
+            "custo": custo,
+        })
+
+    df = pd.DataFrame(linhas).sort_values("n_lista").reset_index(drop=True)
+
+    if df.empty:
+        st.warning("Não foi possível calcular métricas.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Base = menor tamanho válido
+    # ------------------------------------------------------------
+    base = df.iloc[0]
+    base_cob = base["cobertura_pct"]
+    base_custo = base["custo"]
+
+    # ------------------------------------------------------------
+    # Eficiência marginal
+    # ------------------------------------------------------------
+    em_linhas = []
+    for _, row in df.iterrows():
+        if row["custo"] is None or base_custo is None or row["custo"] == base_custo:
+            em = None
+            dc = None
+            dd = None
+        else:
+            dc = row["custo"] - base_custo
+            dd = row["cobertura_pct"] - base_cob
+            em = dd / dc if dc > 0 else None
+
+        em_linhas.append({
+            "n_lista": row["n_lista"],
+            "cobertura_pct": round(row["cobertura_pct"], 2),
+            "custo": row["custo"],
+            "Δcobertura": round(dd, 2) if dd is not None else None,
+            "Δcusto": dc,
+            "eficiencia_marginal": round(em, 4) if em is not None else None,
+        })
+
+    df_em = pd.DataFrame(em_linhas)
+
+    # ------------------------------------------------------------
+    # Exibição
+    # ------------------------------------------------------------
+    st.markdown("### 📊 Eficiência marginal por tamanho de lista")
+    st.dataframe(df_em, use_container_width=True, hide_index=True)
+
+    # ------------------------------------------------------------
+    # Leitura observacional
+    # ------------------------------------------------------------
+    st.markdown("### 🧠 Leitura observacional")
+
+    valid_em = df_em.dropna(subset=["eficiencia_marginal"])
+    if valid_em.empty:
+        st.info("Eficiência marginal não disponível para comparação.")
+    else:
+        melhor = valid_em.sort_values("eficiencia_marginal", ascending=False).iloc[0]
+        st.success(
+            f"Maior eficiência marginal em n_lista = {int(melhor['n_lista'])} "
+            f"(EM = {melhor['eficiencia_marginal']})."
+        )
+
+        baixos = valid_em[valid_em["eficiencia_marginal"] < 0.01]
+        if not baixos.empty:
+            st.warning(
+                "Retorno decrescente detectado em alguns tamanhos:\n"
+                + ", ".join(str(int(x)) for x in baixos["n_lista"].tolist())
+            )
+
+    st.info(
+        "📌 Este painel é apenas observacional.\n"
+        "Use para decidir até onde vale a pena aumentar o orçamento."
+    )
+
+# ============================================================
+# <<< FIM — MVP-U4 — EFICIÊNCIA MARGINAL POR CUSTO
+# ============================================================
 
 
 # ============================================================
