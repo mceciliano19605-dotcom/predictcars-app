@@ -735,16 +735,14 @@ st.markdown(
 
 
 # ============================================================
-# Construção da Navegação — V15.7 MAX
+# Construção da Navegação — V15.7 MAX (ALINHADA AO TEXTO OFICIAL)
 # ============================================================
 def construir_navegacao_v157() -> str:
 
     st.sidebar.markdown("## 🚦 Navegação PredictCars V15.7 MAX")
 
-    # ------------------------------------------------------------
-    # Painéis originais do V15.7 MAX (BASE)
-    # ------------------------------------------------------------
-    opcoes_base = [
+    opcoes = [
+        # ===== MAPA OPERACIONAL FIXO — BASE =====
         "📁 Carregar Histórico (Arquivo)",
         "📄 Carregar Histórico (Colar)",
         "🛰️ Sentinelas — k* (Ambiente de Risco)",
@@ -759,11 +757,12 @@ def construir_navegacao_v157() -> str:
         "🧭 Monitor de Risco — k & k*",
         "🎯 Modo 6 Acertos — Execução",
 
-        # ===== MVPs UNIVERSAIS (OBSERVACIONAIS) =====
+        # ===== CAMADA UNIVERSAL (OBSERVACIONAL — n-base) =====
         "💰 MVP-U2 — Orçamento Universal",
         "🧩 MVP-U3 — Cobertura Universal",
-        
-        # ===== V16 PREMIUM (BASE VISÍVEL) =====
+        "📈 MVP-U4 — Eficiência Marginal por Custo",
+
+        # ===== V16 PREMIUM (OBSERVACIONAL / DIAGNÓSTICO) =====
         "🧠 Laudo Operacional V16",
         "📊 V16 Premium — Erro por Regime (Retrospectivo)",
         "📊 V16 Premium — EXATO por Regime (Proxy)",
@@ -775,14 +774,23 @@ def construir_navegacao_v157() -> str:
         "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos",
         "🧭 Checklist Operacional — Decisão (AGORA)",
         "📊 V16 Premium — Backtest Rápido do Pacote (N=60)",
+        "🧪 Testes de Confiabilidade REAL",
+        "🧪 Replay Curto — Expectativa 1–3 Séries",
+        "⏱️ Duração da Janela — Análise Histórica",
+        "📘 Relatório Final",
+
+        # ===== 🔵 MODO ESPECIAL =====
+        "🔵 MODO ESPECIAL — Evento Condicionado",
     ]
 
     painel = st.sidebar.radio(
         "📌 Selecione o painel:",
-        opcoes_base,
+        opcoes,
+        index=0,
     )
 
     return painel
+
 
 
 
