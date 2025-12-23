@@ -4146,64 +4146,80 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     volume = max(1, min(volume, int(config["volume_max"])))
 
     # ============================================================
-    # 🔒 BLOCO UNIVERSAL — DETECÇÃO DO FENÔMENO
+    # 🔒 BLOCO UNIVERSAL — DETECÇÃO DO FENÔMENO (COM TRAVA: k NÃO ENTRA)
     # ============================================================
-    pc_n_passageiros = st.session_state.get("pc_n_passageiros")
-    pc_n_set_detectado = st.session_state.get("pc_n_set_detectado")
-    pc_universo_set = st.session_state.get("pc_universo_set")
+    # Sempre trate históricos como FENÔMENOS:
+    # - ID = primeira coluna
+    # - Passageiros = colunas 1:-1
+    # - k = última coluna (NUNCA entra no universo)
+    colunas = list(df.columns)
+    col_pass = colunas[1:-1]  # TRAVA: exclui k
 
-    # Fallback robusto caso o bloco universal ainda não exista
-    if pc_n_passageiros is None or not pc_universo_set:
-        colunas = list(df.columns)
-        col_pass = colunas[1:-1]
+    # n do fenômeno (modo da contagem real)
+    contagens = []
+    universo_tmp = []
 
-        contagens = []
-        universo_tmp = []
+    for _, row in df.iterrows():
+        vals = [int(v) for v in row[col_pass] if pd.notna(v)]
+        if vals:
+            contagens.append(len(vals))
+            universo_tmp.extend(vals)
 
-        for _, row in df.iterrows():
-            vals = [int(v) for v in row[col_pass] if pd.notna(v)]
-            if vals:
-                contagens.append(len(vals))
-                universo_tmp.extend(vals)
+    if contagens:
+        n_alvo = int(pd.Series(contagens).mode().iloc[0])
+    else:
+        n_alvo = 6  # fallback defensivo
 
-        if contagens:
-            pc_n_passageiros = int(pd.Series(contagens).mode().iloc[0])
-        else:
-            pc_n_passageiros = 6  # fallback final defensivo
+    # Universo do fenômeno (TRAVA: remove 0 e negativos)
+    universo = sorted({int(v) for v in universo_tmp if int(v) > 0})
 
-        pc_universo_set = sorted(set(universo_tmp)) if universo_tmp else list(range(1, 61))
+    # fallback absoluto
+    if not universo:
+        universo = list(range(1, 61))
 
-    n_alvo = int(pc_n_passageiros)
-    universo = list(pc_universo_set)
     umin, umax = min(universo), max(universo)
 
     # ============================================================
-    # FUNÇÕES INTERNAS — AJUSTE UNIVERSAL
+    # 🔁 REPRODUTIBILIDADE (SEED FIXA POR FENÔMENO + HISTÓRICO)
+    # ============================================================
+    # Mesmo histórico/fenômeno => mesmas listas
+    fen_id = (
+        st.session_state.get("pc_fenomeno_id")
+        or f"{len(df)}-{n_alvo}-{umin}-{umax}"
+    )
+    seed_raw = f"PC-M6-{fen_id}-{len(df)}-{n_alvo}"
+    seed = abs(hash(seed_raw)) % (2**32)
+    rng = np.random.default_rng(seed)
+
+    # ============================================================
+    # FUNÇÕES INTERNAS — AJUSTE UNIVERSAL (DETERMINÍSTICO)
     # ============================================================
     def _snap_universo(v: int) -> int:
+        v = int(v)
         if v in universo:
             return v
+        # aproxima para o mais próximo dentro do universo
         return min(universo, key=lambda x: abs(x - v))
 
     def _ajustar_para_n(lista, n_target: int):
         seen = set()
         out = []
         for x in lista:
-            sx = _snap_universo(int(np.clip(x, umin, umax)))
-            if sx not in seen:
+            sx = _snap_universo(int(np.clip(int(x), umin, umax)))
+            if sx > 0 and sx not in seen:
                 seen.add(sx)
                 out.append(sx)
         if len(out) > n_target:
             return out[:n_target]
         while len(out) < n_target:
-            cand = _snap_universo(int(np.random.choice(universo)))
-            if cand not in seen:
+            cand = _snap_universo(int(rng.choice(universo)))
+            if cand > 0 and cand not in seen:
                 seen.add(cand)
                 out.append(cand)
         return out
 
     # ============================================================
-    # BASE ULTRA + SHADOW — COMPATÍVEL COM O FENÔMENO
+    # BASE ULTRA + SHADOW — COMPATÍVEL COM O FENÔMENO (DETERMINÍSTICO)
     # ============================================================
     if ultima_prev and isinstance(ultima_prev, list):
         if ultima_prev and isinstance(ultima_prev[0], int):
@@ -4211,36 +4227,37 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         else:
             base_ultra = _ajustar_para_n(ultima_prev[0], n_alvo)
     else:
-        base_ultra = np.random.choice(universo, size=n_alvo, replace=False).tolist()
+        base_ultra = rng.choice(universo, size=n_alvo, replace=False).tolist()
+        base_ultra = _ajustar_para_n(base_ultra, n_alvo)
 
     base_shadow = base_ultra[:]
 
     if len(base_shadow) >= 2:
-        for idx in np.random.choice(range(len(base_shadow)), size=2, replace=False):
-            desloc = np.random.choice([-1, 1])
-            base_shadow[idx] = _snap_universo(
-                int(np.clip(base_shadow[idx] + desloc, umin, umax))
-            )
+        idxs = rng.choice(range(len(base_shadow)), size=2, replace=False)
+        for idx in idxs:
+            desloc = rng.choice([-1, 1])
+            candidato = int(base_shadow[idx]) + int(desloc)
+            base_shadow[idx] = _snap_universo(int(np.clip(candidato, umin, umax)))
 
     # ============================================================
-    # GERAÇÃO PRÉ-ECO — RUÍDO MARGINAL (UNIVERSAL)
+    # GERAÇÃO PRÉ-ECO — RUÍDO MARGINAL (DETERMINÍSTICO)
     # ============================================================
     listas_brutas = []
 
     for i in range(volume):
-        usar_shadow = (i % 10) >= 7
+        usar_shadow = (i % 10) >= 7  # ~30% shadow
         base = base_shadow if usar_shadow else base_ultra
 
-        ruido = np.random.randint(-7, 8, size=len(base))
+        ruido = rng.integers(-7, 8, size=len(base))
         nova = [
-            _snap_universo(int(np.clip(b + r, umin, umax)))
+            _snap_universo(int(np.clip(int(b) + int(r), umin, umax)))
             for b, r in zip(base, ruido)
         ]
 
-        if np.random.rand() < 0.35:
-            j = np.random.randint(0, len(nova))
+        if rng.random() < 0.35:
+            j = int(rng.integers(0, len(nova)))
             nova[j] = _snap_universo(
-                int(np.clip(nova[j] + np.random.choice([-2, 2]), umin, umax))
+                int(np.clip(int(nova[j]) + int(rng.choice([-2, 2])), umin, umax))
             )
 
         nova = _ajustar_para_n(nova, n_alvo)
@@ -4254,7 +4271,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     st.session_state["modo6_listas_totais"] = listas_totais
     st.session_state["modo6_listas_top10"] = listas_top10
-    st.session_state["modo6_listas"] = listas_totais
+    st.session_state["modo6_listas"] = listas_totais  # compatibilidade
 
     st.success(
         f"Modo 6 (PRÉ-ECO) — {len(listas_totais)} listas totais | "
@@ -4282,10 +4299,6 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 # ============================================================
 # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
-
-
-
-
 
 
 
