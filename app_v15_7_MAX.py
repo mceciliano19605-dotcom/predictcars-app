@@ -4443,6 +4443,91 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
 
+# ============================================================
+# 📊 V16 PREMIUM — MVP-U2 | ORÇAMENTO UNIVERSAL (OBSERVACIONAL)
+# ============================================================
+if painel == "📊 V16 Premium — Orçamento Universal":
+
+    st.title("📊 MVP-U2 — Orçamento Universal (Observacional)")
+    st.caption(
+        "Observacional • Não gera listas • Não decide\n"
+        "Avalia custo real dos pacotes já gerados (Modo 6 / Universal)."
+    )
+
+    listas = st.session_state.get("modo6_listas_totais", [])
+    n_alvo = st.session_state.get("n_alvo")
+
+    if not listas or n_alvo is None:
+        st.warning(
+            "Pacote indisponível.\n\n"
+            "Execute primeiro:\n"
+            "• Pipeline\n"
+            "• Modo 6 (Painel 11)"
+        )
+        st.stop()
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # TABELA DE CUSTO UNIVERSAL (CANÔNICA)
+    # --------------------------------------------------------
+    TABELA_CUSTO = {
+        5:  {5: 3,   6: 18,   7: 63,   8: 168,   9: 378,   10: 756},
+        6:  {6: 6,   7: 42,   8: 168,  9: 504,   10: 1260, 11: 2772},
+        15: {15: 3.5, 16: 56, 17: 476},
+    }
+
+    st.markdown("### 📐 Tabela canônica de custo (fixa)")
+    st.json(TABELA_CUSTO)
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # Entrada de orçamento manual (opcional)
+    # --------------------------------------------------------
+    orcamento_manual = st.number_input(
+        "Orçamento manual (opcional)",
+        min_value=0.0,
+        value=0.0,
+        step=1.0,
+    )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # Avaliação das listas
+    # --------------------------------------------------------
+    linhas = []
+
+    for i, lista in enumerate(listas, start=1):
+        tamanho = len(lista)
+
+        custo = None
+        if n_alvo in TABELA_CUSTO and tamanho in TABELA_CUSTO[n_alvo]:
+            custo = TABELA_CUSTO[n_alvo][tamanho]
+
+        linhas.append({
+            "lista_id": i,
+            "n_lista": tamanho,
+            "custo_estimado": custo,
+            "cabe_no_orcamento_manual": (
+                custo is not None and orcamento_manual > 0 and custo <= orcamento_manual
+            ),
+        })
+
+    df_orc = pd.DataFrame(linhas)
+
+    st.markdown("### 📊 Avaliação observacional do pacote")
+    st.dataframe(df_orc, use_container_width=True, hide_index=True)
+
+    st.markdown(
+        """
+🧠 **Leitura correta**
+- Custo **None** = combinação não prevista na tabela
+- Painel **não filtra**, **não decide**, **não prioriza**
+- Serve apenas para **decisão HUMANA**
+"""
+    )
 
 
 
