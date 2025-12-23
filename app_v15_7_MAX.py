@@ -116,6 +116,8 @@ st.markdown(
 # ============================================================
 # Sessão Streamlit — persistência para V15.7 MAX
 # ============================================================
+
+# Inicialização de estado
 if "historico_df" not in st.session_state:
     st.session_state["historico_df"] = None
 
@@ -127,6 +129,65 @@ if "sentinela_kstar" not in st.session_state:
 
 if "diagnostico_risco" not in st.session_state:
     st.session_state["diagnostico_risco"] = None
+
+if "n_alvo" not in st.session_state:
+    st.session_state["n_alvo"] = None
+
+
+# ============================================================
+# DETECÇÃO CANÔNICA DE n_alvo (PASSAGEIROS REAIS DA RODADA)
+# REGRA FIXA:
+# - Última coluna SEMPRE é k
+# - Todas as colunas p* anteriores são passageiros
+# - n_alvo é definido pela ÚLTIMA SÉRIE VÁLIDA
+# ============================================================
+
+def detectar_n_alvo(historico_df):
+    if historico_df is None or historico_df.empty:
+        return None
+
+    col_pass = [c for c in historico_df.columns if c.startswith("p")]
+    if not col_pass:
+        return None
+
+    ultima_linha = historico_df[col_pass].iloc[-1]
+    return int(ultima_linha.dropna().shape[0])
+
+
+# Atualização automática de n_alvo
+if st.session_state.get("historico_df") is not None:
+    st.session_state["n_alvo"] = detectar_n_alvo(
+        st.session_state["historico_df"]
+    )
+
+
+# ============================================================
+# GUARDAS DE SEGURANÇA POR n_alvo
+# (INFRAESTRUTURA — NÃO APLICADA A NENHUM PAINEL)
+# ============================================================
+
+def guarda_n_alvo(n_esperado, nome_modulo):
+    n_alvo = st.session_state.get("n_alvo")
+
+    if n_alvo is None:
+        st.warning(
+            f"⚠️ {nome_modulo}: n_alvo não detectado. "
+            f"Carregue um histórico válido antes de executar este painel."
+        )
+        return False
+
+    if n_alvo != n_esperado:
+        st.warning(
+            f"🚫 {nome_modulo} BLOQUEADO\n\n"
+            f"n detectado = {n_alvo}\n"
+            f"n esperado por este módulo = {n_esperado}\n\n"
+            f"Este painel assume n fixo e foi bloqueado para evitar "
+            f"cálculo incorreto ou truncamento silencioso."
+        )
+        return False
+
+    return True
+
 
 
 # ============================================================
