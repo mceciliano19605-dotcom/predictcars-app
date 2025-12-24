@@ -4471,7 +4471,7 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
     # ------------------------------
     historico_df = st.session_state.get("historico_df")
     n_alvo = st.session_state.get("n_alvo")
-    pipeline_concluido = st.session_state.get("pipeline_concluido", False)
+    pipeline_ok = st.session_state.get("pipeline_ok", False)
     k_calculado = st.session_state.get("k_calculado") or st.session_state.get("k_star")
 
     # Guarda 1 — histórico
