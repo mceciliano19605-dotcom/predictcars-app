@@ -4458,6 +4458,95 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 # ============================================================
 
 # ============================================================
+# 🧪 Modo N Experimental (n≠6)
+# (LAUDO DE CÓDIGO — FASE 1 / BLOCO 2)
+#
+# OBJETIVO:
+# - Roteamento mínimo + guardas explícitas
+# - Avisos claros de EXPERIMENTAL
+# - ZERO lógica de geração
+#
+# BLINDAGEM:
+# - NÃO altera Modo 6
+# - NÃO altera TURBO
+# - NÃO altera ECO/PRÉ-ECO
+# - NÃO escreve em session_state (somente leitura)
+# ============================================================
+
+elif painel == "🧪 Modo N Experimental (n≠6)":
+
+    st.header("🧪 Modo N Experimental (n≠6)")
+    st.warning(
+        "EXPERIMENTAL — Este painel é isolado. "
+        "Não substitui o Modo 6, não altera TURBO, "
+        "não aprende e pode recusar geração."
+    )
+
+    # ------------------------------
+    # Guardas canônicas
+    # ------------------------------
+    historico_df = st.session_state.get("historico_df")
+    n_alvo = st.session_state.get("n_alvo")
+    pipeline_concluido = st.session_state.get("pipeline_concluido", False)
+    k_calculado = st.session_state.get("k_calculado") or st.session_state.get("k_star")
+
+    # Guarda 1 — histórico
+    if historico_df is None or historico_df.empty:
+        st.error("Pré-requisito ausente: histórico não carregado.")
+        st.stop()
+
+    # Guarda 2 — n_alvo válido e diferente de 6
+    try:
+        n_int = int(n_alvo)
+    except Exception:
+        st.error("Pré-requisito ausente: n_alvo inválido.")
+        st.stop()
+
+    if n_int == 6:
+        st.info("Este painel é exclusivo para n≠6. Para n=6, utilize o Modo 6.")
+        st.stop()
+
+    # Guarda 3 — pipeline
+    if not pipeline_concluido:
+        st.error("Pré-requisito ausente: Pipeline V14-FLEX ULTRA não concluído.")
+        st.stop()
+
+    # Guarda 4 — sentinelas
+    if k_calculado is None:
+        st.error("Pré-requisito ausente: Sentinelas (k/k*) não calculadas.")
+        st.stop()
+
+    # ------------------------------
+    # Estado observado (laudo)
+    # ------------------------------
+    st.subheader("📋 Estado Observado (Laudo)")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("n do Fenômeno", n_int)
+    with col2:
+        st.metric("Séries", len(historico_df))
+    with col3:
+        st.metric("Pipeline", "CONCLUÍDO")
+    with col4:
+        st.metric("Sentinela", f"{k_calculado:.4f}" if isinstance(k_calculado, (int, float)) else str(k_calculado))
+
+    st.markdown("---")
+
+    # ------------------------------
+    # Aviso de escopo (sem geração)
+    # ------------------------------
+    st.info(
+        "Este é o **BLOCO 2 (Laudo de Código)**.\n\n"
+        "➡️ Nenhuma lista é gerada aqui.\n"
+        "➡️ Próximo bloco ativará a lógica EXPERIMENTAL de geração, "
+        "usando U2/U3/U4 como autorizadores."
+    )
+
+
+
+
+# ============================================================
 # 📊 V16 PREMIUM — MVP-U2 | ORÇAMENTO UNIVERSAL (OBSERVACIONAL)
 # ============================================================
 if painel == "📊 V16 Premium — Orçamento Universal":
