@@ -736,18 +736,9 @@ st.markdown(
 
 # ============================================================
 # Construção da Navegação — V15.7 MAX
-# (LAUDO DE CÓDIGO — FASE 1 / BLOCO 1)
-#
-# OBJETIVO:
-# - Consolidar menu com MAPA OPERACIONAL FIXO (ordem + nomes)
-# - Remover retorno morto (código inalcançável) e garantir roteamento estável
-# - Adicionar "🧪 Modo N Experimental (n≠6)" de forma ISOLADA e CONDICIONAL
-#
-# REGRAS DE BLINDAGEM:
-# - NÃO mexe em motor, não gera, não decide, não altera ECO/PRÉ-ECO
-# - NÃO substitui Modo 6
-# - Apenas cria "slot" seguro (painel novo) e corrige navegação
+# (LAUDO DE CÓDIGO — BLOCO 1-FIX)
 # ============================================================
+
 def construir_navegacao_v157() -> str:
 
     st.sidebar.markdown("## 🚦 Navegação PredictCars V15.7 MAX")
@@ -755,11 +746,7 @@ def construir_navegacao_v157() -> str:
 
     n_alvo = st.session_state.get("n_alvo")
 
-    # ------------------------------------------------------------
-    # MAPA OPERACIONAL FIXO — LISTA CANÔNICA (ORDEM + NOMES)
-    # ------------------------------------------------------------
     opcoes = [
-        # 1–13 (BASE V15.7)
         "📁 Carregar Histórico (Arquivo)",
         "📄 Carregar Histórico (Colar)",
         "🛰️ Sentinelas — k* (Ambiente de Risco)",
@@ -773,13 +760,27 @@ def construir_navegacao_v157() -> str:
         "📉 Painel de Divergência S6 vs MC",
         "🧭 Monitor de Risco — k & k*",
         "🎯 Modo 6 Acertos — Execução",
+    ]
 
-        # 14–16 (CAMADA UNIVERSAL — OBSERVACIONAL n-base)
+    # ------------------------------------------------------------
+    # INSERÇÃO CONDICIONAL — MODO N EXPERIMENTAL (n≠6)
+    # ------------------------------------------------------------
+    if (n_alvo is not None) and (int(n_alvo) != 6):
+        opcoes.append("🧪 Modo N Experimental (n≠6)")
+
+    # ------------------------------------------------------------
+    # CAMADA UNIVERSAL (U2–U4)
+    # ------------------------------------------------------------
+    opcoes.extend([
         "💰 MVP-U2 — Orçamento Universal",
         "🧩 MVP-U3 — Cobertura Universal",
         "📈 MVP-U4 — Eficiência Marginal por Custo",
+    ])
 
-        # 17–31 (CAMADA V16 PREMIUM — OBSERVACIONAL / DIAGNÓSTICA)
+    # ------------------------------------------------------------
+    # CAMADA V16 PREMIUM
+    # ------------------------------------------------------------
+    opcoes.extend([
         "🧠 Laudo Operacional V16",
         "📊 V16 Premium — Erro por Regime (Retrospectivo)",
         "📊 V16 Premium — EXATO por Regime (Proxy)",
@@ -795,29 +796,10 @@ def construir_navegacao_v157() -> str:
         "🧪 Replay Curto — Expectativa 1–3 Séries",
         "⏱️ Duração da Janela — Análise Histórica",
         "📘 Relatório Final",
-
-        # (Modo Especial permanece por último — observacional)
         "🔵 MODO ESPECIAL — Evento Condicionado",
-    ]
+    ])
 
-    # ------------------------------------------------------------
-    # FASE 1 — NOVO PAINEL (ISOLADO) — APENAS SE n_alvo != 6
-    # ------------------------------------------------------------
-    # ✅ Não aparece para n=6
-    # ✅ Não aparece sem histórico (n_alvo None)
-    # ✅ Só cria "slot" seguro — sem lógica de geração aqui
-    if (n_alvo is not None) and (int(n_alvo) != 6):
-        # Painel novo inserido APÓS Modo 6 e ANTES da camada Universal (por clareza operacional)
-        # Sem alterar nomes canônicos existentes.
-        idx_insercao = opcoes.index("💰 MVP-U2 — Orçamento Universal")
-        opcoes.insert(idx_insercao, "🧪 Modo N Experimental (n≠6)")
-
-    painel = st.sidebar.radio(
-        "",
-        opcoes,
-        index=0,
-    )
-
+    painel = st.sidebar.radio("", opcoes, index=0)
     return painel
 
 
@@ -826,6 +808,8 @@ def construir_navegacao_v157() -> str:
 # ============================================================
 
 painel = construir_navegacao_v157()
+st.sidebar.caption(f"Painel ativo: {painel}")
+
 
 # ============================================================
 # DEBUG MINIMAL — CONFIRMA PAINEL ATIVO
