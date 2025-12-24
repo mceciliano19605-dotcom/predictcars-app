@@ -3810,100 +3810,106 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 # ============================================================
 
 
-    # ============================================================
-    # MOTORES PROFUNDOS
-    # ============================================================
+# ============================================================
+# MOTORES PROFUNDOS
+# ============================================================
 
-    # --- S6 PROFUNDO ---
-    def s6_profundo_V157(df_local, idx_alvo):
-        ult_local = df_local[col_pass].iloc[idx_alvo].values
-        scores_local = []
-        for i_local in range(len(df_local) - 1):
-            base_local = df_local[col_pass].iloc[i_local].values
-            inter_local = len(set(base_local) & set(ult_local))
-            scores_local.append(inter_local)
-        melhores_idx_local = np.argsort(scores_local)[-25:]
-        candidatos_local = df_local[col_pass].iloc[melhores_idx_local].values
-        return candidatos_local
+# --- S6 PROFUNDO ---
+def s6_profundo_V157(df_local, idx_alvo):
+    ult_local = df_local[col_pass].iloc[idx_alvo].values
+    scores_local = []
+    for i_local in range(len(df_local) - 1):
+        base_local = df_local[col_pass].iloc[i_local].values
+        inter_local = len(set(base_local) & set(ult_local))
+        scores_local.append(inter_local)
+    melhores_idx_local = np.argsort(scores_local)[-25:]
+    candidatos_local = df_local[col_pass].iloc[melhores_idx_local].values
+    return candidatos_local
 
-    # --- MICRO-LEQUE PROFUNDO ---
-    def micro_leque_profundo(base, profundidade=20):
-        leque = []
-        for delta in range(-profundidade, profundidade + 1):
-            novo = [max(1, min(60, x + delta)) for x in base]
-            leque.append(novo)
-        return np.array(leque)
 
-    # --- MONTE CARLO PROFUNDO ---
-    def monte_carlo_profundo(base, n=800):
-        sims = []
-        for _ in range(n):
-            ruido = np.random.randint(-5, 6, size=len(base))
-            candidato = base + ruido
-            candidato = np.clip(candidato, 1, 60)
-            sims.append(candidato.tolist())
-        return sims
+# --- MICRO-LEQUE PROFUNDO ---
+def micro_leque_profundo(base, profundidade=20):
+    leque = []
+    for delta in range(-profundidade, profundidade + 1):
+        novo = [max(1, min(60, x + delta)) for x in base]
+        leque.append(novo)
+    return np.array(leque)
 
-    # ============================================================
-    # ORQUESTRAÇÃO ULTRA
-    # ============================================================
-    try:
-        base = df[col_pass].iloc[-1].values
 
-        candidatos_s6 = s6_profundo_V157(df, -1)
+# --- MONTE CARLO PROFUNDO ---
+def monte_carlo_profundo(base, n=800):
+    sims = []
+    for _ in range(n):
+        ruido = np.random.randint(-5, 6, size=len(base))
+        candidato = base + ruido
+        candidato = np.clip(candidato, 1, 60)
+        sims.append(candidato.tolist())
+    return sims
 
-        ml = micro_leque_profundo(base, profundidade=15)
 
-        mc = monte_carlo_profundo(base, n=1200)
+# ============================================================
+# ORQUESTRAÇÃO ULTRA
+# ============================================================
+try:
+    base = df[col_pass].iloc[-1].values
 
-        # Pesos guiados por k*
-        peso_s6 = 0.55 - (k_star * 0.15)
-        peso_mc = 0.30 + (k_star * 0.20)
-        peso_ml = 1.0 - (peso_s6 + peso_mc)
+    candidatos_s6 = s6_profundo_V157(df, -1)
 
-        # Interseção estatística
-        todos = np.vstack([
-            candidatos_s6,
-            ml,
-            np.array(mc)
-        ])
+    ml = micro_leque_profundo(base, profundidade=15)
 
-        previsao_raw = (
-            peso_s6 * candidatos_s6.mean(axis=0)
-            + peso_mc * np.mean(mc, axis=0)
-            + peso_ml * ml.mean(axis=0)
-        )
+    mc = monte_carlo_profundo(base, n=1200)
 
-        previsao_final = [int(round(x)) for x in previsao_raw]
+    # Pesos guiados por k*
+    peso_s6 = 0.55 - (k_star * 0.15)
+    peso_mc = 0.30 + (k_star * 0.20)
+    peso_ml = 1.0 - (peso_s6 + peso_mc)
 
-        # Divergência S6 vs MC
-        divergencia = np.linalg.norm(
-            candidatos_s6.mean(axis=0) - np.mean(mc, axis=0)
-        )
+    # Interseção estatística
+    todos = np.vstack([
+        candidatos_s6,
+        ml,
+        np.array(mc)
+    ])
 
-    except Exception as erro:
-        exibir_bloco_mensagem(
-            "Erro no motor TURBO++ ULTRA",
-            f"Detalhes técnicos: {erro}",
-            tipo="error",
-        )
-        st.stop()
+    previsao_raw = (
+        peso_s6 * candidatos_s6.mean(axis=0)
+        + peso_mc * np.mean(mc, axis=0)
+        + peso_ml * ml.mean(axis=0)
+    )
 
-    # ============================================================
-    # Exibição final
-    # ============================================================
-    st.markdown("### 🔮 Previsão ULTRA (TURBO++)")
-    st.success(f"**{formatar_lista_passageiros(previsao_final)}**")
+    previsao_final = [int(round(x)) for x in previsao_raw]
 
-    st.markdown("### 🔎 Divergência S6 vs MC")
-    st.info(f"**{divergencia:.4f}**")
+    # Divergência S6 vs MC
+    divergencia = np.linalg.norm(
+        candidatos_s6.mean(axis=0) - np.mean(mc, axis=0)
+    )
 
-    st.session_state["ultima_previsao"] = previsao_final
-    st.session_state["div_s6_mc"] = divergencia
+except Exception as erro:
+    exibir_bloco_mensagem(
+        "Erro no motor TURBO++ ULTRA",
+        f"Detalhes técnicos: {erro}",
+        tipo="error",
+    )
+    st.stop()
+
+
+# ============================================================
+# Exibição final
+# ============================================================
+st.markdown("### 🔮 Previsão ULTRA (TURBO++)")
+st.success(f"**{formatar_lista_passageiros(previsao_final)}**")
+
+st.markdown("### 🔎 Divergência S6 vs MC")
+st.info(f"**{divergencia:.4f}**")
+
+st.session_state["ultima_previsao"] = previsao_final
+st.session_state["div_s6_mc"] = divergencia
+
 
 # ============================================================
 # Painel 8 — 📡 Painel de Ruído Condicional
 # ============================================================
+
 if painel == "📡 Painel de Ruído Condicional":
 
     st.markdown("## 📡 Painel de Ruído Condicional — V15.7 MAX")
