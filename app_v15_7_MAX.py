@@ -4491,7 +4491,7 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
         st.stop()
 
     # Guarda 3 — pipeline
-    if not pipeline_concluido:
+    if not pipeline_ok:    
         st.error("Pré-requisito ausente: Pipeline V14-FLEX ULTRA não concluído.")
         st.stop()
 
