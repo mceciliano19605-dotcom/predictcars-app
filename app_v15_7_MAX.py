@@ -4543,6 +4543,80 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
         "usando U2/U3/U4 como autorizadores."
     )
 
+# ============================================================
+# 🧪 Modo N Experimental (n≠6)
+# BLOCO 3 — GERAÇÃO MÍNIMA EXPERIMENTAL (n=5)
+# ============================================================
+
+    st.markdown("### 🔬 Geração Experimental — n≠6")
+    st.caption(
+        "Modo EXPERIMENTAL. Geração mínima, consciente e auditável. "
+        "Não substitui o Modo 6."
+    )
+
+    # ------------------------------------------------------------
+    # Fonte canônica do pacote (somente leitura)
+    # ------------------------------------------------------------
+    listas_base = st.session_state.get("modo6_listas_totais", [])
+
+    # ------------------------------------------------------------
+    # Autorizadores (MVP-U2 / U3 / U4)
+    # ------------------------------------------------------------
+    autorizacao = {
+        "orcamento_ok": False,
+        "cobertura_ok": False,
+        "eficiencia_ok": False,
+    }
+
+    # Autorização mínima por orçamento (U2)
+    orcamento_manual = st.session_state.get("orcamento_manual_universal")
+    if isinstance(orcamento_manual, (int, float)) and orcamento_manual > 0:
+        autorizacao["orcamento_ok"] = True
+
+    # Autorização mínima por cobertura (U3)
+    if listas_base and len(listas_base) >= 1:
+        autorizacao["cobertura_ok"] = True
+
+    # Autorização mínima por eficiência (U4)
+    # (critério mínimo: ao menos 1 lista viável)
+    if autorizacao["orcamento_ok"] and autorizacao["cobertura_ok"]:
+        autorizacao["eficiencia_ok"] = True
+
+    # ------------------------------------------------------------
+    # Decisão EXPERIMENTAL (sem fallback)
+    # ------------------------------------------------------------
+    if not all(autorizacao.values()):
+        st.warning(
+            "Geração NÃO autorizada pelos MVPs (U2/U3/U4).\n\n"
+            "➡️ Resultado válido.\n"
+            "➡️ Nenhuma lista foi gerada."
+        )
+    else:
+        # --------------------------------------------------------
+        # Geração mínima (1 a 3 listas) — n-base
+        # --------------------------------------------------------
+        max_listas = min(3, len(listas_base))
+        listas_n = [sorted(lst)[:n_int] for lst in listas_base[:max_listas]]
+
+        st.success(f"Geração EXPERIMENTAL autorizada — {len(listas_n)} lista(s).")
+
+        for i, lst in enumerate(listas_n, start=1):
+            st.code(f"Lista N{i}: {lst}", language="python")
+
+        # --------------------------------------------------------
+        # Mini-laudo automático
+        # --------------------------------------------------------
+        st.markdown("#### 📄 Mini-Laudo (Automático)")
+        st.write(
+            {
+                "modo": "Modo N Experimental",
+                "n": n_int,
+                "listas_geradas": len(listas_n),
+                "orcamento_manual": orcamento_manual,
+                "regime": "OBSERVADO",
+                "status": "GERADO" if listas_n else "RECUSADO",
+            }
+        )
 
 
 
