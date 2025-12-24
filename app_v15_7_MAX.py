@@ -4467,12 +4467,14 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
     )
 
     # ------------------------------
-    # Guardas canônicas
+    # Guardas canônicas (PIPELINE REAL)
     # ------------------------------
     historico_df = st.session_state.get("historico_df")
     n_alvo = st.session_state.get("n_alvo")
-    pipeline_ok = st.session_state.get("pipeline_ok", False)
     k_calculado = st.session_state.get("k_calculado") or st.session_state.get("k_star")
+
+    # Evidência REAL do pipeline
+    pipeline_metricas = st.session_state.get("pipeline_metricas")
 
     # Guarda 1 — histórico
     if historico_df is None or historico_df.empty:
@@ -4490,8 +4492,8 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
         st.info("Este painel é exclusivo para n≠6. Para n=6, utilize o Modo 6.")
         st.stop()
 
-    # Guarda 3 — pipeline
-    if not pipeline_ok:    
+    # Guarda 3 — pipeline (por evidência real)
+    if pipeline_metricas is None:
         st.error("Pré-requisito ausente: Pipeline V14-FLEX ULTRA não concluído.")
         st.stop()
 
@@ -4513,7 +4515,10 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
     with col3:
         st.metric("Pipeline", "CONCLUÍDO")
     with col4:
-        st.metric("Sentinela", f"{k_calculado:.4f}" if isinstance(k_calculado, (int, float)) else str(k_calculado))
+        st.metric(
+            "Sentinela",
+            f"{k_calculado:.4f}" if isinstance(k_calculado, (int, float)) else str(k_calculado),
+        )
 
     st.markdown("---")
 
@@ -4523,9 +4528,10 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
     st.info(
         "Este é o **BLOCO 2 (Laudo de Código)**.\n\n"
         "➡️ Nenhuma lista é gerada aqui.\n"
-        "➡️ Próximo bloco ativará a lógica EXPERIMENTAL de geração, "
+        "➡️ O próximo bloco ativará a lógica EXPERIMENTAL de geração, "
         "usando U2/U3/U4 como autorizadores."
     )
+
 
 # ============================================================
 # 🧪 Modo N Experimental (n≠6)
