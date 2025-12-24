@@ -4467,14 +4467,16 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
     )
 
     # ------------------------------
-    # Guardas canônicas (PIPELINE REAL)
+    # Guardas canônicas (EVIDÊNCIA REAL)
     # ------------------------------
     historico_df = st.session_state.get("historico_df")
     n_alvo = st.session_state.get("n_alvo")
     k_calculado = st.session_state.get("k_calculado") or st.session_state.get("k_star")
 
-    # Evidência REAL do pipeline
-    pipeline_metricas = st.session_state.get("pipeline_metricas")
+    # Evidências indiretas do pipeline (como ele REALMENTE funciona)
+    estrada_regime = st.session_state.get("estrada_regime")
+    energia_media = st.session_state.get("energia_media")
+    clusters_formados = st.session_state.get("clusters_formados")
 
     # Guarda 1 — histórico
     if historico_df is None or historico_df.empty:
@@ -4492,8 +4494,8 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
         st.info("Este painel é exclusivo para n≠6. Para n=6, utilize o Modo 6.")
         st.stop()
 
-    # Guarda 3 — pipeline (por evidência real)
-    if pipeline_metricas is None:
+    # Guarda 3 — pipeline (por evidência observada)
+    if estrada_regime is None and energia_media is None and clusters_formados is None:
         st.error("Pré-requisito ausente: Pipeline V14-FLEX ULTRA não concluído.")
         st.stop()
 
@@ -4513,7 +4515,7 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
     with col2:
         st.metric("Séries", len(historico_df))
     with col3:
-        st.metric("Pipeline", "CONCLUÍDO")
+        st.metric("Pipeline", "CONCLUÍDO (por evidência)")
     with col4:
         st.metric(
             "Sentinela",
@@ -4522,15 +4524,13 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
 
     st.markdown("---")
 
-    # ------------------------------
-    # Aviso de escopo (sem geração)
-    # ------------------------------
     st.info(
         "Este é o **BLOCO 2 (Laudo de Código)**.\n\n"
         "➡️ Nenhuma lista é gerada aqui.\n"
         "➡️ O próximo bloco ativará a lógica EXPERIMENTAL de geração, "
         "usando U2/U3/U4 como autorizadores."
     )
+
 
 
 # ============================================================
