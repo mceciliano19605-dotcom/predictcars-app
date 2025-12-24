@@ -5293,212 +5293,198 @@ if painel == "📘 Relatório Final":
     st.markdown("## 📘 Relatório Final — V15.7 MAX — V16 Premium Profundo")
 
     # ------------------------------------------------------------
-    # Recuperação de dados consolidados
+    # 0) 🧲 SUGADOR — Recuperação canônica de dados consolidados
+    # (somente leitura | sem recalcular | sem decidir)
     # ------------------------------------------------------------
+    historico_df = st.session_state.get("historico_df")
+    n_alvo = st.session_state.get("n_alvo")
+
+    # TURBO (pode não existir; Relatório não pode morrer por isso)
     ultima_prev = st.session_state.get("ultima_previsao")
-    listas_m6_totais = st.session_state.get("modo6_listas")  # 🔥 UNIVERSO TOTAL
+
+    # Modo 6 (fonte canônica moderna + fallback legado)
+    listas_m6_totais = (
+        st.session_state.get("modo6_listas_totais")
+        or st.session_state.get("modo6_listas")
+        or st.session_state.get("modo6_listas_top10")
+        or []
+    )
+    listas_m6_top10 = st.session_state.get("modo6_listas_top10") or []
+
+    # Diagnósticos (podem existir ou não — relatório “suga” o que tiver)
     risco = st.session_state.get("diagnostico_risco")
     nr_percent = st.session_state.get("nr_percent")
     k_star = st.session_state.get("sentinela_kstar")
     divergencia = st.session_state.get("div_s6_mc")
 
-    # ------------------------------------------------------------
-    # Validações mínimas
-    # ------------------------------------------------------------
-    if ultima_prev is None:
-        exibir_bloco_mensagem(
-            "Nenhuma previsão encontrada",
-            "Execute o painel **⚙️ Modo TURBO++ ULTRA** antes.",
-            tipo="warning",
-        )
-        st.stop()
+    # Pipeline (sem inventar flags — lê o que existir)
+    pipeline_resumo = st.session_state.get("pipeline_resumo")
+    pipeline_status = st.session_state.get("pipeline_flex_ultra_concluido")
 
+    # ------------------------------------------------------------
+    # 1) Validações mínimas (sem travar o relatório por TURBO)
+    # ------------------------------------------------------------
     if not listas_m6_totais:
         exibir_bloco_mensagem(
-            "Modo 6 Acertos ainda não executado",
-            "Vá ao painel **🎯 Modo 6 Acertos — Execução**.",
+            "Sem pacote do Modo 6 para registrar",
+            "Vá ao painel **🎯 Modo 6 Acertos — Execução** e gere as listas.\n\n"
+            "O Relatório Final **não inventa** listas e **não recalcula**.",
             tipo="warning",
         )
         st.stop()
 
-    if risco is None:
-        risco = {
-            "indice_risco": 0.45,
-            "classe_risco": "🟡 Risco Moderado",
-            "k_star": k_star or 0.25,
-            "nr_percent": nr_percent or 35.0,
-            "divergencia": divergencia or 4.0,
-        }
+    # ------------------------------------------------------------
+    # 2) 🧲 SUGADOR — Estado do Histórico / Universo / Pipeline
+    # ------------------------------------------------------------
+    st.markdown("### 🧲 SUGADOR — Estado Consolidado da Rodada")
 
-    # ============================================================
-    # V16 — REGISTRO DO PACOTE FINAL (BACKTEST RÁPIDO DO PACOTE)
-    # ============================================================
-    # Registro explícito do pacote consolidado (núcleo + Modo 6)
-    # NÃO decide | NÃO filtra | NÃO altera motores
-    # ============================================================
+    linhas_estado = []
 
-    try:
-        pacote_final = []
+    if historico_df is not None and hasattr(historico_df, "shape"):
+        try:
+            linhas_estado.append(f"- Séries carregadas: **{int(historico_df.shape[0])}**")
+        except Exception:
+            linhas_estado.append("- Séries carregadas: **(indisponível)**")
 
-        if ultima_prev:
-            pacote_final.append(ultima_prev)
-
-        if listas_m6_totais:
-            pacote_final.extend(listas_m6_totais)
-
-        if pacote_final:
-            st.session_state["pacote_listas_atual"] = pacote_final.copy()
-            st.session_state["pacote_origem"] = "RELATORIO_FINAL"
-            st.session_state["pacote_timestamp"] = pd.Timestamp.now()
-
-            st.caption("📦 Pacote final registrado para backtest (V16 Premium).")
-
-    except Exception as e:
-        st.warning(f"Falha ao registrar pacote para backtest: {e}")
-
-    # ============================================================
-    # 📍 ESTADO OPERACIONAL ATUAL — LEITURA EXPLÍCITA (V16)
-    # ============================================================
-    # Informativo | Não prescritivo | Não decide | Não sugere volume
-    # ============================================================
-
-    st.markdown("### 📍 Estado Operacional Atual")
-
-    k_star_atual = k_star
-    nr_atual = nr_percent
-    div_atual = divergencia
-
-    estado_operacional = "RUÍDO"
-    justificativa = []
-
-    if k_star_atual is not None:
-        justificativa.append(f"k*={k_star_atual:.4f}")
-    if nr_atual is not None:
-        justificativa.append(f"NR%={nr_atual:.2f}%")
-    if div_atual is not None:
-        justificativa.append(f"Div={div_atual:.4f}")
-
-    if (
-        k_star_atual is not None and k_star_atual < 0.20
-        and nr_atual is not None and nr_atual < 40.0
-        and div_atual is not None and div_atual < 6.0
-    ):
-        estado_operacional = "ECO"
-    elif (
-        k_star_atual is not None and k_star_atual < 0.25
-        and nr_atual is not None and nr_atual < 55.0
-    ):
-        estado_operacional = "PRÉ-ECO"
+    if n_alvo is not None:
+        linhas_estado.append(f"- Passageiros por carro (n): **{int(n_alvo)}**")
     else:
-        estado_operacional = "RUÍDO"
+        linhas_estado.append("- Passageiros por carro (n): **(não definido)**")
 
-    if estado_operacional == "ECO":
-        st.success(
-            f"🟢 **ECO** — Meio sustenta continuidade.\n\n"
-            f"Leitura: {', '.join(justificativa)}\n\n"
-            f"*Autoriza ousadia consciente. Não garante acerto.*"
+    if pipeline_status is True:
+        linhas_estado.append("- Pipeline FLEX ULTRA: ✅ **CONCLUÍDO**")
+    elif pipeline_status is False:
+        linhas_estado.append("- Pipeline FLEX ULTRA: ⚠️ **NÃO CONCLUÍDO**")
+    else:
+        linhas_estado.append("- Pipeline FLEX ULTRA: (status não registrado)")
+
+    if risco and isinstance(risco, dict):
+        try:
+            linhas_estado.append(f"- Classe de Risco: **{risco.get('classe_risco', '—')}**")
+        except Exception:
+            pass
+
+    if k_star is not None:
+        try:
+            linhas_estado.append(f"- 🌡️ k* (sentinela): **{float(k_star):.4f}**")
+        except Exception:
+            linhas_estado.append(f"- 🌡️ k* (sentinela): **{k_star}**")
+
+    if nr_percent is not None:
+        try:
+            linhas_estado.append(f"- 📡 NR% (ruído condicional): **{float(nr_percent):.2f}%**")
+        except Exception:
+            linhas_estado.append(f"- 📡 NR% (ruído condicional): **{nr_percent}**")
+
+    if divergencia is not None:
+        try:
+            linhas_estado.append(f"- 📉 Divergência S6 vs MC: **{float(divergencia):.4f}**")
+        except Exception:
+            linhas_estado.append(f"- 📉 Divergência S6 vs MC: **{divergencia}**")
+
+    if pipeline_resumo is not None:
+        # Se houver um resumo pronto, o relatório “suga” e expõe
+        try:
+            linhas_estado.append(f"- Pipeline (resumo): {pipeline_resumo}")
+        except Exception:
+            pass
+
+    exibir_bloco_mensagem(
+        "Estado Consolidado",
+        "\n".join(linhas_estado) if linhas_estado else "Sem dados consolidados disponíveis.",
+        tipo="info",
+    )
+
+    # ------------------------------------------------------------
+    # 3) 🔮 Núcleo TURBO (se existir) — sem travar o relatório
+    # ------------------------------------------------------------
+    st.markdown("### 🔮 Previsão Principal (Núcleo — TURBO++ ULTRA)")
+
+    if ultima_prev is None:
+        st.info(
+            "Nenhuma previsão TURBO disponível nesta rodada (isso pode ocorrer em regime estável). "
+            "O Relatório Final continua e registra o **Pacote do Modo 6** normalmente."
         )
-    elif estado_operacional == "PRÉ-ECO":
+    else:
+        st.success(formatar_lista_passageiros(ultima_prev))
+
+    # ------------------------------------------------------------
+    # 4) 🛡️ Coberturas — TOP 10 (PRIORIDADE, NÃO BLOQUEIO)
+    # ------------------------------------------------------------
+    st.markdown("### 🛡️ Pacote Prioritário (Top 10) — Modo 6")
+
+    top10 = listas_m6_top10 if listas_m6_top10 else listas_m6_totais[:10]
+    for i, lst in enumerate(top10, 1):
+        st.markdown(f"**{i:02d})** {formatar_lista_passageiros(lst)}")
+
+    # ------------------------------------------------------------
+    # 5) 📦 PACOTE OFICIAL — LISTAS DO MODO 6 (COM CONTROLE DE QUANTIDADE)
+    # ------------------------------------------------------------
+    st.markdown("### 📦 Pacote Oficial de Previsão — Modo 6 (Registro no Relatório Final)")
+    st.caption(
+        "Este bloco **não gera** listas, **não filtra** e **não decide**. "
+        "Ele apenas registra no Relatório Final o pacote já gerado no **🎯 Modo 6**."
+    )
+
+    total_listas = len(listas_m6_totais)
+    LIMITE_VISUAL = total_listas
+
+    qtd_registro = st.slider(
+        "Quantas listas registrar/exibir no Relatório Final?",
+        min_value=1,
+        max_value=LIMITE_VISUAL,
+        value=min(10, LIMITE_VISUAL),
+        step=1,
+    )
+
+    if qtd_registro > 10:
         st.warning(
-            f"🟡 **PRÉ-ECO** — Meio em transição.\n\n"
-            f"Leitura: {', '.join(justificativa)}\n\n"
-            f"*Autoriza conversa sobre postura. Não autoriza ataque.*"
-        )
-    else:
-        st.error(
-            f"🔴 **RUÍDO** — Meio instável.\n\n"
-            f"Leitura: {', '.join(justificativa)}\n\n"
-            f"*Postura defensiva. Evitar pressão.*"
+            "⚠️ **ALERTA DE RISCO (registro ampliado)**: você está registrando além das Top 10.\n"
+            "Isso **não é proibido**, mas é uma expansão operacional e deve ser consciente."
         )
 
     st.caption(
-        "📌 Esta leitura é informativa. "
-        "Não decide volume, não escolhe listas e não automatiza ações."
+        f"Registrando **{qtd_registro}** de **{total_listas}** listas disponíveis "
+        "(o total depende do que o Modo 6 gerou)."
     )
 
-    # ============================================================
-    # 1) Previsão principal (Núcleo)
-    # ============================================================
-    st.markdown("### 🔮 Previsão Principal (Núcleo — TURBO++ ULTRA)")
-    st.success(formatar_lista_passageiros(ultima_prev))
+    for i, lst in enumerate(listas_m6_totais[:qtd_registro], 1):
+        st.markdown(f"**📦 {i:02d})** {formatar_lista_passageiros(lst)}")
 
-    # ============================================================
-    # 2) Coberturas — TOP 10 (PRIORIDADE, NÃO BLOQUEIO)
-    # ============================================================
-    st.markdown("### 🛡️ Coberturas Selecionadas (Top 10)")
-    listas_top10 = listas_m6_totais[:10]
-
-    for i, lst in enumerate(listas_top10, 1):
-        st.markdown(f"**{i:02d})** {formatar_lista_passageiros(lst)}")
-
-    # ============================================================
-    # 3) Indicadores Premium — Ambiente e Risco
-    # ============================================================
-    st.markdown("### 🌐 Indicadores do Ambiente (k*, NR%, Divergência)")
-
-    corpo = (
-        f"- 🌡️ **k\\*** (sentinela): **{risco['k_star']:.4f}**\n"
-        f"- 📡 **NR%** (ruído condicional): **{risco['nr_percent']:.2f}%**\n"
-        f"- 📉 **Divergência S6 vs MC**: **{risco['divergencia']:.4f}**\n"
-    )
-
-    exibir_bloco_mensagem("Indicadores do Ambiente — Premium", corpo, tipo="info")
-
-    # ============================================================
-    # 4) Diagnóstico de Risco Composto
-    # ============================================================
+    # ------------------------------------------------------------
+    # 6) 🧭 Diagnóstico de Risco Composto + Orientação Final (jeitão)
+    # ------------------------------------------------------------
     st.markdown("### 🧭 Diagnóstico de Risco Composto")
 
-    exibir_bloco_mensagem(
-        "Resumo do Risco Composto",
-        f"- Índice Composto de Risco: **{risco['indice_risco']:.4f}**\n"
-        f"- Classe de Risco: {risco['classe_risco']}\n",
-        tipo="info",
-    )
+    if risco and isinstance(risco, dict):
+        try:
+            exibir_bloco_mensagem(
+                "Resumo do Risco Composto",
+                f"- Índice Composto de Risco: **{float(risco.get('indice_risco', 0.0)):.4f}**\n"
+                f"- Classe de Risco: {risco.get('classe_risco', '—')}\n",
+                tipo="info",
+            )
+        except Exception:
+            exibir_bloco_mensagem(
+                "Resumo do Risco Composto",
+                f"- Índice Composto de Risco: **{risco.get('indice_risco', '—')}**\n"
+                f"- Classe de Risco: {risco.get('classe_risco', '—')}\n",
+                tipo="info",
+            )
+    else:
+        st.info("Diagnóstico composto indisponível nesta rodada (sem dados consolidados).")
 
-    # ============================================================
-    # 5) Orientação Final — Premium
-    # ============================================================
-    st.markdown("### 🧩 Orientação Final — V16 Premium")
+    st.markdown("### 🧩 Fechamento Operacional — Jeitão PredictCars")
 
     exibir_bloco_mensagem(
-        "Orientação Premium",
-        "🟡 **Ambiente equilibrado** — Núcleo opera, mas com cautela.\n"
-        "As **Top 10** são recomendadas. Listas adicionais elevam o risco.",
-        tipo="info",
+        "Fechamento",
+        "✅ Relatório Final atuou como **SUGADOR** do estado e registrou o **Pacote do Modo 6**.\n"
+        "⚠️ A decisão continua **humana**. Este relatório **não decide**, apenas documenta.\n",
+        tipo="success",
     )
 
     st.success("Relatório Final gerado com sucesso!")
 
-    # ============================================================
-    # 6) 🔥 MANDAR BALA — VOLUME OPERACIONAL (SEM BLOQUEIO)
-    # ============================================================
-    st.markdown("### 🔥 Mandar Bala — Volume Operacional (Listas para Ação)")
-
-    total_listas = len(listas_m6_totais)
-    LIMITE_VISUAL_BALA = total_listas
-
-    qtd_bala = st.slider(
-        "Quantas listas mostrar para operação (Mandar Bala)?",
-        min_value=1,
-        max_value=LIMITE_VISUAL_BALA,
-        value=min(10, LIMITE_VISUAL_BALA),
-        step=1,
-    )
-
-    if qtd_bala > 10:
-        st.warning(
-            "⚠️ **ALERTA DE RISCO**: você está operando além das Top 10.\n"
-            "Essas listas têm menor prioridade estatística."
-        )
-
-    st.caption(
-        f"Mostrando **{qtd_bala}** de **{total_listas}** listas disponíveis. "
-        "Top 10 acima são apenas **priorização**, não bloqueio."
-    )
-
-    for i, lst in enumerate(listas_m6_totais[:qtd_bala], 1):
-        st.markdown(f"**🔥 {i:02d})** {formatar_lista_passageiros(lst)}")
 
 
 
