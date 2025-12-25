@@ -3714,7 +3714,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     qtd_series = len(df)
 
     # ------------------------------------------------------------
-    # Anti-zumbi: LIMITADOR (COMPORTAMENTO ORIGINAL)
+    # Anti-zumbi: LIMITADOR (COMPORTAMENTO OFICIAL — NÃO ALTERADO)
     # ------------------------------------------------------------
     LIMITE_SERIES_TURBO_ULTRA_EFETIVO = _injetar_cfg_tentativa_turbo_ultra_v16(
         df=df,
@@ -3759,14 +3759,14 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     )
 
     # ------------------------------------------------------------
-    # Execução TURBO++ ULTRA (replicada — chamada CORRETA)
+    # Execução TURBO++ ULTRA (tentativa pesada)
     # ------------------------------------------------------------
     st.info("Executando Modo TURBO++ ULTRA...")
 
     todas_listas = []
 
-    for _ in range(n_exec):
-        try:
+    try:
+        for _ in range(n_exec):
             lista = turbo_ultra_v15_7(
                 df=df,
                 matriz_norm=matriz_norm,
@@ -3774,16 +3774,41 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
             )
             if lista and isinstance(lista, list):
                 todas_listas.append(lista)
-        except Exception:
-            continue
+    except Exception:
+        pass
 
     # ============================================================
     # ✅ FECHAMENTO TÉCNICO DO PIPELINE (OBRIGATÓRIO)
-    # Mesmo quando nenhuma lista é gerada
-    # NÃO altera motor | NÃO força geração | NÃO decide
     # ============================================================
     st.session_state["pipeline_flex_ultra_concluido"] = True
 
+    # ============================================================
+    # PATCH A — PRESERVAÇÃO DE LISTAS LEVES (CRITÉRIO POR MOTOR)
+    # ------------------------------------------------------------
+    # ✔ NÃO muda anti-zumbi visível
+    # ✔ NÃO força execução pesada
+    # ✔ NÃO exibe listas
+    # ✔ NÃO decide
+    # ✔ APENAS preserva o que existir (se existir)
+    # ============================================================
+
+    st.session_state["turbo_ultra_listas_leves"] = []
+
+    listas_validas = [
+        lst for lst in todas_listas
+        if isinstance(lst, list) and len(lst) >= 6
+    ]
+
+    if listas_validas:
+        st.session_state["turbo_ultra_listas_leves"] = listas_validas.copy()
+        st.caption(
+            f"🧠 TURBO++ ULTRA preservou {len(listas_validas)} listas "
+            f"(uso posterior no Relatório Final)."
+        )
+
+    # ------------------------------------------------------------
+    # Encerramento visual padrão
+    # ------------------------------------------------------------
     if not todas_listas:
         st.warning(
             "Nenhuma lista foi gerada nesta condição.\n\n"
@@ -3792,9 +3817,6 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         )
         st.stop()
 
-    # ------------------------------------------------------------
-    # Persistência do pacote
-    # ------------------------------------------------------------
     st.session_state["ultima_previsao"] = todas_listas
 
     st.success(
@@ -3808,6 +3830,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 # ============================================================
 # <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3)
 # ============================================================
+
 
 
 # ============================================================
@@ -5292,148 +5315,99 @@ if painel == "🧪 Replay Curto — Expectativa 1–3 Séries":
 
 
 # ============================================================
-# Painel 13 — 📘 Relatório Final — V15.7 MAX (Premium)
+# >>> PAINEL 13 — 📘 Relatório Final — V15.7 MAX (Premium)
 # ============================================================
 if painel == "📘 Relatório Final":
 
     st.markdown("## 📘 Relatório Final — V15.7 MAX — V16 Premium Profundo")
 
     # ------------------------------------------------------------
-    # 🧲 BLOCO 0 — SUGADOR DE INFORMAÇÕES RELEVANTES (BASE)
-    # (somente leitura | não decide | não trava)
+    # 🧲 BLOCO 0 — SUGADOR DE ESTADO CONSOLIDADO
     # ------------------------------------------------------------
     historico_df = st.session_state.get("historico_df")
     n_alvo = st.session_state.get("n_alvo")
 
-    # Pipeline (status pode existir ou não)
     pipeline_status = st.session_state.get("pipeline_flex_ultra_concluido")
-    pipeline_resumo = st.session_state.get("pipeline_resumo")
-
-    # TURBO (opcional)
     ultima_prev = st.session_state.get("ultima_previsao")
 
-    # Modo 6 — chaves canônicas + fallback legado
     listas_m6_totais = (
         st.session_state.get("modo6_listas_totais")
         or st.session_state.get("modo6_listas")
         or []
     )
-    listas_m6_top10 = st.session_state.get("modo6_listas_top10") or []
 
-    # Diagnósticos (se existirem)
-    risco = st.session_state.get("diagnostico_risco")
-    nr_percent = st.session_state.get("nr_percent")
-    k_star = st.session_state.get("sentinela_kstar")
-    divergencia = st.session_state.get("div_s6_mc")
+    listas_ultra = st.session_state.get("turbo_ultra_listas_leves") or []
 
-    # Validação mínima: sem listas do Modo 6 não há o que registrar
+    # Validação mínima
     if not listas_m6_totais:
         exibir_bloco_mensagem(
-            "Sem pacote do Modo 6 para registrar",
-            "Execute o painel **🎯 Modo 6 Acertos — Execução**.\n\n"
-            "O Relatório Final **não inventa** listas e **não recalcula**.",
+            "Sem pacote do Modo 6",
+            "Execute o painel **🎯 Modo 6 Acertos — Execução** antes.",
             tipo="warning",
         )
         st.stop()
 
-    # ------------------ Exibição do SUGADOR -------------------
-    st.markdown("### 🧲 SUGADOR — Estado Consolidado da Rodada")
-
+    # ------------------------------------------------------------
+    # Estado consolidado
+    # ------------------------------------------------------------
     linhas = []
 
-    if historico_df is not None and hasattr(historico_df, "shape"):
-        linhas.append(f"- Séries carregadas: **{int(historico_df.shape[0])}**")
+    if historico_df is not None:
+        linhas.append(f"- Séries carregadas: **{len(historico_df)}**")
 
     if n_alvo is not None:
-        linhas.append(f"- Passageiros por carro (n): **{int(n_alvo)}**")
+        linhas.append(f"- Passageiros por carro (n): **{n_alvo}**")
 
     if pipeline_status is True:
         linhas.append("- Pipeline FLEX ULTRA: ✅ **CONCLUÍDO**")
-    elif pipeline_status is False:
-        linhas.append("- Pipeline FLEX ULTRA: ⚠️ **NÃO CONCLUÍDO**")
-
-    if k_star is not None:
-        try:
-            linhas.append(f"- 🌡️ k* (sentinela): **{float(k_star):.4f}**")
-        except Exception:
-            linhas.append(f"- 🌡️ k* (sentinela): **{k_star}**")
-
-    if nr_percent is not None:
-        try:
-            linhas.append(f"- 📡 NR% (ruído condicional): **{float(nr_percent):.2f}%**")
-        except Exception:
-            linhas.append(f"- 📡 NR% (ruído condicional): **{nr_percent}**")
-
-    if divergencia is not None:
-        try:
-            linhas.append(f"- 📉 Divergência S6 vs MC: **{float(divergencia):.4f}**")
-        except Exception:
-            linhas.append(f"- 📉 Divergência S6 vs MC: **{divergencia}**")
-
-    if pipeline_resumo:
-        linhas.append(f"- Pipeline (resumo): {pipeline_resumo}")
 
     exibir_bloco_mensagem(
-        "Estado Consolidado",
-        "\n".join(linhas) if linhas else "Sem dados consolidados disponíveis.",
+        "🧲 Estado Consolidado da Rodada",
+        "\n".join(linhas),
         tipo="info",
     )
 
     # ------------------------------------------------------------
-    # 🔮 BLOCO 1 — Previsão Principal (Núcleo TURBO — opcional)
+    # Núcleo TURBO (se existir)
     # ------------------------------------------------------------
     st.markdown("### 🔮 Previsão Principal (Núcleo — TURBO++ ULTRA)")
 
-    if ultima_prev is None:
+    if ultima_prev:
+        st.success(formatar_lista_passageiros(ultima_prev))
+    else:
         st.info(
             "Nenhuma previsão TURBO disponível nesta rodada "
-            "(isso pode ocorrer em regime estável). "
-            "O Relatório Final segue e registra o **Pacote do Modo 6**."
+            "(isso é válido em regime estável)."
         )
-    else:
-        st.success(formatar_lista_passageiros(ultima_prev))
 
     # ------------------------------------------------------------
-    # 🛡️ BLOCO 2 — PACOTE PRIORITÁRIO (TOP 10) — NÚCLEO
+    # 🛡️ Pacote Prioritário — Top 10 (Modo 6)
     # ------------------------------------------------------------
     st.markdown("### 🛡️ Pacote Prioritário (Top 10) — Modo 6")
 
-    top10 = listas_m6_top10 if listas_m6_top10 else listas_m6_totais[:10]
+    top10 = listas_m6_totais[:10]
     for i, lst in enumerate(top10, 1):
         st.markdown(f"**{i:02d})** {formatar_lista_passageiros(lst)}")
 
     # ------------------------------------------------------------
-    # 📦 BLOCO 3 — PACOTE OFICIAL DE PREVISÃO (REGISTRO)
-    # (documental | não decide | não altera motor)
+    # 📦 Pacote Operacional TOTAL (Modo 6 + TURBO ULTRA)
     # ------------------------------------------------------------
-    st.markdown("### 📦 Pacote Oficial de Previsão — Modo 6 (Registro no Relatório Final)")
+    pacote_operacional = listas_m6_totais.copy()
+
+    for lst in listas_ultra:
+        if lst not in pacote_operacional:
+            pacote_operacional.append(lst)
+
+    total_listas = len(pacote_operacional)
+
+    st.markdown("### 📦 Pacote Operacional de Previsão (Base para Ação)")
     st.caption(
-        "Este bloco **não gera** listas, **não filtra** e **não decide**. "
-        "Ele apenas **registra** no Relatório Final o pacote já gerado no **🎯 Modo 6**."
+        "Inclui listas do **Modo 6** e listas adicionais preservadas do "
+        "**TURBO++ ULTRA** (quando existirem)."
     )
-
-    total_listas = len(listas_m6_totais)
-
-    qtd_registro = st.slider(
-        "Quantas listas registrar no Relatório Final?",
-        min_value=1,
-        max_value=total_listas,
-        value=min(10, total_listas),
-        step=1,
-        key="slider_registro_relatorio",
-    )
-
-    st.caption(
-        f"Registrando **{qtd_registro}** de **{total_listas}** listas disponíveis "
-        "(quantidade documental/auditável)."
-    )
-
-    for i, lst in enumerate(listas_m6_totais[:qtd_registro], 1):
-        st.markdown(f"**📦 {i:02d})** {formatar_lista_passageiros(lst)}")
 
     # ------------------------------------------------------------
-    # 🔥 BLOCO 4 — MANDAR BALA (POSTURA OPERACIONAL)
-    # (postura humana | não registra | não altera motor)
+    # 🔥 MANDAR BALA — POSTURA OPERACIONAL
     # ------------------------------------------------------------
     st.markdown("### 🔥 Mandar Bala — Postura Operacional (Ação Consciente)")
 
@@ -5443,44 +5417,43 @@ if painel == "📘 Relatório Final":
         max_value=total_listas,
         value=min(10, total_listas),
         step=1,
-        key="slider_mandar_bala",
+        key="slider_mandar_bala_restaurado",
     )
 
     if qtd_bala > 10:
         st.warning(
-            "⚠️ **ALERTA DE RISCO**: você está indo além do núcleo (Top 10).\n"
-            "Isso **não é proibido**, mas representa **aumento consciente de risco**."
+            "⚠️ Você está indo além do núcleo (Top 10).\n"
+            "Isso representa **agressividade consciente**, não erro."
         )
 
     st.caption(
-        f"Postura operacional: **{qtd_bala}** listas para ação "
-        f"(núcleo = Top 10; acima disso é agressividade assumida)."
+        f"Mostrando **{qtd_bala}** de **{total_listas}** listas disponíveis "
+        "(Top 10 = núcleo; acima disso = expansão)."
     )
 
-    for i, lst in enumerate(listas_m6_totais[:qtd_bala], 1):
+    for i, lst in enumerate(pacote_operacional[:qtd_bala], 1):
         st.markdown(f"**🔥 {i:02d})** {formatar_lista_passageiros(lst)}")
 
     # ------------------------------------------------------------
-    # 🧠 BLOCO 5 — FECHAMENTO OPERACIONAL (JEITÃO PREDICTCARS)
+    # Fechamento
     # ------------------------------------------------------------
-    st.markdown("### 🧩 Fechamento Operacional — Jeitão PredictCars")
-
-    postura = (
-        "Conservadora (núcleo)"
-        if qtd_bala <= 10
-        else "Expandida / Agressiva (além do núcleo)"
-    )
+    postura = "Conservadora (núcleo)" if qtd_bala <= 10 else "Expandida / Agressiva"
 
     exibir_bloco_mensagem(
-        "Fechamento",
+        "🧩 Fechamento Operacional",
         f"- Postura adotada: **{postura}**\n"
-        f"- Pacote registrado (documental): **{qtd_registro}** listas\n"
-        f"- Listas levadas para ação (Mandar Bala): **{qtd_bala}** listas\n\n"
+        f"- Listas disponíveis: **{total_listas}**\n"
+        f"- Listas levadas para ação: **{qtd_bala}**\n\n"
         "📌 O sistema **não decide**. O operador **assume a postura**.",
         tipo="success",
     )
 
     st.success("Relatório Final gerado com sucesso!")
+
+# ============================================================
+# <<< FIM — PAINEL 13 — 📘 Relatório Final
+# ============================================================
+
 
 
 
