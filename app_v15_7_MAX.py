@@ -5483,6 +5483,53 @@ if painel == "🧪 Replay Curto — Expectativa 1–3 Séries":
         "Ele **não prevê o futuro**, apenas qualifica a expectativa."
     )
 
+# ============================================================
+# CAMADA B1 — PRIORIZAÇÃO OBSERVACIONAL DE LISTAS (V16)
+# NÃO gera | NÃO decide | NÃO altera motores
+# ============================================================
+
+def v16_priorizar_listas_por_contexto(listas):
+    """
+    Ordena listas existentes usando ECO + Estado.
+    Apenas PRIORIZA — não remove, não cria, não decide.
+    """
+
+    diag = st.session_state.get("diagnostico_eco_estado_v16", {})
+    eco_acion = diag.get("eco_acionabilidade", "não_acionável")
+    estado = diag.get("estado", "indefinido")
+
+    if not listas or not isinstance(listas, list):
+        return listas
+
+    def score_lista(lst):
+        score = 0
+
+        # Preferência leve quando ambiente é favorável
+        if eco_acion == "favorável":
+            score += 2
+        elif eco_acion == "cautela":
+            score += 1
+
+        # Penalização leve em movimento brusco
+        if estado == "movimento_brusco":
+            score -= 1
+
+        # Listas mais compactas tendem a ser mais estáveis
+        try:
+            if len(set(lst)) <= len(lst):
+                score += 1
+        except Exception:
+            pass
+
+        return score
+
+    try:
+        listas_ordenadas = sorted(listas, key=score_lista, reverse=True)
+        return listas_ordenadas
+    except Exception:
+        return listas
+
+
 
 # ============================================================
 # >>> PAINEL 13 — 📘 Relatório Final — V15.7 MAX (Premium)
@@ -5568,12 +5615,21 @@ if painel == "📘 Relatório Final":
         if lst not in pacote_operacional:
             pacote_operacional.append(lst)
 
+    # ------------------------------------------------------------
+    # 🧠 B1 — PRIORIZAÇÃO OBSERVACIONAL POR CONTEXTO (ECO + ESTADO)
+    # NÃO remove | NÃO cria | NÃO decide
+    # ------------------------------------------------------------
+    try:
+        pacote_operacional = v16_priorizar_listas_por_contexto(pacote_operacional)
+    except Exception:
+        pass
+
     total_listas = len(pacote_operacional)
 
     st.markdown("### 📦 Pacote Operacional de Previsão (Base para Ação)")
     st.caption(
         "Inclui listas do **Modo 6** e listas adicionais preservadas do "
-        "**TURBO++ ULTRA** (quando existirem)."
+        "**TURBO++ ULTRA**. A ordem reflete apenas coerência com o contexto."
     )
 
     # ------------------------------------------------------------
@@ -5623,6 +5679,7 @@ if painel == "📘 Relatório Final":
 # ============================================================
 # <<< FIM — PAINEL 13 — 📘 Relatório Final
 # ============================================================
+
 
 
 
