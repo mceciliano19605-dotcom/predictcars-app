@@ -3868,16 +3868,16 @@ def _injetar_cfg_tentativa_turbo_ultra_v16(
 # ============================================================
 
 # ------------------------------------------------------------
-# Garantias defensivas (ANTI-ERRO)
+# GARANTIAS DEFENSIVAS OBRIGATÓRIAS (ANTI-ERRO)
 # ------------------------------------------------------------
-df = st.session_state.get("historico_df")
+df = st.session_state.get("historico_df", None)
+matriz_norm = st.session_state.get("pipeline_matriz_norm", None)
+k_star = st.session_state.get("sentinela_kstar", None)
 
 if df is not None and not df.empty:
     col_pass = [c for c in df.columns if c.startswith("p")]
 else:
     col_pass = []
-
-k_star = st.session_state.get("sentinela_kstar", None)
 
 # ------------------------------------------------------------
 # PAINEL
@@ -3892,8 +3892,6 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         "✔ Volume liberado por orçamento\n"
         "✔ Sem decisão automática"
     )
-
-    matriz_norm = st.session_state.get("pipeline_matriz_norm")
 
     if df is None or matriz_norm is None:
         exibir_bloco_mensagem(
@@ -3914,7 +3912,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     qtd_series = len(df)
 
     # ------------------------------------------------------------
-    # Anti-zumbi: LIMITADOR (OFICIAL — NÃO ALTERADO)
+    # ANTI-ZUMBI — LIMITADOR OFICIAL
     # ------------------------------------------------------------
     LIMITE_SERIES_TURBO_ULTRA_EFETIVO = _injetar_cfg_tentativa_turbo_ultra_v16(
         df=df,
@@ -3929,10 +3927,10 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         contexto="TURBO++ ULTRA",
         painel="⚙️ Modo TURBO++ ULTRA",
     )
-    # ⬆️ se bloquear, a própria função já dá st.stop()
+    # ⬆️ se bloquear, a própria função já faz st.stop()
 
     # ------------------------------------------------------------
-    # Orçamento → libera volume (MVP3)
+    # ORÇAMENTO → LIBERA VOLUME
     # ------------------------------------------------------------
     orcamentos_disponiveis = [6, 42, 168, 504, 1260, 2772]
 
@@ -3959,14 +3957,14 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     )
 
     # ------------------------------------------------------------
-    # Execução TURBO++ ULTRA
+    # EXECUÇÃO TURBO++ ULTRA
     # ------------------------------------------------------------
     st.info("Executando Modo TURBO++ ULTRA...")
 
     todas_listas = []
 
-    try:
-        for _ in range(n_exec):
+    for _ in range(n_exec):
+        try:
             lista = turbo_ultra_v15_7(
                 df=df,
                 matriz_norm=matriz_norm,
@@ -3974,17 +3972,13 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
             )
             if isinstance(lista, list) and len(lista) >= 6:
                 todas_listas.append(lista)
-    except Exception:
-        pass
+        except Exception:
+            pass
 
-    # ============================================================
-    # ✅ FECHAMENTO TÉCNICO DO PIPELINE
-    # ============================================================
+    # ------------------------------------------------------------
+    # FECHAMENTO DO PIPELINE
+    # ------------------------------------------------------------
     st.session_state["pipeline_flex_ultra_concluido"] = True
-
-    # ============================================================
-    # PRESERVAÇÃO DE LISTAS (RELATÓRIO FINAL)
-    # ============================================================
     st.session_state["turbo_ultra_listas_leves"] = todas_listas.copy()
 
     if not todas_listas:
@@ -4008,6 +4002,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 # ============================================================
 # <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3)
 # ============================================================
+
 
 
 
