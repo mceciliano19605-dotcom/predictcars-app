@@ -4001,12 +4001,6 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 
 
 
-
-
-
-
-
-
 # ============================================================
 # MOTORES PROFUNDOS
 # ============================================================
@@ -4045,62 +4039,83 @@ def monte_carlo_profundo(base, n=800):
 
 
 # ============================================================
-# ORQUESTRAÇÃO ULTRA
+# ORQUESTRAÇÃO ULTRA — EXECUÇÃO SEGURA
+# Só executa SE houver histórico carregado
 # ============================================================
-try:
-    base = df[col_pass].iloc[-1].values
 
-    candidatos_s6 = s6_profundo_V157(df, -1)
+previsao_final = None
+divergencia = None
 
-    ml = micro_leque_profundo(base, profundidade=15)
+df = st.session_state.get("historico_df")
 
-    mc = monte_carlo_profundo(base, n=1200)
+if df is not None and not df.empty:
 
-    # Pesos guiados por k*
-    peso_s6 = 0.55 - (k_star * 0.15)
-    peso_mc = 0.30 + (k_star * 0.20)
-    peso_ml = 1.0 - (peso_s6 + peso_mc)
+    try:
+        # colunas de passageiros (n=6)
+        col_pass = [c for c in df.columns if c.startswith("p")][:6]
 
-    # Interseção estatística
-    todos = np.vstack([
-        candidatos_s6,
-        ml,
-        np.array(mc)
-    ])
+        if len(col_pass) >= 6:
 
-    previsao_raw = (
-        peso_s6 * candidatos_s6.mean(axis=0)
-        + peso_mc * np.mean(mc, axis=0)
-        + peso_ml * ml.mean(axis=0)
-    )
+            base = df[col_pass].iloc[-1].values
 
-    previsao_final = [int(round(x)) for x in previsao_raw]
+            candidatos_s6 = s6_profundo_V157(df, -1)
 
-    # Divergência S6 vs MC
-    divergencia = np.linalg.norm(
-        candidatos_s6.mean(axis=0) - np.mean(mc, axis=0)
-    )
+            ml = micro_leque_profundo(base, profundidade=15)
 
-except Exception as erro:
-    exibir_bloco_mensagem(
-        "Erro no motor TURBO++ ULTRA",
-        f"Detalhes técnicos: {erro}",
-        tipo="error",
-    )
-    st.stop()
+            mc = monte_carlo_profundo(base, n=1200)
+
+            # k* (fallback seguro)
+            _kstar_raw = st.session_state.get("sentinela_kstar")
+            k_star = float(_kstar_raw) if isinstance(_kstar_raw, (int, float)) else 0.0
+
+            # Pesos guiados por k*
+            peso_s6 = 0.55 - (k_star * 0.15)
+            peso_mc = 0.30 + (k_star * 0.20)
+            peso_ml = 1.0 - (peso_s6 + peso_mc)
+
+            # Segurança de pesos
+            peso_s6 = max(0.05, float(peso_s6))
+            peso_mc = max(0.05, float(peso_mc))
+            peso_ml = max(0.05, float(peso_ml))
+
+            soma = peso_s6 + peso_mc + peso_ml
+            peso_s6 /= soma
+            peso_mc /= soma
+            peso_ml /= soma
+
+            previsao_raw = (
+                peso_s6 * candidatos_s6.mean(axis=0)
+                + peso_mc * np.mean(mc, axis=0)
+                + peso_ml * ml.mean(axis=0)
+            )
+
+            previsao_final = [int(round(x)) for x in previsao_raw]
+
+            # Divergência S6 vs MC
+            divergencia = np.linalg.norm(
+                candidatos_s6.mean(axis=0) - np.mean(mc, axis=0)
+            )
+
+    except Exception:
+        previsao_final = None
+        divergencia = None
 
 
 # ============================================================
-# Exibição final
+# Exibição final (SOMENTE se houver previsão)
 # ============================================================
-st.markdown("### 🔮 Previsão ULTRA (TURBO++)")
-st.success(f"**{formatar_lista_passageiros(previsao_final)}**")
+if previsao_final is not None:
 
-st.markdown("### 🔎 Divergência S6 vs MC")
-st.info(f"**{divergencia:.4f}**")
+    st.markdown("### 🔮 Previsão ULTRA (TURBO++)")
+    st.success(f"**{formatar_lista_passageiros(previsao_final)}**")
 
-st.session_state["ultima_previsao"] = previsao_final
-st.session_state["div_s6_mc"] = divergencia
+    if divergencia is not None:
+        st.markdown("### 🔎 Divergência S6 vs MC")
+        st.info(f"**{divergencia:.4f}**")
+
+    st.session_state["ultima_previsao"] = previsao_final
+    st.session_state["div_s6_mc"] = divergencia
+
 
 
 # ============================================================
