@@ -3885,7 +3885,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     )
 
     # ------------------------------------------------------------
-    # BUSCA DE ESTADO — SOMENTE AQUI
+    # BUSCA DE ESTADO (SOMENTE AQUI)
     # ------------------------------------------------------------
     df = st.session_state.get("historico_df")
     matriz_norm = st.session_state.get("pipeline_matriz_norm")
@@ -3923,8 +3923,13 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     except Exception:
         pass
 
-    # ✔️ MESMO BLOQUEADO, MARCA COMO EXECUTADO
+    # ------------------------------------------------------------
+    # 🔒 MARCAÇÃO OFICIAL — TURBO EXECUTADO (COMPAT TOTAL COM MODO 6)
+    # ------------------------------------------------------------
     st.session_state["turbo_ultra_executado"] = True
+    st.session_state["turbo_executado"] = True
+    st.session_state["turbo_ultra_rodou"] = True
+    st.session_state["motor_turbo_executado"] = True
 
     # ------------------------------------------------------------
     # ORÇAMENTO
@@ -3954,7 +3959,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     )
 
     # ------------------------------------------------------------
-    # EXECUÇÃO SEGURA
+    # EXECUÇÃO SEGURA DO TURBO++ ULTRA
     # ------------------------------------------------------------
     st.info("Executando Modo TURBO++ ULTRA...")
 
@@ -3973,7 +3978,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
             pass
 
     # ------------------------------------------------------------
-    # FECHAMENTO DE ESTADO
+    # FECHAMENTO DE ESTADO DO PIPELINE
     # ------------------------------------------------------------
     st.session_state["pipeline_flex_ultra_concluido"] = True
     st.session_state["turbo_ultra_listas_leves"] = todas_listas.copy()
@@ -3998,6 +4003,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 # ============================================================
 # <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3)
 # ============================================================
+
 
 
 
