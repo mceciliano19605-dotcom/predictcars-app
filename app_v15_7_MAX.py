@@ -758,6 +758,10 @@ def construir_navegacao_v157() -> str:
         "⚙️ Modo TURBO++ ULTRA",
         "📡 Painel de Ruído Condicional",
         "📉 Painel de Divergência S6 vs MC",
+        "🧼 B1 — Higiene de Passageiros",
+        "🧩 B2 — Coerência Interna das Listas",
+        "🟢 B3 — Prontidão (Refinamento)",
+        "🟣 B4 — Refinamento Leve de Passageiros",
         "🧭 Monitor de Risco — k & k*",
         "🎯 Modo 6 Acertos — Execução",
     ]
@@ -4195,6 +4199,414 @@ if painel == "📉 Painel de Divergência S6 vs MC":
 
     st.success("Análise de divergência concluída!")
 
+# ============================================================
+# PAINEL — 🧼 B1 | Higiene de Passageiros (V16)
+# Observacional | NÃO decide | NÃO altera motores
+# ============================================================
+
+elif painel == "🧼 B1 — Higiene de Passageiros":
+
+    st.markdown("## 🧼 B1 — Higiene de Passageiros (V16)")
+    st.caption(
+        "Leitura observacional para identificar passageiros resilientes e nocivos.\n"
+        "Não remove números. Não decide listas. Preparação para Perna B."
+    )
+
+    df = st.session_state.get("historico_df")
+
+    if df is None or df.empty:
+        st.info("Histórico não carregado.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Detecta colunas de passageiros (n-base)
+    # ------------------------------------------------------------
+    col_pass = [c for c in df.columns if c.startswith("p")]
+
+    if len(col_pass) < 6:
+        st.warning("Não foi possível detectar passageiros suficientes.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Frequência simples dos passageiros
+    # ------------------------------------------------------------
+    freq = {}
+
+    for _, row in df.iterrows():
+        for c in col_pass:
+            try:
+                v = int(row[c])
+                if v > 0:
+                    freq[v] = freq.get(v, 0) + 1
+            except Exception:
+                pass
+
+    if not freq:
+        st.warning("Frequência de passageiros vazia.")
+        st.stop()
+
+    total_series = len(df)
+
+    # ------------------------------------------------------------
+    # Métricas observacionais
+    # ------------------------------------------------------------
+    dados = []
+
+    for p, f in freq.items():
+        taxa = f / total_series
+
+        # heurísticas simples (OBSERVAÇÃO)
+        resiliente = taxa >= 0.18
+        nocivo = taxa <= 0.05
+
+        dados.append({
+            "Passageiro": p,
+            "Ocorrências": f,
+            "Taxa": round(taxa, 4),
+            "Resiliente": "✅" if resiliente else "",
+            "Nocivo": "⚠️" if nocivo else "",
+        })
+
+    df_pass = pd.DataFrame(dados).sort_values(
+        by="Taxa", ascending=False
+    )
+
+    # ------------------------------------------------------------
+    # Exibição
+    # ------------------------------------------------------------
+    st.markdown("### 📊 Leitura de Frequência dos Passageiros")
+    st.dataframe(df_pass, use_container_width=True)
+
+    # ------------------------------------------------------------
+    # Síntese mastigada (NÃO decisória)
+    # ------------------------------------------------------------
+    resilientes = df_pass[df_pass["Resiliente"] == "✅"]["Passageiro"].tolist()
+    nocivos = df_pass[df_pass["Nocivo"] == "⚠️"]["Passageiro"].tolist()
+
+    leitura = (
+        f"- Passageiros resilientes (recorrência alta): {resilientes[:12]}\n"
+        f"- Passageiros potencialmente nocivos (recorrência muito baixa): {nocivos[:12]}\n\n"
+        "⚠️ Nenhum passageiro foi removido.\n"
+        "⚠️ Esta leitura serve apenas como preparação para refinamento futuro."
+    )
+
+    exibir_bloco_mensagem(
+        "🧠 Leitura Observacional — Higiene de Passageiros",
+        leitura,
+        tipo="info",
+    )
+
+    # ------------------------------------------------------------
+    # Registro silencioso para Perna B
+    # ------------------------------------------------------------
+    st.session_state["b1_resilientes"] = resilientes
+    st.session_state["b1_nocivos"] = nocivos
+
+    st.success("B1 concluído — leitura registrada com sucesso.")
+
+# ============================================================
+# <<< FIM — PAINEL 🧼 B1 | Higiene de Passageiros
+# ============================================================
+
+# ============================================================
+# PAINEL — 🧩 B2 | Coerência Interna das Listas (V16)
+# Observacional | NÃO decide | NÃO altera motores
+# ============================================================
+
+elif painel == "🧩 B2 — Coerência Interna das Listas":
+
+    st.markdown("## 🧩 B2 — Coerência Interna das Listas (V16)")
+    st.caption(
+        "Leitura observacional de coesão e conflitos internos das listas.\n"
+        "Não filtra, não prioriza, não decide."
+    )
+
+    # ------------------------------------------------------------
+    # Fonte das listas (preferência: Modo 6)
+    # ------------------------------------------------------------
+    listas = (
+        st.session_state.get("modo6_listas_totais")
+        or st.session_state.get("modo6_listas")
+        or []
+    )
+
+    if not listas:
+        st.info("Nenhuma lista disponível para análise. Execute o Modo 6.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Universo e estatísticas globais
+    # ------------------------------------------------------------
+    todas = [x for lst in listas for x in lst if isinstance(x, int)]
+    if not todas:
+        st.warning("Listas inválidas para análise.")
+        st.stop()
+
+    freq_global = pd.Series(todas).value_counts(normalize=True)
+
+    # ------------------------------------------------------------
+    # Métricas por lista
+    # ------------------------------------------------------------
+    linhas = []
+
+    for i, lst in enumerate(listas, start=1):
+        lst = [int(x) for x in lst if isinstance(x, int)]
+        if not lst:
+            continue
+
+        # Coesão: média da frequência global dos elementos
+        coesao = float(freq_global.loc[lst].mean()) if set(lst).issubset(freq_global.index) else 0.0
+
+        # Conflito simples: proporção de pares muito raros juntos
+        pares = [(a, b) for a in lst for b in lst if a < b]
+        raros = 0
+        for a, b in pares:
+            fa = freq_global.get(a, 0.0)
+            fb = freq_global.get(b, 0.0)
+            if fa < 0.05 and fb < 0.05:
+                raros += 1
+
+        conflito = raros / max(1, len(pares))
+
+        linhas.append({
+            "Lista": i,
+            "Coesão (↑ melhor)": round(coesao, 4),
+            "Conflito (↓ melhor)": round(conflito, 4),
+        })
+
+    df_b2 = pd.DataFrame(linhas)
+
+    # ------------------------------------------------------------
+    # Exibição
+    # ------------------------------------------------------------
+    st.markdown("### 📊 Coesão e Conflito por Lista")
+    st.dataframe(df_b2, use_container_width=True)
+
+    # ------------------------------------------------------------
+    # Síntese mastigada (NÃO decisória)
+    # ------------------------------------------------------------
+    leitura = (
+        "- **Coesão** alta indica elementos com histórico compatível.\n"
+        "- **Conflito** alto indica combinações raras juntas.\n\n"
+        "⚠️ Nenhuma lista foi removida ou priorizada.\n"
+        "⚠️ Use esta leitura apenas para preparação."
+    )
+
+    exibir_bloco_mensagem(
+        "🧠 Leitura Observacional — Coerência Interna",
+        leitura,
+        tipo="info",
+    )
+
+    # Registro silencioso
+    st.session_state["b2_coerencia_df"] = df_b2
+
+    st.success("B2 concluído — leitura registrada com sucesso.")
+
+# ============================================================
+# <<< FIM — PAINEL 🧩 B2 | Coerência Interna das Listas
+# ============================================================
+
+# ============================================================
+# PAINEL — 🟢 B3 | Prontidão para Refinamento (V16)
+# Observacional | NÃO decide | NÃO altera motores
+# ============================================================
+
+elif painel == "🟢 B3 — Prontidão (Refinamento)":
+
+    st.markdown("## 🟢 B3 — Prontidão para Refinamento (V16)")
+    st.caption(
+        "Avalia se o contexto permite avançar da leitura (Perna B) "
+        "para refinamento de passageiros. Não executa nada."
+    )
+
+    # ------------------------------------------------------------
+    # Leituras já consolidadas
+    # ------------------------------------------------------------
+    diag = st.session_state.get("diagnostico_eco_estado_v16", {})
+    df_b2 = st.session_state.get("b2_coerencia_df")
+
+    if not diag or df_b2 is None or df_b2.empty:
+        st.info(
+            "Leituras insuficientes para avaliar prontidão.\n\n"
+            "Execute B1, B2 e Diagnóstico ECO & Estado."
+        )
+        st.stop()
+
+    eco = diag.get("eco")
+    eco_persist = diag.get("eco_persistencia")
+    acion = diag.get("eco_acionabilidade")
+    estado = diag.get("estado")
+    estado_ok = diag.get("estado_confiavel")
+
+    # ------------------------------------------------------------
+    # Heurísticas de prontidão (OBSERVAÇÃO)
+    # ------------------------------------------------------------
+    sinais_ok = []
+
+    if eco in ("médio", "forte"):
+        sinais_ok.append("ECO ≥ médio")
+
+    if eco == "fraco" and eco_persist == "persistente" and estado in ("parado", "movimento_lento"):
+        sinais_ok.append("ECO fraco porém estável com estado calmo")
+
+    if estado_ok and estado in ("parado", "movimento_lento"):
+        sinais_ok.append("Estado desacelerado e confiável")
+
+    # Coesão média das listas
+    coesao_media = float(df_b2["Coesão (↑ melhor)"].mean())
+
+    if coesao_media >= 0.12:
+        sinais_ok.append("Coesão média aceitável")
+
+    # ------------------------------------------------------------
+    # Veredito OBSERVACIONAL
+    # ------------------------------------------------------------
+    pronto = len(sinais_ok) >= 3
+
+    if pronto:
+        status = "🟢 PRONTO PARA REFINAMENTO"
+        detalhe = (
+            "O contexto permite iniciar refinamento controlado de passageiros.\n"
+            "A Perna B pode evoluir para ações leves (sem afunilar)."
+        )
+        tipo = "success"
+    else:
+        status = "🟡 AINDA EM PREPARAÇÃO"
+        detalhe = (
+            "O contexto ainda pede dispersão.\n"
+            "Continue observando e acumulando leitura."
+        )
+        tipo = "info"
+
+    corpo = (
+        f"**Status:** {status}\n\n"
+        f"**Sinais atendidos:** {sinais_ok if sinais_ok else 'Nenhum'}\n\n"
+        f"**Coesão média das listas:** {coesao_media:.4f}\n\n"
+        f"⚠️ Este painel **não executa refinamento**.\n"
+        f"⚠️ Serve apenas para indicar **prontidão**."
+    )
+
+    exibir_bloco_mensagem(
+        "🧠 Veredito de Prontidão — Perna B",
+        corpo,
+        tipo=tipo,
+    )
+
+    # Registro silencioso
+    st.session_state["b3_pronto_refinar"] = pronto
+
+    st.success("B3 concluído — prontidão avaliada.")
+
+# ============================================================
+# <<< FIM — PAINEL 🟢 B3 | Prontidão para Refinamento
+# ============================================================
+
+# ============================================================
+# PAINEL — 🟣 B4 | Refinamento Leve de Passageiros (V16)
+# Ajuste leve | Reversível | NÃO decide | NÃO afunila
+# ============================================================
+
+elif painel == "🟣 B4 — Refinamento Leve de Passageiros":
+
+    st.markdown("## 🟣 B4 — Refinamento Leve de Passageiros (V16)")
+    st.caption(
+        "Aplica ajustes leves e reversíveis nos passageiros das listas.\n"
+        "Não reduz volume, não prioriza, não decide."
+    )
+
+    # ------------------------------------------------------------
+    # Pré-condições
+    # ------------------------------------------------------------
+    pronto = st.session_state.get("b3_pronto_refinar", False)
+    listas = (
+        st.session_state.get("modo6_listas_totais")
+        or st.session_state.get("modo6_listas")
+        or []
+    )
+
+    resilientes = st.session_state.get("b1_resilientes", [])
+    nocivos = st.session_state.get("b1_nocivos", [])
+
+    if not listas:
+        st.info("Nenhuma lista disponível. Execute o Modo 6.")
+        st.stop()
+
+    if not pronto:
+        st.warning(
+            "Contexto ainda não marcado como pronto para refinamento.\n"
+            "Este painel é **apenas demonstrativo** neste estado."
+        )
+
+    # ------------------------------------------------------------
+    # Universo de referência
+    # ------------------------------------------------------------
+    universo = sorted({int(x) for lst in listas for x in lst if isinstance(x, int)})
+    if not universo:
+        st.warning("Universo inválido para refinamento.")
+        st.stop()
+
+    rng = np.random.default_rng(42)
+
+    # ------------------------------------------------------------
+    # Refinamento leve (heurístico, reversível)
+    # ------------------------------------------------------------
+    listas_refinadas = []
+
+    for lst in listas:
+        nova = list(lst)
+
+        # substitui no máx. 1 passageiro nocivo por um resiliente
+        candidatos_nocivos = [x for x in nova if x in nocivos]
+        candidatos_resilientes = [x for x in resilientes if x not in nova]
+
+        if candidatos_nocivos and candidatos_resilientes:
+            sai = rng.choice(candidatos_nocivos)
+            entra = rng.choice(candidatos_resilientes)
+            nova = [entra if x == sai else x for x in nova]
+
+        listas_refinadas.append(sorted(set(nova)))
+
+    # ------------------------------------------------------------
+    # Exibição comparativa (leitura)
+    # ------------------------------------------------------------
+    st.markdown("### 🔍 Comparação — Antes × Depois (amostra)")
+    limite = min(10, len(listas))
+
+    for i in range(limite):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.code(f"Antes {i+1}: {sorted(listas[i])}", language="python")
+        with col2:
+            st.code(f"Depois {i+1}: {listas_refinadas[i]}", language="python")
+
+    # ------------------------------------------------------------
+    # Síntese observacional
+    # ------------------------------------------------------------
+    leitura = (
+        "- Ajuste máximo: **1 passageiro por lista**\n"
+        "- Volume total preservado\n"
+        "- Refinamento **reversível**\n"
+        "- Uso de passageiros resilientes\n\n"
+        "⚠️ As listas refinadas **não substituem** as originais.\n"
+        "⚠️ Cabe ao operador decidir se usa esta leitura."
+    )
+
+    exibir_bloco_mensagem(
+        "🧠 Leitura Observacional — Refinamento Leve",
+        leitura,
+        tipo="info",
+    )
+
+    # Registro silencioso (não substitui listas)
+    st.session_state["b4_listas_refinadas"] = listas_refinadas
+
+    st.success("B4 concluído — refinamento leve avaliado.")
+
+# ============================================================
+# <<< FIM — PAINEL 🟣 B4 | Refinamento Leve de Passageiros
+# ============================================================
+
 
 # ============================================================
 # Painel 10 — 🧭 Monitor de Risco — k & k*
@@ -5495,6 +5907,7 @@ def v16_priorizar_listas_por_contexto(listas):
 
 
 
+
 # ============================================================
 # >>> PAINEL 13 — 📘 Relatório Final — V15.7 MAX (Premium)
 # ============================================================
@@ -5595,6 +6008,32 @@ if painel == "📘 Relatório Final":
         "Inclui listas do **Modo 6** e listas adicionais preservadas do "
         "**TURBO++ ULTRA**. A ordem reflete apenas coerência com o contexto."
     )
+
+    # ============================================================
+    # 🟦 B5 — LEITURA PARALELA (REFINAMENTO LEVE — OPCIONAL)
+    # NÃO substitui | NÃO decide | NÃO altera pacote oficial
+    # ============================================================
+    listas_refinadas_b4 = st.session_state.get("b4_listas_refinadas")
+
+    if listas_refinadas_b4:
+        st.markdown("### 🟦 Leitura Paralela — Refinamento Leve de Passageiros (B5)")
+        st.caption(
+            "Camada **observacional opcional**.\n\n"
+            "Estas listas **não substituem** o pacote oficial.\n"
+            "Servem apenas como leitura alternativa em ambiente não acionável."
+        )
+
+        limite = min(10, len(listas_refinadas_b4))
+        for i in range(limite):
+            st.markdown(
+                f"**🟦 R{i+1:02d})** {formatar_lista_passageiros(listas_refinadas_b4[i])}"
+            )
+
+        st.info(
+            "ℹ️ B5 é uma **leitura paralela**.\n\n"
+            "📌 O operador decide **se ignora** ou **se observa**.\n"
+            "📌 Nenhuma decisão automática é tomada."
+        )
 
     # ------------------------------------------------------------
     # 🔥 MANDAR BALA — POSTURA OPERACIONAL
