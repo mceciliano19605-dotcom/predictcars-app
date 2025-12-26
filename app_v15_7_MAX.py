@@ -3867,6 +3867,18 @@ def _injetar_cfg_tentativa_turbo_ultra_v16(
 # >>> PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3 — VOLUME POR ORÇAMENTO)
 # ============================================================
 
+# ------------------------------------------------------------
+# Garantia defensiva — col_pass (ANTI-ERRO)
+# ------------------------------------------------------------
+try:
+    col_pass
+except NameError:
+    if 'historico_df' in locals() and historico_df is not None and not historico_df.empty:
+        col_pass = [c for c in historico_df.columns if c.startswith("p")]
+    else:
+        col_pass = []
+
+
 if painel == "⚙️ Modo TURBO++ ULTRA":
 
     st.markdown("## ⚙️ Modo TURBO++ ULTRA — MVP3")
