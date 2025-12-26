@@ -4002,11 +4002,14 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 
 
 # ============================================================
-# MOTORES PROFUNDOS
+# MOTORES PROFUNDOS (PUROS)
+# NÃO executam sozinhos
+# NÃO acessam session_state
+# NÃO exibem nada
 # ============================================================
 
 # --- S6 PROFUNDO ---
-def s6_profundo_V157(df_local, idx_alvo):
+def s6_profundo_V157(df_local, col_pass, idx_alvo):
     ult_local = df_local[col_pass].iloc[idx_alvo].values
     scores_local = []
     for i_local in range(len(df_local) - 1):
@@ -4037,84 +4040,6 @@ def monte_carlo_profundo(base, n=800):
         sims.append(candidato.tolist())
     return sims
 
-
-# ============================================================
-# ORQUESTRAÇÃO ULTRA — EXECUÇÃO SEGURA
-# Só executa SE houver histórico carregado
-# ============================================================
-
-previsao_final = None
-divergencia = None
-
-df = st.session_state.get("historico_df")
-
-if df is not None and not df.empty:
-
-    try:
-        # colunas de passageiros (n=6)
-        col_pass = [c for c in df.columns if c.startswith("p")][:6]
-
-        if len(col_pass) >= 6:
-
-            base = df[col_pass].iloc[-1].values
-
-            candidatos_s6 = s6_profundo_V157(df, -1)
-
-            ml = micro_leque_profundo(base, profundidade=15)
-
-            mc = monte_carlo_profundo(base, n=1200)
-
-            # k* (fallback seguro)
-            _kstar_raw = st.session_state.get("sentinela_kstar")
-            k_star = float(_kstar_raw) if isinstance(_kstar_raw, (int, float)) else 0.0
-
-            # Pesos guiados por k*
-            peso_s6 = 0.55 - (k_star * 0.15)
-            peso_mc = 0.30 + (k_star * 0.20)
-            peso_ml = 1.0 - (peso_s6 + peso_mc)
-
-            # Segurança de pesos
-            peso_s6 = max(0.05, float(peso_s6))
-            peso_mc = max(0.05, float(peso_mc))
-            peso_ml = max(0.05, float(peso_ml))
-
-            soma = peso_s6 + peso_mc + peso_ml
-            peso_s6 /= soma
-            peso_mc /= soma
-            peso_ml /= soma
-
-            previsao_raw = (
-                peso_s6 * candidatos_s6.mean(axis=0)
-                + peso_mc * np.mean(mc, axis=0)
-                + peso_ml * ml.mean(axis=0)
-            )
-
-            previsao_final = [int(round(x)) for x in previsao_raw]
-
-            # Divergência S6 vs MC
-            divergencia = np.linalg.norm(
-                candidatos_s6.mean(axis=0) - np.mean(mc, axis=0)
-            )
-
-    except Exception:
-        previsao_final = None
-        divergencia = None
-
-
-# ============================================================
-# Exibição final (SOMENTE se houver previsão)
-# ============================================================
-if previsao_final is not None:
-
-    st.markdown("### 🔮 Previsão ULTRA (TURBO++)")
-    st.success(f"**{formatar_lista_passageiros(previsao_final)}**")
-
-    if divergencia is not None:
-        st.markdown("### 🔎 Divergência S6 vs MC")
-        st.info(f"**{divergencia:.4f}**")
-
-    st.session_state["ultima_previsao"] = previsao_final
-    st.session_state["div_s6_mc"] = divergencia
 
 
 
