@@ -3873,17 +3873,13 @@ def _injetar_cfg_tentativa_turbo_ultra_v16(
 # ============================================================
 
 # ------------------------------------------------------------
-# GARANTIAS DEFENSIVAS DEFINITIVAS (ANTI-ERRO)
+# GARANTIAS DEFENSIVAS GLOBAIS (ANTI-CRASH)
 # ------------------------------------------------------------
 df = st.session_state.get("historico_df")
 matriz_norm = st.session_state.get("pipeline_matriz_norm")
 
-# k_star NORMALIZADO — NUNCA None
 _kstar_raw = st.session_state.get("sentinela_kstar")
-if isinstance(_kstar_raw, (int, float)):
-    k_star = float(_kstar_raw)
-else:
-    k_star = 0.0  # valor neutro e seguro
+k_star = float(_kstar_raw) if isinstance(_kstar_raw, (int, float)) else 0.0
 
 if df is not None and not df.empty:
     col_pass = [c for c in df.columns if c.startswith("p")]
@@ -3901,6 +3897,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         "✔ Motor original preservado\n"
         "✔ Anti-zumbi respeitado\n"
         "✔ Volume liberado por orçamento\n"
+        "✔ Falha silenciosa permitida\n"
         "✔ Sem decisão automática"
     )
 
@@ -3912,18 +3909,20 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         )
         st.stop()
 
+    qtd_series = len(df)
+
     # ------------------------------------------------------------
     # ANTI-ZUMBI — LIMITADOR OFICIAL
     # ------------------------------------------------------------
     LIMITE_SERIES_TURBO_ULTRA_EFETIVO = _injetar_cfg_tentativa_turbo_ultra_v16(
         df=df,
-        qtd_series=len(df),
+        qtd_series=qtd_series,
         k_star=k_star,
         limite_series_padrao=LIMITE_SERIES_TURBO_ULTRA,
     )
 
     limitar_operacao(
-        len(df),
+        qtd_series,
         limite_series=LIMITE_SERIES_TURBO_ULTRA_EFETIVO,
         contexto="TURBO++ ULTRA",
         painel="⚙️ Modo TURBO++ ULTRA",
@@ -3957,23 +3956,27 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     )
 
     # ------------------------------------------------------------
-    # EXECUÇÃO TURBO++ ULTRA
+    # EXECUÇÃO TURBO++ ULTRA (ANTI-CRASH)
     # ------------------------------------------------------------
     st.info("Executando Modo TURBO++ ULTRA...")
 
     todas_listas = []
 
     for _ in range(n_exec):
-        lista = turbo_ultra_v15_7(
-            df=df,
-            matriz_norm=matriz_norm,
-            k_star=k_star,
-        )
-        if isinstance(lista, list) and len(lista) >= 6:
-            todas_listas.append(lista)
+        try:
+            lista = turbo_ultra_v15_7(
+                df=df,
+                matriz_norm=matriz_norm,
+                k_star=k_star,
+            )
+            if isinstance(lista, list) and len(lista) >= 6:
+                todas_listas.append(lista)
+        except Exception:
+            # FALHA SILENCIOSA = COMPORTAMENTO ESPERADO
+            pass
 
     # ------------------------------------------------------------
-    # FECHAMENTO
+    # FECHAMENTO TÉCNICO
     # ------------------------------------------------------------
     st.session_state["pipeline_flex_ultra_concluido"] = True
     st.session_state["turbo_ultra_listas_leves"] = todas_listas.copy()
@@ -3982,7 +3985,8 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     if not todas_listas:
         st.warning(
             "Nenhuma lista foi gerada nesta condição.\n\n"
-            "Resultado válido. Ambiente não favorável."
+            "Isso é um **resultado válido**.\n"
+            "O motor foi executado e falhou silenciosamente."
         )
         st.stop()
 
@@ -3997,6 +4001,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 # ============================================================
 # <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3)
 # ============================================================
+
 
 
 
