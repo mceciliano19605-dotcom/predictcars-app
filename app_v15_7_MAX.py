@@ -4816,6 +4816,59 @@ def sanidade_final_listas(listas):
 # FIM — FUNÇÃO SANIDADE FINAL DAS LISTAS
 # ============================================================
 
+# ============================================================
+# B0 — SANIDADE DE UNIVERSO (V16)
+# Observacional + corretivo leve
+# Garante que nenhum passageiro fora do universo real apareça
+# NÃO altera motores | NÃO decide | NÃO bloqueia
+# ============================================================
+
+def v16_sanidade_universo_listas(listas, historico_df):
+    """
+    Remove / ajusta números fora do universo real observado no histórico.
+    Universo é inferido EXCLUSIVAMENTE do histórico carregado.
+    """
+
+    if historico_df is None or historico_df.empty:
+        return listas  # sem histórico, não mexe
+
+    col_pass = [c for c in historico_df.columns if c.startswith("p")]
+    valores = []
+
+    for _, row in historico_df.iterrows():
+        for c in col_pass:
+            try:
+                v = int(row[c])
+                if v > 0:
+                    valores.append(v)
+            except Exception:
+                pass
+
+    if not valores:
+        return listas
+
+    umin = min(valores)
+    umax = max(valores)
+
+    listas_sanas = []
+
+    for lst in listas:
+        nova = []
+        for v in lst:
+            try:
+                iv = int(v)
+                if iv < umin:
+                    iv = umin
+                elif iv > umax:
+                    iv = umax
+                nova.append(iv)
+            except Exception:
+                pass
+
+        nova = list(dict.fromkeys(nova))  # remove duplicatas mantendo ordem
+        listas_sanas.append(nova)
+
+    return listas_sanas
 
 
 # ============================================================
@@ -4828,7 +4881,6 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     df = st.session_state.get("historico_df")
 
-    # k* (fallback seguro: não pode travar Modo 6)
     _kstar_raw = st.session_state.get("sentinela_kstar")
     k_star = float(_kstar_raw) if isinstance(_kstar_raw, (int, float)) else 0.0
 
@@ -4837,12 +4889,6 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     risco_composto = st.session_state.get("indice_risco")
     ultima_prev = st.session_state.get("ultima_previsao")
 
-    # ============================================================
-    # GUARDA AJUSTADA — CRITÉRIO MÍNIMO DE ENTRADA (COMPAT)
-    # - NÃO depende de k* existir (usa fallback 0.0)
-    # - Exige Pipeline concluído
-    # - Exige TURBO ter sido "executado" (mesmo bloqueado = válido)
-    # ============================================================
     pipeline_fechado = (
         st.session_state.get("pipeline_flex_ultra_concluido") is True
     )
@@ -4886,7 +4932,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     volume = max(1, min(volume, int(config["volume_max"])))
 
     # ============================================================
-    # 🔒 DETECÇÃO DO FENÔMENO (k NÃO ENTRA)
+    # DETECÇÃO DO FENÔMENO
     # ============================================================
     colunas = list(df.columns)
     col_pass = colunas[1:-1]
@@ -4908,25 +4954,15 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     st.session_state["n_alvo"] = n_real
 
     universo = sorted({int(v) for v in universo_tmp if int(v) > 0})
-    if not universo:
-        universo = list(range(1, 61))
-
     umin, umax = min(universo), max(universo)
 
     # ============================================================
-    # 🔁 REPRODUTIBILIDADE
+    # REPRODUTIBILIDADE
     # ============================================================
-    fen_id = (
-        st.session_state.get("pc_fenomeno_id")
-        or f"{len(df)}-{n_real}-{umin}-{umax}"
-    )
-    seed_raw = f"PC-U1-{fen_id}-{len(df)}-{n_real}"
+    seed_raw = f"PC-U1-{len(df)}-{n_real}-{umin}-{umax}"
     seed = abs(hash(seed_raw)) % (2**32)
     rng = np.random.default_rng(seed)
 
-    # ============================================================
-    # FUNÇÕES INTERNAS
-    # ============================================================
     def _snap_universo(v: int) -> int:
         v = int(v)
         if v in universo:
@@ -4934,31 +4970,21 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         return min(universo, key=lambda x: abs(x - v))
 
     def _ajustar_para_n(lista, n_target: int):
-        seen = set()
-        out = []
+        seen, out = set(), []
         for x in lista:
             sx = _snap_universo(int(np.clip(int(x), umin, umax)))
-            if sx > 0 and sx not in seen:
+            if sx not in seen:
                 seen.add(sx)
                 out.append(sx)
-        if len(out) > n_target:
-            return out[:n_target]
         while len(out) < n_target:
             cand = _snap_universo(int(rng.choice(universo)))
             if cand not in seen:
                 seen.add(cand)
                 out.append(cand)
-        return out
+        return out[:n_target]
 
-    # ============================================================
-    # BASE ULTRA — n-base PURO
-    # ============================================================
     if ultima_prev and isinstance(ultima_prev, list):
-        base_ultra = (
-            ultima_prev
-            if isinstance(ultima_prev[0], int)
-            else ultima_prev[0]
-        )
+        base_ultra = ultima_prev if isinstance(ultima_prev[0], int) else ultima_prev[0]
         base_ultra = _ajustar_para_n(base_ultra, n_real)
     else:
         base_ultra = _ajustar_para_n(
@@ -4966,23 +4992,23 @@ if painel == "🎯 Modo 6 Acertos — Execução":
             n_real,
         )
 
-    # ============================================================
-    # GERAÇÃO PRÉ-ECO
-    # ============================================================
     listas_brutas = []
-
     for _ in range(volume):
         ruido = rng.integers(-7, 8, size=n_real)
         nova = [
-            _snap_universo(int(np.clip(int(b) + int(r), umin, umax)))
+            _snap_universo(int(np.clip(b + r, umin, umax)))
             for b, r in zip(base_ultra, ruido)
         ]
         listas_brutas.append(nova)
 
     # ============================================================
-    # SANIDADE FINAL — MVP-U0 (UNIVERSAL)
+    # SANIDADE FINAL — MVP-U0 + B0 (UNIVERSO)
     # ============================================================
-    listas_totais = sanidade_final_listas(listas_brutas)
+    listas_totais = v16_sanidade_universo_listas(
+        sanidade_final_listas(listas_brutas),
+        df
+    )
+
     listas_top10 = listas_totais[:10]
 
     st.session_state["modo6_listas_totais"] = listas_totais
@@ -4994,26 +5020,10 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         f"{len(listas_top10)} priorizadas (Top 10)."
     )
 
-    # ============================================================
-    # VISUALIZAÇÃO — SOMENTE LEITURA
-    # ============================================================
-    with st.expander("🔍 Visualizar listas do Modo 6 (somente leitura)", expanded=False):
-
-        if not listas_totais:
-            st.info("Nenhuma lista disponível para visualização.")
-        else:
-            st.caption(
-                "Listas geradas pelo **Modo 6 (PRÉ-ECO)**.\n\n"
-                "⚠️ Exibição apenas para inspeção humana.\n"
-                "⚠️ Não há priorização, filtragem ou decisão automática aqui."
-            )
-
-            for i, lst in enumerate(listas_totais, start=1):
-                st.code(f"Lista {i}: {sorted(lst)}", language="python")
-
 # ============================================================
 # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
+
 
 
 # ============================================================
