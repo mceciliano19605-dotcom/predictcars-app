@@ -3872,23 +3872,6 @@ def _injetar_cfg_tentativa_turbo_ultra_v16(
 # >>> PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3 — VOLUME POR ORÇAMENTO)
 # ============================================================
 
-# ------------------------------------------------------------
-# GARANTIAS DEFENSIVAS GLOBAIS (ANTI-CRASH)
-# ------------------------------------------------------------
-df = st.session_state.get("historico_df")
-matriz_norm = st.session_state.get("pipeline_matriz_norm")
-
-_kstar_raw = st.session_state.get("sentinela_kstar")
-k_star = float(_kstar_raw) if isinstance(_kstar_raw, (int, float)) else 0.0
-
-if df is not None and not df.empty:
-    col_pass = [c for c in df.columns if c.startswith("p")]
-else:
-    col_pass = []
-
-# ------------------------------------------------------------
-# PAINEL
-# ------------------------------------------------------------
 if painel == "⚙️ Modo TURBO++ ULTRA":
 
     st.markdown("## ⚙️ Modo TURBO++ ULTRA — MVP3")
@@ -3901,10 +3884,19 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         "✔ Sem decisão automática"
     )
 
-    if df is None or matriz_norm is None:
+    # ------------------------------------------------------------
+    # BUSCA DE ESTADO — SOMENTE AQUI
+    # ------------------------------------------------------------
+    df = st.session_state.get("historico_df")
+    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+
+    _kstar_raw = st.session_state.get("sentinela_kstar")
+    k_star = float(_kstar_raw) if isinstance(_kstar_raw, (int, float)) else 0.0
+
+    if df is None or df.empty or matriz_norm is None:
         exibir_bloco_mensagem(
             "Pipeline incompleto",
-            "Execute o painel **🛣️ Pipeline V14-FLEX ULTRA**.",
+            "Carregue o histórico e execute **🛣️ Pipeline V14-FLEX ULTRA**.",
             tipo="warning",
         )
         st.stop()
@@ -3931,12 +3923,11 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     except Exception:
         pass
 
-    # 🔴 AQUI ESTÁ O AJUSTE CRÍTICO
-    # Mesmo BLOQUEADO, o TURBO conta como EXECUTADO
+    # ✔️ MESMO BLOQUEADO, MARCA COMO EXECUTADO
     st.session_state["turbo_ultra_executado"] = True
 
     # ------------------------------------------------------------
-    # ORÇAMENTO → LIBERA VOLUME
+    # ORÇAMENTO
     # ------------------------------------------------------------
     orcamentos_disponiveis = [6, 42, 168, 504, 1260, 2772]
 
@@ -3963,7 +3954,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     )
 
     # ------------------------------------------------------------
-    # EXECUÇÃO TURBO++ ULTRA (ANTI-CRASH)
+    # EXECUÇÃO SEGURA
     # ------------------------------------------------------------
     st.info("Executando Modo TURBO++ ULTRA...")
 
@@ -3982,7 +3973,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
             pass
 
     # ------------------------------------------------------------
-    # FECHAMENTO TÉCNICO
+    # FECHAMENTO DE ESTADO
     # ------------------------------------------------------------
     st.session_state["pipeline_flex_ultra_concluido"] = True
     st.session_state["turbo_ultra_listas_leves"] = todas_listas.copy()
@@ -4007,6 +3998,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 # ============================================================
 # <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3)
 # ============================================================
+
 
 
 
