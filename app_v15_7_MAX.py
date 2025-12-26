@@ -2011,11 +2011,17 @@ elif painel == "🧠 Diagnóstico ECO & Estado (V16)":
 
     with col1:
         st.markdown("### 🌊 ECO")
-        st.write(f"Força: **{diag.get('eco')}**")
+        st.write(f"Força: **{diag.get('eco_forca')}**")
         st.write(f"Persistência: **{diag.get('eco_persistencia')}**")
+        st.write(f"Acionabilidade: **{diag.get('eco_acionabilidade')}**")
+
         motivos = diag.get("motivos_eco", [])
         if motivos:
             st.caption("Motivos: " + ", ".join(motivos))
+
+        contradicoes = diag.get("contradicoes", [])
+        if contradicoes:
+            st.warning("⚠️ Contradições: " + "; ".join(contradicoes))
 
     with col2:
         st.markdown("### 🐟 Estado do Alvo")
@@ -2027,8 +2033,6 @@ elif painel == "🧠 Diagnóstico ECO & Estado (V16)":
 
     st.markdown("### 🧠 Leitura Geral")
     st.success(diag.get("leitura_geral", "—"))
-
-
 
 elif painel == "📊 V16 Premium — Erro por Regime (Retrospectivo)":
 
