@@ -1409,11 +1409,12 @@ def v16_diagnosticar_eco_estado():
 # NÃO decide | NÃO bloqueia | NÃO altera motores
 # ============================================================
 
-try:
-    if st.session_state.get("historico_df") is not None:
-        _ = st.session_state.get("diagnostico_eco_estado_v16")
-except Exception:
-    pass
+if "historico_df" in st.session_state:
+    try:
+        v16_diagnosticar_eco_estado()
+    except Exception:
+        pass
+
 
 
 
