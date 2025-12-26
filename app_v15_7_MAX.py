@@ -1990,6 +1990,46 @@ if "Carregar Histórico (Colar)" in painel:
 # PAINEL — 📊 V16 PREMIUM — ERRO POR REGIME (RETROSPECTIVO)
 # (INSTRUMENTAÇÃO: mede continuidade do erro por janelas)
 # ============================================================
+
+# ============================================================
+# PAINEL — 🧠 Diagnóstico ECO & Estado (V16)
+# Observacional | NÃO decide | NÃO altera motores
+# ============================================================
+
+elif painel == "🧠 Diagnóstico ECO & Estado (V16)":
+
+    st.markdown("## 🧠 Diagnóstico ECO & Estado — V16")
+    st.caption("Leitura mastigada do ambiente e do alvo. Observacional.")
+
+    diag = st.session_state.get("diagnostico_eco_estado_v16")
+
+    if not diag:
+        st.info("Diagnóstico ainda não disponível. Carregue um histórico.")
+        st.stop()
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### 🌊 ECO")
+        st.write(f"Força: **{diag.get('eco')}**")
+        st.write(f"Persistência: **{diag.get('eco_persistencia')}**")
+        motivos = diag.get("motivos_eco", [])
+        if motivos:
+            st.caption("Motivos: " + ", ".join(motivos))
+
+    with col2:
+        st.markdown("### 🐟 Estado do Alvo")
+        st.write(f"Estado: **{diag.get('estado')}**")
+        st.write(
+            "Confiabilidade: "
+            f"**{'alta' if diag.get('estado_confiavel') else 'baixa / transição'}**"
+        )
+
+    st.markdown("### 🧠 Leitura Geral")
+    st.success(diag.get("leitura_geral", "—"))
+
+
+
 elif painel == "📊 V16 Premium — Erro por Regime (Retrospectivo)":
 
     st.subheader("📊 V16 Premium — Erro por Regime (Retrospectivo)")
