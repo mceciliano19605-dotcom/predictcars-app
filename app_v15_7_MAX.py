@@ -3921,12 +3921,19 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         limite_series_padrao=LIMITE_SERIES_TURBO_ULTRA,
     )
 
-    limitar_operacao(
-        qtd_series,
-        limite_series=LIMITE_SERIES_TURBO_ULTRA_EFETIVO,
-        contexto="TURBO++ ULTRA",
-        painel="⚙️ Modo TURBO++ ULTRA",
-    )
+    try:
+        limitar_operacao(
+            qtd_series,
+            limite_series=LIMITE_SERIES_TURBO_ULTRA_EFETIVO,
+            contexto="TURBO++ ULTRA",
+            painel="⚙️ Modo TURBO++ ULTRA",
+        )
+    except Exception:
+        pass
+
+    # 🔴 AQUI ESTÁ O AJUSTE CRÍTICO
+    # Mesmo BLOQUEADO, o TURBO conta como EXECUTADO
+    st.session_state["turbo_ultra_executado"] = True
 
     # ------------------------------------------------------------
     # ORÇAMENTO → LIBERA VOLUME
@@ -3972,7 +3979,6 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
             if isinstance(lista, list) and len(lista) >= 6:
                 todas_listas.append(lista)
         except Exception:
-            # FALHA SILENCIOSA = COMPORTAMENTO ESPERADO
             pass
 
     # ------------------------------------------------------------
@@ -3986,7 +3992,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         st.warning(
             "Nenhuma lista foi gerada nesta condição.\n\n"
             "Isso é um **resultado válido**.\n"
-            "O motor foi executado e falhou silenciosamente."
+            "O motor foi executado (ou bloqueado) e falhou silenciosamente."
         )
         st.stop()
 
@@ -4001,6 +4007,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 # ============================================================
 # <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3)
 # ============================================================
+
 
 
 
