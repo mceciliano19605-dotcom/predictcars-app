@@ -1272,14 +1272,10 @@ if painel == "🔵 MODO ESPECIAL — Evento Condicionado":
 
 def v16_diagnosticar_eco_estado():
     """
-    Consolida diagnóstico OBSERVACIONAL de:
-    - ECO (fraco / médio / forte + persistência)
-    - ESTADO do alvo (parado / lento / brusco + confiabilidade)
-
-    NÃO altera motores
-    NÃO decide
-    NÃO bloqueia
-    Apenas registra leitura mastigada no session_state
+    Diagnóstico OBSERVACIONAL enriquecido (ECO A):
+    - ECO: força + persistência + acionabilidade
+    - ESTADO: parado / movimento_lento / movimento_brusco + confiabilidade
+    NÃO altera motores | NÃO decide | NÃO bloqueia
     """
 
     historico_df = st.session_state.get("historico_df")
@@ -1289,77 +1285,83 @@ def v16_diagnosticar_eco_estado():
     # -----------------------------
     if historico_df is None or historico_df.empty:
         diag = {
-            "eco": "indefinido",
+            "eco_forca": "indefinido",
             "eco_persistencia": "indefinida",
+            "eco_acionabilidade": "não_acionável",
             "estado": "indefinido",
             "estado_confiavel": False,
+            "contradicoes": ["histórico insuficiente"],
             "leitura_geral": "Histórico insuficiente para diagnóstico.",
         }
         st.session_state["diagnostico_eco_estado_v16"] = diag
         return diag
 
     # =========================================================
-    # ECO — leitura baseada em sinais JÁ EXISTENTES
+    # ECO — sinais já existentes
     # =========================================================
-
-    # Sinais técnicos já presentes no app
     k_star = st.session_state.get("sentinela_kstar")
     nr_pct = st.session_state.get("nr_percent")
     divergencia = st.session_state.get("div_s6_mc")
 
-    sinais_eco = 0
-    motivos_eco = []
+    sinais = 0
+    motivos = []
 
     if isinstance(k_star, (int, float)) and k_star < 0.15:
-        sinais_eco += 1
-        motivos_eco.append("k* favorável")
+        sinais += 1
+        motivos.append("k* favorável")
 
     if isinstance(nr_pct, (int, float)) and nr_pct < 30:
-        sinais_eco += 1
-        motivos_eco.append("ruído controlado")
+        sinais += 1
+        motivos.append("ruído controlado")
 
     if isinstance(divergencia, (int, float)) and divergencia < 5:
-        sinais_eco += 1
-        motivos_eco.append("baixa divergência")
+        sinais += 1
+        motivos.append("baixa divergência")
 
-    if sinais_eco >= 3:
-        eco = "forte"
-    elif sinais_eco == 2:
-        eco = "médio"
-    elif sinais_eco == 1:
-        eco = "fraco"
+    if sinais >= 3:
+        eco_forca = "forte"
+    elif sinais == 2:
+        eco_forca = "médio"
     else:
-        eco = "fraco"
+        eco_forca = "fraco"
 
-    # Persistência simples (eco repetido no tempo)
-    historico_eco = st.session_state.get("historico_eco_v16", [])
-    historico_eco.append(eco)
-    historico_eco = historico_eco[-5:]  # janela curta, segura
+    # Persistência curta
+    hist_eco = st.session_state.get("historico_eco_v16", [])
+    hist_eco.append(eco_forca)
+    hist_eco = hist_eco[-5:]
+    st.session_state["historico_eco_v16"] = hist_eco
 
-    st.session_state["historico_eco_v16"] = historico_eco
-
-    if historico_eco.count(eco) >= 3:
-        eco_persistencia = "persistente"
-    else:
-        eco_persistencia = "instável"
+    eco_persistencia = "persistente" if hist_eco.count(eco_forca) >= 3 else "instável"
 
     # =========================================================
-    # ESTADO DO ALVO — proxy já usado no app
+    # CONTRADIÇÕES (leitura turva)
     # =========================================================
+    contradicoes = []
+    if eco_forca in ("fraco", "médio") and isinstance(divergencia, (int, float)) and divergencia > 20:
+        contradicoes.append("divergência elevada")
+    if eco_persistencia == "persistente" and isinstance(divergencia, (int, float)) and divergencia > 30:
+        contradicoes.append("persistência enganosa")
 
+    # =========================================================
+    # ACIONABILIDADE (OBSERVACIONAL)
+    # =========================================================
+    if eco_forca == "forte" and eco_persistencia == "persistente" and not contradicoes:
+        eco_acionabilidade = "favorável"
+    elif eco_forca in ("médio", "forte") and not contradicoes:
+        eco_acionabilidade = "cautela"
+    else:
+        eco_acionabilidade = "não_acionável"
+
+    # =========================================================
+    # ESTADO DO ALVO (proxy existente)
+    # =========================================================
     estado_proxy = None
-
     try:
         col_pass = [c for c in historico_df.columns if c.startswith("p")]
         if len(col_pass) >= 6 and len(historico_df) >= 2:
-            linha_atual = historico_df.iloc[-1]
-            linha_anterior = historico_df.iloc[-2]
-
-            carro_atual = [int(linha_atual[c]) for c in col_pass[:6]]
-            carro_prev = [int(linha_anterior[c]) for c in col_pass[:6]]
-
-            dist = len(set(carro_atual) ^ set(carro_prev))
-
+            a = [int(historico_df.iloc[-1][c]) for c in col_pass[:6]]
+            b = [int(historico_df.iloc[-2][c]) for c in col_pass[:6]]
+            dist = len(set(a) ^ set(b))
             if dist <= 1:
                 estado_proxy = "parado"
             elif dist <= 3:
@@ -1374,54 +1376,51 @@ def v16_diagnosticar_eco_estado():
         estado_confiavel = False
     else:
         estado = estado_proxy
-
-        historico_estado = st.session_state.get("historico_estado_v16", [])
-        historico_estado.append(estado)
-        historico_estado = historico_estado[-5:]
-
-        st.session_state["historico_estado_v16"] = historico_estado
-
-        estado_confiavel = historico_estado.count(estado) >= 3
+        hist_estado = st.session_state.get("historico_estado_v16", [])
+        hist_estado.append(estado)
+        hist_estado = hist_estado[-5:]
+        st.session_state["historico_estado_v16"] = hist_estado
+        estado_confiavel = hist_estado.count(estado) >= 3
 
     # =========================================================
-    # DIAGNÓSTICO FINAL (MASTIGADO)
+    # LEITURA FINAL (MASTIGADA)
     # =========================================================
-
-    leitura_geral = (
-        f"ECO {eco}, {eco_persistencia}. "
+    leitura = (
+        f"ECO {eco_forca}, {eco_persistencia}, {eco_acionabilidade}. "
         f"Estado {estado}. "
         f"{'Confiável' if estado_confiavel else 'Em transição'}."
     )
+    if contradicoes:
+        leitura += " Atenção: " + "; ".join(contradicoes) + "."
 
     diagnostico = {
-        "eco": eco,
+        "eco_forca": eco_forca,
         "eco_persistencia": eco_persistencia,
+        "eco_acionabilidade": eco_acionabilidade,
         "estado": estado,
         "estado_confiavel": estado_confiavel,
-        "motivos_eco": motivos_eco,
-        "leitura_geral": leitura_geral,
+        "contradicoes": contradicoes,
+        "leitura_geral": leitura,
+        "motivos_eco": motivos,
     }
 
     st.session_state["diagnostico_eco_estado_v16"] = diagnostico
     return diagnostico
+
 # ============================================================
 # ATIVAÇÃO SILENCIOSA — DIAGNÓSTICO ECO & ESTADO (V16)
-# NÃO decide | NÃO bloqueia | NÃO altera motores
 # ============================================================
-
 if "historico_df" in st.session_state:
     try:
         v16_diagnosticar_eco_estado()
     except Exception:
         pass
 
-
-
-
 # ============================================================
 # CAMADA B — EXPECTATIVA DE CURTO PRAZO (V16)
 # Laudo observacional: horizonte 1–3 séries (NÃO decide)
 # ============================================================
+
 
 def v16_calcular_expectativa_curto_prazo(
     df: Optional[pd.DataFrame],
