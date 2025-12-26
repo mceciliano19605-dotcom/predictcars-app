@@ -2011,7 +2011,8 @@ elif painel == "🧠 Diagnóstico ECO & Estado (V16)":
 
     with col1:
         st.markdown("### 🌊 ECO")
-        st.write(f"Força: **{diag.get('eco_forca')}**")
+        eco_forca = diag.get("eco_forca") or "fraco"
+        st.write(f"Força: **{eco_forca}**")
         st.write(f"Persistência: **{diag.get('eco_persistencia')}**")
         st.write(f"Acionabilidade: **{diag.get('eco_acionabilidade')}**")
 
