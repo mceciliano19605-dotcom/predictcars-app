@@ -4881,6 +4881,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     df = st.session_state.get("historico_df")
 
+    # ------------------------------------------------------------
+    # k* (fallback seguro)
+    # ------------------------------------------------------------
     _kstar_raw = st.session_state.get("sentinela_kstar")
     k_star = float(_kstar_raw) if isinstance(_kstar_raw, (int, float)) else 0.0
 
@@ -4889,34 +4892,33 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     risco_composto = st.session_state.get("indice_risco")
     ultima_prev = st.session_state.get("ultima_previsao")
 
-    pipeline_fechado = (
-        st.session_state.get("pipeline_flex_ultra_concluido") is True
-    )
+    # ------------------------------------------------------------
+    # GUARDA — CRITÉRIO MÍNIMO (ORIGINAL PRESERVADO)
+    # ------------------------------------------------------------
+    pipeline_ok = st.session_state.get("pipeline_flex_ultra_concluido") is True
 
     turbo_executado_ok = any([
         st.session_state.get("turbo_ultra_executado"),
         st.session_state.get("turbo_executado"),
         st.session_state.get("turbo_ultra_rodou"),
         st.session_state.get("motor_turbo_executado"),
-        st.session_state.get("turbo_ultra_executado") is True,
     ])
 
-    if df is None or df.empty or not pipeline_fechado or not turbo_executado_ok:
+    if df is None or df.empty or not pipeline_ok or not turbo_executado_ok:
         exibir_bloco_mensagem(
             "Pipeline incompleto",
             "É necessário:\n"
             "- Histórico carregado\n"
             "- Pipeline V14-FLEX ULTRA executado\n"
             "- TURBO++ ULTRA executado ao menos uma vez (bloqueio é válido)\n\n"
-            "ℹ️ O TURBO pode se recusar a gerar listas — isso é válido.\n"
-            "O **Modo 6 (PRÉ-ECO)** depende do **estado do pipeline**, não do resultado do TURBO.",
+            "ℹ️ O TURBO pode se recusar a gerar listas — isso é válido.",
             tipo="warning",
         )
         st.stop()
 
-    # ============================================================
-    # AJUSTE DE AMBIENTE (PRÉ-ECO)
-    # ============================================================
+    # ------------------------------------------------------------
+    # AJUSTE DE AMBIENTE (PRÉ-ECO) — ORIGINAL
+    # ------------------------------------------------------------
     config = ajustar_ambiente_modo6(
         df=df,
         k_star=k_star,
@@ -4931,83 +4933,93 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     volume = int(config["volume_recomendado"])
     volume = max(1, min(volume, int(config["volume_max"])))
 
-    # ============================================================
-    # DETECÇÃO DO FENÔMENO
-    # ============================================================
-    colunas = list(df.columns)
-    col_pass = colunas[1:-1]
 
-    contagens = []
+    # ------------------------------------------------------------
+    # DETECÇÃO DO FENÔMENO (n + UNIVERSO REAL)
+    # ------------------------------------------------------------
+    col_pass = [c for c in df.columns if c.startswith("p")]
+
     universo_tmp = []
+    contagens = []
 
     for _, row in df.iterrows():
-        vals = [int(v) for v in row[col_pass] if pd.notna(v)]
+        vals = [int(row[c]) for c in col_pass if pd.notna(row[c])]
         if vals:
             contagens.append(len(vals))
             universo_tmp.extend(vals)
 
-    if not contagens:
-        st.warning("Não foi possível detectar n_real a partir do histórico.")
+    if not contagens or not universo_tmp:
+        st.warning("Não foi possível detectar universo válido no histórico.")
         st.stop()
 
     n_real = int(pd.Series(contagens).mode().iloc[0])
     st.session_state["n_alvo"] = n_real
 
-    universo = sorted({int(v) for v in universo_tmp if int(v) > 0})
-    umin, umax = min(universo), max(universo)
+    universo = sorted({v for v in universo_tmp if v > 0})
+    umin, umax = min(universo), max(universo)   # EX: 1–50 (REAL)
 
-    # ============================================================
-    # REPRODUTIBILIDADE
-    # ============================================================
-    seed_raw = f"PC-U1-{len(df)}-{n_real}-{umin}-{umax}"
-    seed = abs(hash(seed_raw)) % (2**32)
+
+    # ------------------------------------------------------------
+    # REPRODUTIBILIDADE (ORIGINAL)
+    # ------------------------------------------------------------
+    seed = abs(hash(f"PC-M6-{len(df)}-{n_real}-{umin}-{umax}")) % (2**32)
     rng = np.random.default_rng(seed)
 
-    def _snap_universo(v: int) -> int:
-        v = int(v)
-        if v in universo:
-            return v
-        return min(universo, key=lambda x: abs(x - v))
 
-    def _ajustar_para_n(lista, n_target: int):
-        seen, out = set(), []
-        for x in lista:
-            sx = _snap_universo(int(np.clip(int(x), umin, umax)))
-            if sx not in seen:
-                seen.add(sx)
-                out.append(sx)
-        while len(out) < n_target:
-            cand = _snap_universo(int(rng.choice(universo)))
-            if cand not in seen:
-                seen.add(cand)
-                out.append(cand)
-        return out[:n_target]
+    # ------------------------------------------------------------
+    # MAPA DE ÍNDICES (CORREÇÃO ESTRUTURAL)
+    # ------------------------------------------------------------
+    universo_idx = list(range(len(universo)))
+    valor_por_idx = {i: universo[i] for i in universo_idx}
+    idx_por_valor = {v: i for i, v in valor_por_idx.items()}
 
-    if ultima_prev and isinstance(ultima_prev, list):
-        base_ultra = ultima_prev if isinstance(ultima_prev[0], int) else ultima_prev[0]
-        base_ultra = _ajustar_para_n(base_ultra, n_real)
+
+    def ajustar_para_n(lista):
+        out_idx = []
+
+        for v in lista:
+            if v in idx_por_valor:
+                idx = idx_por_valor[v]
+                if idx not in out_idx:
+                    out_idx.append(idx)
+
+        while len(out_idx) < n_real:
+            cand = rng.choice(universo_idx)
+            if cand not in out_idx:
+                out_idx.append(cand)
+
+        return out_idx[:n_real]
+
+
+    # ------------------------------------------------------------
+    # BASE ULTRA (ORIGINAL, MAS EM ÍNDICES)
+    # ------------------------------------------------------------
+    if ultima_prev:
+        base_vals = ultima_prev if isinstance(ultima_prev[0], int) else ultima_prev[0]
+        base_idx = ajustar_para_n(base_vals)
     else:
-        base_ultra = _ajustar_para_n(
-            rng.choice(universo, size=n_real, replace=False).tolist(),
-            n_real,
-        )
+        base_idx = rng.choice(universo_idx, size=n_real, replace=False).tolist()
 
+
+    # ------------------------------------------------------------
+    # GERAÇÃO PRÉ-ECO (SEM POSSIBILIDADE DE SAIR DO UNIVERSO)
+    # ------------------------------------------------------------
     listas_brutas = []
+
     for _ in range(volume):
-        ruido = rng.integers(-7, 8, size=n_real)
-        nova = [
-            _snap_universo(int(np.clip(b + r, umin, umax)))
-            for b, r in zip(base_ultra, ruido)
+        ruido = rng.integers(-3, 4, size=n_real)  # deslocamento leve
+        nova_idx = [
+            max(0, min(len(universo_idx) - 1, idx + r))
+            for idx, r in zip(base_idx, ruido)
         ]
+        nova = [valor_por_idx[i] for i in nova_idx]
         listas_brutas.append(nova)
 
-    # ============================================================
-    # SANIDADE FINAL — MVP-U0 + B0 (UNIVERSO)
-    # ============================================================
-    listas_totais = v16_sanidade_universo_listas(
-        sanidade_final_listas(listas_brutas),
-        df
-    )
+
+    # ------------------------------------------------------------
+    # SANIDADE FINAL — SOMENTE ESTRUTURAL (ORIGINAL)
+    # ------------------------------------------------------------
+    listas_totais = sanidade_final_listas(listas_brutas)
 
     listas_top10 = listas_totais[:10]
 
@@ -5016,13 +5028,15 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     st.session_state["modo6_listas"] = listas_totais
 
     st.success(
-        f"Modo 6 (PRÉ-ECO | n-base={n_real}) — {len(listas_totais)} listas totais | "
+        f"Modo 6 (PRÉ-ECO | n-base={n_real}) — "
+        f"{len(listas_totais)} listas totais | "
         f"{len(listas_top10)} priorizadas (Top 10)."
     )
 
 # ============================================================
 # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
+
 
 
 
