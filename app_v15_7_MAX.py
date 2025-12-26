@@ -3868,17 +3868,20 @@ def _injetar_cfg_tentativa_turbo_ultra_v16(
 # ============================================================
 
 # ------------------------------------------------------------
-# Garantia defensiva — col_pass (ANTI-ERRO)
+# Garantias defensivas (ANTI-ERRO)
 # ------------------------------------------------------------
-try:
-    col_pass
-except NameError:
-    if 'historico_df' in locals() and historico_df is not None and not historico_df.empty:
-        col_pass = [c for c in historico_df.columns if c.startswith("p")]
-    else:
-        col_pass = []
+df = st.session_state.get("historico_df")
 
+if df is not None and not df.empty:
+    col_pass = [c for c in df.columns if c.startswith("p")]
+else:
+    col_pass = []
 
+k_star = st.session_state.get("sentinela_kstar", None)
+
+# ------------------------------------------------------------
+# PAINEL
+# ------------------------------------------------------------
 if painel == "⚙️ Modo TURBO++ ULTRA":
 
     st.markdown("## ⚙️ Modo TURBO++ ULTRA — MVP3")
@@ -3890,9 +3893,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         "✔ Sem decisão automática"
     )
 
-    df = st.session_state.get("historico_df")
     matriz_norm = st.session_state.get("pipeline_matriz_norm")
-    k_star = st.session_state.get("sentinela_kstar")
 
     if df is None or matriz_norm is None:
         exibir_bloco_mensagem(
@@ -3913,7 +3914,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     qtd_series = len(df)
 
     # ------------------------------------------------------------
-    # Anti-zumbi: LIMITADOR (COMPORTAMENTO OFICIAL — NÃO ALTERADO)
+    # Anti-zumbi: LIMITADOR (OFICIAL — NÃO ALTERADO)
     # ------------------------------------------------------------
     LIMITE_SERIES_TURBO_ULTRA_EFETIVO = _injetar_cfg_tentativa_turbo_ultra_v16(
         df=df,
@@ -3958,7 +3959,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     )
 
     # ------------------------------------------------------------
-    # Execução TURBO++ ULTRA (tentativa pesada)
+    # Execução TURBO++ ULTRA
     # ------------------------------------------------------------
     st.info("Executando Modo TURBO++ ULTRA...")
 
@@ -3971,43 +3972,21 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
                 matriz_norm=matriz_norm,
                 k_star=k_star,
             )
-            if lista and isinstance(lista, list):
+            if isinstance(lista, list) and len(lista) >= 6:
                 todas_listas.append(lista)
     except Exception:
         pass
 
     # ============================================================
-    # ✅ FECHAMENTO TÉCNICO DO PIPELINE (OBRIGATÓRIO)
+    # ✅ FECHAMENTO TÉCNICO DO PIPELINE
     # ============================================================
     st.session_state["pipeline_flex_ultra_concluido"] = True
 
     # ============================================================
-    # PATCH A — PRESERVAÇÃO DE LISTAS LEVES (CRITÉRIO POR MOTOR)
-    # ------------------------------------------------------------
-    # ✔ NÃO muda anti-zumbi visível
-    # ✔ NÃO força execução pesada
-    # ✔ NÃO exibe listas
-    # ✔ NÃO decide
-    # ✔ APENAS preserva o que existir (se existir)
+    # PRESERVAÇÃO DE LISTAS (RELATÓRIO FINAL)
     # ============================================================
+    st.session_state["turbo_ultra_listas_leves"] = todas_listas.copy()
 
-    st.session_state["turbo_ultra_listas_leves"] = []
-
-    listas_validas = [
-        lst for lst in todas_listas
-        if isinstance(lst, list) and len(lst) >= 6
-    ]
-
-    if listas_validas:
-        st.session_state["turbo_ultra_listas_leves"] = listas_validas.copy()
-        st.caption(
-            f"🧠 TURBO++ ULTRA preservou {len(listas_validas)} listas "
-            f"(uso posterior no Relatório Final)."
-        )
-
-    # ------------------------------------------------------------
-    # Encerramento visual padrão
-    # ------------------------------------------------------------
     if not todas_listas:
         st.warning(
             "Nenhuma lista foi gerada nesta condição.\n\n"
@@ -4029,6 +4008,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 # ============================================================
 # <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3)
 # ============================================================
+
 
 
 
