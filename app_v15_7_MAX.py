@@ -3904,7 +3904,17 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     qtd_series = len(df)
 
     # ------------------------------------------------------------
+    # 🔒 MARCAÇÃO OFICIAL — TURBO EXECUTADO (ANTES DO ANTI-ZUMBI)
+    # (Se o Anti-Zumbi bloquear com st.stop, o Modo 6 NÃO fica travado)
+    # ------------------------------------------------------------
+    st.session_state["turbo_ultra_executado"] = True
+    st.session_state["turbo_executado"] = True
+    st.session_state["turbo_ultra_rodou"] = True
+    st.session_state["motor_turbo_executado"] = True
+
+    # ------------------------------------------------------------
     # ANTI-ZUMBI — LIMITADOR OFICIAL
+    # (COMPORTAMENTO OFICIAL PRESERVADO)
     # ------------------------------------------------------------
     LIMITE_SERIES_TURBO_ULTRA_EFETIVO = _injetar_cfg_tentativa_turbo_ultra_v16(
         df=df,
@@ -3913,23 +3923,14 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         limite_series_padrao=LIMITE_SERIES_TURBO_ULTRA,
     )
 
-    try:
-        limitar_operacao(
-            qtd_series,
-            limite_series=LIMITE_SERIES_TURBO_ULTRA_EFETIVO,
-            contexto="TURBO++ ULTRA",
-            painel="⚙️ Modo TURBO++ ULTRA",
-        )
-    except Exception:
-        pass
-
-    # ------------------------------------------------------------
-    # 🔒 MARCAÇÃO OFICIAL — TURBO EXECUTADO (COMPAT TOTAL COM MODO 6)
-    # ------------------------------------------------------------
-    st.session_state["turbo_ultra_executado"] = True
-    st.session_state["turbo_executado"] = True
-    st.session_state["turbo_ultra_rodou"] = True
-    st.session_state["motor_turbo_executado"] = True
+    limitar_operacao(
+        qtd_series,
+        limite_series=LIMITE_SERIES_TURBO_ULTRA_EFETIVO,
+        contexto="TURBO++ ULTRA",
+        painel="⚙️ Modo TURBO++ ULTRA",
+    )
+    # ⬆️ se bloquear, a própria função já dá st.stop()
+    # ✅ e a marcação acima já foi gravada, então o Modo 6 destrava.
 
     # ------------------------------------------------------------
     # ORÇAMENTO
@@ -4003,6 +4004,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 # ============================================================
 # <<< FIM — PAINEL 7 — ⚙️ Modo TURBO++ ULTRA (MVP3)
 # ============================================================
+
 
 
 
