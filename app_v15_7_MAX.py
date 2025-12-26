@@ -4405,10 +4405,6 @@ def sanidade_final_listas(listas):
 
 
 # ============================================================
-# Painel 11 — 🎯 Modo 6 Acertos — Execução (V15.7 MAX)
-# MVP-U1 — MOTOR UNIVERSAL BÁSICO (n-base)
-# ============================================================
-# ============================================================
 # >>> INÍCIO — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
 
@@ -4417,26 +4413,41 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     st.markdown("## 🎯 Modo 6 Acertos — Execução")
 
     df = st.session_state.get("historico_df")
-    k_star = st.session_state.get("sentinela_kstar")
+
+    # k* (fallback seguro: não pode travar Modo 6)
+    _kstar_raw = st.session_state.get("sentinela_kstar")
+    k_star = float(_kstar_raw) if isinstance(_kstar_raw, (int, float)) else 0.0
+
     nr_pct = st.session_state.get("nr_percent")
     divergencia_s6_mc = st.session_state.get("div_s6_mc")
     risco_composto = st.session_state.get("indice_risco")
     ultima_prev = st.session_state.get("ultima_previsao")
 
     # ============================================================
-    # GUARDA AJUSTADA — CRITÉRIO MÍNIMO DE ENTRADA
+    # GUARDA AJUSTADA — CRITÉRIO MÍNIMO DE ENTRADA (COMPAT)
+    # - NÃO depende de k* existir (usa fallback 0.0)
+    # - Exige Pipeline concluído
+    # - Exige TURBO ter sido "executado" (mesmo bloqueado = válido)
     # ============================================================
     pipeline_fechado = (
         st.session_state.get("pipeline_flex_ultra_concluido") is True
     )
 
-    if df is None or k_star is None or not pipeline_fechado:
+    turbo_executado_ok = any([
+        st.session_state.get("turbo_ultra_executado"),
+        st.session_state.get("turbo_executado"),
+        st.session_state.get("turbo_ultra_rodou"),
+        st.session_state.get("motor_turbo_executado"),
+        st.session_state.get("turbo_ultra_executado") is True,
+    ])
+
+    if df is None or df.empty or not pipeline_fechado or not turbo_executado_ok:
         exibir_bloco_mensagem(
             "Pipeline incompleto",
             "É necessário:\n"
             "- Histórico carregado\n"
             "- Pipeline V14-FLEX ULTRA executado\n"
-            "- TURBO++ ULTRA executado ao menos uma vez\n\n"
+            "- TURBO++ ULTRA executado ao menos uma vez (bloqueio é válido)\n\n"
             "ℹ️ O TURBO pode se recusar a gerar listas — isso é válido.\n"
             "O **Modo 6 (PRÉ-ECO)** depende do **estado do pipeline**, não do resultado do TURBO.",
             tipo="warning",
@@ -4589,6 +4600,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 # ============================================================
 # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
+
 
 # ============================================================
 # 🧪 Modo N Experimental (n≠6)
