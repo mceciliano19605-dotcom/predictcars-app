@@ -6008,6 +6008,63 @@ if painel == "📘 Relatório Final":
         st.markdown(f"**{i:02d})** {formatar_lista_passageiros(lst)}")
 
     # ------------------------------------------------------------
+    # 📊 EIXO 1 — CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
+    # ------------------------------------------------------------
+    try:
+        listas_pacote_eixo1 = listas_m6_totais[:]
+
+        historico_label = (
+            f"C1 → C{len(historico_df)}"
+            if historico_df is not None
+            else "Histórico indefinido"
+        )
+
+        eixo1_resultado = calcular_eixo1_contribuicao(
+            listas_pacote=listas_pacote_eixo1,
+            historico_label=historico_label,
+            modo_geracao="Modo 6",
+            n_base=n_alvo or 6,
+            eco_status=st.session_state.get("eco_status", "DESCONHECIDO"),
+            estado_status=st.session_state.get("estado_atual", "DESCONHECIDO"),
+        )
+    except Exception:
+        eixo1_resultado = None
+
+    if eixo1_resultado:
+        st.markdown("### 📊 Eixo 1 — Contribuição de Passageiros (Observacional)")
+
+        st.write(
+            f"**Núcleo local detectado:** "
+            f"{'SIM' if eixo1_resultado['nucleo']['detectado'] else 'NÃO'} "
+            f"({eixo1_resultado['nucleo']['tipo']})"
+        )
+
+        st.write(
+            "**Estruturais do pacote:** "
+            + (
+                ", ".join(map(str, eixo1_resultado["papeis"]["estruturais"]))
+                if eixo1_resultado["papeis"]["estruturais"]
+                else "—"
+            )
+        )
+
+        st.write(
+            "**Contribuintes:** "
+            + (
+                ", ".join(map(str, eixo1_resultado["papeis"]["contribuintes"]))
+                if eixo1_resultado["papeis"]["contribuintes"]
+                else "—"
+            )
+        )
+
+        st.write(
+            "**Leitura sintética:** "
+            + " ".join(eixo1_resultado["leitura_sintetica"])
+        )
+
+        st.caption(eixo1_resultado["trava"])
+
+    # ------------------------------------------------------------
     # 📦 Pacote Operacional TOTAL (Modo 6 + TURBO ULTRA)
     # ------------------------------------------------------------
     pacote_operacional = listas_m6_totais.copy()
@@ -6035,7 +6092,6 @@ if painel == "📘 Relatório Final":
 
     # ============================================================
     # 🟦 B5 — LEITURA PARALELA (REFINAMENTO LEVE — OPCIONAL)
-    # NÃO substitui | NÃO decide | NÃO altera pacote oficial
     # ============================================================
     listas_refinadas_b4 = st.session_state.get("b4_listas_refinadas")
 
@@ -6106,6 +6162,7 @@ if painel == "📘 Relatório Final":
 # ============================================================
 # <<< FIM — PAINEL 13 — 📘 Relatório Final
 # ============================================================
+
 
 
 
