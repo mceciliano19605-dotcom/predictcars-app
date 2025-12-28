@@ -8413,6 +8413,101 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
     )
 
 
+# ============================================================
+# PAINEL — 🧭 CHECKLIST OPERACIONAL — DECISÃO (AGORA)
+# ============================================================
+if painel == "🧭 Checklist Operacional — Decisão (AGORA)":
+
+    st.markdown("## 🧭 Checklist Operacional — Decisão (AGORA)")
+    st.caption(
+        "Checklist obrigatório ANTES do Modo 6 / Mandar Bala.\n"
+        "Não calcula, não cria listas, não decide automaticamente."
+    )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # 1) Estrada
+    # --------------------------------------------------------
+    st.markdown("### 1️⃣ Estrada permite ataque?")
+    st.markdown(
+        "- k* **não piorou**\n"
+        "- NR% **não explodiu**\n"
+        "- Divergência **não disparou**"
+    )
+    estrada_ok = st.radio(
+        "Resultado da leitura da estrada:",
+        ["SIM", "NÃO"],
+        horizontal=True,
+    )
+
+    # --------------------------------------------------------
+    # 2) Regime
+    # --------------------------------------------------------
+    st.markdown("### 2️⃣ Regime jogável?")
+    regime = st.radio(
+        "Regime identificado:",
+        ["OURO", "PRATA", "RUIM"],
+        horizontal=True,
+    )
+
+    # --------------------------------------------------------
+    # 3) Eixo
+    # --------------------------------------------------------
+    st.markdown("### 3️⃣ Existe eixo claro nas listas?")
+    eixo = st.radio(
+        "Eixo identificado:",
+        ["SIM", "NÃO"],
+        horizontal=True,
+    )
+
+    # --------------------------------------------------------
+    # 4) Nocivos
+    # --------------------------------------------------------
+    st.markdown("### 4️⃣ Nocivos concentrados nas mesmas listas?")
+    nocivos = st.radio(
+        "Nocivos:",
+        ["SIM", "NÃO"],
+        horizontal=True,
+    )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # 5) Decisão humana
+    # --------------------------------------------------------
+    st.markdown("### 5️⃣ Decisão final (humana)")
+    acao = st.radio(
+        "Ação escolhida:",
+        [
+            "CONCENTRAR (6–8 listas)",
+            "EQUILIBRAR (8–10 listas)",
+            "EXPANDIR COM CRITÉRIO (10–12 listas)",
+            "SEGURAR / NÃO ESCALAR",
+        ],
+    )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # Síntese
+    # --------------------------------------------------------
+    st.markdown("### 🧾 Síntese da decisão")
+    st.write(
+        {
+            "Estrada OK": estrada_ok,
+            "Regime": regime,
+            "Eixo": eixo,
+            "Nocivos concentrados": nocivos,
+            "Ação escolhida": acao,
+        }
+    )
+
+    st.success(
+        "Checklist concluído. "
+        "A decisão da rodada está FECHADA aqui. "
+        "Prossiga para o Modo 6 e execução."
+    )
 
 
 # ============================================================
