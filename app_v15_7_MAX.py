@@ -8452,4 +8452,3 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 # FIM DO ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS
 # ============================================================
 
-
