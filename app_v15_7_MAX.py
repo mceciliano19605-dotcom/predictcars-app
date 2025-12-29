@@ -795,6 +795,7 @@ def construir_navegacao_v157() -> str:
         "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
         "📊 V16 Premium — PRÉ-ECO | Contribuição de Passageiros",
         "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos",
+        "🧭 Modo Guiado Oficial — PredictCars",
         "🧭 Checklist Operacional — Decisão (AGORA)",
         "📊 V16 Premium — Backtest Rápido do Pacote (N=60)",
         "🧪 Testes de Confiabilidade REAL",
@@ -8508,6 +8509,121 @@ if painel == "🧭 Checklist Operacional — Decisão (AGORA)":
         "A decisão da rodada está FECHADA aqui. "
         "Prossiga para o Modo 6 e execução."
     )
+
+# ============================================================
+# PAINEL — 🧭 MODO GUIADO OFICIAL — PREDICTCARS
+# ============================================================
+if painel == "🧭 Modo Guiado Oficial — PredictCars":
+
+    st.markdown("## 🧭 Modo Guiado Oficial — PredictCars")
+    st.caption(
+        "Guia operacional único para uso diário.\n"
+        "Não executa, não calcula, não decide — apenas orienta a sequência correta."
+    )
+
+    st.markdown("---")
+
+    st.markdown("### 🔵 AGORA — DECIDIR E JOGAR (ANTES DA SÉRIE REAL)")
+
+    st.markdown("""
+### **A0 — ENTRADA**
+- 📁 Carregar Histórico (Arquivo ou Colar)
+
+---
+
+### **A1 — EIXO 1 · ESTRUTURA DO AMBIENTE**
+*(saúde da estrada — não números)*
+
+Painéis:
+- 🛰️ Sentinelas — k*
+- 🧭 Monitor de Risco — k & k*
+- 📡 Painel de Ruído Condicional
+- 📉 Painel de Divergência S6 vs MC
+
+Pergunta respondida:
+- O ambiente permite ataque?
+
+---
+
+### **A2 — EIXO 2 · MOMENTO & ANTECIPAÇÃO**
+*(ritmo do alvo + evidência recente)*
+
+Painéis:
+- 🔁 Replay LIGHT
+- 🔁 Replay ULTRA
+- 🧪 Replay Curto — Expectativa 1–3 Séries
+- 📊 V16 Premium — Backtest Rápido do Pacote (N=60)
+
+Pergunta respondida:
+- O momento favorece agir agora?
+
+---
+
+### **A3 — EIXO 3 · DECISÃO**
+*(decisão humana registrada)*
+
+Painel:
+- 🧭 Checklist Operacional — Decisão (AGORA)
+
+Aqui você define:
+- atacar ou não
+- concentrar ou expandir
+- volume de listas
+
+📌 Depois disso, não se volta atrás.
+
+---
+
+### **A4 — MOTOR**
+- 🛣️ Pipeline V14-FLEX ULTRA
+- ⚙️ Modo TURBO++ HÍBRIDO
+- ⚙️ Modo TURBO++ ULTRA
+
+---
+
+### **A5 — EXECUÇÃO**
+- 🎯 Modo 6 Acertos — Execução
+- 🧪 Testes de Confiabilidade REAL
+- 📘 Relatório Final
+- 🔥 Mandar Bala
+""")
+
+    st.markdown("---")
+
+    st.markdown("### 🟣 EXTENSÃO CONDICIONAL — MODO ESPECIAL")
+
+    st.markdown("""
+Use **somente após** concluir o fluxo acima.
+
+- 🔵 MODO ESPECIAL — Evento Condicionado
+- Avalia pacotes já gerados
+- Não cria listas novas
+- Útil para eventos únicos
+""")
+
+    st.markdown("---")
+
+    st.markdown("### 🟢 DEPOIS — APRENDER (APÓS A SÉRIE REAL)")
+
+    st.markdown("""
+Painéis:
+- 📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos
+- 📊 EXATO / ECO / Regime
+
+📌 Aprendizado apenas para a próxima rodada.
+""")
+
+    st.success(
+        "Modo Guiado carregado com sucesso.\n"
+        "Siga os painéis na ordem indicada.\n"
+        "A decisão acontece uma vez, no checklist."
+    )
+
+# ============================================================
+# <<< FIM — PAINEL 🧭 MODO GUIADO OFICIAL — PREDICTCARS
+# ============================================================
+
+
 
 
 # ============================================================
