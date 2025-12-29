@@ -3,6 +3,48 @@
 # ============================================================
 
 import streamlit as st
+# =====================================================================
+# 📜 TEXTO CANÔNICO — CONTRATO OPERACIONAL DO PREDICTCARS
+# Versão: V15.7 MAX
+#
+# ESTE BLOCO É A ÂNCORA DO SISTEMA.
+# Ele define COMO o PredictCars deve ser usado, evoluído e interpretado.
+#
+# REGRA ABSOLUTA:
+# - A decisão acontece UMA ÚNICA VEZ, ANTES do evento
+# - O aprendizado acontece SOMENTE DEPOIS do evento
+# - Nunca ao mesmo tempo
+#
+# SEQUÊNCIA OFICIAL — AGORA (DECIDIR E JOGAR)
+# A0: Carregar Histórico
+# A1: Leitura Estrutural do Ambiente (k*, risco, histórico)
+# A2: Qualidade do Sinal (ruído, divergência)
+# A3: Ritmo do Alvo (replays)
+# A4: DECISÃO ÚNICA (Checklist Operacional)
+# A5: Motor (Pipeline / TURBO)
+# A6: EIXO 2 — Momento & Antecipação (Backtest do Pacote)
+# A7: Execução (Modo 6, Relatório)
+#
+# SEQUÊNCIA OFICIAL — DEPOIS (APRENDER)
+# B0: Incorporação da Série Real
+# B1: Diagnóstico de Regime
+# B2: EIXO 3 — Passageiros (ECO / ANTI-EXATO)
+# B3: Ajuste de Lente (humano, não automático)
+#
+# OS 3 EIXOS DO SISTEMA
+# EIXO 1: Estrutura das Listas (higiene, coerência, prontidão)
+# EIXO 2: Momento & Antecipação (ritmo + backtest)
+# EIXO 3: Aprendizado (regime + passageiros)
+#
+# MODO ESPECIAL:
+# - Nunca substitui o modo normal
+# - Nunca cria listas do zero
+# - Atua apenas sobre pacotes já gerados
+#
+# QUALQUER EVOLUÇÃO FUTURA DO PREDICTCARS
+# DEVE RESPEITAR ESTE CONTRATO.
+# =====================================================================
+
 st.sidebar.warning("Rodando arquivo: app_v15_7_MAX.py")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
@@ -735,13 +777,13 @@ st.markdown(
 
 
 # ============================================================
-# Construção da Navegação — V15.7 MAX
+# Construção da  — V15.7 MAX
 # (LAUDO DE CÓDIGO — BLOCO 1-FIX | ORDEM OPERACIONAL FINAL)
 # ============================================================
 
 def construir_navegacao_v157() -> str:
 
-    st.sidebar.markdown("## 🚦 Navegação PredictCars V15.7 MAX")
+    st.sidebar.markdown("## 🚦  PredictCars V15.7 MAX")
     st.sidebar.markdown("📌 Selecione o painel:")
 
     n_alvo = st.session_state.get("n_alvo")
@@ -856,7 +898,7 @@ def construir_navegacao_v157() -> str:
 
 
 # ============================================================
-# FIM — Construção da Navegação — V15.7 MAX
+# FIM — Construção da  — V15.7 MAX
 # ============================================================
 
 
@@ -8582,22 +8624,28 @@ if painel == "🧭 Modo Guiado Oficial — PredictCars":
 
     st.markdown("## 🧭 Modo Guiado Oficial — PredictCars")
     st.caption(
-        "Guia operacional único para uso diário.\n"
+        "Guia operacional único · uso diário · contrato de uso do sistema.\n"
         "Não executa, não calcula, não decide — apenas orienta a sequência correta."
     )
 
     st.markdown("---")
 
-    st.markdown("### 🔵 AGORA — DECIDIR E JOGAR (ANTES DA SÉRIE REAL)")
-
     st.markdown("""
-### **A0 — ENTRADA**
+🧭 **MODO GUIADO OFICIAL — CONTRATO OPERACIONAL**
+
+Este painel descreve **COMO o PredictCars deve ser usado**.
+Ele existe para evitar decisões fora de ordem e misturas perigosas
+entre leitura, decisão, execução e aprendizado.
+
+━━━━━━━━━━━━━━━━━━━━
+🔵 **AGORA — DECIDIR E JOGAR**
+━━━━━━━━━━━━━━━━━━━━
+
+**1️⃣ ENTRADA**
 - 📁 Carregar Histórico (Arquivo ou Colar)
 
----
-
-### **A1 — EIXO 1 · ESTRUTURA DO AMBIENTE**
-*(saúde da estrada — não números)*
+**2️⃣ EIXO 1 — ESTRUTURA DO AMBIENTE**
+*(saúde da estrada · não números)*
 
 Painéis:
 - 🛰️ Sentinelas — k*
@@ -8610,7 +8658,7 @@ Pergunta respondida:
 
 ---
 
-### **A2 — EIXO 2 · MOMENTO & ANTECIPAÇÃO**
+**3️⃣ EIXO 2 — MOMENTO & ANTECIPAÇÃO**
 *(ritmo do alvo + evidência recente)*
 
 Painéis:
@@ -8624,69 +8672,81 @@ Pergunta respondida:
 
 ---
 
-### **A3 — EIXO 3 · DECISÃO**
-*(decisão humana registrada)*
+**4️⃣ DECISÃO ÚNICA (HUMANA)**
+*(registrada · sem retorno)*
 
 Painel:
 - 🧭 Checklist Operacional — Decisão (AGORA)
 
 Aqui você define:
 - atacar ou não
-- concentrar ou expandir
+- concentrar, equilibrar ou expandir
 - volume de listas
 
-📌 Depois disso, não se volta atrás.
+📌 **Depois disso, não se volta atrás.**
 
 ---
 
-### **A4 — MOTOR**
+**5️⃣ MOTOR**
 - 🛣️ Pipeline V14-FLEX ULTRA
 - ⚙️ Modo TURBO++ HÍBRIDO
 - ⚙️ Modo TURBO++ ULTRA
 
 ---
 
-### **A5 — EXECUÇÃO**
+**6️⃣ EXECUÇÃO**
 - 🎯 Modo 6 Acertos — Execução
 - 🧪 Testes de Confiabilidade REAL
 - 📘 Relatório Final
 - 🔥 Mandar Bala
-""")
 
-    st.markdown("---")
+━━━━━━━━━━━━━━━━━━━━
+🟣 **EXTENSÃO CONDICIONAL — MODO ESPECIAL**
+━━━━━━━━━━━━━━━━━━━━
 
-    st.markdown("### 🟣 EXTENSÃO CONDICIONAL — MODO ESPECIAL")
-
-    st.markdown("""
 Use **somente após** concluir o fluxo acima.
 
 - 🔵 MODO ESPECIAL — Evento Condicionado
-- Avalia pacotes já gerados
+- Atua sobre pacotes já gerados
 - Não cria listas novas
-- Útil para eventos únicos
-""")
+- Útil apenas para eventos únicos
 
-    st.markdown("---")
+━━━━━━━━━━━━━━━━━━━━
+🟢 **DEPOIS — APRENDER**
+━━━━━━━━━━━━━━━━━━━━
 
-    st.markdown("### 🟢 DEPOIS — APRENDER (APÓS A SÉRIE REAL)")
-
-    st.markdown("""
 Painéis:
 - 📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos
 - 📊 EXATO / ECO / Regime
 
-📌 Aprendizado apenas para a próxima rodada.
+📌 Aprendizado **somente para a próxima rodada**.
+
+━━━━━━━━━━━━━━━━━━━━
+🧱 **OS 3 EIXOS DO SISTEMA**
+━━━━━━━━━━━━━━━━━━━━
+
+- **Eixo 1** — Estrutura das Listas  
+- **Eixo 2** — Momento & Antecipação  
+- **Eixo 3** — Aprendizado  
+
+━━━━━━━━━━━━━━━━━━━━
+📜 **REGRA FINAL**
+━━━━━━━━━━━━━━━━━━━━
+
+A decisão acontece **ANTES**.  
+O aprendizado acontece **DEPOIS**.  
+**Nunca ao mesmo tempo.**
 """)
 
     st.success(
         "Modo Guiado carregado com sucesso.\n"
-        "Siga os painéis na ordem indicada.\n"
-        "A decisão acontece uma vez, no checklist."
+        "Este painel é o contrato oficial de uso do PredictCars."
     )
 
 # ============================================================
 # <<< FIM — PAINEL 🧭 MODO GUIADO OFICIAL — PREDICTCARS
 # ============================================================
+
 
 
 
