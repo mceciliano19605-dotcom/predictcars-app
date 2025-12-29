@@ -868,6 +868,19 @@ def construir_navegacao_v157() -> str:
 painel = construir_navegacao_v157()
 st.sidebar.caption(f"Painel ativo: {painel}")
 
+# ============================================================
+# DEBUG — CARIMBO DE BUILD (QUAL ARQUIVO REALMENTE ESTÁ RODANDO)
+# ============================================================
+try:
+    st.sidebar.markdown("---")
+    st.sidebar.caption("✅ BUILD-ID: NAV_ORDEM_FINAL_2025-12-29A")
+    st.sidebar.caption(f"📄 __file__: {__file__}")
+    st.sidebar.caption(f"🔎 Primeiro item NAV: {construir_navegacao_v157.__name__}")
+    st.sidebar.caption(f"🧭 TOP-5: {', '.join(construir_navegacao_v157().__class__.__name__ for _ in [0])}")
+except Exception as _e:
+    st.sidebar.caption(f"⚠️ DEBUG build falhou: {_e}")
+
+
 
 # ============================================================
 # DEBUG MINIMAL — CONFIRMA PAINEL ATIVO
