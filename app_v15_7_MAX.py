@@ -1,6 +1,177 @@
 # ============================================================
 # PARTE 1/8 — INÍCIO
 # ============================================================
+"""
+📜 BLOCO CANÔNICO DE GOVERNANÇA — PREDICTCARS
+============================================================
+
+⚠️ ESTE BLOCO É PARTE ESTRUTURAL DO SISTEMA
+⚠️ NÃO EXECUTA
+⚠️ NÃO ALTERA COMPORTAMENTO
+⚠️ NÃO PODE SER REMOVIDO, REDUZIDO OU REINTERPRETADO
+
+Este bloco existe para garantir CONTINUIDADE, GOVERNANÇA,
+RASTREABILIDADE e SEGURANÇA EVOLUTIVA do PredictCars.
+
+Ele substitui QUALQUER dependência de:
+- memória do operador
+- memória de chats
+- explicações externas
+- “contexto implícito”
+
+============================================================
+🔒 ESTADO BASELINE DO SISTEMA
+============================================================
+
+Sistema: PredictCars
+Versão-base: V15.7 MAX + V16 Premium
+Estado: ESTÁVEL (BASELINE A)
+
+Este arquivo representa um sistema:
+- operacional
+- validado
+- em uso real
+- sem regressões conhecidas
+
+Qualquer evolução futura DEVE:
+- partir deste estado
+- ser ADITIVA
+- ser auditada
+- preservar o “jeitão” histórico do PredictCars
+
+============================================================
+🧭 MAPA CANÔNICO DOS PAINÉIS (ORDEM OPERACIONAL)
+============================================================
+
+A navegação do PredictCars segue UM TRILHO ÚNICO.
+Os painéis abaixo NÃO são concorrentes.
+
+A exclusividade é garantida por:
+- seleção única via sidebar.radio
+- roteador sequencial
+- encerramento explícito via st.stop()
+
+ORDEM OPERACIONAL CANÔNICA:
+
+0️⃣ 📁 Carregar Histórico
+1️⃣ 🧭 Modo Guiado Oficial — PredictCars
+2️⃣ 🧭 Checklist Operacional — Decisão (AGORA)
+
+3️⃣ 🛣️ Pipeline V14-FLEX ULTRA
+4️⃣ 📊 Sentinelas (k / k*)
+5️⃣ 🌊 ECO / PRÉ-ECO / Estado
+
+6️⃣ ⚙️ Modo 6
+7️⃣ ⚙️ Modo TURBO++ HÍBRIDO
+8️⃣ ⚙️ Modo TURBO++ ULTRA
+
+9️⃣ 📡 Painel de Ruído Condicional
+🔟 📉 Painel de Divergência S6 vs MC
+
+1️⃣1️⃣ 🔵 Modo Especial — Evento Condicionado
+1️⃣2️⃣ 🧠 V16 Premium (painéis retrospectivos e observacionais)
+
+============================================================
+🚫 REGRA ABSOLUTA — NÃO EXISTE “CONCORRÊNCIA DE PAINÉIS”
+============================================================
+
+O uso de múltiplos blocos:
+
+    if painel == "...":
+        ...
+        st.stop()
+
+NÃO gera concorrência, pois:
+
+- apenas UM valor de `painel` existe por execução
+- st.stop() encerra o fluxo imediatamente
+- nenhum painel abaixo é executado
+
+⚠️ Qualquer remoção de st.stop() em painéis existentes
+é considerada ALTERAÇÃO ESTRUTURAL CRÍTICA.
+
+============================================================
+🔴 PAINÉIS CRÍTICOS — NÃO TOCAR
+============================================================
+
+Os painéis abaixo são ÁREAS CRÍTICAS DO SISTEMA:
+
+- 🧭 Checklist Operacional — Decisão (AGORA)
+- 🌊 ECO / PRÉ-ECO / Estado
+- 📊 Sentinelas (k / k*)
+- ⚙️ Modo 6
+- ⚙️ Modo TURBO++ ULTRA
+- 📄 Relatório Final
+
+Regras:
+- NÃO automatizar decisão
+- NÃO alterar sem auditoria formal
+- NÃO “corrigir resultado”
+- NÃO introduzir heurística silenciosa
+
+============================================================
+🟡 PAINÉIS OBSERVACIONAIS
+============================================================
+
+- Modo Guiado Oficial
+- Painel de Ruído Condicional
+- Painel de Divergência S6 vs MC
+- MVPs do Modo Especial
+- Painéis V16 retrospectivos
+
+Regras:
+- podem evoluir conceitualmente
+- NÃO podem decidir
+- NÃO podem gerar listas
+- NÃO podem aprender
+
+============================================================
+🟢 PAINÉIS EXPLORATÓRIOS
+============================================================
+
+- Visualizações auxiliares
+- Diagnósticos paralelos
+- Leituras de apoio
+
+Regras:
+- nunca substituem painéis críticos
+- nunca alteram fluxo principal
+- podem ser removidos se inúteis
+
+============================================================
+🧠 PRINCÍPIOS DE EVOLUÇÃO (NORMATIVOS)
+============================================================
+
+- Toda evolução é ADITIVA
+- Nada é substitutivo
+- Leitura precede ação
+- Observação precede decisão
+- Decisão é HUMANA
+- Aprendizado ocorre APÓS o evento
+- Correções ocorrem NA ORIGEM, nunca por filtro tardio
+
+============================================================
+📌 REGRA FINAL
+============================================================
+
+Se houver dúvida entre:
+- “melhorar”
+- “refatorar”
+- “organizar”
+- “otimizar”
+
+A ação padrão é:
+❌ NÃO MEXER
+
+Somente evoluir quando:
+- o sistema pedir
+- os dados sustentarem
+- o impacto for analisado
+
+============================================================
+📜 FIM DO BLOCO CANÔNICO DE GOVERNANÇA — PREDICTCARS
+============================================================
+"""
 
 import streamlit as st
 # =====================================================================
