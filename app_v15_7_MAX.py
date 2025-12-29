@@ -736,7 +736,7 @@ st.markdown(
 
 # ============================================================
 # Construção da Navegação — V15.7 MAX
-# (LAUDO DE CÓDIGO — BLOCO 1-FIX)
+# (LAUDO DE CÓDIGO — BLOCO 1-FIX | ORDEM OPERACIONAL FINAL)
 # ============================================================
 
 def construir_navegacao_v157() -> str:
@@ -746,67 +746,119 @@ def construir_navegacao_v157() -> str:
 
     n_alvo = st.session_state.get("n_alvo")
 
+    # =========================================================
+    # ORDEM OPERACIONAL DEFINITIVA — USO DIÁRIO
+    # =========================================================
     opcoes = [
+
+        # -----------------------------------------------------
+        # BLOCO 0 — ENTRADA
+        # -----------------------------------------------------
         "📁 Carregar Histórico (Arquivo)",
         "📄 Carregar Histórico (Colar)",
+
+        # -----------------------------------------------------
+        # BLOCO 1 — ORIENTAÇÃO
+        # -----------------------------------------------------
+        "🧭 Modo Guiado Oficial — PredictCars",
+
+        # -----------------------------------------------------
+        # BLOCO 2 — LEITURA DO AMBIENTE
+        # -----------------------------------------------------
         "🛰️ Sentinelas — k* (Ambiente de Risco)",
+        "🧭 Monitor de Risco — k & k*",
         "📊 Observação Histórica — Eventos k",
-        "🛣️ Pipeline V14-FLEX ULTRA",
-        "🔁 Replay LIGHT",
-        "🔁 Replay ULTRA",
-        "⚙️ Modo TURBO++ HÍBRIDO",
-        "⚙️ Modo TURBO++ ULTRA",
+        "⏱️ Duração da Janela — Análise Histórica",
+
+        # -----------------------------------------------------
+        # BLOCO 3 — QUALIDADE DO SINAL
+        # -----------------------------------------------------
         "📡 Painel de Ruído Condicional",
         "📉 Painel de Divergência S6 vs MC",
+
+        # -----------------------------------------------------
+        # BLOCO 4 — RITMO DO ALVO
+        # -----------------------------------------------------
+        "🔁 Replay LIGHT",
+        "🔁 Replay ULTRA",
+        "🧪 Replay Curto — Expectativa 1–3 Séries",
+
+        # -----------------------------------------------------
+        # BLOCO 5 — EIXO 1 | ESTRUTURA DAS LISTAS
+        # -----------------------------------------------------
         "🧼 B1 — Higiene de Passageiros",
         "🧩 B2 — Coerência Interna das Listas",
         "🟢 B3 — Prontidão (Refinamento)",
         "🟣 B4 — Refinamento Leve de Passageiros",
-        "🧭 Monitor de Risco — k & k*",
+
+        # -----------------------------------------------------
+        # BLOCO 6 — DECISÃO ÚNICA
+        # -----------------------------------------------------
+        "🧭 Checklist Operacional — Decisão (AGORA)",
+
+        # -----------------------------------------------------
+        # BLOCO 7 — MOTOR
+        # -----------------------------------------------------
+        "🛣️ Pipeline V14-FLEX ULTRA",
+        "⚙️ Modo TURBO++ HÍBRIDO",
+        "⚙️ Modo TURBO++ ULTRA",
+
+        # -----------------------------------------------------
+        # BLOCO 7.5 — EIXO 2 | MOMENTO & ANTECIPAÇÃO
+        # -----------------------------------------------------
+        "📊 V16 Premium — Backtest Rápido do Pacote (N=60)",
+
+        # -----------------------------------------------------
+        # BLOCO 8 — EXECUÇÃO
+        # -----------------------------------------------------
         "🎯 Modo 6 Acertos — Execução",
-    ]
+        "🧪 Testes de Confiabilidade REAL",
+        "📘 Relatório Final",
 
-    # ------------------------------------------------------------
-    # INSERÇÃO CONDICIONAL — MODO N EXPERIMENTAL (n≠6)
-    # ------------------------------------------------------------
-    if (n_alvo is not None) and (int(n_alvo) != 6):
-        opcoes.append("🧪 Modo N Experimental (n≠6)")
+        # -----------------------------------------------------
+        # BLOCO 9 — EXTENSÃO
+        # -----------------------------------------------------
+        "🔵 MODO ESPECIAL — Evento Condicionado",
 
-    # ------------------------------------------------------------
-    # CAMADA UNIVERSAL (U2–U4)
-    # ------------------------------------------------------------
-    opcoes.extend([
+        # -----------------------------------------------------
+        # BLOCO 10 — CAMADA UNIVERSAL
+        # -----------------------------------------------------
         "💰 MVP-U2 — Orçamento Universal",
         "🧩 MVP-U3 — Cobertura Universal",
         "📈 MVP-U4 — Eficiência Marginal por Custo",
-    ])
 
-    # ------------------------------------------------------------
-    # CAMADA V16 PREMIUM
-    # ------------------------------------------------------------
-    opcoes.extend([
+        # -----------------------------------------------------
+        # BLOCO 11 — DEPOIS | APRENDIZADO (EIXO 3)
+        # -----------------------------------------------------
         "🧠 Laudo Operacional V16",
         "🧠 Diagnóstico ECO & Estado (V16)",
         "📊 V16 Premium — Erro por Regime (Retrospectivo)",
         "📊 V16 Premium — EXATO por Regime (Proxy)",
         "📊 V16 Premium — PRÉ-ECO → ECO (Persistência & Continuidade)",
         "📊 V16 Premium — Passageiros Recorrentes em ECO (Interseção)",
-        "🎯 Compressão do Alvo — Observacional (V16)",
-        "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
         "📊 V16 Premium — PRÉ-ECO | Contribuição de Passageiros",
         "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos",
-        "🧭 Modo Guiado Oficial — PredictCars",
-        "🧭 Checklist Operacional — Decisão (AGORA)",
-        "📊 V16 Premium — Backtest Rápido do Pacote (N=60)",
-        "🧪 Testes de Confiabilidade REAL",
-        "🧪 Replay Curto — Expectativa 1–3 Séries",
-        "⏱️ Duração da Janela — Análise Histórica",
-        "📘 Relatório Final",
-        "🔵 MODO ESPECIAL — Evento Condicionado",
-    ])
+        "🎯 Compressão do Alvo — Observacional (V16)",
+        "🔮 V16 Premium Profundo — Diagnóstico & Calibração",
+    ]
+
+    # ------------------------------------------------------------
+    # INSERÇÃO CONDICIONAL — MODO N EXPERIMENTAL (n≠6)
+    # ------------------------------------------------------------
+    if (n_alvo is not None) and (int(n_alvo) != 6):
+        opcoes.insert(
+            opcoes.index("🎯 Modo 6 Acertos — Execução"),
+            "🧪 Modo N Experimental (n≠6)"
+        )
 
     painel = st.sidebar.radio("", opcoes, index=0)
     return painel
+
+
+# ============================================================
+# FIM — Construção da Navegação — V15.7 MAX
+# ============================================================
+
 
 
 # ============================================================
