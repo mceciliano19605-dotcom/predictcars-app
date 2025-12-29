@@ -8682,7 +8682,112 @@ Painéis:
 # ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS (DEFINITIVO)
 # ============================================================
 
+# ------------------------------------------------------------
+# ORIENTAÇÃO / USO
+# ------------------------------------------------------------
+if painel == "🧭 Modo Guiado Oficial — PredictCars":
+    st.markdown("## 🧭 Modo Guiado Oficial — PredictCars")
+    st.info(
+        "Este painel apenas orienta o uso correto do sistema.\n"
+        "Siga a sequência indicada no menu."
+    )
+    st.stop()
 
+# ------------------------------------------------------------
+# DECISÃO OPERACIONAL (AGORA)
+# ------------------------------------------------------------
+if painel == "🧭 Checklist Operacional — Decisão (AGORA)":
+    st.markdown("## 🧭 Checklist Operacional — Decisão (AGORA)")
+    st.caption(
+        "Checklist obrigatório ANTES do Modo 6 / Mandar Bala.\n"
+        "Não calcula, não cria listas, não decide automaticamente."
+    )
+
+    st.markdown("---")
+
+    st.markdown("### 1️⃣ Estrada permite ataque?")
+    estrada_ok = st.radio(
+        "Resultado da leitura da estrada:",
+        ["SIM", "NÃO"],
+        horizontal=True,
+    )
+
+    st.markdown("### 2️⃣ Regime jogável?")
+    regime = st.radio(
+        "Regime identificado:",
+        ["OURO", "PRATA", "RUIM"],
+        horizontal=True,
+    )
+
+    st.markdown("### 3️⃣ Existe eixo claro nas listas?")
+    eixo = st.radio(
+        "Eixo identificado:",
+        ["SIM", "NÃO"],
+        horizontal=True,
+    )
+
+    st.markdown("### 4️⃣ Nocivos concentrados nas mesmas listas?")
+    nocivos = st.radio(
+        "Nocivos:",
+        ["SIM", "NÃO"],
+        horizontal=True,
+    )
+
+    st.markdown("### 5️⃣ Decisão final (humana)")
+    acao = st.radio(
+        "Ação escolhida:",
+        [
+            "CONCENTRAR (6–8 listas)",
+            "EQUILIBRAR (8–10 listas)",
+            "EXPANDIR COM CRITÉRIO (10–12 listas)",
+            "SEGURAR / NÃO ESCALAR",
+        ],
+    )
+
+    st.markdown("---")
+    st.markdown("### 🧾 Síntese da decisão")
+    st.write(
+        {
+            "Estrada OK": estrada_ok,
+            "Regime": regime,
+            "Eixo": eixo,
+            "Nocivos concentrados": nocivos,
+            "Ação escolhida": acao,
+        }
+    )
+
+    st.success(
+        "Checklist concluído. "
+        "A decisão da rodada está FECHADA aqui. "
+        "Prossiga para o Modo 6 e execução."
+    )
+    st.stop()
+
+# ------------------------------------------------------------
+# EIXO 2 — MOMENTO & ANTECIPAÇÃO
+# ------------------------------------------------------------
+if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
+    st.markdown("## 📊 Backtest Rápido do Pacote (N=60)")
+    st.caption(
+        "Avaliação observacional do pacote atual.\n"
+        "Não decide. Apenas informa."
+    )
+    st.stop()
+
+# ------------------------------------------------------------
+# RITMO DO ALVO (SUPORTE)
+# ------------------------------------------------------------
+if painel == "🧪 Replay Curto — Expectativa 1–3 Séries":
+    st.markdown("## 🧪 Replay Curto — Expectativa 1–3 Séries")
+    st.stop()
+
+if painel == "⏱️ Duração da Janela — Análise Histórica":
+    st.markdown("## ⏱️ Duração da Janela — Análise Histórica")
+    st.stop()
+
+# ------------------------------------------------------------
+# V16 PREMIUM — APRENDIZADO (DEPOIS)
+# ------------------------------------------------------------
 if painel == "🧠 Laudo Operacional V16":
     v16_renderizar_laudo_operacional_v16()
     st.stop()
@@ -8714,4 +8819,5 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 # ============================================================
 # FIM DO ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS
 # ============================================================
+
 
