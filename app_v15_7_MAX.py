@@ -1089,7 +1089,7 @@ try:
     st.sidebar.caption("✅ BUILD-ID: NAV_ORDEM_FINAL_2025-12-29A")
     st.sidebar.caption(f"📄 __file__: {__file__}")
     st.sidebar.caption(f"🔎 Primeiro item NAV: {construir_navegacao_v157.__name__}")
-    st.sidebar.caption(f"🧭 TOP-5: {', '.join(construir_navegacao_v157().__class__.__name__ for _ in [0])}")
+    st.sidebar.caption("🧭 TOP-5: (debug desativado — não chamar construir_navegacao_v157() aqui)")
 except Exception as _e:
     st.sidebar.caption(f"⚠️ DEBUG build falhou: {_e}")
 
