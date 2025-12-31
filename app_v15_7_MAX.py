@@ -1070,7 +1070,7 @@ def construir_navegacao_v157() -> str:
             "🧪 Modo N Experimental (n≠6)"
         )
 
-    painel = st.sidebar.radio("", opcoes, index=0)
+    painel = st.sidebar.radio("", opcoes, index=0, key="NAV_V157_CANONICA")
     return painel
 
 
