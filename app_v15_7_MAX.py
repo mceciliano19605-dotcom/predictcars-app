@@ -236,12 +236,18 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# DEBUG TEMPORÁRIO — PROVA DE EXECUÇÃO DO ARQUIVO
+st.sidebar.caption("🧪 DEBUG: arquivo carregado")
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
 # ============================================================
 # FUNÇÃO — CARREGAMENTO UNIVERSAL DE HISTÓRICO (FLEX ULTRA)
 # REGRA FIXA:
 # - Último valor da linha = k
 # - Quantidade de passageiros é LIVRE
 # ============================================================
+
 def carregar_historico_universal(linhas):
     """
     Formato esperado (exemplos válidos):
