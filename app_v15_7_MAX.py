@@ -8724,6 +8724,7 @@ if painel == "🧭 Checklist Operacional — Decisão (AGORA)":
         "Resultado da leitura da estrada:",
         ["SIM", "NÃO"],
         horizontal=True,
+        key="CHECKLIST_ESTRADA_OK",
     )
 
     # --------------------------------------------------------
@@ -8734,6 +8735,7 @@ if painel == "🧭 Checklist Operacional — Decisão (AGORA)":
         "Regime identificado:",
         ["OURO", "PRATA", "RUIM"],
         horizontal=True,
+        key="CHECKLIST_REGIME",
     )
 
     # --------------------------------------------------------
@@ -8744,6 +8746,7 @@ if painel == "🧭 Checklist Operacional — Decisão (AGORA)":
         "Eixo identificado:",
         ["SIM", "NÃO"],
         horizontal=True,
+        key="CHECKLIST_EIXO",
     )
 
     # --------------------------------------------------------
@@ -8754,6 +8757,7 @@ if painel == "🧭 Checklist Operacional — Decisão (AGORA)":
         "Nocivos:",
         ["SIM", "NÃO"],
         horizontal=True,
+        key="CHECKLIST_NOCIVOS",
     )
 
     st.markdown("---")
@@ -8770,6 +8774,7 @@ if painel == "🧭 Checklist Operacional — Decisão (AGORA)":
             "EXPANDIR COM CRITÉRIO (10–12 listas)",
             "SEGURAR / NÃO ESCALAR",
         ],
+        key="CHECKLIST_ACAO",
     )
 
     st.markdown("---")
@@ -8793,6 +8798,7 @@ if painel == "🧭 Checklist Operacional — Decisão (AGORA)":
         "A decisão da rodada está FECHADA aqui. "
         "Prossiga para o Modo 6 e execução."
     )
+
 
 # ============================================================
 # PAINEL — 🧭 MODO GUIADO OFICIAL — PREDICTCARS
