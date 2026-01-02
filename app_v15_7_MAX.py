@@ -1914,6 +1914,35 @@ def v16_registrar_volume_e_confiabilidade():
     return volume_op
 
 # ============================================================
+# V16 — PONTE DO LAUDO OPERACIONAL
+# (garante função antes do painel)
+# ============================================================
+
+def v16_registrar_estado_alvo():
+    """
+    Ponte segura para o Laudo Operacional V16.
+    NÃO decide, NÃO bloqueia, apenas lê o diagnóstico existente.
+    """
+
+    diag = st.session_state.get("diagnostico_eco_estado_v16")
+
+    if not diag:
+        return {
+            "tipo": "indefinido",
+            "velocidade": "indefinida",
+            "comentario": "Histórico insuficiente para classificar o alvo.",
+        }
+
+    return {
+        "tipo": diag.get("estado", "indefinido"),
+        "velocidade": "qualitativa",
+        "comentario": diag.get("leitura_geral", ""),
+    }
+
+
+
+
+# ============================================================
 # PARTE 1/8 — FIM
 # ============================================================
 # ============================================================
