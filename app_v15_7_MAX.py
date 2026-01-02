@@ -6723,17 +6723,20 @@ def v16_registrar_estado_alvo():
     - NR%
     - Divergência S6 vs MC
     - Índice de risco
+    REGISTRA no session_state (OBRIGATÓRIO)
     """
     nr = st.session_state.get("nr_percent")
     div = st.session_state.get("div_s6_mc")
     risco = (st.session_state.get("diagnostico_risco") or {}).get("indice_risco")
 
     if nr is None or div is None or risco is None:
-        return {
+        estado = {
             "tipo": "indefinido",
             "velocidade": "indefinida",
             "comentario": "Histórico insuficiente para classificar o alvo.",
         }
+        st.session_state["estado_alvo_v16"] = estado
+        return estado
 
     velocidade = round((nr / 100.0 + div / 15.0 + float(risco)) / 3.0, 3)
 
@@ -6750,73 +6753,88 @@ def v16_registrar_estado_alvo():
         tipo = "disparado"
         comentario = "🚨 Alvo disparado — ambiente hostil. Operar apenas de forma respiratória."
 
-    return {
+    estado = {
         "tipo": tipo,
         "velocidade": velocidade,
         "comentario": comentario,
     }
+
+    st.session_state["estado_alvo_v16"] = estado
+    return estado
 
 
 def v16_registrar_expectativa():
     """
     Estima expectativa de curto prazo (1–3 séries)
     com base em microjanelas, ruído e divergência.
+    REGISTRA no session_state (OBRIGATÓRIO)
     """
     micro = st.session_state.get("v16_microdiag") or {}
     nr = st.session_state.get("nr_percent")
     div = st.session_state.get("div_s6_mc")
 
     if not micro or nr is None or div is None:
-        return {
+        expectativa = {
             "previsibilidade": "indefinida",
             "erro_esperado": "indefinido",
             "chance_janela_ouro": "baixa",
             "comentario": "Histórico insuficiente para expectativa.",
         }
+        st.session_state["expectativa_v16"] = expectativa
+        return expectativa
 
     score = float(micro.get("score_melhor", 0.0) or 0.0)
     janela_ouro = bool(micro.get("janela_ouro", False))
 
     if janela_ouro and score >= 0.80 and float(nr) < 40.0 and float(div) < 5.0:
-        return {
+        expectativa = {
             "previsibilidade": "alta",
             "erro_esperado": "baixo",
             "chance_janela_ouro": "alta",
             "comentario": "🟢 Forte expectativa positiva nas próximas 1–3 séries.",
         }
+        st.session_state["expectativa_v16"] = expectativa
+        return expectativa
 
     if score >= 0.50 and float(nr) < 60.0:
-        return {
+        expectativa = {
             "previsibilidade": "moderada",
             "erro_esperado": "moderado",
             "chance_janela_ouro": "média",
             "comentario": "🟡 Ambiente misto. Oportunidades pontuais podem surgir no curto prazo.",
         }
+        st.session_state["expectativa_v16"] = expectativa
+        return expectativa
 
-    return {
+    expectativa = {
         "previsibilidade": "baixa",
         "erro_esperado": "alto",
         "chance_janela_ouro": "baixa",
         "comentario": "🔴 Baixa previsibilidade nas próximas 1–3 séries (ruído/divergência dominantes).",
     }
+    st.session_state["expectativa_v16"] = expectativa
+    return expectativa
 
 
 def v16_registrar_volume_e_confiabilidade():
     """
     Relaciona quantidade de previsões com confiabilidade estimada.
     O sistema informa — a decisão é do operador.
+    REGISTRA no session_state (OBRIGATÓRIO)
     """
     risco = st.session_state.get("diagnostico_risco") or {}
     indice = risco.get("indice_risco")
 
     if indice is None:
-        return {
+        volume_op = {
             "minimo": 3,
             "recomendado": 6,
             "maximo_tecnico": 20,
             "confiabilidades_estimadas": {},
             "comentario": "Confiabilidade não calculada (rode o Monitor de Risco).",
         }
+        st.session_state["volume_operacional_v16"] = volume_op
+        return volume_op
 
     indice = float(indice)
     conf_base = max(0.05, 1.0 - indice)
@@ -6828,7 +6846,7 @@ def v16_registrar_volume_e_confiabilidade():
 
     recomendado = 20 if conf_base > 0.35 else 6
 
-    return {
+    volume_op = {
         "minimo": 3,
         "recomendado": int(recomendado),
         "maximo_tecnico": 80,
@@ -6838,6 +6856,10 @@ def v16_registrar_volume_e_confiabilidade():
             "A decisão final de quantas previsões gerar é do operador."
         ),
     }
+
+    st.session_state["volume_operacional_v16"] = volume_op
+    return volume_op
+
 
 
 # ============================================================
