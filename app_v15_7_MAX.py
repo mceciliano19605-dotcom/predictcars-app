@@ -1707,6 +1707,41 @@ if "historico_df" in st.session_state:
         pass
 
 # ============================================================
+# FUNÇÃO PONTE — ESTADO DO ALVO (V16)
+# Conecta Camada A antiga ao painel novo
+# ============================================================
+
+def v16_registrar_estado_alvo():
+    """
+    Ponte compatível com o Painel Laudo Operacional V16.
+    Reaproveita o diagnóstico ECO/Estado já existente.
+    """
+    diag = st.session_state.get("diagnostico_eco_estado_v16")
+
+    if not diag:
+        try:
+            diag = v16_diagnosticar_eco_estado()
+        except Exception:
+            diag = None
+
+    if not diag:
+        estado = {
+            "tipo": "indefinido",
+            "velocidade": "indefinida",
+            "comentario": "Histórico insuficiente para classificar o alvo.",
+        }
+    else:
+        estado = {
+            "tipo": diag.get("estado", "indefinido"),
+            "velocidade": "qualitativa",
+            "comentario": diag.get("leitura_geral", ""),
+        }
+
+    st.session_state["estado_alvo_v16"] = estado
+    return estado
+
+
+# ============================================================
 # CAMADA B — EXPECTATIVA DE CURTO PRAZO (V16)
 # Laudo observacional: horizonte 1–3 séries (NÃO decide)
 # ============================================================
