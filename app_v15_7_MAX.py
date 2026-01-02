@@ -9110,9 +9110,12 @@ if painel == "⏱️ Duração da Janela — Análise Histórica":
 # ------------------------------------------------------------
 # V16 PREMIUM — APRENDIZADO (DEPOIS)
 # ------------------------------------------------------------
+
 if painel == "🧠 Laudo Operacional V16":
-    v16_renderizar_laudo_operacional_v16()
+    # ROTA DUPLICADA DESATIVADA (há um painel Laudo V16 completo em outro ponto do app)
+    # Mantemos apenas UM ponto de execução do Laudo para evitar dupla execução/deriva.
     st.stop()
+
 
 if painel == "📊 V16 Premium — Erro por Regime (Retrospectivo)":
     v16_painel_erro_por_regime_retrospectivo()
