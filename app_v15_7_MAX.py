@@ -6680,34 +6680,37 @@ if painel == "🧠 Laudo Operacional V16":
 
     st.markdown("## 🧠 Laudo Operacional V16 — Leitura do Ambiente")
 
-    # Garantir registros atualizados
+    # Garantir registros atualizados (funções-ponte V16)
     estado = v16_registrar_estado_alvo()
     expectativa = v16_registrar_expectativa()
     volume_op = v16_registrar_volume_e_confiabilidade()
 
     # --------------------------------------------------------
-    # 1) Estado do Alvo
+    # 1) Estado do Alvo (OBSERVACIONAL)
     # --------------------------------------------------------
     st.markdown("### 🎯 Estado do Alvo")
+
     st.info(
-        f"Tipo: **{estado['tipo']}**  \n"
-        f"Velocidade estimada: **{estado['velocidade']}**  \n"
-        f"Comentário: {estado['comentario']}"
+        f"Estado detectado: **{estado.get('estado', 'indefinido')}**  \n"
+        f"Confiabilidade do estado: **{'alta' if estado.get('estado_confiavel') else 'em transição'}**  \n"
+        f"ECO: **{estado.get('eco_forca', 'indefinido')}** · "
+        f"Acionabilidade: **{estado.get('eco_acionabilidade', 'indefinida')}**"
     )
 
     # --------------------------------------------------------
     # 2) Expectativa de Curto Prazo
     # --------------------------------------------------------
     st.markdown("### 🔮 Expectativa (1–3 séries)")
+
     st.info(
-        f"Previsibilidade: **{expectativa['previsibilidade']}**  \n"
-        f"Erro esperado: **{expectativa['erro_esperado']}**  \n"
-        f"Chance de janela de ouro: **{expectativa['chance_janela_ouro']}**  \n\n"
-        f"{expectativa['comentario']}"
+        f"Previsibilidade: **{expectativa.get('previsibilidade', 'indefinida')}**  \n"
+        f"Erro esperado: **{expectativa.get('erro_esperado', 'indefinido')}**  \n"
+        f"Chance de janela de ouro: **{expectativa.get('chance_janela_ouro', 'indefinida')}**  \n\n"
+        f"{expectativa.get('comentario', '')}"
     )
 
     # --------------------------------------------------------
-    # 3) Volume x Confiabilidade
+    # 3) Volume × Confiabilidade (INFORMATIVO)
     # --------------------------------------------------------
     st.markdown("### 📊 Volume × Confiabilidade (informativo)")
 
@@ -6719,10 +6722,10 @@ if painel == "🧠 Laudo Operacional V16":
         st.dataframe(df_conf, use_container_width=True)
 
     st.warning(
-        f"📌 Volume mínimo: **{volume_op['minimo']}**  \n"
-        f"📌 Volume recomendado: **{volume_op['recomendado']}**  \n"
-        f"📌 Volume máximo técnico: **{volume_op['maximo_tecnico']}**  \n\n"
-        f"{volume_op['comentario']}"
+        f"📌 Volume mínimo: **{volume_op.get('minimo')}**  \n"
+        f"📌 Volume recomendado: **{volume_op.get('recomendado')}**  \n"
+        f"📌 Volume máximo técnico: **{volume_op.get('maximo_tecnico')}**  \n\n"
+        f"{volume_op.get('comentario', '')}"
     )
 
     st.success(
@@ -6734,6 +6737,7 @@ if painel == "🧠 Laudo Operacional V16":
 # V16 — CAMADA D
 # Estado do Alvo · Expectativa · Volume × Confiabilidade
 # ============================================================
+
 
 def v16_registrar_estado_alvo():
     """
