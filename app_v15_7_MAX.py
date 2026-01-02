@@ -1,3 +1,4 @@
+
 # ============================================================
 # PARTE 1/8 — INÍCIO
 # ============================================================
@@ -240,54 +241,6 @@ import streamlit as st
 # DEBUG TEMPORÁRIO — PROVA DE EXECUÇÃO DO ARQUIVO
 st.sidebar.caption("🧪 DEBUG: arquivo carregado")
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-# V16 — FIX CANÔNICO — FUNÇÃO-PONTE (DEVE FICAR NO TOPO)
-# (garante que o Laudo V16 não quebre por NameError)
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-def v16_registrar_estado_alvo():
-
-    diag = st.session_state.get("diagnostico_eco_estado_v16")
-
-    if diag is None:
-        try:
-            diag = v16_diagnosticar_eco_estado()
-        except Exception:
-            diag = {}
-
-    estado_bruto = diag.get("estado", "indefinido")
-
-    if estado_bruto in ("parado", "movimento_lento", "movimento_brusco"):
-        tipo = estado_bruto
-    else:
-        tipo = "movimento_lento"
-
-    if tipo == "parado":
-        velocidade = "muito baixa"
-    elif tipo == "movimento_lento":
-        velocidade = "baixa"
-    else:
-        velocidade = "alta"
-
-    comentario = diag.get("leitura_geral") or "Leitura indisponível."
-
-    estado_alvo = {
-        "tipo": tipo,
-        "velocidade": velocidade,
-        "comentario": comentario,
-        "estado_confiavel": bool(diag.get("estado_confiavel", False)),
-        "eco_forca": diag.get("eco_forca", "indefinido"),
-        "eco_acionabilidade": diag.get("eco_acionabilidade", "indefinida"),
-    }
-
-    st.session_state["estado_alvo_v16"] = estado_alvo
-    return estado_alvo
-
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-# FIM — V16 — FIX CANÔNICO — FUNÇÃO-PONTE (TOPO)
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
 
 # ============================================================
 # FUNÇÃO — CARREGAMENTO UNIVERSAL DE HISTÓRICO (FLEX ULTRA)
@@ -1744,41 +1697,6 @@ def v16_diagnosticar_eco_estado():
     st.session_state["diagnostico_eco_estado_v16"] = diagnostico
     return diagnostico
 
-
-# ============================================================
-# FUNÇÃO-PONTE — REGISTRO DO ESTADO DO ALVO (V16)
-# (GARANTE EXISTÊNCIA ANTES DO PAINEL)
-# ============================================================
-
-def v16_registrar_estado_alvo():
-    """
-    Função-ponte canônica do V16.
-
-    - NÃO recalcula
-    - NÃO cria lógica nova
-    - NÃO decide
-    - Apenas expõe o diagnóstico já existente
-    """
-
-    diag = st.session_state.get("diagnostico_eco_estado_v16")
-
-    if diag is None:
-        try:
-            diag = v16_diagnosticar_eco_estado()
-        except Exception:
-            diag = {}
-
-    estado_alvo = {
-        "estado": diag.get("estado", "indefinido"),
-        "estado_confiavel": diag.get("estado_confiavel", False),
-        "eco_forca": diag.get("eco_forca", "indefinido"),
-        "eco_acionabilidade": diag.get("eco_acionabilidade", "indefinida"),
-    }
-
-    st.session_state["estado_alvo_v16"] = estado_alvo
-    return estado_alvo
-
-
 # ============================================================
 # ATIVAÇÃO SILENCIOSA — DIAGNÓSTICO ECO & ESTADO (V16)
 # ============================================================
@@ -1788,56 +1706,10 @@ if "historico_df" in st.session_state:
     except Exception:
         pass
 
-
-# ============================================================
-# FUNÇÃO-PONTE — REGISTRO DO ESTADO DO ALVO (V16)
-# ============================================================
-
-def v16_registrar_estado_alvo():
-
-    diag = st.session_state.get("diagnostico_eco_estado_v16")
-
-    if diag is None:
-        try:
-            diag = v16_diagnosticar_eco_estado()
-        except Exception:
-            diag = {}
-
-    estado_bruto = diag.get("estado", "indefinido")
-
-    if estado_bruto in ("parado", "movimento_lento", "movimento_brusco"):
-        tipo = estado_bruto
-    else:
-        tipo = "movimento_lento"
-
-    if tipo == "parado":
-        velocidade = "muito baixa"
-    elif tipo == "movimento_lento":
-        velocidade = "baixa"
-    else:
-        velocidade = "alta"
-
-    comentario = diag.get("leitura_geral") or "Leitura indisponível."
-
-    estado_alvo = {
-        "tipo": tipo,
-        "velocidade": velocidade,
-        "comentario": comentario,
-        "estado_confiavel": bool(diag.get("estado_confiavel", False)),
-        "eco_forca": diag.get("eco_forca", "indefinido"),
-        "eco_acionabilidade": diag.get("eco_acionabilidade", "indefinida"),
-    }
-
-    st.session_state["estado_alvo_v16"] = estado_alvo
-    return estado_alvo
-
-
 # ============================================================
 # CAMADA B — EXPECTATIVA DE CURTO PRAZO (V16)
 # Laudo observacional: horizonte 1–3 séries (NÃO decide)
 # ============================================================
-
-
 
 
 def v16_calcular_expectativa_curto_prazo(
@@ -6809,37 +6681,34 @@ if painel == "🧠 Laudo Operacional V16":
 
     st.markdown("## 🧠 Laudo Operacional V16 — Leitura do Ambiente")
 
-    # Garantir registros atualizados (funções-ponte V16)
+    # Garantir registros atualizados
     estado = v16_registrar_estado_alvo()
     expectativa = v16_registrar_expectativa()
     volume_op = v16_registrar_volume_e_confiabilidade()
 
     # --------------------------------------------------------
-    # 1) Estado do Alvo (OBSERVACIONAL)
+    # 1) Estado do Alvo
     # --------------------------------------------------------
     st.markdown("### 🎯 Estado do Alvo")
-
     st.info(
-        f"Estado detectado: **{estado.get('estado', 'indefinido')}**  \n"
-        f"Confiabilidade do estado: **{'alta' if estado.get('estado_confiavel') else 'em transição'}**  \n"
-        f"ECO: **{estado.get('eco_forca', 'indefinido')}** · "
-        f"Acionabilidade: **{estado.get('eco_acionabilidade', 'indefinida')}**"
+        f"Tipo: **{estado['tipo']}**  \n"
+        f"Velocidade estimada: **{estado['velocidade']}**  \n"
+        f"Comentário: {estado['comentario']}"
     )
 
     # --------------------------------------------------------
     # 2) Expectativa de Curto Prazo
     # --------------------------------------------------------
     st.markdown("### 🔮 Expectativa (1–3 séries)")
-
     st.info(
-        f"Previsibilidade: **{expectativa.get('previsibilidade', 'indefinida')}**  \n"
-        f"Erro esperado: **{expectativa.get('erro_esperado', 'indefinido')}**  \n"
-        f"Chance de janela de ouro: **{expectativa.get('chance_janela_ouro', 'indefinida')}**  \n\n"
-        f"{expectativa.get('comentario', '')}"
+        f"Previsibilidade: **{expectativa['previsibilidade']}**  \n"
+        f"Erro esperado: **{expectativa['erro_esperado']}**  \n"
+        f"Chance de janela de ouro: **{expectativa['chance_janela_ouro']}**  \n\n"
+        f"{expectativa['comentario']}"
     )
 
     # --------------------------------------------------------
-    # 3) Volume × Confiabilidade (INFORMATIVO)
+    # 3) Volume x Confiabilidade
     # --------------------------------------------------------
     st.markdown("### 📊 Volume × Confiabilidade (informativo)")
 
@@ -6851,10 +6720,10 @@ if painel == "🧠 Laudo Operacional V16":
         st.dataframe(df_conf, use_container_width=True)
 
     st.warning(
-        f"📌 Volume mínimo: **{volume_op.get('minimo')}**  \n"
-        f"📌 Volume recomendado: **{volume_op.get('recomendado')}**  \n"
-        f"📌 Volume máximo técnico: **{volume_op.get('maximo_tecnico')}**  \n\n"
-        f"{volume_op.get('comentario', '')}"
+        f"📌 Volume mínimo: **{volume_op['minimo']}**  \n"
+        f"📌 Volume recomendado: **{volume_op['recomendado']}**  \n"
+        f"📌 Volume máximo técnico: **{volume_op['maximo_tecnico']}**  \n\n"
+        f"{volume_op['comentario']}"
     )
 
     st.success(
@@ -6866,7 +6735,6 @@ if painel == "🧠 Laudo Operacional V16":
 # V16 — CAMADA D
 # Estado do Alvo · Expectativa · Volume × Confiabilidade
 # ============================================================
-
 
 def v16_registrar_estado_alvo():
     """
@@ -9208,5 +9076,3 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 # ============================================================
 # FIM DO ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS
 # ============================================================
-
-
