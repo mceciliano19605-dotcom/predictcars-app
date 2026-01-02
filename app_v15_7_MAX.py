@@ -243,37 +243,38 @@ st.sidebar.caption("🧪 DEBUG: arquivo carregado")
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # V16 — GUARDA CANÔNICA (ANTI-NAMEERROR) — TOPO DO ARQUIVO
-# (garante que o Laudo V16 nunca quebra por ausência de função)
-# NÃO decide | NÃO bloqueia | NÃO gera previsões
+# (DESATIVADA — substituída pela CAMADA D real)
+# Mantida apenas como registro histórico
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-def v16_registrar_estado_alvo():
-    return {
-        "tipo": "indefinido",
-        "velocidade": "indefinida",
-        "comentario": "Estado ainda não disponível (carregue histórico e rode Sentinelas/Pipeline).",
-    }
+# def v16_registrar_estado_alvo():
+#     return {
+#         "tipo": "indefinido",
+#         "velocidade": "indefinida",
+#         "comentario": "Estado ainda não disponível (carregue histórico e rode Sentinelas/Pipeline).",
+#     }
 
-def v16_registrar_expectativa():
-    return {
-        "previsibilidade": "indefinida",
-        "erro_esperado": "indefinido",
-        "chance_janela_ouro": "baixa",
-        "comentario": "Expectativa ainda não disponível (carregue histórico e rode Sentinelas/Pipeline).",
-    }
+# def v16_registrar_expectativa():
+#     return {
+#         "previsibilidade": "indefinida",
+#         "erro_esperado": "indefinido",
+#         "chance_janela_ouro": "baixa",
+#         "comentario": "Expectativa ainda não disponível (carregue histórico e rode Sentinelas/Pipeline).",
+#     }
 
-def v16_registrar_volume_e_confiabilidade():
-    return {
-        "minimo": "-",
-        "recomendado": "-",
-        "maximo_tecnico": "-",
-        "confiabilidades_estimadas": {},
-        "comentario": "Volume ainda não disponível (carregue histórico e rode Sentinelas/Pipeline).",
-    }
+# def v16_registrar_volume_e_confiabilidade():
+#     return {
+#         "minimo": "-",
+#         "recomendado": "-",
+#         "maximo_tecnico": "-",
+#         "confiabilidades_estimadas": {},
+#         "comentario": "Volume ainda não disponível (carregue histórico e rode Sentinelas/Pipeline).",
+#     }
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-# FIM — V16 — GUARDA CANÔNICA (ANTI-NAMEERROR)
+# FIM — V16 — GUARDA CANÔNICA (ANTI-NAMEERROR) — DESATIVADA
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
 
 
 # ============================================================
