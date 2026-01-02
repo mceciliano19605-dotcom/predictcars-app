@@ -6715,30 +6715,53 @@ if painel == "⏱️ Duração da Janela — Análise Histórica":
 # ============================================================
 # V16 — CAMADA D
 # Estado do Alvo · Expectativa · Volume × Confiabilidade
+# (FIX: usa divergência correta do Monitor de Risco)
 # ============================================================
+
+def _v16_get_nr_div_risco():
+    """
+    Leitura segura e compatível com o app:
+    - NR% vem do Ruído Condicional (nr_percent) OU do Monitor (diagnostico_risco.nr_percent)
+    - Divergência vem do Monitor (diagnostico_risco.divergencia) OU fallback (div_s6_mc)
+    - Risco vem do Monitor (diagnostico_risco.indice_risco)
+    """
+    risco_pack = st.session_state.get("diagnostico_risco") or {}
+
+    nr = st.session_state.get("nr_percent")
+    if nr is None:
+        nr = risco_pack.get("nr_percent")
+
+    # ⚠️ FIX PRINCIPAL: no seu app a divergência oficial está aqui:
+    div = risco_pack.get("divergencia")
+    if div is None:
+        # fallback legado (se existir em alguma variação do app)
+        div = st.session_state.get("div_s6_mc")
+
+    indice_risco = risco_pack.get("indice_risco")
+
+    return nr, div, indice_risco
+
 
 def v16_registrar_estado_alvo():
     """
     Classifica o estado do alvo com base em:
     - NR%
     - Divergência S6 vs MC
-    - Índice de risco
-    REGISTRA no session_state (OBRIGATÓRIO)
+    - Índice de risco (composto)
     """
-    nr = st.session_state.get("nr_percent")
-    div = st.session_state.get("div_s6_mc")
-    risco = (st.session_state.get("diagnostico_risco") or {}).get("indice_risco")
+    nr, div, risco = _v16_get_nr_div_risco()
 
     if nr is None or div is None or risco is None:
         estado = {
             "tipo": "indefinido",
             "velocidade": "indefinida",
-            "comentario": "Histórico insuficiente para classificar o alvo.",
+            "comentario": "Histórico/monitor insuficiente para classificar o alvo (rode Monitor de Risco e Ruído Condicional).",
         }
         st.session_state["estado_alvo_v16"] = estado
         return estado
 
-    velocidade = round((nr / 100.0 + div / 15.0 + float(risco)) / 3.0, 3)
+    # velocidade ∈ [~0, ~1+] (heurística)
+    velocidade = round((float(nr) / 100.0 + float(div) / 15.0 + float(risco)) / 3.0, 3)
 
     if velocidade < 0.30:
         tipo = "alvo_parado"
@@ -6767,18 +6790,16 @@ def v16_registrar_expectativa():
     """
     Estima expectativa de curto prazo (1–3 séries)
     com base em microjanelas, ruído e divergência.
-    REGISTRA no session_state (OBRIGATÓRIO)
     """
     micro = st.session_state.get("v16_microdiag") or {}
-    nr = st.session_state.get("nr_percent")
-    div = st.session_state.get("div_s6_mc")
+    nr, div, _ = _v16_get_nr_div_risco()
 
     if not micro or nr is None or div is None:
         expectativa = {
             "previsibilidade": "indefinida",
             "erro_esperado": "indefinido",
             "chance_janela_ouro": "baixa",
-            "comentario": "Histórico insuficiente para expectativa.",
+            "comentario": "Expectativa indisponível (rode Microjanelas V16 e garanta NR/divergência).",
         }
         st.session_state["expectativa_v16"] = expectativa
         return expectativa
@@ -6793,25 +6814,21 @@ def v16_registrar_expectativa():
             "chance_janela_ouro": "alta",
             "comentario": "🟢 Forte expectativa positiva nas próximas 1–3 séries.",
         }
-        st.session_state["expectativa_v16"] = expectativa
-        return expectativa
-
-    if score >= 0.50 and float(nr) < 60.0:
+    elif score >= 0.50 and float(nr) < 60.0:
         expectativa = {
             "previsibilidade": "moderada",
             "erro_esperado": "moderado",
             "chance_janela_ouro": "média",
             "comentario": "🟡 Ambiente misto. Oportunidades pontuais podem surgir no curto prazo.",
         }
-        st.session_state["expectativa_v16"] = expectativa
-        return expectativa
+    else:
+        expectativa = {
+            "previsibilidade": "baixa",
+            "erro_esperado": "alto",
+            "chance_janela_ouro": "baixa",
+            "comentario": "🔴 Baixa previsibilidade nas próximas 1–3 séries (ruído/divergência dominantes).",
+        }
 
-    expectativa = {
-        "previsibilidade": "baixa",
-        "erro_esperado": "alto",
-        "chance_janela_ouro": "baixa",
-        "comentario": "🔴 Baixa previsibilidade nas próximas 1–3 séries (ruído/divergência dominantes).",
-    }
     st.session_state["expectativa_v16"] = expectativa
     return expectativa
 
@@ -6820,10 +6837,9 @@ def v16_registrar_volume_e_confiabilidade():
     """
     Relaciona quantidade de previsões com confiabilidade estimada.
     O sistema informa — a decisão é do operador.
-    REGISTRA no session_state (OBRIGATÓRIO)
     """
-    risco = st.session_state.get("diagnostico_risco") or {}
-    indice = risco.get("indice_risco")
+    risco_pack = st.session_state.get("diagnostico_risco") or {}
+    indice = risco_pack.get("indice_risco")
 
     if indice is None:
         volume_op = {
@@ -6859,6 +6875,7 @@ def v16_registrar_volume_e_confiabilidade():
 
     st.session_state["volume_operacional_v16"] = volume_op
     return volume_op
+
 
 
 
