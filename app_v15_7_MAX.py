@@ -5362,6 +5362,27 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     # ------------------------------------------------------------
+    # 🔒 FILTRO FINAL DE DOMÍNIO (ANTI-RESÍDUO)  ← CORREÇÃO
+    # ------------------------------------------------------------
+    listas_filtradas = []
+    descartadas = 0
+
+    for lista in listas_brutas:
+        if all(umin <= int(v) <= umax for v in lista):
+            listas_filtradas.append(lista)
+        else:
+            descartadas += 1
+
+    if descartadas > 0:
+        st.warning(
+            f"⚠️ {descartadas} lista(s) descartada(s) por violar o domínio "
+            f"dos passageiros ({umin}–{umax})."
+        )
+
+    listas_brutas = listas_filtradas
+
+
+    # ------------------------------------------------------------
     # SANIDADE FINAL — SOMENTE ESTRUTURAL (ORIGINAL)
     # ------------------------------------------------------------
     listas_totais = sanidade_final_listas(listas_brutas)
@@ -5381,6 +5402,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 # ============================================================
 # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
+
 
 
 
