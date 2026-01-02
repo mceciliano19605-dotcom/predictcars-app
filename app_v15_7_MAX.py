@@ -6735,7 +6735,6 @@ def v16_registrar_estado_alvo():
             "comentario": "Histórico insuficiente para classificar o alvo.",
         }
 
-    # velocidade ∈ [~0, ~1+] (heurística)
     velocidade = round((nr / 100.0 + div / 15.0 + float(risco)) / 3.0, 3)
 
     if velocidade < 0.30:
@@ -6825,7 +6824,6 @@ def v16_registrar_volume_e_confiabilidade():
     volumes = [3, 6, 10, 20, 40, 80]
     confs = {}
     for v in volumes:
-        # queda suave conforme volume cresce (heurística)
         confs[v] = round(max(0.01, conf_base - v * 0.003), 3)
 
     recomendado = 20 if conf_base > 0.35 else 6
@@ -6841,6 +6839,7 @@ def v16_registrar_volume_e_confiabilidade():
         ),
     }
 
+
 # ============================================================
 # Painel X — 🧠 Laudo Operacional V16 (Estado, Expectativa, Volume)
 # ============================================================
@@ -6850,7 +6849,7 @@ if painel == "🧠 Laudo Operacional V16":
     st.markdown("## 🧠 Laudo Operacional V16 — Leitura do Ambiente")
 
     # --------------------------------------------------------
-    # Leitura segura (NUNCA quebra o app)
+    # Leitura segura (usa Camada D se existir, senão guarda)
     # --------------------------------------------------------
     try:
         estado = v16_registrar_estado_alvo()
@@ -6926,6 +6925,7 @@ if painel == "🧠 Laudo Operacional V16":
         "O PredictCars informa o ambiente e os trade-offs.\n"
         "A decisão final de quantas previsões gerar é do operador."
     )
+
 
 
 # ============================================================
