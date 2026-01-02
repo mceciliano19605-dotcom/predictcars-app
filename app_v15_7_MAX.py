@@ -241,6 +241,54 @@ import streamlit as st
 st.sidebar.caption("🧪 DEBUG: arquivo carregado")
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# V16 — FIX CANÔNICO — FUNÇÃO-PONTE (DEVE FICAR NO TOPO)
+# (garante que o Laudo V16 não quebre por NameError)
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+def v16_registrar_estado_alvo():
+
+    diag = st.session_state.get("diagnostico_eco_estado_v16")
+
+    if diag is None:
+        try:
+            diag = v16_diagnosticar_eco_estado()
+        except Exception:
+            diag = {}
+
+    estado_bruto = diag.get("estado", "indefinido")
+
+    if estado_bruto in ("parado", "movimento_lento", "movimento_brusco"):
+        tipo = estado_bruto
+    else:
+        tipo = "movimento_lento"
+
+    if tipo == "parado":
+        velocidade = "muito baixa"
+    elif tipo == "movimento_lento":
+        velocidade = "baixa"
+    else:
+        velocidade = "alta"
+
+    comentario = diag.get("leitura_geral") or "Leitura indisponível."
+
+    estado_alvo = {
+        "tipo": tipo,
+        "velocidade": velocidade,
+        "comentario": comentario,
+        "estado_confiavel": bool(diag.get("estado_confiavel", False)),
+        "eco_forca": diag.get("eco_forca", "indefinido"),
+        "eco_acionabilidade": diag.get("eco_acionabilidade", "indefinida"),
+    }
+
+    st.session_state["estado_alvo_v16"] = estado_alvo
+    return estado_alvo
+
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# FIM — V16 — FIX CANÔNICO — FUNÇÃO-PONTE (TOPO)
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
 # ============================================================
 # FUNÇÃO — CARREGAMENTO UNIVERSAL DE HISTÓRICO (FLEX ULTRA)
 # REGRA FIXA:
