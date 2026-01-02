@@ -1705,39 +1705,7 @@ if "historico_df" in st.session_state:
     except Exception:
         pass
 
-# ============================================================
-# FUNÇÃO PONTE — ESTADO DO ALVO (V16)
-# Conecta Camada A antiga ao painel novo
-# ============================================================
 
-def v16_registrar_estado_alvo():
-    """
-    Ponte compatível com o Painel Laudo Operacional V16.
-    Reaproveita o diagnóstico ECO/Estado já existente.
-    """
-    diag = st.session_state.get("diagnostico_eco_estado_v16")
-
-    if not diag:
-        try:
-            diag = v16_diagnosticar_eco_estado()
-        except Exception:
-            diag = None
-
-    if not diag:
-        estado = {
-            "tipo": "indefinido",
-            "velocidade": "indefinida",
-            "comentario": "Histórico insuficiente para classificar o alvo.",
-        }
-    else:
-        estado = {
-            "tipo": diag.get("estado", "indefinido"),
-            "velocidade": "qualitativa",
-            "comentario": diag.get("leitura_geral", ""),
-        }
-
-    st.session_state["estado_alvo_v16"] = estado
-    return estado
 
 
 # ============================================================
@@ -1911,33 +1879,6 @@ def v16_registrar_volume_e_confiabilidade():
 
     st.session_state["volume_operacional_v16"] = volume_op
     return volume_op
-
-# ============================================================
-# V16 — PONTE DO LAUDO OPERACIONAL
-# (garante função antes do painel)
-# ============================================================
-
-def v16_registrar_estado_alvo():
-    """
-    Ponte segura para o Laudo Operacional V16.
-    NÃO decide, NÃO bloqueia, apenas lê o diagnóstico existente.
-    """
-
-    diag = st.session_state.get("diagnostico_eco_estado_v16")
-
-    if not diag:
-        return {
-            "tipo": "indefinido",
-            "velocidade": "indefinida",
-            "comentario": "Histórico insuficiente para classificar o alvo.",
-        }
-
-    return {
-        "tipo": diag.get("estado", "indefinido"),
-        "velocidade": "qualitativa",
-        "comentario": diag.get("leitura_geral", ""),
-    }
-
 
 
 
