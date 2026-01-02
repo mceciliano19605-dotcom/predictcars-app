@@ -1696,6 +1696,41 @@ def v16_diagnosticar_eco_estado():
     st.session_state["diagnostico_eco_estado_v16"] = diagnostico
     return diagnostico
 
+
+# ============================================================
+# FUNÇÃO-PONTE — REGISTRO DO ESTADO DO ALVO (V16)
+# (GARANTE EXISTÊNCIA ANTES DO PAINEL)
+# ============================================================
+
+def v16_registrar_estado_alvo():
+    """
+    Função-ponte canônica do V16.
+
+    - NÃO recalcula
+    - NÃO cria lógica nova
+    - NÃO decide
+    - Apenas expõe o diagnóstico já existente
+    """
+
+    diag = st.session_state.get("diagnostico_eco_estado_v16")
+
+    if diag is None:
+        try:
+            diag = v16_diagnosticar_eco_estado()
+        except Exception:
+            diag = {}
+
+    estado_alvo = {
+        "estado": diag.get("estado", "indefinido"),
+        "estado_confiavel": diag.get("estado_confiavel", False),
+        "eco_forca": diag.get("eco_forca", "indefinido"),
+        "eco_acionabilidade": diag.get("eco_acionabilidade", "indefinida"),
+    }
+
+    st.session_state["estado_alvo_v16"] = estado_alvo
+    return estado_alvo
+
+
 # ============================================================
 # ATIVAÇÃO SILENCIOSA — DIAGNÓSTICO ECO & ESTADO (V16)
 # ============================================================
@@ -1705,10 +1740,12 @@ if "historico_df" in st.session_state:
     except Exception:
         pass
 
+
 # ============================================================
 # CAMADA B — EXPECTATIVA DE CURTO PRAZO (V16)
 # Laudo observacional: horizonte 1–3 séries (NÃO decide)
 # ============================================================
+
 
 
 def v16_calcular_expectativa_curto_prazo(
