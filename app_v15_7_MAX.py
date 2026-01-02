@@ -282,6 +282,7 @@ st.sidebar.caption("🧪 DEBUG: arquivo carregado")
 # REGRA FIXA:
 # - Último valor da linha = k
 # - Quantidade de passageiros é LIVRE
+# - Universo é derivado do histórico (SANIDADE)
 # ============================================================
 
 def carregar_historico_universal(linhas):
@@ -293,6 +294,7 @@ def carregar_historico_universal(linhas):
     """
 
     registros = []
+    universo_detectado = []
 
     for idx, linha in enumerate(linhas, start=1):
         linha = linha.strip()
@@ -315,6 +317,9 @@ def carregar_historico_universal(linhas):
         if not passageiros:
             raise ValueError(f"Linha {idx} sem passageiros válidos: {linha}")
 
+        # coleta universo real
+        universo_detectado.extend(passageiros)
+
         registro = {f"p{i+1}": p for i, p in enumerate(passageiros)}
         registro["k"] = k
         registro["serie"] = idx
@@ -324,7 +329,21 @@ def carregar_historico_universal(linhas):
     if not registros:
         raise ValueError("Histórico vazio ou inválido.")
 
-    return pd.DataFrame(registros)
+    df = pd.DataFrame(registros)
+
+    # ------------------------------------------------------------
+    # SANIDADE DO UNIVERSO — CANÔNICA
+    # ------------------------------------------------------------
+    try:
+        universo_max = int(max(universo_detectado))
+        st.session_state["universo_min"] = 1
+        st.session_state["universo_max"] = universo_max
+    except Exception:
+        st.session_state["universo_min"] = 1
+        st.session_state["universo_max"] = None
+
+    return df
+
 
 
 # ============================================================
