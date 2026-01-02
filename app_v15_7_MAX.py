@@ -6814,19 +6814,47 @@ if painel == "🧠 Laudo Operacional V16":
 
     st.markdown("## 🧠 Laudo Operacional V16 — Leitura do Ambiente")
 
-    # Garantir registros atualizados
-    estado = v16_registrar_estado_alvo()
-    expectativa = v16_registrar_expectativa()
-    volume_op = v16_registrar_volume_e_confiabilidade()
+    # --------------------------------------------------------
+    # Leitura segura (NUNCA quebra o app)
+    # --------------------------------------------------------
+    try:
+        estado = v16_registrar_estado_alvo()
+    except Exception:
+        estado = {
+            "tipo": "indefinido",
+            "velocidade": "indefinida",
+            "comentario": "Estado ainda não disponível.",
+        }
+
+    try:
+        expectativa = v16_registrar_expectativa()
+    except Exception:
+        expectativa = {
+            "previsibilidade": "indefinida",
+            "erro_esperado": "indefinido",
+            "chance_janela_ouro": "baixa",
+            "comentario": "Expectativa ainda não disponível.",
+        }
+
+    try:
+        volume_op = v16_registrar_volume_e_confiabilidade()
+    except Exception:
+        volume_op = {
+            "minimo": "-",
+            "recomendado": "-",
+            "maximo_tecnico": "-",
+            "confiabilidades_estimadas": {},
+            "comentario": "Volume ainda não disponível.",
+        }
 
     # --------------------------------------------------------
     # 1) Estado do Alvo
     # --------------------------------------------------------
     st.markdown("### 🎯 Estado do Alvo")
     st.info(
-        f"Tipo: **{estado['tipo']}**  \n"
-        f"Velocidade estimada: **{estado['velocidade']}**  \n"
-        f"Comentário: {estado['comentario']}"
+        f"Tipo: **{estado.get('tipo')}**  \n"
+        f"Velocidade estimada: **{estado.get('velocidade')}**  \n"
+        f"Comentário: {estado.get('comentario')}"
     )
 
     # --------------------------------------------------------
@@ -6834,10 +6862,10 @@ if painel == "🧠 Laudo Operacional V16":
     # --------------------------------------------------------
     st.markdown("### 🔮 Expectativa (1–3 séries)")
     st.info(
-        f"Previsibilidade: **{expectativa['previsibilidade']}**  \n"
-        f"Erro esperado: **{expectativa['erro_esperado']}**  \n"
-        f"Chance de janela de ouro: **{expectativa['chance_janela_ouro']}**  \n\n"
-        f"{expectativa['comentario']}"
+        f"Previsibilidade: **{expectativa.get('previsibilidade')}**  \n"
+        f"Erro esperado: **{expectativa.get('erro_esperado')}**  \n"
+        f"Chance de janela de ouro: **{expectativa.get('chance_janela_ouro')}**  \n\n"
+        f"{expectativa.get('comentario')}"
     )
 
     # --------------------------------------------------------
@@ -6846,17 +6874,17 @@ if painel == "🧠 Laudo Operacional V16":
     st.markdown("### 📊 Volume × Confiabilidade (informativo)")
 
     confs = volume_op.get("confiabilidades_estimadas", {})
-    if confs:
+    if isinstance(confs, dict) and confs:
         df_conf = pd.DataFrame(
             [{"Previsões": k, "Confiabilidade estimada": v} for k, v in confs.items()]
         )
         st.dataframe(df_conf, use_container_width=True)
 
     st.warning(
-        f"📌 Volume mínimo: **{volume_op['minimo']}**  \n"
-        f"📌 Volume recomendado: **{volume_op['recomendado']}**  \n"
-        f"📌 Volume máximo técnico: **{volume_op['maximo_tecnico']}**  \n\n"
-        f"{volume_op['comentario']}"
+        f"📌 Volume mínimo: **{volume_op.get('minimo')}**  \n"
+        f"📌 Volume recomendado: **{volume_op.get('recomendado')}**  \n"
+        f"📌 Volume máximo técnico: **{volume_op.get('maximo_tecnico')}**  \n\n"
+        f"{volume_op.get('comentario')}"
     )
 
     st.success(
@@ -6865,11 +6893,10 @@ if painel == "🧠 Laudo Operacional V16":
     )
 
 
-
-
 # ============================================================
 # PARTE 7/8 — FIM
 # ============================================================
+
 # ============================================================
 # PARTE 8/8 — INÍCIO
 # ============================================================
