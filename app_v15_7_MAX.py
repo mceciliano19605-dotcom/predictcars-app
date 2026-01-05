@@ -6748,45 +6748,66 @@ if painel == "📘 Relatório Final":
     )
 
     # ============================================================
-    # 🧠 RF-GOV — GOVERNANÇA OPERACIONAL (PASSIVO | LEITURA)
-    # NÃO decide | NÃO bloqueia | NÃO altera pipeline
+    # 🧠 RF-GOV — GOVERNANÇA INFORMATIVA (AVISOS | SEM EFEITO)
     # ============================================================
     try:
-        st.markdown("### 🧠 RF-GOV — Governança Operacional")
+        st.markdown("### 🧠 RF-GOV — Governança Informativa")
 
         fenomeno_id = st.session_state.get("fenomeno_id", "N/D")
         alvo_atual = st.session_state.get("n_alvo", "N/D")
 
-        tentativas_alvo = st.session_state.get("tentativas_alvo", "N/D")
-        autorizacao_intensificacao = st.session_state.get(
-            "autorizacao_intensificacao_curta", "N/D"
-        )
-        motivo_autorizacao = st.session_state.get(
-            "motivo_autorizacao_intensificacao", "N/D"
-        )
-
         eco_status = st.session_state.get("eco_status", "N/D")
         estado_status = st.session_state.get("estado_atual", "N/D")
+
+        mo = st.session_state.get("memoria_operacional", [])
+        tentativas_mesmo_alvo = [
+            r for r in mo if r.get("alvo") == alvo_atual
+        ]
+
+        avisos = []
+
+        if len(tentativas_mesmo_alvo) >= 2:
+            avisos.append(
+                "⚠️ **Múltiplas tentativas recentes para o mesmo alvo registradas.** "
+                "Considere cautela adicional."
+            )
+
+        if eco_status in ("RUIM", "DESCONHECIDO"):
+            avisos.append(
+                "ℹ️ ECO desfavorável ou indefinido. "
+                "Expansões devem ser interpretadas com cuidado."
+            )
+
+        if estado_status in ("RÁPIDO", "INSTÁVEL"):
+            avisos.append(
+                "ℹ️ Estado do alvo indica instabilidade. "
+                "Resultados podem ser mais dispersos."
+            )
 
         st.info(
             f"**Fenômeno ID:** {fenomeno_id}\n\n"
             f"**Alvo:** {alvo_atual}\n\n"
-            f"**Tentativas para este alvo:** {tentativas_alvo}\n\n"
-            f"**Intensificação curta:** {autorizacao_intensificacao}\n"
-            f"**Motivo:** {motivo_autorizacao}\n\n"
-            f"**Diagnóstico do momento:**\n"
-            f"- ECO: **{eco_status}**\n"
-            f"- Estado: **{estado_status}**"
+            f"**ECO:** {eco_status}\n"
+            f"**Estado:** {estado_status}"
         )
 
+        if avisos:
+            for a in avisos:
+                st.warning(a)
+        else:
+            st.success(
+                "Nenhum alerta relevante de governança detectado nesta rodada."
+            )
+
     except Exception:
-        st.caption("RF-GOV indisponível nesta execução.")
+        st.caption("RF-GOV informativo indisponível nesta execução.")
 
     st.success("Relatório Final gerado com sucesso!")
 
 # ============================================================
 # <<< FIM — PAINEL 13 — 📘 Relatório Final
 # ============================================================
+
 
 
 
