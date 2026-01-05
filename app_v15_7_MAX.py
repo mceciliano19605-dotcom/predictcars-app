@@ -6524,11 +6524,47 @@ if painel == "📘 Relatório Final":
         tipo="success",
     )
 
+    # ============================================================
+    # 🧠 RF-GOV — GOVERNANÇA OPERACIONAL (PASSIVO | LEITURA)
+    # NÃO decide | NÃO bloqueia | NÃO altera pipeline
+    # ============================================================
+    try:
+        st.markdown("### 🧠 RF-GOV — Governança Operacional")
+
+        fenomeno_id = st.session_state.get("fenomeno_id", "N/D")
+        alvo_atual = st.session_state.get("n_alvo", "N/D")
+
+        tentativas_alvo = st.session_state.get("tentativas_alvo", "N/D")
+        autorizacao_intensificacao = st.session_state.get(
+            "autorizacao_intensificacao_curta", "N/D"
+        )
+        motivo_autorizacao = st.session_state.get(
+            "motivo_autorizacao_intensificacao", "N/D"
+        )
+
+        eco_status = st.session_state.get("eco_status", "N/D")
+        estado_status = st.session_state.get("estado_atual", "N/D")
+
+        st.info(
+            f"**Fenômeno ID:** {fenomeno_id}\n\n"
+            f"**Alvo:** {alvo_atual}\n\n"
+            f"**Tentativas para este alvo:** {tentativas_alvo}\n\n"
+            f"**Intensificação curta:** {autorizacao_intensificacao}\n"
+            f"**Motivo:** {motivo_autorizacao}\n\n"
+            f"**Diagnóstico do momento:**\n"
+            f"- ECO: **{eco_status}**\n"
+            f"- Estado: **{estado_status}**"
+        )
+
+    except Exception:
+        st.caption("RF-GOV indisponível nesta execução.")
+
     st.success("Relatório Final gerado com sucesso!")
 
 # ============================================================
 # <<< FIM — PAINEL 13 — 📘 Relatório Final
 # ============================================================
+
 
 
 
