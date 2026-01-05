@@ -1105,6 +1105,7 @@ def construir_navegacao_v157() -> str:
         # BLOCO 11 — DEPOIS | APRENDIZADO (EIXO 3)
         # -----------------------------------------------------
         "🧠 Memória Operacional (Observacional)",
+        "🧠 Memória Operacional — Registro Semi-Automático",
         "🧠 Laudo Operacional V16",
         "🧠 Diagnóstico ECO & Estado (V16)",
         "📊 V16 Premium — Erro por Regime (Retrospectivo)",
@@ -6400,6 +6401,125 @@ if painel == "🧠 Memória Operacional (Observacional)":
 # ============================================================
 # <<< FIM — PAINEL X — 🧠 Memória Operacional
 # ============================================================
+
+# ============================================================
+# >>> PAINEL Y — 🧠 Memória Operacional — Registro Semi-Automático
+# ============================================================
+if painel == "🧠 Memória Operacional — Registro Semi-Automático":
+
+    st.markdown("## 🧠 Memória Operacional — Registro Semi-Automático (Passivo)")
+
+    st.caption(
+        "Este painel **NÃO decide** e **NÃO bloqueia**.\n\n"
+        "Ele apenas **sugere um registro** com base no estado já calculado.\n"
+        "📌 O operador **confirma explicitamente**.\n"
+        "📌 Nenhuma lógica do sistema é alterada."
+    )
+
+    # ------------------------------------------------------------
+    # Inicialização segura da MO (compartilhada)
+    # ------------------------------------------------------------
+    if "memoria_operacional" not in st.session_state:
+        st.session_state["memoria_operacional"] = []
+
+    mo = st.session_state.get("memoria_operacional", [])
+
+    # ------------------------------------------------------------
+    # Captura PASSIVA do estado atual (somente leitura)
+    # ------------------------------------------------------------
+    fenomeno_id = st.session_state.get("fenomeno_id", "N/D")
+    alvo_atual = st.session_state.get("n_alvo", "N/D")
+
+    eco_status = st.session_state.get("eco_status", "N/D")
+    estado_status = st.session_state.get("estado_atual", "N/D")
+
+    pipeline_status = (
+        "CONCLUÍDO" if st.session_state.get("pipeline_flex_ultra_concluido") else "N/D"
+    )
+
+    qtd_listas_m6 = len(
+        st.session_state.get("modo6_listas_totais")
+        or st.session_state.get("modo6_listas")
+        or []
+    )
+
+    qtd_listas_ultra = len(st.session_state.get("turbo_ultra_listas_leves") or [])
+
+    exibir_bloco_mensagem(
+        "📋 Estado Capturado (Leitura)",
+        f"- Fenômeno ID: **{fenomeno_id}**\n"
+        f"- Alvo: **{alvo_atual}**\n"
+        f"- ECO: **{eco_status}**\n"
+        f"- Estado: **{estado_status}**\n"
+        f"- Pipeline FLEX ULTRA: **{pipeline_status}**\n"
+        f"- Listas Modo 6: **{qtd_listas_m6}**\n"
+        f"- Listas TURBO ULTRA: **{qtd_listas_ultra}**",
+        tipo="info",
+    )
+
+    # ------------------------------------------------------------
+    # Sugestão de registro (NÃO automática)
+    # ------------------------------------------------------------
+    st.markdown("### 📝 Sugestão de Registro (Confirmação Manual)")
+
+    sugestao = (
+        f"Geração executada | ECO={eco_status} | "
+        f"Estado={estado_status} | "
+        f"Listas(M6={qtd_listas_m6}, ULTRA={qtd_listas_ultra})"
+    )
+
+    with st.form("form_registro_semi_automatico"):
+        descricao = st.text_area(
+            "Descrição do registro (editável antes de confirmar):",
+            value=sugestao,
+            height=100,
+        )
+
+        confirmar = st.form_submit_button(
+            "Confirmar registro na Memória Operacional"
+        )
+
+    if confirmar:
+        registro = {
+            "fenomeno_id": fenomeno_id,
+            "alvo": alvo_atual,
+            "eco": eco_status,
+            "estado": estado_status,
+            "descricao": descricao or "N/D",
+        }
+
+        mo.append(registro)
+        st.session_state["memoria_operacional"] = mo
+
+        st.success("Registro semi-automático adicionado à Memória Operacional.")
+
+    # ------------------------------------------------------------
+    # Visualização rápida (últimos registros)
+    # ------------------------------------------------------------
+    st.markdown("### 📚 Últimos registros (leitura rápida)")
+
+    if not mo:
+        st.info("Nenhum registro ainda.")
+    else:
+        for i, reg in enumerate(mo[-5:], 1):
+            st.markdown(
+                f"**{i:02d})** "
+                f"Fenômeno `{reg.get('fenomeno_id')}` | "
+                f"Alvo `{reg.get('alvo')}` | "
+                f"ECO `{reg.get('eco')}` | "
+                f"Estado `{reg.get('estado')}`\n\n"
+                f"↳ {reg.get('descricao')}"
+            )
+
+    st.caption(
+        "📌 Registro **semi-automático** = estado sugerido + confirmação humana.\n"
+        "📌 Nenhuma decisão é tomada pelo sistema."
+    )
+
+# ============================================================
+# <<< FIM — PAINEL Y — 🧠 Memória Operacional — Registro Semi-Automático
+# ============================================================
+
 
 
 # ============================================================
