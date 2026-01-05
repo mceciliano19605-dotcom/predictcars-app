@@ -6575,6 +6575,24 @@ if painel == "📘 Relatório Final":
         tipo="info",
     )
 
+    # ============================================================
+    # 🧠 DIAGNÓSTICO CONSOLIDADO DA RODADA (NOVO — ADITIVO)
+    # ============================================================
+    eco_consolidado = st.session_state.get("eco_status", "DESCONHECIDO")
+    estado_consolidado = st.session_state.get("estado_atual", "DESCONHECIDO")
+
+    st.markdown("### 🧠 Diagnóstico Consolidado da Rodada")
+
+    st.info(
+        f"**ECO:** {eco_consolidado}\n\n"
+        f"**Estado do alvo:** {estado_consolidado}"
+    )
+
+    st.caption(
+        "Leitura consolidada do sistema nesta rodada.\n"
+        "Não gera decisão automática."
+    )
+
     # ------------------------------------------------------------
     # Núcleo TURBO (se existir)
     # ------------------------------------------------------------
@@ -6744,6 +6762,7 @@ if painel == "📘 Relatório Final":
 # ============================================================
 # <<< FIM — PAINEL 13 — 📘 Relatório Final
 # ============================================================
+
 
 
 
