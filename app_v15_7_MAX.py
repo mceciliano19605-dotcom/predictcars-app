@@ -6663,47 +6663,12 @@ if painel == "📘 Relatório Final":
         if lst not in pacote_operacional:
             pacote_operacional.append(lst)
 
-    # ------------------------------------------------------------
-    # 🧠 B1 — PRIORIZAÇÃO OBSERVACIONAL POR CONTEXTO (ECO + ESTADO)
-    # NÃO remove | NÃO cria | NÃO decide
-    # ------------------------------------------------------------
     try:
         pacote_operacional = v16_priorizar_listas_por_contexto(pacote_operacional)
     except Exception:
         pass
 
     total_listas = len(pacote_operacional)
-
-    st.markdown("### 📦 Pacote Operacional de Previsão (Base para Ação)")
-    st.caption(
-        "Inclui listas do **Modo 6** e listas adicionais preservadas do "
-        "**TURBO++ ULTRA**. A ordem reflete apenas coerência com o contexto."
-    )
-
-    # ============================================================
-    # 🟦 B5 — LEITURA PARALELA (REFINAMENTO LEVE — OPCIONAL)
-    # ============================================================
-    listas_refinadas_b4 = st.session_state.get("b4_listas_refinadas")
-
-    if listas_refinadas_b4:
-        st.markdown("### 🟦 Leitura Paralela — Refinamento Leve de Passageiros (B5)")
-        st.caption(
-            "Camada **observacional opcional**.\n\n"
-            "Estas listas **não substituem** o pacote oficial.\n"
-            "Servem apenas como leitura alternativa em ambiente não acionável."
-        )
-
-        limite = min(10, len(listas_refinadas_b4))
-        for i in range(limite):
-            st.markdown(
-                f"**🟦 R{i+1:02d})** {formatar_lista_passageiros(listas_refinadas_b4[i])}"
-            )
-
-        st.info(
-            "ℹ️ B5 é uma **leitura paralela**.\n\n"
-            "📌 O operador decide **se ignora** ou **se observa**.\n"
-            "📌 Nenhuma decisão automática é tomada."
-        )
 
     # ------------------------------------------------------------
     # 🔥 MANDAR BALA — POSTURA OPERACIONAL
@@ -6719,28 +6684,11 @@ if painel == "📘 Relatório Final":
         key="slider_mandar_bala_restaurado",
     )
 
-    if qtd_bala > 10:
-        st.warning(
-            "⚠️ Você está indo além do núcleo (Top 10).\n"
-            "Isso representa **agressividade consciente**, não erro."
-        )
-
-    st.caption(
-        f"Mostrando **{qtd_bala}** de **{total_listas}** listas disponíveis "
-        "(Top 10 = núcleo; acima disso = expansão)."
-    )
-
     for i, lst in enumerate(pacote_operacional[:qtd_bala], 1):
         st.markdown(f"**🔥 {i:02d})** {formatar_lista_passageiros(lst)}")
 
-    # ------------------------------------------------------------
-    # Fechamento
-    # ------------------------------------------------------------
-    postura = "Conservadora (núcleo)" if qtd_bala <= 10 else "Expandida / Agressiva"
-
     exibir_bloco_mensagem(
         "🧩 Fechamento Operacional",
-        f"- Postura adotada: **{postura}**\n"
         f"- Listas disponíveis: **{total_listas}**\n"
         f"- Listas levadas para ação: **{qtd_bala}**\n\n"
         "📌 O sistema **não decide**. O operador **assume a postura**.",
@@ -6760,29 +6708,20 @@ if painel == "📘 Relatório Final":
         estado_status = st.session_state.get("estado_atual", "N/D")
 
         mo = st.session_state.get("memoria_operacional", [])
-        tentativas_mesmo_alvo = [
-            r for r in mo if r.get("alvo") == alvo_atual
-        ]
+        tentativas_mesmo_alvo = [r for r in mo if r.get("alvo") == alvo_atual]
 
         avisos = []
 
         if len(tentativas_mesmo_alvo) >= 2:
             avisos.append(
-                "⚠️ **Múltiplas tentativas recentes para o mesmo alvo registradas.** "
-                "Considere cautela adicional."
+                "⚠️ Múltiplas tentativas recentes para o mesmo alvo registradas."
             )
 
         if eco_status in ("RUIM", "DESCONHECIDO"):
-            avisos.append(
-                "ℹ️ ECO desfavorável ou indefinido. "
-                "Expansões devem ser interpretadas com cuidado."
-            )
+            avisos.append("ℹ️ ECO desfavorável ou indefinido.")
 
         if estado_status in ("RÁPIDO", "INSTÁVEL"):
-            avisos.append(
-                "ℹ️ Estado do alvo indica instabilidade. "
-                "Resultados podem ser mais dispersos."
-            )
+            avisos.append("ℹ️ Estado do alvo indica instabilidade.")
 
         st.info(
             f"**Fenômeno ID:** {fenomeno_id}\n\n"
@@ -6791,22 +6730,21 @@ if painel == "📘 Relatório Final":
             f"**Estado:** {estado_status}"
         )
 
-        if avisos:
-            for a in avisos:
-                st.warning(a)
-        else:
-            st.success(
-                "Nenhum alerta relevante de governança detectado nesta rodada."
-            )
+        for a in avisos:
+            st.warning(a)
+
+        if not avisos:
+            st.success("Nenhum alerta relevante de governança nesta rodada.")
 
     except Exception:
-        st.caption("RF-GOV informativo indisponível nesta execução.")
+        st.caption("RF-GOV indisponível nesta execução.")
 
     st.success("Relatório Final gerado com sucesso!")
 
 # ============================================================
 # <<< FIM — PAINEL 13 — 📘 Relatório Final
 # ============================================================
+
 
 
 
