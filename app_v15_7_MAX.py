@@ -6298,21 +6298,15 @@ def v16_priorizar_listas_por_contexto(listas):
     except Exception:
         return listas
 
-
 # ============================================================
-# >>> PAINEL X — 🧠 Memória Operacional (Observacional)
+# >>> PAINEL X — 🧠 Memória Operacional — Observacional
 # ============================================================
-if painel == "🧠 Memória Operacional (Observacional)":
+if painel == "🧠 Memória Operacional — Observacional":
 
-    st.markdown("## 🧠 Memória Operacional — Observacional (Passiva)")
-
+    st.markdown("## 🧠 Memória Operacional — Observacional")
     st.caption(
-        "Este painel é **estritamente observacional**.\n\n"
-        "📌 NÃO decide\n"
-        "📌 NÃO bloqueia\n"
-        "📌 NÃO altera geração\n"
-        "📌 NÃO interfere em volumes\n\n"
-        "Serve apenas para **registro e leitura disciplinada** do que já ocorreu."
+        "Registro passivo da rodada.\n"
+        "Não executa decisões. Não altera previsões."
     )
 
     # ------------------------------------------------------------
@@ -6321,86 +6315,83 @@ if painel == "🧠 Memória Operacional (Observacional)":
     if "memoria_operacional" not in st.session_state:
         st.session_state["memoria_operacional"] = []
 
-    mo = st.session_state.get("memoria_operacional", [])
+    memoria_operacional = st.session_state["memoria_operacional"]
 
     # ------------------------------------------------------------
-    # Contexto atual (somente leitura)
+    # Coleta de estado atual (somente leitura)
     # ------------------------------------------------------------
+    n_alvo = st.session_state.get("n_alvo")
+    eco_status = st.session_state.get("eco_status", "DESCONHECIDO")
+    estado_status = st.session_state.get("estado_atual", "DESCONHECIDO")
+
+    qtd_bala = st.session_state.get("slider_mandar_bala_restaurado")
     fenomeno_id = st.session_state.get("fenomeno_id", "N/D")
-    alvo_atual = st.session_state.get("n_alvo", "N/D")
-    eco_status = st.session_state.get("eco_status", "N/D")
-    estado_status = st.session_state.get("estado_atual", "N/D")
 
-    exibir_bloco_mensagem(
-        "🧭 Contexto Atual (Leitura)",
-        f"- Fenômeno ID: **{fenomeno_id}**\n"
-        f"- Alvo atual: **{alvo_atual}**\n"
-        f"- ECO: **{eco_status}**\n"
-        f"- Estado: **{estado_status}**",
-        tipo="info",
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # ------------------------------------------------------------
+    # Visualização do que SERÁ registrado
+    # ------------------------------------------------------------
+    st.markdown("### 📋 Diagnóstico da Rodada (Pré-Registro)")
+
+    st.info(
+        f"**Alvo (n):** {n_alvo}\n\n"
+        f"**ECO:** {eco_status}\n"
+        f"**Estado do alvo:** {estado_status}\n\n"
+        f"**Listas levadas para ação:** {qtd_bala}\n\n"
+        f"**Fenômeno ID:** {fenomeno_id}\n\n"
+        f"**Timestamp:** {timestamp}"
+    )
+
+    observacao = st.text_area(
+        "📝 Observação humana (opcional)",
+        help="Use para registrar percepção, dúvida ou contexto externo.",
+        key="mo_observacao_humana",
     )
 
     # ------------------------------------------------------------
-    # Registro manual da tentativa (PASSIVO)
+    # Registro (ação explícita)
     # ------------------------------------------------------------
-    st.markdown("### 📝 Registrar tentativa (Manual | Passivo)")
+    if st.button("📥 Registrar esta rodada na Memória Operacional"):
 
-    st.caption(
-        "O registro é **consciente e manual**.\n\n"
-        "📌 Não ativa modo algum\n"
-        "📌 Não altera comportamento do sistema\n"
-        "📌 Não dispara nenhuma decisão automática"
-    )
-
-    with st.form("form_registro_memoria_operacional"):
-        descricao = st.text_input(
-            "Descrição curta da tentativa (ex.: geração normal, pós-TURBO, leitura prata)",
-            value="",
-        )
-
-        registrar = st.form_submit_button("Registrar tentativa na Memória Operacional")
-
-    if registrar:
         registro = {
-            "fenomeno_id": fenomeno_id,
-            "alvo": alvo_atual,
+            "timestamp": timestamp,
+            "alvo": n_alvo,
             "eco": eco_status,
             "estado": estado_status,
-            "descricao": descricao or "N/D",
+            "qtd_listas": qtd_bala,
+            "fenomeno_id": fenomeno_id,
+            "observacao": observacao.strip(),
         }
 
-        mo.append(registro)
-        st.session_state["memoria_operacional"] = mo
+        memoria_operacional.append(registro)
+        st.session_state["memoria_operacional"] = memoria_operacional
 
-        st.success("Registro adicionado à Memória Operacional.")
+        st.success("Rodada registrada com sucesso na Memória Operacional.")
 
     # ------------------------------------------------------------
-    # Visualização da Memória Operacional
+    # Histórico resumido (somente leitura)
     # ------------------------------------------------------------
-    st.markdown("### 📚 Registros na Memória Operacional")
+    if memoria_operacional:
+        st.markdown("### 🗂️ Registros já armazenados")
 
-    if not mo:
-        st.info("Nenhum registro na Memória Operacional até o momento.")
-    else:
-        for i, reg in enumerate(mo, 1):
+        for i, r in enumerate(memoria_operacional[::-1], 1):
             st.markdown(
                 f"**{i:02d})** "
-                f"Fenômeno: `{reg.get('fenomeno_id')}` | "
-                f"Alvo: `{reg.get('alvo')}` | "
-                f"ECO: `{reg.get('eco')}` | "
-                f"Estado: `{reg.get('estado')}`\n\n"
-                f"↳ {reg.get('descricao')}"
+                f"{r['timestamp']} | "
+                f"Alvo={r['alvo']} | "
+                f"ECO={r['eco']} | "
+                f"Estado={r['estado']} | "
+                f"Listas={r['qtd_listas']}"
             )
-
-    st.caption(
-        "📌 A Memória Operacional é **volátil nesta fase**.\n"
-        "📌 Nenhuma lógica automática depende dela.\n"
-        "📌 Pode ser removida sem impacto no sistema."
-    )
+    else:
+        st.caption("Nenhum registro armazenado até o momento.")
 
 # ============================================================
 # <<< FIM — PAINEL X — 🧠 Memória Operacional
 # ============================================================
+
+
 
 # ============================================================
 # >>> PAINEL Y — 🧠 Memória Operacional — Registro Semi-Automático
