@@ -1104,6 +1104,7 @@ def construir_navegacao_v157() -> str:
         # -----------------------------------------------------
         # BLOCO 11 — DEPOIS | APRENDIZADO (EIXO 3)
         # -----------------------------------------------------
+        "🧠 Memória Operacional (Observacional)",
         "🧠 Laudo Operacional V16",
         "🧠 Diagnóstico ECO & Estado (V16)",
         "📊 V16 Premium — Erro por Regime (Retrospectivo)",
@@ -6297,6 +6298,108 @@ def v16_priorizar_listas_por_contexto(listas):
         return listas
 
 
+# ============================================================
+# >>> PAINEL X — 🧠 Memória Operacional (Observacional)
+# ============================================================
+if painel == "🧠 Memória Operacional (Observacional)":
+
+    st.markdown("## 🧠 Memória Operacional — Observacional (Passiva)")
+
+    st.caption(
+        "Este painel é **estritamente observacional**.\n\n"
+        "📌 NÃO decide\n"
+        "📌 NÃO bloqueia\n"
+        "📌 NÃO altera geração\n"
+        "📌 NÃO interfere em volumes\n\n"
+        "Serve apenas para **registro e leitura disciplinada** do que já ocorreu."
+    )
+
+    # ------------------------------------------------------------
+    # Inicialização segura da Memória Operacional
+    # ------------------------------------------------------------
+    if "memoria_operacional" not in st.session_state:
+        st.session_state["memoria_operacional"] = []
+
+    mo = st.session_state.get("memoria_operacional", [])
+
+    # ------------------------------------------------------------
+    # Contexto atual (somente leitura)
+    # ------------------------------------------------------------
+    fenomeno_id = st.session_state.get("fenomeno_id", "N/D")
+    alvo_atual = st.session_state.get("n_alvo", "N/D")
+    eco_status = st.session_state.get("eco_status", "N/D")
+    estado_status = st.session_state.get("estado_atual", "N/D")
+
+    exibir_bloco_mensagem(
+        "🧭 Contexto Atual (Leitura)",
+        f"- Fenômeno ID: **{fenomeno_id}**\n"
+        f"- Alvo atual: **{alvo_atual}**\n"
+        f"- ECO: **{eco_status}**\n"
+        f"- Estado: **{estado_status}**",
+        tipo="info",
+    )
+
+    # ------------------------------------------------------------
+    # Registro manual da tentativa (PASSIVO)
+    # ------------------------------------------------------------
+    st.markdown("### 📝 Registrar tentativa (Manual | Passivo)")
+
+    st.caption(
+        "O registro é **consciente e manual**.\n\n"
+        "📌 Não ativa modo algum\n"
+        "📌 Não altera comportamento do sistema\n"
+        "📌 Não dispara nenhuma decisão automática"
+    )
+
+    with st.form("form_registro_memoria_operacional"):
+        descricao = st.text_input(
+            "Descrição curta da tentativa (ex.: geração normal, pós-TURBO, leitura prata)",
+            value="",
+        )
+
+        registrar = st.form_submit_button("Registrar tentativa na Memória Operacional")
+
+    if registrar:
+        registro = {
+            "fenomeno_id": fenomeno_id,
+            "alvo": alvo_atual,
+            "eco": eco_status,
+            "estado": estado_status,
+            "descricao": descricao or "N/D",
+        }
+
+        mo.append(registro)
+        st.session_state["memoria_operacional"] = mo
+
+        st.success("Registro adicionado à Memória Operacional.")
+
+    # ------------------------------------------------------------
+    # Visualização da Memória Operacional
+    # ------------------------------------------------------------
+    st.markdown("### 📚 Registros na Memória Operacional")
+
+    if not mo:
+        st.info("Nenhum registro na Memória Operacional até o momento.")
+    else:
+        for i, reg in enumerate(mo, 1):
+            st.markdown(
+                f"**{i:02d})** "
+                f"Fenômeno: `{reg.get('fenomeno_id')}` | "
+                f"Alvo: `{reg.get('alvo')}` | "
+                f"ECO: `{reg.get('eco')}` | "
+                f"Estado: `{reg.get('estado')}`\n\n"
+                f"↳ {reg.get('descricao')}"
+            )
+
+    st.caption(
+        "📌 A Memória Operacional é **volátil nesta fase**.\n"
+        "📌 Nenhuma lógica automática depende dela.\n"
+        "📌 Pode ser removida sem impacto no sistema."
+    )
+
+# ============================================================
+# <<< FIM — PAINEL X — 🧠 Memória Operacional
+# ============================================================
 
 
 # ============================================================
