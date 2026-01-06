@@ -6694,6 +6694,94 @@ if painel == "📘 Relatório Final":
     total_listas = len(pacote_operacional)
 
     # ------------------------------------------------------------
+    # 🧭 PAINEL CANÔNICO — BALA HUMANO DENSO (MODO ASSISTIDO)
+    # (Somente leitura | sem execução | sem recomendação)
+    # ------------------------------------------------------------
+    try:
+        st.markdown("## 🧭 Bala Humano Denso — Modo Assistido (Painel Canônico)")
+
+        # Leituras já existentes no sistema (somente leitura)
+        diag_risco = st.session_state.get("diagnostico_risco", {}) or {}
+        estrada = st.session_state.get("pipeline_estrada", "N/D")
+
+        classe_risco = diag_risco.get("classe_risco", "N/D")
+        nr_percent = diag_risco.get("nr_percent", None)
+        divergencia = diag_risco.get("divergencia", None)
+        indice_risco = diag_risco.get("indice_risco", None)
+
+        # ------------------------------------------------------------
+        # BLOCO 1 — Condição do Momento (sem score mágico)
+        # ------------------------------------------------------------
+        st.markdown("### 1️⃣ Condição do Momento")
+
+        st.write(f"- Estrada (Pipeline): **{estrada}**")
+        st.write(f"- Classe de risco (Monitor): **{classe_risco}**")
+
+        if nr_percent is not None:
+            st.write(f"- NR% (Ruído Condicional): **{float(nr_percent):.2f}%**")
+        else:
+            st.write("- NR% (Ruído Condicional): **N/D**")
+
+        if divergencia is not None:
+            st.write(f"- Divergência S6 vs MC: **{float(divergencia):.4f}**")
+        else:
+            st.write("- Divergência S6 vs MC: **N/D**")
+
+        if indice_risco is not None:
+            st.write(f"- Índice composto de risco: **{float(indice_risco):.4f}**")
+        else:
+            st.write("- Índice composto de risco: **N/D**")
+
+        # Nota canônica (a comparabilidade “momento passado vs atual” entra na Fase C)
+        st.info(
+            "Leitura informativa: este painel descreve o terreno atual com métricas já existentes. "
+            "A comparabilidade com momentos passados e a seleção automática de densidade entram na fase seguinte."
+        )
+
+        # ------------------------------------------------------------
+        # BLOCO 2 — Formas de Densidade Compatíveis (canônico)
+        # ------------------------------------------------------------
+        st.markdown("### 2️⃣ Formas de Densidade Compatíveis (canônico)")
+
+        st.write("- ✔ **Microvariações controladas**")
+        st.write("- ✔ **Envelope estreito**")
+        st.write("- ⚠ **Repescagem controlada**")
+        st.write("- ❌ **Expansão de universo** (incompatível com o espírito do Bala Humano)")
+
+        st.caption(
+            "Observação: aqui ainda não há escolha automática de formato. "
+            "O sistema apenas delimita o que é compatível com densidade (aprofundar, não dispersar)."
+        )
+
+        # ------------------------------------------------------------
+        # BLOCO 3 — Expectativa sob Densidade (canônico)
+        # ------------------------------------------------------------
+        st.markdown("### 3️⃣ Expectativa sob Densidade (informativo)")
+
+        st.write("- Redistribuição típica para **4/6**")
+        st.write("- Elevação marginal de **5/6**")
+        st.write("- **6/6 não observado** como viável de forma consistente neste tipo de leitura")
+        st.write("- Ganho associado a **volume controlado**, não a salto de acerto")
+
+        st.caption("Regra: densidade altera **distribuição**, não compra **certeza**.")
+
+        # ------------------------------------------------------------
+        # BLOCO 4 — Cláusula de Responsabilidade (canônico)
+        # ------------------------------------------------------------
+        st.markdown("### 4️⃣ Decisão Humana — Fronteira de Responsabilidade")
+
+        st.write("- O sistema **não recomenda ação**")
+        st.write("- O sistema **não define volume**")
+        st.write("- O sistema **não executa automaticamente**")
+        st.write("- A decisão e a exposição são do **operador**")
+
+        st.markdown("---")
+
+    except Exception:
+        # Falha silenciosa canônica: não derruba fluxo operacional
+        pass
+    
+    # ------------------------------------------------------------
     # 🔥 MANDAR BALA — POSTURA OPERACIONAL
     # ------------------------------------------------------------
     st.markdown("### 🔥 Mandar Bala — Postura Operacional (Ação Consciente)")
