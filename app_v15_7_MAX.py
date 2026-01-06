@@ -4338,6 +4338,9 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     st.session_state["ultima_previsao"] = todas_listas
     v16_blindar_ultima_previsao_universo()
 
+    # Blindagem adicional — estado intermediário reutilizável
+    st.session_state["turbo_ultra_listas_leves"] = st.session_state["ultima_previsao"]
+
     if not todas_listas:
         st.warning(
             "Nenhuma lista foi gerada nesta condição.\n\n"
