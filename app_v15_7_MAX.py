@@ -332,24 +332,25 @@ def carregar_historico_universal(linhas):
     df = pd.DataFrame(registros)
 
     # ------------------------------------------------------------
-    # SANIDADE DO UNIVERSO — CANÔNICA
+    # SANIDADE DO UNIVERSO — CANÔNICA (MIN e MAX REAIS)
     # ------------------------------------------------------------
     try:
+        universo_min = int(min(universo_detectado))
         universo_max = int(max(universo_detectado))
-        st.session_state["universo_min"] = 1
+        st.session_state["universo_min"] = universo_min
         st.session_state["universo_max"] = universo_max
     except Exception:
-        st.session_state["universo_min"] = 1
+        st.session_state["universo_min"] = None
         st.session_state["universo_max"] = None
 
     return df
-
 
 
 # ============================================================
 # V16 PREMIUM — IMPORTAÇÃO OFICIAL
 # (Não altera nada do V15.7, apenas registra os painéis novos)
 # ============================================================
+
 from app_v16_premium import (
     v16_obter_paineis,
     v16_renderizar_painel,
@@ -4335,6 +4336,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     st.session_state["pipeline_flex_ultra_concluido"] = True
     st.session_state["turbo_ultra_listas_leves"] = todas_listas.copy()
     st.session_state["ultima_previsao"] = todas_listas
+    v16_blindar_ultima_previsao_universo()
 
     if not todas_listas:
         st.warning(
@@ -4381,30 +4383,39 @@ def s6_profundo_V157(df_local, col_pass, idx_alvo):
 
 
 # --- MICRO-LEQUE PROFUNDO ---
-def micro_leque_profundo(base, profundidade=20):
+def micro_leque_profundo(base, profundidade=20, universo_min=1, universo_max=60):
     leque = []
+    umin = int(universo_min) if universo_min is not None else 1
+    umax = int(universo_max) if universo_max is not None else 60
+
     for delta in range(-profundidade, profundidade + 1):
-        novo = [max(1, min(60, x + delta)) for x in base]
+        novo = [max(umin, min(umax, int(x) + delta)) for x in base]
         leque.append(novo)
+
     return np.array(leque)
 
 
 # --- MONTE CARLO PROFUNDO ---
-def monte_carlo_profundo(base, n=800):
+def monte_carlo_profundo(base, n=800, universo_min=1, universo_max=60):
     sims = []
+    umin = int(universo_min) if universo_min is not None else 1
+    umax = int(universo_max) if universo_max is not None else 60
+
+    base_arr = np.array([int(x) for x in base], dtype=int)
+
     for _ in range(n):
-        ruido = np.random.randint(-5, 6, size=len(base))
-        candidato = base + ruido
-        candidato = np.clip(candidato, 1, 60)
+        ruido = np.random.randint(-5, 6, size=len(base_arr))
+        candidato = base_arr + ruido
+        candidato = np.clip(candidato, umin, umax)
         sims.append(candidato.tolist())
+
     return sims
-
-
 
 
 # ============================================================
 # Painel 8 — 📡 Painel de Ruído Condicional
 # ============================================================
+
 
 if painel == "📡 Painel de Ruído Condicional":
 
@@ -7147,6 +7158,54 @@ def v16_registrar_volume_e_confiabilidade():
     return volume_op
 
 
+# ------------------------------------------------------------
+# BLINDAGEM FINAL — SANIDADE DE UNIVERSO (V16)
+# Aplica automaticamente o universo real do histórico
+# em qualquer lista de previsão antes do uso operacional
+# ------------------------------------------------------------
+
+def v16_blindar_ultima_previsao_universo():
+    """
+    Blindagem estrutural:
+    - Garante que nenhuma lista contenha passageiros fora do universo real
+    - Usa universo_min / universo_max detectados no carregamento
+    - Atua como última barreira antes do uso operacional
+    """
+
+    if "ultima_previsao" not in st.session_state:
+        return
+
+    listas = st.session_state.get("ultima_previsao")
+    if not listas or not isinstance(listas, list):
+        return
+
+    umin = st.session_state.get("universo_min")
+    umax = st.session_state.get("universo_max")
+
+    if umin is None or umax is None:
+        return
+
+    listas_sanas = []
+
+    for lista in listas:
+        if not isinstance(lista, (list, tuple)):
+            continue
+
+        lista_filtrada = [
+            int(x) for x in lista
+            if isinstance(x, (int, np.integer)) and umin <= int(x) <= umax
+        ]
+
+        if len(lista_filtrada) == len(lista):
+            listas_sanas.append(lista)
+        else:
+            # se houve ajuste, preserva ordem e tamanho quando possível
+            lista_corrigida = lista_filtrada[:len(lista)]
+            if len(lista_corrigida) == len(lista):
+                listas_sanas.append(lista_corrigida)
+
+    if listas_sanas:
+        st.session_state["ultima_previsao"] = listas_sanas
 
 
 # ============================================================
