@@ -388,6 +388,55 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ------------------------------------------------------------
+# BLINDAGEM FINAL — SANIDADE DE UNIVERSO (V16)
+# Aplica automaticamente o universo real do histórico
+# em qualquer lista de previsão antes do uso operacional
+# ------------------------------------------------------------
+
+def v16_blindar_ultima_previsao_universo():
+    """
+    Blindagem estrutural:
+    - Garante que nenhuma lista contenha passageiros fora do universo real
+    - Usa universo_min / universo_max detectados no carregamento
+    - Atua como última barreira antes do uso operacional
+    """
+
+    if "ultima_previsao" not in st.session_state:
+        return
+
+    listas = st.session_state.get("ultima_previsao")
+    if not listas or not isinstance(listas, list):
+        return
+
+    umin = st.session_state.get("universo_min")
+    umax = st.session_state.get("universo_max")
+
+    if umin is None or umax is None:
+        return
+
+    listas_sanas = []
+
+    for lista in listas:
+        if not isinstance(lista, (list, tuple)):
+            continue
+
+        lista_filtrada = [
+            int(x) for x in lista
+            if isinstance(x, (int, np.integer)) and umin <= int(x) <= umax
+        ]
+
+        if len(lista_filtrada) == len(lista):
+            listas_sanas.append(lista)
+        else:
+            # se houve ajuste, preserva ordem e tamanho quando possível
+            lista_corrigida = lista_filtrada[:len(lista)]
+            if len(lista_corrigida) == len(lista):
+                listas_sanas.append(lista_corrigida)
+
+    if listas_sanas:
+        st.session_state["ultima_previsao"] = listas_sanas
+
 # ============================================================
 # Sessão Streamlit — persistência para V15.7 MAX
 # ============================================================
@@ -7249,54 +7298,7 @@ def v16_registrar_volume_e_confiabilidade():
     return volume_op
 
 
-# ------------------------------------------------------------
-# BLINDAGEM FINAL — SANIDADE DE UNIVERSO (V16)
-# Aplica automaticamente o universo real do histórico
-# em qualquer lista de previsão antes do uso operacional
-# ------------------------------------------------------------
 
-def v16_blindar_ultima_previsao_universo():
-    """
-    Blindagem estrutural:
-    - Garante que nenhuma lista contenha passageiros fora do universo real
-    - Usa universo_min / universo_max detectados no carregamento
-    - Atua como última barreira antes do uso operacional
-    """
-
-    if "ultima_previsao" not in st.session_state:
-        return
-
-    listas = st.session_state.get("ultima_previsao")
-    if not listas or not isinstance(listas, list):
-        return
-
-    umin = st.session_state.get("universo_min")
-    umax = st.session_state.get("universo_max")
-
-    if umin is None or umax is None:
-        return
-
-    listas_sanas = []
-
-    for lista in listas:
-        if not isinstance(lista, (list, tuple)):
-            continue
-
-        lista_filtrada = [
-            int(x) for x in lista
-            if isinstance(x, (int, np.integer)) and umin <= int(x) <= umax
-        ]
-
-        if len(lista_filtrada) == len(lista):
-            listas_sanas.append(lista)
-        else:
-            # se houve ajuste, preserva ordem e tamanho quando possível
-            lista_corrigida = lista_filtrada[:len(lista)]
-            if len(lista_corrigida) == len(lista):
-                listas_sanas.append(lista_corrigida)
-
-    if listas_sanas:
-        st.session_state["ultima_previsao"] = listas_sanas
 
 
 # ============================================================
