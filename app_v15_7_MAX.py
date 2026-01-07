@@ -6716,6 +6716,40 @@ N_CARRO: {n_alvo if n_alvo is not None else "N/D"}
     except Exception:
         pass
 
+    # ============================================================
+    # 📌 LISTAS DE PREVISÃO ASSOCIADAS AO MOMENTO (COPIÁVEL)
+    # ============================================================
+    try:
+        st.markdown("### 📌 Listas de Previsão Associadas ao Momento")
+
+        listas_para_registro = []
+
+        # Prioridade: pacote operacional completo, se existir
+        try:
+            if "pacote_operacional" in locals() and pacote_operacional:
+                listas_para_registro = pacote_operacional[:]
+        except Exception:
+            pass
+
+        # Fallback: listas do Modo 6
+        if not listas_para_registro and listas_m6_totais:
+            listas_para_registro = listas_m6_totais[:]
+
+        if listas_para_registro:
+            linhas_listas = []
+            for i, lst in enumerate(listas_para_registro[:20], start=1):
+                linhas_listas.append(
+                    f"L{i}: " + ", ".join(str(x) for x in lst)
+                )
+
+            st.code("\n".join(linhas_listas), language="text")
+        else:
+            st.info("Nenhuma lista disponível para registro neste momento.")
+
+    except Exception:
+        pass
+
+  
  
     # ------------------------------------------------------------
     # 📊 EIXO 1 — CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
