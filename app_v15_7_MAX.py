@@ -6669,6 +6669,54 @@ if painel == "📘 Relatório Final":
     for i, lst in enumerate(top10, 1):
         st.markdown(f"**{i:02d})** {formatar_lista_passageiros(lst)}")
 
+    # ============================================================
+    # 📌 REGISTRO CANÔNICO DO MOMENTO — DIAGNÓSTICO (COPIÁVEL)
+    # ============================================================
+    try:
+        st.markdown("### 📌 Registro Canônico do Momento")
+
+        # Série base
+        serie_base = "N/D"
+        try:
+            if historico_df is not None and "serie" in historico_df.columns:
+                serie_base = f"C{int(historico_df['serie'].max())}"
+        except Exception:
+            pass
+
+        # Séries alvo (sempre duas, padrão)
+        series_alvo = "N/D"
+        if serie_base != "N/D":
+            try:
+                num = int(serie_base.replace("C", ""))
+                series_alvo = f"C{num + 1} / C{num + 2}"
+            except Exception:
+                pass
+
+        # Universo
+        universo_min = st.session_state.get("universo_min", "N/D")
+        universo_max = st.session_state.get("universo_max", "N/D")
+
+        registro_txt = f"""
+SÉRIE_BASE: {serie_base}
+SÉRIES_ALVO: {series_alvo}
+
+ECO: {st.session_state.get("eco_status", "N/D")}
+ESTADO_ALVO: {st.session_state.get("estado_atual", "N/D")}
+REGIME: {st.session_state.get("pipeline_estrada", "N/D")}
+CLASSE_RISCO: {st.session_state.get("classe_risco", "N/D")}
+NR_PERCENT: {st.session_state.get("nr_percent", "N/D")}
+K_STAR: {st.session_state.get("k_star", "N/D")}
+DIVERGENCIA: {st.session_state.get("divergencia_s6_mc", "N/D")}
+UNIVERSO: {universo_min}-{universo_max}
+N_CARRO: {n_alvo if n_alvo is not None else "N/D"}
+""".strip()
+
+        st.code(registro_txt, language="text")
+
+    except Exception:
+        pass
+
+ 
     # ------------------------------------------------------------
     # 📊 EIXO 1 — CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
     # ------------------------------------------------------------
