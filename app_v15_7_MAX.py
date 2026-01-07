@@ -6709,6 +6709,11 @@ K_STAR: {st.session_state.get("k_star", "N/D")}
 DIVERGENCIA: {st.session_state.get("divergencia_s6_mc", "N/D")}
 UNIVERSO: {universo_min}-{universo_max}
 N_CARRO: {n_alvo if n_alvo is not None else "N/D"}
+EIXO1_NUCLEO_DETECTADO: { 'SIM' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'NÃO' }
+EIXO1_TIPO_NUCLEO: { eixo1_resultado['nucleo']['tipo'] if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'inexistente' }
+EIXO1_PUXADORES: { ', '.join(map(str, (eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes'])[:8])) if eixo1_resultado else '—' }
+EIXO1_CONVERGENCIA: { 'alta' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 4 else 'média' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 2 else 'baixa' }
+EIXO1_LEITURA: { ' '.join(eixo1_resultado['leitura_sintetica']) if eixo1_resultado else 'pacote disperso' }
 """.strip()
 
         st.code(registro_txt, language="text")
