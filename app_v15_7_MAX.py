@@ -6669,107 +6669,18 @@ if painel == "📘 Relatório Final":
     for i, lst in enumerate(top10, 1):
         st.markdown(f"**{i:02d})** {formatar_lista_passageiros(lst)}")
 
-
-    
-    # ============================================================
-    # 📌 REGISTRO CANÔNICO DO MOMENTO — DIAGNÓSTICO (COPIÁVEL)
-    # ============================================================
-    try:
-        st.markdown("### 📌 Registro Canônico do Momento")
-
-        # Série base
-        serie_base = "N/D"
-        try:
-            if historico_df is not None and "serie" in historico_df.columns:
-                serie_base = f"C{int(historico_df['serie'].max())}"
-        except Exception:
-            pass
-
-        # Séries alvo (sempre duas, padrão)
-        series_alvo = "N/D"
-        if serie_base != "N/D":
-            try:
-                num = int(serie_base.replace("C", ""))
-                series_alvo = f"C{num + 1} / C{num + 2}"
-            except Exception:
-                pass
-
-        # Universo
-        universo_min = st.session_state.get("universo_min", "N/D")
-        universo_max = st.session_state.get("universo_max", "N/D")
-
-        registro_txt = f"""
-SÉRIE_BASE: {serie_base}
-SÉRIES_ALVO: {series_alvo}
-
-ECO: {st.session_state.get("eco_status", "N/D")}
-ESTADO_ALVO: {st.session_state.get("estado_atual", "N/D")}
-REGIME: {st.session_state.get("pipeline_estrada", "N/D")}
-CLASSE_RISCO: {st.session_state.get("classe_risco", "N/D")}
-NR_PERCENT: {st.session_state.get("nr_percent", "N/D")}
-K_STAR: {st.session_state.get("k_star", "N/D")}
-DIVERGENCIA: {st.session_state.get("divergencia_s6_mc", "N/D")}
-UNIVERSO: {universo_min}-{universo_max}
-N_CARRO: {n_alvo if n_alvo is not None else "N/D"}
-EIXO1_NUCLEO_DETECTADO: { 'SIM' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'NÃO' }
-EIXO1_TIPO_NUCLEO: { eixo1_resultado['nucleo']['tipo'] if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'inexistente' }
-EIXO1_PUXADORES: { ', '.join(map(str, (eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes'])[:8])) if eixo1_resultado else '—' }
-EIXO1_CONVERGENCIA: { 'alta' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 4 else 'média' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 2 else 'baixa' }
-EIXO1_LEITURA: { ' '.join(eixo1_resultado['leitura_sintetica']) if eixo1_resultado else 'pacote disperso' }
-""".strip()
-
-        st.code(registro_txt, language="text")
-
-    except Exception:
-        pass
-
-    # ============================================================
-    # 📌 LISTAS DE PREVISÃO ASSOCIADAS AO MOMENTO (COPIÁVEL)
-    # ============================================================
-    try:
-        st.markdown("### 📌 Listas de Previsão Associadas ao Momento")
-
-        listas_para_registro = []
-
-        # Prioridade: pacote operacional completo, se existir
-        try:
-            if "pacote_operacional" in locals() and pacote_operacional:
-                listas_para_registro = pacote_operacional[:]
-        except Exception:
-            pass
-
-        # Fallback: listas do Modo 6
-        if not listas_para_registro and listas_m6_totais:
-            listas_para_registro = listas_m6_totais[:]
-
-        if listas_para_registro:
-            linhas_listas = []
-            for i, lst in enumerate(listas_para_registro[:20], start=1):
-                linhas_listas.append(
-                    f"L{i}: " + ", ".join(str(x) for x in lst)
-                )
-
-            st.code("\n".join(linhas_listas), language="text")
-        else:
-            st.info("Nenhuma lista disponível para registro neste momento.")
-
-    except Exception:
-        pass
-
-  
- 
     # ------------------------------------------------------------
     # 📊 EIXO 1 — CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
     # ------------------------------------------------------------
     try:
         listas_pacote_eixo1 = listas_m6_totais[:]
-
+    
         historico_label = (
             f"C1 → C{len(historico_df)}"
             if historico_df is not None
             else "Histórico indefinido"
         )
-
+    
         eixo1_resultado = calcular_eixo1_contribuicao(
             listas_pacote=listas_pacote_eixo1,
             historico_label=historico_label,
@@ -6780,16 +6691,16 @@ EIXO1_LEITURA: { ' '.join(eixo1_resultado['leitura_sintetica']) if eixo1_resulta
         )
     except Exception:
         eixo1_resultado = None
-
+    
     if eixo1_resultado:
         st.markdown("### 📊 Eixo 1 — Contribuição de Passageiros (Observacional)")
-
+    
         st.write(
             f"**Núcleo local detectado:** "
             f"{'SIM' if eixo1_resultado['nucleo']['detectado'] else 'NÃO'} "
             f"({eixo1_resultado['nucleo']['tipo']})"
         )
-
+    
         st.write(
             "**Estruturais do pacote:** "
             + (
@@ -6798,7 +6709,7 @@ EIXO1_LEITURA: { ' '.join(eixo1_resultado['leitura_sintetica']) if eixo1_resulta
                 else "—"
             )
         )
-
+    
         st.write(
             "**Contribuintes:** "
             + (
@@ -6807,14 +6718,99 @@ EIXO1_LEITURA: { ' '.join(eixo1_resultado['leitura_sintetica']) if eixo1_resulta
                 else "—"
             )
         )
-
+    
         st.write(
             "**Leitura sintética:** "
             + " ".join(eixo1_resultado["leitura_sintetica"])
         )
-
+    
         st.caption(eixo1_resultado["trava"])
+    
+    
+    # ============================================================
+    # 📌 REGISTRO CANÔNICO DO MOMENTO — DIAGNÓSTICO (COPIÁVEL)
+    # ============================================================
+    try:
+        st.markdown("### 📌 Registro Canônico do Momento")
+    
+        # Série base
+        serie_base = "N/D"
+        try:
+            if historico_df is not None and "serie" in historico_df.columns:
+                serie_base = f"C{int(historico_df['serie'].max())}"
+        except Exception:
+            pass
+    
+        # Séries alvo (sempre duas)
+        series_alvo = "N/D"
+        if serie_base != "N/D":
+            try:
+                num = int(serie_base.replace("C", ""))
+                series_alvo = f"C{num + 1} / C{num + 2}"
+            except Exception:
+                pass
+    
+        universo_min = st.session_state.get("universo_min", "N/D")
+        universo_max = st.session_state.get("universo_max", "N/D")
+    
+        registro_txt = f"""
+    SÉRIE_BASE: {serie_base}
+    SÉRIES_ALVO: {series_alvo}
+    
+    ECO: {st.session_state.get("eco_status", "N/D")}
+    ESTADO_ALVO: {st.session_state.get("estado_atual", "N/D")}
+    REGIME: {st.session_state.get("pipeline_estrada", "N/D")}
+    CLASSE_RISCO: {st.session_state.get("classe_risco", "N/D")}
+    NR_PERCENT: {st.session_state.get("nr_percent", "N/D")}
+    K_STAR: {st.session_state.get("k_star", "N/D")}
+    DIVERGENCIA: {st.session_state.get("divergencia_s6_mc", "N/D")}
+    UNIVERSO: {universo_min}-{universo_max}
+    N_CARRO: {n_alvo if n_alvo is not None else "N/D"}
+    EIXO1_NUCLEO_DETECTADO: {'SIM' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'NÃO'}
+    EIXO1_TIPO_NUCLEO: {eixo1_resultado['nucleo']['tipo'] if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'inexistente'}
+    EIXO1_PUXADORES: {', '.join(map(str, (eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes'])[:8])) if eixo1_resultado else '—'}
+    EIXO1_CONVERGENCIA: {'alta' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 4 else 'média' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 2 else 'baixa'}
+    EIXO1_LEITURA: {' '.join(eixo1_resultado['leitura_sintetica']) if eixo1_resultado else 'pacote disperso'}
+    """.strip()
+    
+        st.code(registro_txt, language="text")
+    
+    except Exception:
+        pass
+    
+    
+    # ============================================================
+    # 📌 LISTAS DE PREVISÃO ASSOCIADAS AO MOMENTO (COPIÁVEL)
+    # ============================================================
+    try:
+        st.markdown("### 📌 Listas de Previsão Associadas ao Momento")
+    
+        listas_para_registro = []
+    
+        if "pacote_operacional" in locals() and pacote_operacional:
+            listas_para_registro = pacote_operacional[:]
+        elif listas_m6_totais:
+            listas_para_registro = listas_m6_totais[:]
+    
+        if listas_para_registro:
+            linhas_listas = []
+            for i, lst in enumerate(listas_para_registro[:20], start=1):
+                linhas_listas.append(
+                    f"L{i}: " + ", ".join(str(x) for x in lst)
+                )
+    
+            st.code("\n".join(linhas_listas), language="text")
+        else:
+            st.info("Nenhuma lista disponível para registro neste momento.")
+    
+    except Exception:
+        pass
 
+
+
+    
+
+    
     # ------------------------------------------------------------
     # 📦 Pacote Operacional TOTAL (Modo 6 + TURBO ULTRA)
     # ------------------------------------------------------------
