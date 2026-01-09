@@ -6807,8 +6807,100 @@ if painel == "📘 Relatório Final":
         pass
 
 
-
+    # ============================================================
+    # 🧠 FASE 2 — PAINEL DE APTIDÃO DO EVENTO (CANÔNICO | SOMENTE LEITURA)
+    # Avaliação AUTOMÁTICA de aptidão para Memória Operacional
+    # ============================================================
+    try:
+        st.markdown("## 🧠 Painel de Aptidão do Evento")
     
+        # -------------------------------
+        # Inicialização defensiva
+        # -------------------------------
+        status_aptidao = "NÃO APTO"
+        motivo_principal = "Critérios mínimos não atendidos"
+        compatibilidade = "indefinida"
+        observacao = "Leitura automática do sistema"
+        eixo1_resumo = "N/D"
+    
+        # -------------------------------
+        # Fontes (já calculadas no app)
+        # -------------------------------
+        eixo1_ok = bool(
+            eixo1_resultado
+            and eixo1_resultado.get("nucleo", {}).get("detectado", False)
+        )
+    
+        regime = st.session_state.get("pipeline_estrada", "N/D")
+        nr_percent = st.session_state.get("nr_percent", None)
+        divergencia = st.session_state.get("divergencia_s6_mc", None)
+    
+        # -------------------------------
+        # Regras de APTIDÃO (sistema decide)
+        # -------------------------------
+        if eixo1_ok and regime in ["🟩 Estrada Neutra / Estável", "🟨 Estrada Moderada"]:
+            status_aptidao = "APTO"
+            motivo_principal = "Núcleo observável + regime compatível"
+    
+        elif eixo1_ok and regime not in ["🟥 Estrada Ruim / Instável"]:
+            status_aptidao = "APTO"
+            motivo_principal = "Núcleo fraco porém reutilizável"
+    
+        else:
+            status_aptidao = "NÃO APTO"
+            motivo_principal = "Ausência de núcleo ou regime incompatível"
+    
+        # -------------------------------
+        # Compatibilidade de densidade
+        # -------------------------------
+        if eixo1_ok and regime.startswith("🟩"):
+            compatibilidade = "microvariações / envelope estreito"
+        elif eixo1_ok:
+            compatibilidade = "repescagem controlada"
+        else:
+            compatibilidade = "nenhuma (densidade bloqueada)"
+    
+        # -------------------------------
+        # Resumo do EIXO 1 (canônico)
+        # -------------------------------
+        if eixo1_resultado:
+            eixo1_resumo = (
+                f"Núcleo={ 'SIM' if eixo1_resultado['nucleo']['detectado'] else 'NÃO' } | "
+                f"Tipo={ eixo1_resultado['nucleo']['tipo'] } | "
+                f"Puxadores="
+                + (
+                    ", ".join(
+                        map(
+                            str,
+                            (
+                                eixo1_resultado["papeis"]["estruturais"]
+                                + eixo1_resultado["papeis"]["contribuintes"]
+                            )[:6],
+                        )
+                    )
+                    if eixo1_resultado["papeis"]["estruturais"]
+                    or eixo1_resultado["papeis"]["contribuintes"]
+                    else "—"
+                )
+            )
+    
+        # -------------------------------
+        # Exibição CANÔNICA (sem decisão)
+        # -------------------------------
+        st.markdown("### 📋 Resumo Canônico de Aptidão")
+    
+        aptidao_txt = f"""
+    STATUS_APTIDAO: {status_aptidao}
+    MOTIVO_PRINCIPAL: {motivo_principal}
+    EIXO1_RESUMO: {eixo1_resumo}
+    COMPATIBILIDADE_DENSIDADE: {compatibilidade}
+    OBSERVACAO: {observacao}
+    """.strip()
+    
+        st.code(aptidao_txt, language="text")
+    
+    except Exception as e:
+        st.warning("Painel de Aptidão indisponível nesta rodada.")
 
     
     # ------------------------------------------------------------
