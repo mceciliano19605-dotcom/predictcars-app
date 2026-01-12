@@ -6016,145 +6016,145 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     st.session_state["modo6_listas_totais"] = listas_totais
 
-# ============================================================
-# Órbita (E1/E2) aplicada ao pacote do Modo 6 (sem travas)
-# ============================================================
-info_orbita = v16_calcular_orbita_pacote(listas_top10, universo_min, universo_max)
-v16_atualizar_estado_orbita(info_orbita)
-
-listas_intercept = []
-if info_orbita.get("estado") == "E2":
-    # Gera algumas listas densas adicionais e mistura com o Top10, preservando quantidade
-    # (sem remover o pacote; apenas substitui as piores por coesão/interseção)
-    listas_intercept = v16_gerar_listas_interceptacao_orbita(
-        info_orbita,
-        universo_min=universo_min,
-        universo_max=universo_max,
-        n_carro=n,
-        qtd=min(4, max(2, len(listas_top10)//3)),
-        seed=st.session_state.get("serie_base_idx", 0)
-    )
-
-# Montagem final do pacote (mantém o tamanho original)
-listas_top10_final = list(listas_top10)
-
-if len(listas_intercept) > 0:
-    # score por proximidade com âncoras (mais âncoras = melhor interceptação)
-    anchors_set = set(info_orbita.get("anchors", []) or [])
-    def _score(L):
-        return sum(1 for x in L if x in anchors_set)
-
-    # escolhe quem fica: junta e pega os melhores
-    candidatos = []
-    for L in listas_top10:
-        candidatos.append((L, _score(L), "base"))
-    for L in listas_intercept:
-        candidatos.append((L, _score(L) + 0.5, "intercept"))  # leve viés para intercept
-    # remove duplicados mantendo melhor score
-    dedup = {}
-    for L,sc,tag in candidatos:
-        k = tuple(L)
-        if k not in dedup or sc > dedup[k][0]:
-            dedup[k] = (sc, tag, L)
-    candidatos2 = sorted(dedup.values(), key=lambda t: t[0], reverse=True)
-    listas_top10_final = [t[2] for t in candidatos2[:len(listas_top10)]]
-
-    # guarda no estado (para RF / Backtest do pacote)
-    st.session_state["modo6_listas_intercept_orbita"] = listas_intercept
-    st.session_state["modo6_orbita_info"] = info_orbita
-
-    st.session_state["modo6_listas_top10"] = listas_top10_final
-    listas_top10 = listas_top10_final  # exibição e downstream
-
-    # Guardar no estado (Pacote Modo 6) — base + N_EXTRA condicional (sem painel)
-    # O operador continua decidindo quantas listas levar (postura / orçamento).
-    try:
-        umin = int(st.session_state.get("universo_min", 1))
-        umax = int(st.session_state.get("universo_max", 60))
-    except Exception:
-        umin, umax = 1, 60
-
-    # 1) Leitura ORBITA do pacote base (antes do extra)
-    orb_meta = v16_calcular_orbita_pacote(listas_top10, umin, umax) if listas_top10 else {"estado": "E0"}
-    grad = v16_calcular_gradiente_e1(orb_meta)
-
-    # 2) Aplicar gradiente de interseção (E1/E2) no pacote base — sem travas
-    if grad.get("gradiente") != "G0":
-        anchors = orb_meta.get("anchors", [])
-        listas_totais = v16_aplicar_gradiente_intersecao(
-            listas_totais, umin, umax, anchors=anchors,
-            ruido_lo=grad.get("ruido_lo", -2), ruido_hi=grad.get("ruido_hi", 2),
-            p_anchor=grad.get("p_anchor", 0.25), n_carro=n_real
+    # ============================================================
+    # Órbita (E1/E2) aplicada ao pacote do Modo 6 (sem travas)
+    # ============================================================
+    info_orbita = v16_calcular_orbita_pacote(listas_top10, universo_min, universo_max)
+    v16_atualizar_estado_orbita(info_orbita)
+    
+    listas_intercept = []
+    if info_orbita.get("estado") == "E2":
+        # Gera algumas listas densas adicionais e mistura com o Top10, preservando quantidade
+        # (sem remover o pacote; apenas substitui as piores por coesão/interseção)
+        listas_intercept = v16_gerar_listas_interceptacao_orbita(
+            info_orbita,
+            universo_min=universo_min,
+            universo_max=universo_max,
+            n_carro=n,
+            qtd=min(4, max(2, len(listas_top10)//3)),
+            seed=st.session_state.get("serie_base_idx", 0)
         )
-        # Recalcular TOP-10 após ajuste (para refletir a antecipação)
-        listas_top10 = listas_totais[: min(10, len(listas_totais))]
-    else:
-        anchors = orb_meta.get("anchors", [])
-
-    # 3) N_EXTRA automático (expansão condicional do pacote disponível)
-    n_base = int(len(listas_totais) or 0)
-    n_extra = 0
-    if grad.get("gradiente") != "G0" and n_base > 0:
-        n_extra = int(round(n_base * float(grad.get("n_extra_factor", 0.0) or 0.0)))
-        # Regras simples: mínimo pequeno, teto curto (sem explosão)
-        if n_extra > 0 and n_extra < 2:
-            n_extra = 2
-        n_extra = max(0, min(12, n_extra))
-
-    n_total = n_base + n_extra
-
-    # 4) Gerar pacote total (base + extra) preservando o espírito: microvariação controlada
-    if n_total > n_base:
-        pacote_total = v16_gerar_listas_extra(
-            listas_totais, n_total, umin, umax, anchors=anchors,
-            ruido_lo=grad.get("ruido_lo", -2), ruido_hi=grad.get("ruido_hi", 2),
-            p_anchor=grad.get("p_anchor", 0.25), n_carro=n_real
+    
+    # Montagem final do pacote (mantém o tamanho original)
+    listas_top10_final = list(listas_top10)
+    
+    if len(listas_intercept) > 0:
+        # score por proximidade com âncoras (mais âncoras = melhor interceptação)
+        anchors_set = set(info_orbita.get("anchors", []) or [])
+        def _score(L):
+            return sum(1 for x in L if x in anchors_set)
+    
+        # escolhe quem fica: junta e pega os melhores
+        candidatos = []
+        for L in listas_top10:
+            candidatos.append((L, _score(L), "base"))
+        for L in listas_intercept:
+            candidatos.append((L, _score(L) + 0.5, "intercept"))  # leve viés para intercept
+        # remove duplicados mantendo melhor score
+        dedup = {}
+        for L,sc,tag in candidatos:
+            k = tuple(L)
+            if k not in dedup or sc > dedup[k][0]:
+                dedup[k] = (sc, tag, L)
+        candidatos2 = sorted(dedup.values(), key=lambda t: t[0], reverse=True)
+        listas_top10_final = [t[2] for t in candidatos2[:len(listas_top10)]]
+    
+        # guarda no estado (para RF / Backtest do pacote)
+        st.session_state["modo6_listas_intercept_orbita"] = listas_intercept
+        st.session_state["modo6_orbita_info"] = info_orbita
+    
+        st.session_state["modo6_listas_top10"] = listas_top10_final
+        listas_top10 = listas_top10_final  # exibição e downstream
+    
+        # Guardar no estado (Pacote Modo 6) — base + N_EXTRA condicional (sem painel)
+        # O operador continua decidindo quantas listas levar (postura / orçamento).
+        try:
+            umin = int(st.session_state.get("universo_min", 1))
+            umax = int(st.session_state.get("universo_max", 60))
+        except Exception:
+            umin, umax = 1, 60
+    
+        # 1) Leitura ORBITA do pacote base (antes do extra)
+        orb_meta = v16_calcular_orbita_pacote(listas_top10, umin, umax) if listas_top10 else {"estado": "E0"}
+        grad = v16_calcular_gradiente_e1(orb_meta)
+    
+        # 2) Aplicar gradiente de interseção (E1/E2) no pacote base — sem travas
+        if grad.get("gradiente") != "G0":
+            anchors = orb_meta.get("anchors", [])
+            listas_totais = v16_aplicar_gradiente_intersecao(
+                listas_totais, umin, umax, anchors=anchors,
+                ruido_lo=grad.get("ruido_lo", -2), ruido_hi=grad.get("ruido_hi", 2),
+                p_anchor=grad.get("p_anchor", 0.25), n_carro=n_real
+            )
+            # Recalcular TOP-10 após ajuste (para refletir a antecipação)
+            listas_top10 = listas_totais[: min(10, len(listas_totais))]
+        else:
+            anchors = orb_meta.get("anchors", [])
+    
+        # 3) N_EXTRA automático (expansão condicional do pacote disponível)
+        n_base = int(len(listas_totais) or 0)
+        n_extra = 0
+        if grad.get("gradiente") != "G0" and n_base > 0:
+            n_extra = int(round(n_base * float(grad.get("n_extra_factor", 0.0) or 0.0)))
+            # Regras simples: mínimo pequeno, teto curto (sem explosão)
+            if n_extra > 0 and n_extra < 2:
+                n_extra = 2
+            n_extra = max(0, min(12, n_extra))
+    
+        n_total = n_base + n_extra
+    
+        # 4) Gerar pacote total (base + extra) preservando o espírito: microvariação controlada
+        if n_total > n_base:
+            pacote_total = v16_gerar_listas_extra(
+                listas_totais, n_total, umin, umax, anchors=anchors,
+                ruido_lo=grad.get("ruido_lo", -2), ruido_hi=grad.get("ruido_hi", 2),
+                p_anchor=grad.get("p_anchor", 0.25), n_carro=n_real
+            )
+        else:
+            pacote_total = list(listas_totais)
+    
+        # Persistência para RF / Bala Humano / Registro
+        st.session_state["pacote_listas_atual"] = pacote_total
+        st.session_state["modo6_listas"] = pacote_total
+        st.session_state["modo6_n_base"] = n_base
+        st.session_state["modo6_n_extra"] = n_extra
+        st.session_state["modo6_n_total"] = n_total
+        st.session_state["modo6_gradiente"] = grad.get("gradiente", "G0")
+    
+        # Atualizar Estado ORBITA (usando Top-10 do pacote final)
+        listas_top10_final = pacote_total[: min(10, len(pacote_total))]
+        _ = v16_atualizar_estado_orbita(serie_base_atual, listas_top10_final, umin, umax)
+    
+        st.success(
+            f"Modo 6 (PRÉ-ECO | n-base={n_real}) — "
+            f"{len(pacote_total)} listas totais (base={n_base} + extra={n_extra}) | "
+            f"{len(listas_top10_final)} priorizadas (Top 10)."
         )
-    else:
-        pacote_total = list(listas_totais)
-
-    # Persistência para RF / Bala Humano / Registro
-    st.session_state["pacote_listas_atual"] = pacote_total
-    st.session_state["modo6_listas"] = pacote_total
-    st.session_state["modo6_n_base"] = n_base
-    st.session_state["modo6_n_extra"] = n_extra
-    st.session_state["modo6_n_total"] = n_total
-    st.session_state["modo6_gradiente"] = grad.get("gradiente", "G0")
-
-    # Atualizar Estado ORBITA (usando Top-10 do pacote final)
-    listas_top10_final = pacote_total[: min(10, len(pacote_total))]
-    _ = v16_atualizar_estado_orbita(serie_base_atual, listas_top10_final, umin, umax)
-
-    st.success(
-        f"Modo 6 (PRÉ-ECO | n-base={n_real}) — "
-        f"{len(pacote_total)} listas totais (base={n_base} + extra={n_extra}) | "
-        f"{len(listas_top10_final)} priorizadas (Top 10)."
-    )
-
-# ============================================================
-# <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
-# ============================================================
-
-
-
-
-
-# ============================================================
-# 🧪 Modo N Experimental (n≠6)
-# (LAUDO DE CÓDIGO — FASE 1 / BLOCO 2)
-#
-# OBJETIVO:
-# - Roteamento mínimo + guardas explícitas
-# - Avisos claros de EXPERIMENTAL
-# - ZERO lógica de geração
-#
-# BLINDAGEM:
-# - NÃO altera Modo 6
-# - NÃO altera TURBO
-# - NÃO altera ECO/PRÉ-ECO
-# - NÃO escreve em session_state (somente leitura)
-# ============================================================
-
+    
+    # ============================================================
+    # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
+    # ============================================================
+    
+    
+    
+    
+    
+    # ============================================================
+    # 🧪 Modo N Experimental (n≠6)
+    # (LAUDO DE CÓDIGO — FASE 1 / BLOCO 2)
+    #
+    # OBJETIVO:
+    # - Roteamento mínimo + guardas explícitas
+    # - Avisos claros de EXPERIMENTAL
+    # - ZERO lógica de geração
+    #
+    # BLINDAGEM:
+    # - NÃO altera Modo 6
+    # - NÃO altera TURBO
+    # - NÃO altera ECO/PRÉ-ECO
+    # - NÃO escreve em session_state (somente leitura)
+    # ============================================================
+    
 elif painel == "🧪 Modo N Experimental (n≠6)":
 
     st.header("🧪 Modo N Experimental (n≠6)")
