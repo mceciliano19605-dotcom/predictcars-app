@@ -399,10 +399,13 @@ def v16_calcular_orbita_pacote(listas_topN, universo_min, universo_max):
         "pares_ge3": 0.0,
         "ancoras": [],
         "top_passageiros": [],
+        "listas_top": [],
     }
     try:
         if not listas_topN:
             return info
+
+        info["listas_top"] = listas_topN
 
         # Frequências por passageiro
         from collections import Counter
@@ -419,6 +422,8 @@ def v16_calcular_orbita_pacote(listas_topN, universo_min, universo_max):
         for lst in listas_topN:
             for p in set(lst):
                 pres[p] += 1
+        if not pres:
+            return info
         f_max = max(pres.values()) / float(len(listas_topN))
         info["f_max"] = float(round(f_max, 4))
 
@@ -635,6 +640,8 @@ def v16_gerar_listas_interceptacao_orbita(info_orbita: dict,
     Objetivo: aumentar interseção e repetição controlada sem explodir universo.
     Retorna uma lista de listas (cada uma com n_carro passageiros).
     """
+    import random
+
     try:
         qtd = int(qtd)
     except Exception:
@@ -647,12 +654,12 @@ def v16_gerar_listas_interceptacao_orbita(info_orbita: dict,
     rng = random.Random(int(seed) + 9173)
 
     # âncoras / candidatos principais (se não vierem, recalcula a partir das listas do pacote)
-    anchors = list(info_orbita.get("anchors") or [])
-    pool_top = list(info_orbita.get("top_passengers") or [])
+    anchors = list(info_orbita.get("ancoras") or info_orbita.get("anchors") or [])
+    pool_top = list(info_orbita.get("top_passageiros") or info_orbita.get("top_passengers") or [])
 
     # fallback robusto: usa os passageiros mais frequentes no pacote
     if not anchors or not pool_top:
-        listas = info_orbita.get("listas") or info_orbita.get("listas_top") or []
+        listas = info_orbita.get("listas") or info_orbita.get("listas_top") or info_orbita.get("listas_topN") or info_orbita.get("listas_top_n") or []
         freq = {}
         for L in listas:
             for x in L:
@@ -4191,7 +4198,12 @@ if painel == "⚙️ Modo TURBO++ HÍBRIDO":
 
         # Monte Carlo Light — sorteio ponderado
         pesos_mc = np.array([1 / (1 + d) for d in distancias])
-        pesos_mc = pesos_mc / pesos_mc.sum()
+        soma_pesos = float(pesos_mc.sum()) if len(pesos_mc) > 0 else 0.0
+        if soma_pesos <= 0.0 or np.isnan(soma_pesos):
+            # fallback: distribuição uniforme (base insuficiente para ponderar)
+            pesos_mc = np.ones(len(distancias), dtype=float)
+            soma_pesos = float(pesos_mc.sum())
+        pesos_mc = pesos_mc / soma_pesos
 
         escolha_idx = np.random.choice(len(pesos_mc), p=pesos_mc)
         previsao_mc = df[col_pass].iloc[escolha_idx].values.tolist()
@@ -4835,6 +4847,9 @@ if painel == "📡 Painel de Ruído Condicional":
 # ============================================================
 
     try:
+        if matriz_norm is None or len(matriz_norm) < 2:
+            raise ValueError("Base insuficiente para medir ruído (matriz_norm < 2).")
+
         # Ruído Tipo A: dispersão intra-série (variação entre passageiros)
         variancias_intra = np.var(matriz_norm, axis=1)
         ruido_A_medio = float(np.mean(variancias_intra))
@@ -4855,10 +4870,13 @@ if painel == "📡 Painel de Ruído Condicional":
 
     except Exception as erro:
         exibir_bloco_mensagem(
-            "Erro no cálculo de ruído",
-            f"Detalhes técnicos: {erro}",
-            tipo="error",
+            "Ruído indeterminado (base insuficiente / ruído técnico)",
+            f"Métrica de ruído não pôde ser calculada com segurança.
+
+Detalhes técnicos: {erro}",
+            tipo="warning",
         )
+        st.session_state["nr_percent"] = None
         st.stop()
 
     # Classificação simples do NR%
@@ -8956,12 +8974,13 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 
     if dist_k:
         total_k = sum(dist_k.values())
+        denom_k = max(1, int(total_k))
         proporcao_k_alto = round(
-            sum(qtd for k_val, qtd in dist_k.items() if k_val >= 3) / total_k * 100,
+            sum(qtd for k_val, qtd in dist_k.items() if k_val >= 3) / denom_k * 100,
             2,
         )
         proporcao_k_baixo = round(
-            sum(qtd for k_val, qtd in dist_k.items() if k_val <= 1) / total_k * 100,
+            sum(qtd for k_val, qtd in dist_k.items() if k_val <= 1) / denom_k * 100,
             2,
         )
 
