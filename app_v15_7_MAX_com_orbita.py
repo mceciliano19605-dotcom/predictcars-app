@@ -6019,8 +6019,8 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ============================================================
     # Órbita (E1/E2) aplicada ao pacote do Modo 6 (sem travas)
     # ============================================================
-    info_orbita = v16_calcular_orbita_pacote(listas_top10, umin, umax)
-    v16_atualizar_estado_orbita(info_orbita)
+info_orbita = v16_atualizar_estado_orbita(st.session_state.get("serie_base", "N/D"), listas_top10, umin, umax)
+# (órbita calculada e registrada em session_state via v16_atualizar_estado_orbita)
     
     listas_intercept = []
     if info_orbita.get("estado") == "E2":
