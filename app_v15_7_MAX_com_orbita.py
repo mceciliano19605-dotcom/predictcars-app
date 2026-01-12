@@ -173,6 +173,7 @@ Somente evoluir quando:
 ============================================================
 """
 
+import random
 import streamlit as st
 # =====================================================================
 # 📜 TEXTO CANÔNICO — CONTRATO OPERACIONAL DO PREDICTCARS
@@ -392,7 +393,166 @@ st.markdown(
 # BLINDAGEM FINAL — SANIDADE DE UNIVERSO (V16)
 # Aplica automaticamente o universo real do histórico
 # em qualquer lista de previsão antes do uso operacional
+# ------------------------------------------------
+# ============================================================
+# V16 — CAMADA ORBITA (E1/E2) — DETECÇÃO OBJETIVA (SEM OLHÔMETRO)
 # ------------------------------------------------------------
+# Esta camada NÃO substitui PRÉ-ECO/ECO.
+# Ela mede "quase-órbita / órbita incipiente" dentro do pacote do Modo 6
+# para orientar INTERCEPTAÇÃO (busca do 6) com governança.
+# ============================================================
+
+def v16_calcular_limite_faixa_apertada(universo_min: int, universo_max: int) -> int:
+    """Retorna limite de faixa (range) para considerar 'enseada' (compressão).
+    Heurística estável: ~44% do tamanho do universo.
+    Ex.: 1–50 => 22 | 1–60 => 26.
+    """
+    tam = max(1, int(universo_max) - int(universo_min))
+    return max(10, int(round(tam * 0.44)))
+
+
+def v16_calcular_orbita_pacote(pacote_listas, universo_min: int, universo_max: int):
+    """Classifica o pacote (Top N do Modo 6) em:
+    - E0: RUÍDO / DISPERSÃO
+    - E1: QUASE-ÓRBITA (enseada + repetição moderada)
+    - E2: ÓRBITA INCIPIENTE (repetição forte + coesão)
+
+    Retorna dict com métricas auditáveis para o Registro Canônico.
+    """
+    try:
+        listas = []
+        for L in (pacote_listas or []):
+            if L is None:
+                continue
+            if isinstance(L, (list, tuple, set)):
+                vals = [int(x) for x in L if str(x).strip().isdigit()]
+            else:
+                # string "1, 2, 3"
+                vals = [int(x) for x in re.findall(r"\d+", str(L))]
+            vals = [v for v in vals if universo_min <= v <= universo_max]
+            vals = sorted(set(vals))
+            if vals:
+                listas.append(vals)
+
+        N = len(listas)
+        if N < 3:
+            return {
+                "estado": "E0",
+                "score": 0.0,
+                "N": N,
+                "f_max": 0.0,
+                "range_8": None,
+                "pct_pares_ge2": 0.0,
+                "pct_pares_ge3": 0.0,
+                "bifurcacao": None,
+                "limite_faixa": v16_calcular_limite_faixa_apertada(universo_min, universo_max),
+                "motivo": "pacote pequeno"
+            }
+
+        # Frequência dentro do pacote
+        freq = {}
+        for L in listas:
+            for v in L:
+                freq[v] = freq.get(v, 0) + 1
+
+        fmax_abs = max(freq.values()) if freq else 0
+        f_max = fmax_abs / float(N) if N else 0.0
+
+        # Top 8 passageiros mais frequentes (desempate por valor)
+        top_items = sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))
+        top8 = [k for k, _ in top_items[:8]]
+        range_8 = (max(top8) - min(top8)) if len(top8) >= 2 else None
+
+        # Interseção par-a-par
+        pares = 0
+        pares_ge2 = 0
+        pares_ge3 = 0
+        sets = [set(L) for L in listas]
+        for i in range(N):
+            for j in range(i + 1, N):
+                pares += 1
+                inter = len(sets[i] & sets[j])
+                if inter >= 2:
+                    pares_ge2 += 1
+                if inter >= 3:
+                    pares_ge3 += 1
+
+        pct_pares_ge2 = (pares_ge2 / pares) if pares else 0.0
+        pct_pares_ge3 = (pares_ge3 / pares) if pares else 0.0
+
+        # Bifurcação (duas enseadas competindo)
+        bif = None
+        if len(top8) >= 4:
+            med = sorted(top8)[len(top8)//2]
+            peso1 = sum(c for v, c in freq.items() if v <= med)
+            peso2 = sum(c for v, c in freq.items() if v > med)
+            tot = max(1, peso1 + peso2)
+            p1 = peso1 / tot
+            p2 = peso2 / tot
+            bif = {"p_faixa1": round(p1, 3), "p_faixa2": round(p2, 3), "mediana": med}
+
+        # Limite de faixa "enseada"
+        limite_faixa = v16_calcular_limite_faixa_apertada(universo_min, universo_max)
+        faixa_ok = (range_8 is not None) and (range_8 <= limite_faixa)
+
+        # Critérios (objetivos)
+        zona_quase_ancora = (0.30 < f_max < 0.60)
+        zona_ancora = (f_max >= 0.60)
+
+        inter_ok_E1 = (pct_pares_ge2 >= 0.35) and (pct_pares_ge3 <= 0.20)
+        inter_ok_E2 = (pct_pares_ge2 >= 0.45) and (pct_pares_ge3 >= 0.20)
+
+        estado = "E0"
+        motivo = "dispersão"
+        if zona_quase_ancora and faixa_ok and inter_ok_E1:
+            estado = "E1"
+            motivo = "quase-órbita"
+        if zona_ancora and faixa_ok and inter_ok_E2:
+            estado = "E2"
+            motivo = "órbita incipiente"
+
+        # Score contínuo (0-1) para desempates/monitoramento
+        # (não é decisão automática, só termômetro)
+        s_f = min(1.0, max(0.0, (f_max - 0.25) / 0.45))  # 0.25->0 | 0.70->1
+        s_r = 0.0 if (range_8 is None) else min(1.0, max(0.0, (limite_faixa - range_8) / max(1, limite_faixa)))
+        s_i2 = min(1.0, max(0.0, (pct_pares_ge2 - 0.25) / 0.50))
+        s_i3 = min(1.0, max(0.0, (pct_pares_ge3 - 0.10) / 0.40))
+        score = round((0.40*s_f + 0.25*s_r + 0.25*s_i2 + 0.10*s_i3), 4)
+
+        return {
+            "estado": estado,
+            "score": score,
+            "N": N,
+            "f_max": round(f_max, 4),
+            "fmax_abs": int(fmax_abs),
+            "range_8": int(range_8) if range_8 is not None else None,
+            "limite_faixa": int(limite_faixa),
+            "pct_pares_ge2": round(pct_pares_ge2, 4),
+            "pct_pares_ge3": round(pct_pares_ge3, 4),
+            "bifurcacao": bif,
+            "motivo": motivo
+        }
+    except Exception as e:
+        return {
+            "estado": "E0",
+            "score": 0.0,
+            "N": 0,
+            "f_max": 0.0,
+            "range_8": None,
+            "pct_pares_ge2": 0.0,
+            "pct_pares_ge3": 0.0,
+            "bifurcacao": None,
+            "limite_faixa": v16_calcular_limite_faixa_apertada(universo_min, universo_max),
+            "motivo": f"erro: {e}"
+        }
+
+
+def v16_atualizar_orbita_session_state(pacote_listas, universo_min: int, universo_max: int):
+    """Atualiza sessão com métricas de órbita para uso em painéis e RF."""
+    orb = v16_calcular_orbita_pacote(pacote_listas, universo_min, universo_max)
+    st.session_state["v16_orbita"] = orb
+    return orb
+
 
 def v16_blindar_ultima_previsao_universo():
     """
@@ -955,10 +1115,10 @@ def v16_calcular_orbita_pacote(listas_top: list, universo_min: int, universo_max
     pares_ge2 = ge2 / total_pairs if total_pairs else 0.0
     pares_ge3 = ge3 / total_pairs if total_pairs else 0.0
 
-    quase_ancora = (f_max > 0.30) and (f_max < 0.60)
+    quase_ancora = (f_max >= 0.30) and (f_max <= 0.60)
     faixa_lim = v16_threshold_faixa_enseada(universo_min, universo_max)
     faixa_ok = (range_8 is not None) and (range_8 <= faixa_lim)
-    intersec_ok = (pares_ge2 >= 0.35) and (pares_ge3 <= 0.20)
+    intersec_ok = (pares_ge2 >= 0.35) and (pares_ge3 <= 0.25)
 
     anchors = sorted([p for p, c in freq.items() if (c / float(N)) >= 0.40])
 
@@ -997,6 +1157,172 @@ def v16_calcular_orbita_pacote(listas_top: list, universo_min: int, universo_max
         "intersec_ok": intersec_ok,
         "quase_ancora": quase_ancora,
     }
+
+
+# ============================================================
+# V16 — ÓRBITA · Gradiente de Antecipação (E1) + N_EXTRA (sem painel)
+# - Mantém o jeitão: leitura → ajuste interno → operador decide volume
+# - NÃO trava: apenas amplia o pacote disponível quando o mar justificar
+# ============================================================
+
+def v16_calcular_gradiente_e1(orb: dict) -> dict:
+    """Traduz E1/E2 em um gradiente operacional que PODE impactar listas.
+    Retorna dict com: gradiente, forca (0-1), ruido_lo/hi, p_anchor, n_extra_factor.
+    """
+    if not orb or orb.get("estado") in (None, "E0"):
+        return {
+            "gradiente": "G0",
+            "forca": 0.0,
+            "ruido_lo": -3, "ruido_hi": 3,
+            "p_anchor": 0.0,
+            "n_extra_factor": 0.0,
+        }
+
+    estado = orb.get("estado", "E0")
+    f_max = float(orb.get("f_max", 0.0) or 0.0)
+    range_8 = float(orb.get("range_8", 999) or 999)
+    faixa_lim = float(orb.get("faixa_lim", 1) or 1)
+    pares_ge2 = float(orb.get("pares_ge2", 0.0) or 0.0)
+
+    # Scores (0..1)
+    # f_max: E1 típico ~0.35..0.60 | E2 pode ir acima
+    score_f = (f_max - 0.30) / 0.30
+    score_f = max(0.0, min(1.0, score_f))
+
+    # compressão: 1 quando <= lim; cai suavemente quando acima
+    if faixa_lim <= 0:
+        score_range = 0.0
+    else:
+        if range_8 <= faixa_lim:
+            score_range = 1.0
+        else:
+            score_range = max(0.0, 1.0 - (range_8 - faixa_lim) / faixa_lim)
+
+    # interseção: 0.35 é mínimo; 0.70 é “muito bom”
+    score_inter = pares_ge2 / 0.70
+    score_inter = max(0.0, min(1.0, score_inter))
+
+    # Força combinada
+    forca = 0.40 * score_f + 0.30 * score_range + 0.30 * score_inter
+    forca = max(0.0, min(1.0, forca))
+
+    if estado == "E2":
+        return {
+            "gradiente": "E2",
+            "forca": 1.0,
+            "ruido_lo": -1, "ruido_hi": 1,
+            "p_anchor": 0.55,
+            "n_extra_factor": 0.50,
+        }
+
+    # E1 em gradiente (fraco → consistente → comprimido)
+    if forca < 0.45:
+        return {
+            "gradiente": "E1_FRACO",
+            "forca": forca,
+            "ruido_lo": -2, "ruido_hi": 2,
+            "p_anchor": 0.25,
+            "n_extra_factor": 0.20,
+        }
+    if forca < 0.70:
+        return {
+            "gradiente": "E1_CONSISTENTE",
+            "forca": forca,
+            "ruido_lo": -1, "ruido_hi": 1,
+            "p_anchor": 0.35,
+            "n_extra_factor": 0.30,
+        }
+    return {
+        "gradiente": "E1_COMPRIMIDO",
+        "forca": forca,
+        "ruido_lo": -1, "ruido_hi": 1,
+        "p_anchor": 0.45,
+        "n_extra_factor": 0.40,
+    }
+
+
+def v16_normalizar_lista_universo(lista, universo_min, universo_max, n_carro=6):
+    """Garante lista válida (únicos, dentro do universo, tamanho n_carro)."""
+    if not lista:
+        lista = []
+    out = []
+    for x in lista:
+        try:
+            xi = int(x)
+        except Exception:
+            continue
+        xi = max(int(universo_min), min(int(universo_max), xi))
+        if xi not in out:
+            out.append(xi)
+
+    # Completar se faltar
+    tentativas = 0
+    while len(out) < int(n_carro) and tentativas < 300:
+        tentativas += 1
+        xi = random.randint(int(universo_min), int(universo_max))
+        if xi not in out:
+            out.append(xi)
+
+    # Cortar se sobrar
+    out = out[: int(n_carro)]
+    return sorted(out)
+
+
+def v16_aplicar_gradiente_intersecao(listas, universo_min, universo_max, anchors, ruido_lo, ruido_hi, p_anchor, n_carro=6):
+    """Aplica viés de interseção: reforça âncoras + microvariação mais estreita."""
+    if not listas:
+        return []
+    anchors = [int(a) for a in (anchors or []) if str(a).strip().isdigit()]
+    anchors = [a for a in anchors if int(universo_min) <= a <= int(universo_max)]
+    out = []
+    for lst in listas:
+        base = list(lst) if isinstance(lst, (list, tuple)) else []
+        base = v16_normalizar_lista_universo(base, universo_min, universo_max, n_carro=n_carro)
+
+        # reforço de âncoras (interseção)
+        if anchors:
+            for i in range(len(base)):
+                if random.random() < float(p_anchor):
+                    base[i] = random.choice(anchors)
+
+        # microvariação (compressão)
+        base2 = []
+        for x in base:
+            xi = int(x) + random.randint(int(ruido_lo), int(ruido_hi))
+            xi = max(int(universo_min), min(int(universo_max), xi))
+            if xi not in base2:
+                base2.append(xi)
+
+        base2 = v16_normalizar_lista_universo(base2, universo_min, universo_max, n_carro=n_carro)
+        out.append(base2)
+
+    return out
+
+
+def v16_gerar_listas_extra(listas_base, total_desejado, universo_min, universo_max, anchors, ruido_lo, ruido_hi, p_anchor, n_carro=6):
+    """Gera listas extras (N_EXTRA) sem explosão: deriva do pacote base com microvariações controladas."""
+    if not listas_base:
+        return []
+    pacote = [tuple(v16_normalizar_lista_universo(l, universo_min, universo_max, n_carro=n_carro)) for l in listas_base]
+    pacote_set = set(pacote)
+
+    anchors = [int(a) for a in (anchors or []) if str(a).strip().isdigit()]
+    anchors = [a for a in anchors if int(universo_min) <= a <= int(universo_max)]
+
+    guard = 0
+    while len(pacote) < int(total_desejado) and guard < 2000:
+        guard += 1
+        origem = list(random.choice(pacote))
+        # aplica gradiente de novo (uma passada) pra criar variação
+        deriv = v16_aplicar_gradiente_intersecao([origem], universo_min, universo_max, anchors, ruido_lo, ruido_hi, p_anchor, n_carro=n_carro)
+        if not deriv:
+            continue
+        cand = tuple(deriv[0])
+        if cand not in pacote_set:
+            pacote_set.add(cand)
+            pacote.append(cand)
+
+    return [list(x) for x in pacote[: int(total_desejado)]]
 
 
 def v16_atualizar_estado_orbita(serie_base: str, listas_top: list, universo_min: int, universo_max: int) -> dict:
@@ -1039,6 +1365,73 @@ def v16_atualizar_estado_orbita(serie_base: str, listas_top: list, universo_min:
     st.session_state["v16_orbita_info"] = info
     return info
 
+
+
+# ============================================================
+# V16 Premium — Interceptação por Órbita (E1/E2)
+# - NÃO trava o operador
+# - NÃO remove nada do motor existente
+# - Apenas acrescenta/ajusta o pacote Top10 quando houver E2
+# ============================================================
+
+def v16_gerar_listas_interceptacao_orbita(info_orbita, universo_min, universo_max, n_carro, qtd=4, seed=0):
+    """Gera listas densas de interceptação quando o estado é E2 (órbita incipiente).
+    Objetivo: 'pegar o 6 na virada' sem expandir universo, usando âncoras do pacote.
+    NÃO garante acerto. NÃO decide volume. Apenas oferece listas candidatas.
+    """
+    if not info_orbita or info_orbita.get("estado") != "E2":
+        return []
+
+    anchors = list(info_orbita.get("anchors", []) or [])
+    if len(anchors) == 0:
+        return []
+
+    # pool = âncoras + top frequentes (sem repetir)
+    top_freq = [p for p in (info_orbita.get("top_freq", []) or []) if p not in anchors]
+    pool = anchors + top_freq
+
+    # sanidade de universo
+    pool = [p for p in pool if universo_min <= p <= universo_max]
+    anchors = [p for p in anchors if universo_min <= p <= universo_max]
+    if len(anchors) == 0:
+        return []
+
+    rng = random.Random(int(seed) & 0xFFFFFFFF)
+
+    # mínimo de âncoras dentro de cada lista (quanto mais, mais denso)
+    min_anchors = min(len(anchors), max(2, min(3, n_carro - 2)))
+
+    # candidatos para completar (evita explosão combinatória)
+    complementos = [p for p in pool if p not in anchors]
+    if len(complementos) < (n_carro - min_anchors):
+        # fallback: completa com universo bruto, sem sair do universo
+        complementos = complementos + [p for p in range(universo_min, universo_max + 1) if p not in pool]
+    complementos = list(dict.fromkeys(complementos))  # unique
+
+    listas = []
+    tentativas = 0
+    limite_tentativas = 600
+
+    while len(listas) < qtd and tentativas < limite_tentativas:
+        tentativas += 1
+
+        # escolhe subconjunto de âncoras
+        anchors_escolhidas = rng.sample(anchors, k=min_anchors) if len(anchors) > min_anchors else anchors[:]
+        faltam = n_carro - len(anchors_escolhidas)
+        if faltam <= 0:
+            lista = sorted(anchors_escolhidas[:n_carro])
+        else:
+            comp = rng.sample(complementos, k=faltam) if len(complementos) >= faltam else complementos[:faltam]
+            lista = sorted(list(dict.fromkeys(anchors_escolhidas + comp)))[:n_carro]
+
+        if len(lista) != n_carro:
+            continue
+        if not all(universo_min <= x <= universo_max for x in lista):
+            continue
+        if lista not in listas:
+            listas.append(lista)
+
+    return listas
 
 def v16_identificar_df_base() -> Tuple[Optional[str], Optional[pd.DataFrame]]:
     """
@@ -5622,31 +6015,120 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_top10 = listas_totais[:10]
 
     st.session_state["modo6_listas_totais"] = listas_totais
-    st.session_state["modo6_listas_top10"] = listas_top10
 
-    # 📌 Pacote atual (para Backtest Rápido N=60 + camadas V16)
-    try:
-        serie_base_atual = f"C{len(historico)}"
-    except Exception:
-        serie_base_atual = st.session_state.get("serie_base", "N/D")
+# ============================================================
+# Órbita (E1/E2) aplicada ao pacote do Modo 6 (sem travas)
+# ============================================================
+info_orbita = v16_calcular_orbita_pacote(listas_top10, universo_min, universo_max)
+v16_atualizar_estado_orbita(info_orbita)
 
-    st.session_state["pacote_listas_atual"] = listas_top10
-    st.session_state["pacote_serie_base_atual"] = serie_base_atual
+listas_intercept = []
+if info_orbita.get("estado") == "E2":
+    # Gera algumas listas densas adicionais e mistura com o Top10, preservando quantidade
+    # (sem remover o pacote; apenas substitui as piores por coesão/interseção)
+    listas_intercept = v16_gerar_listas_interceptacao_orbita(
+        info_orbita,
+        universo_min=universo_min,
+        universo_max=universo_max,
+        n_carro=n,
+        qtd=min(4, max(2, len(listas_top10)//3)),
+        seed=st.session_state.get("serie_base_idx", 0)
+    )
 
-    # 🟡 Camada ORBITA (E1/E2) — leitura objetiva do pacote (sem travas)
+# Montagem final do pacote (mantém o tamanho original)
+listas_top10_final = list(listas_top10)
+
+if len(listas_intercept) > 0:
+    # score por proximidade com âncoras (mais âncoras = melhor interceptação)
+    anchors_set = set(info_orbita.get("anchors", []) or [])
+    def _score(L):
+        return sum(1 for x in L if x in anchors_set)
+
+    # escolhe quem fica: junta e pega os melhores
+    candidatos = []
+    for L in listas_top10:
+        candidatos.append((L, _score(L), "base"))
+    for L in listas_intercept:
+        candidatos.append((L, _score(L) + 0.5, "intercept"))  # leve viés para intercept
+    # remove duplicados mantendo melhor score
+    dedup = {}
+    for L,sc,tag in candidatos:
+        k = tuple(L)
+        if k not in dedup or sc > dedup[k][0]:
+            dedup[k] = (sc, tag, L)
+    candidatos2 = sorted(dedup.values(), key=lambda t: t[0], reverse=True)
+    listas_top10_final = [t[2] for t in candidatos2[:len(listas_top10)]]
+
+    # guarda no estado (para RF / Backtest do pacote)
+    st.session_state["modo6_listas_intercept_orbita"] = listas_intercept
+    st.session_state["modo6_orbita_info"] = info_orbita
+
+    st.session_state["modo6_listas_top10"] = listas_top10_final
+    listas_top10 = listas_top10_final  # exibição e downstream
+
+    # Guardar no estado (Pacote Modo 6) — base + N_EXTRA condicional (sem painel)
+    # O operador continua decidindo quantas listas levar (postura / orçamento).
     try:
         umin = int(st.session_state.get("universo_min", 1))
         umax = int(st.session_state.get("universo_max", 60))
     except Exception:
         umin, umax = 1, 60
 
-    _ = v16_atualizar_estado_orbita(serie_base_atual, listas_top10, umin, umax)
-    st.session_state["modo6_listas"] = listas_totais
+    # 1) Leitura ORBITA do pacote base (antes do extra)
+    orb_meta = v16_calcular_orbita_pacote(listas_top10, umin, umax) if listas_top10 else {"estado": "E0"}
+    grad = v16_calcular_gradiente_e1(orb_meta)
+
+    # 2) Aplicar gradiente de interseção (E1/E2) no pacote base — sem travas
+    if grad.get("gradiente") != "G0":
+        anchors = orb_meta.get("anchors", [])
+        listas_totais = v16_aplicar_gradiente_intersecao(
+            listas_totais, umin, umax, anchors=anchors,
+            ruido_lo=grad.get("ruido_lo", -2), ruido_hi=grad.get("ruido_hi", 2),
+            p_anchor=grad.get("p_anchor", 0.25), n_carro=n_real
+        )
+        # Recalcular TOP-10 após ajuste (para refletir a antecipação)
+        listas_top10 = listas_totais[: min(10, len(listas_totais))]
+    else:
+        anchors = orb_meta.get("anchors", [])
+
+    # 3) N_EXTRA automático (expansão condicional do pacote disponível)
+    n_base = int(len(listas_totais) or 0)
+    n_extra = 0
+    if grad.get("gradiente") != "G0" and n_base > 0:
+        n_extra = int(round(n_base * float(grad.get("n_extra_factor", 0.0) or 0.0)))
+        # Regras simples: mínimo pequeno, teto curto (sem explosão)
+        if n_extra > 0 and n_extra < 2:
+            n_extra = 2
+        n_extra = max(0, min(12, n_extra))
+
+    n_total = n_base + n_extra
+
+    # 4) Gerar pacote total (base + extra) preservando o espírito: microvariação controlada
+    if n_total > n_base:
+        pacote_total = v16_gerar_listas_extra(
+            listas_totais, n_total, umin, umax, anchors=anchors,
+            ruido_lo=grad.get("ruido_lo", -2), ruido_hi=grad.get("ruido_hi", 2),
+            p_anchor=grad.get("p_anchor", 0.25), n_carro=n_real
+        )
+    else:
+        pacote_total = list(listas_totais)
+
+    # Persistência para RF / Bala Humano / Registro
+    st.session_state["pacote_listas_atual"] = pacote_total
+    st.session_state["modo6_listas"] = pacote_total
+    st.session_state["modo6_n_base"] = n_base
+    st.session_state["modo6_n_extra"] = n_extra
+    st.session_state["modo6_n_total"] = n_total
+    st.session_state["modo6_gradiente"] = grad.get("gradiente", "G0")
+
+    # Atualizar Estado ORBITA (usando Top-10 do pacote final)
+    listas_top10_final = pacote_total[: min(10, len(pacote_total))]
+    _ = v16_atualizar_estado_orbita(serie_base_atual, listas_top10_final, umin, umax)
 
     st.success(
         f"Modo 6 (PRÉ-ECO | n-base={n_real}) — "
-        f"{len(listas_totais)} listas totais | "
-        f"{len(listas_top10)} priorizadas (Top 10)."
+        f"{len(pacote_total)} listas totais (base={n_base} + extra={n_extra}) | "
+        f"{len(listas_top10_final)} priorizadas (Top 10)."
     )
 
 # ============================================================
@@ -6785,6 +7267,22 @@ if painel == "📘 Relatório Final":
 
     listas_ultra = st.session_state.get("turbo_ultra_listas_leves") or []
 
+    # ------------------------------------------------------------
+    # V16 — Registro automático do pacote (para Backtest N=60)
+    # ------------------------------------------------------------
+    # Sem botões, sem manual: se existe pacote do Modo 6 nesta rodada,
+    # ele vira o "pacote atual" auditável.
+    pacote_top = listas_m6_totais[:10] if len(listas_m6_totais) >= 10 else listas_m6_totais
+    st.session_state["pacote_listas_atual"] = pacote_top
+
+    # ------------------------------------------------------------
+    # V16 — CAMADA ORBITA (E1/E2) sobre o pacote atual
+    # ------------------------------------------------------------
+    universo_min = st.session_state.get("universo_min", 1)
+    universo_max = st.session_state.get("universo_max", 60)
+    v16_atualizar_orbita_session_state(pacote_top, universo_min, universo_max)
+
+
     # Validação mínima
     if not listas_m6_totais:
         exibir_bloco_mensagem(
@@ -6949,6 +7447,12 @@ if painel == "📘 Relatório Final":
     NR_PERCENT: {st.session_state.get("nr_percent", "N/D")}
     K_STAR: {st.session_state.get("k_star", "N/D")}
     DIVERGENCIA: {st.session_state.get("divergencia_s6_mc", "N/D")}
+    ORBITA_ESTADO: {st.session_state.get("v16_orbita", {}).get("estado", "N/D")}
+    ORBITA_SCORE: {st.session_state.get("v16_orbita", {}).get("score", "N/D")}
+    ORBITA_FMAX: {st.session_state.get("v16_orbita", {}).get("f_max", "N/D")}
+    ORBITA_RANGE8: {st.session_state.get("v16_orbita", {}).get("range_8", "N/D")}
+    ORBITA_PARES_GE2: {st.session_state.get("v16_orbita", {}).get("pct_pares_ge2", "N/D")}
+    ORBITA_PARES_GE3: {st.session_state.get("v16_orbita", {}).get("pct_pares_ge3", "N/D")}
     UNIVERSO: {universo_min}-{universo_max}
     N_CARRO: {n_alvo if n_alvo is not None else "N/D"}
     EIXO1_NUCLEO_DETECTADO: {'SIM' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'NÃO'}
@@ -6958,6 +7462,10 @@ if painel == "📘 Relatório Final":
     EIXO1_LEITURA: {' '.join(eixo1_resultado['leitura_sintetica']) if eixo1_resultado else 'pacote disperso'}
 ORBITA_ESTADO: {st.session_state.get("v16_orbita_info", {}).get("estado", "N/D")}
 ORBITA_SELO: {st.session_state.get("v16_orbita_info", {}).get("selo", "N/D")}
+ORBITA_GRADIENTE: {st.session_state.get("modo6_gradiente", "G0")}
+N_BASE: {st.session_state.get("modo6_n_base", "N/D")}
+N_EXTRA: {st.session_state.get("modo6_n_extra", "N/D")}
+N_TOTAL: {st.session_state.get("modo6_n_total", "N/D")}
     """.strip()
     
         st.code(registro_txt, language="text")
@@ -7040,12 +7548,21 @@ ORBITA_SELO: {st.session_state.get("v16_orbita_info", {}).get("selo", "N/D")}
         # -------------------------------
         # Compatibilidade de densidade
         # -------------------------------
-        if eixo1_ok and regime.startswith("🟩"):
+        orb = st.session_state.get("v16_orbita", {}) or {}
+        orb_estado = orb.get("estado", "E0")
+
+        # A camada ÓRBITA não "cria" núcleo — mas pode liberar interceptação densa
+        # quando o pacote mostra coesão suficiente (E2).
+        if orb_estado == "E2":
+            compatibilidade = "interceptação densa (órbita incipiente)"
+        elif orb_estado == "E1":
+            compatibilidade = "preparação densa leve (quase-órbita)"
+        elif eixo1_ok and regime.startswith("🟩"):
             compatibilidade = "microvariações / envelope estreito"
         elif eixo1_ok:
             compatibilidade = "repescagem controlada"
         else:
-            compatibilidade = "nenhuma (densidade bloqueada)"
+            compatibilidade = "nenhuma (sem sinal interceptável)"
     
         # -------------------------------
         # Resumo do EIXO 1 (canônico)
@@ -7166,10 +7683,26 @@ ORBITA_SELO: {st.session_state.get("v16_orbita_info", {}).get("selo", "N/D")}
         # ------------------------------------------------------------
         st.markdown("### 2️⃣ Formas de Densidade Compatíveis (canônico)")
 
-        st.write("- ✔ **Microvariações controladas**")
-        st.write("- ✔ **Envelope estreito**")
-        st.write("- ⚠ **Repescagem controlada**")
-        st.write("- ❌ **Expansão de universo** (incompatível com o espírito do Bala Humano)")
+        # As "formas" são informativas: o sistema não trava.
+        orb_estado = (orb or {}).get("estado", "E0")
+
+        if orb_estado == "E2":
+            st.write("- ✅ **Interceptação densa (E2 — órbita incipiente)**")
+            st.write("- ✔ **Microvariações controladas** (em torno das âncoras)")
+            st.write("- ✔ **Envelope estreito** (protege o desenho)")
+            st.write("- ⚠ **Repescagem controlada** (apenas se houver ruído/duas enseadas)")
+            st.write("- ❌ **Expansão de universo** (quebra a órbita)")
+        elif orb_estado == "E1":
+            st.write("- ✅ **Preparação densa leve (E1 — quase-órbita)**")
+            st.write("- ✔ **Microvariações controladas**")
+            st.write("- ✔ **Envelope estreito**")
+            st.write("- ⚠ **Repescagem controlada**")
+            st.write("- ❌ **Expansão de universo** (incompatível com a leitura)")
+        else:
+            st.write("- ✔ **Microvariações controladas**")
+            st.write("- ✔ **Envelope estreito**")
+            st.write("- ⚠ **Repescagem controlada**")
+            st.write("- ❌ **Expansão de universo** (incompatível com o espírito do Bala Humano)")
 
         st.caption(
             "Observação: aqui ainda não há escolha automática de formato. "
