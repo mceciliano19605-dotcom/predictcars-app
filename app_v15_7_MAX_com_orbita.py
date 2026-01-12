@@ -6019,7 +6019,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ============================================================
     # Órbita (E1/E2) aplicada ao pacote do Modo 6 (sem travas)
     # ============================================================
-    info_orbita = v16_calcular_orbita_pacote(listas_top10, universo_min, universo_max)
+    info_orbita = v16_calcular_orbita_pacote(listas_top10, umin, umax)
     v16_atualizar_estado_orbita(info_orbita)
     
     listas_intercept = []
@@ -6028,8 +6028,8 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         # (sem remover o pacote; apenas substitui as piores por coesão/interseção)
         listas_intercept = v16_gerar_listas_interceptacao_orbita(
             info_orbita,
-            universo_min=universo_min,
-            universo_max=universo_max,
+            umin=umin,
+            umax=umax,
             n_carro=n,
             qtd=min(4, max(2, len(listas_top10)//3)),
             seed=st.session_state.get("serie_base_idx", 0)
