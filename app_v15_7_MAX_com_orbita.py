@@ -591,6 +591,39 @@ def v16_gerar_listas_extra_por_orbita(info_orbita, universo_min, universo_max, n
         return []
 
 
+
+# ============================================================
+# V16 — APS (Auditoria de Postura do Sistema) — Observacional
+# ============================================================
+def v16_calcular_aps_postura(nr_percent=None, orbita_selo=None, eco_acionabilidade=None, anti_exato_level=None):
+    """APS = Auditoria de Postura do Sistema.
+    - Observacional: NÃO muda listas, NÃO decide volume.
+    - Classifica risco/postura e sugere forma compatível (denso/espalhado/duplo pacote) sem impor.
+    """
+    try:
+        nr = float(nr_percent) if nr_percent is not None else None
+    except Exception:
+        nr = None
+
+    selo = (orbita_selo or "E0").strip()
+    eco = (eco_acionabilidade or "N/D").strip()
+
+    # Anti-exato: "alto"/"médio"/"baixo" ou None
+    ae = (str(anti_exato_level).strip().lower() if anti_exato_level is not None else "")
+
+    # Regras deliberadamente conservadoras
+    if (nr is not None) and (nr >= 75):
+        return ("🔴", "Postura Crítica", "Ruído crítico (NR alto). Evitar ancoragem forte; preferir pacote espalhado e baixo volume. Observação: agir com cautela.")
+    if (selo.startswith("E0")) and (nr is not None) and (nr >= 55):
+        return ("🟡", "Postura Sensível", "E0 + ruído alto: ancoragem excessiva é perigosa. Preferir duplo pacote (base + anti-âncora) sem aumentar universo.")
+    if (selo.startswith("E1") or selo.startswith("E2")) and (nr is not None) and (nr <= 55):
+        return ("🟢", "Postura Operável", "Órbita emergente com ruído sob controle. Densidade moderada pode ser compatível; manter governança e observar persistência.")
+    if eco.lower() in ("acionável", "acionavel") and (nr is not None) and (nr <= 60):
+        return ("🟢", "Postura Operável", "ECO acionável com ruído aceitável. Operar com disciplina: microvariações/envelope e testes de consistência.")
+    # fallback
+    return ("⚪", "Postura Neutra", "Sem evidência suficiente para postura ativa. Manter pacote base e acompanhar série a série (detecção/sensibilidade/gradiente).")
+
+
 st.set_page_config(
     page_title="Predict Cars V15.7 MAX — V16 Premium",
     page_icon="🚗",
@@ -1496,6 +1529,8 @@ def construir_navegacao_v157() -> str:
         "🧠 Memória Operacional — Registro Semi-Automático",
         "🧠 Laudo Operacional V16",
         "🧠 Diagnóstico ECO & Estado (V16)",
+        "🧭 RMO/DMO — Retrato do Momento (V16)",
+        "🧾 APS — Auditoria de Postura (V16)",
         "📊 V16 Premium — Erro por Regime (Retrospectivo)",
         "📊 V16 Premium — EXATO por Regime (Proxy)",
         "📊 V16 Premium — PRÉ-ECO → ECO (Persistência & Continuidade)",
@@ -2772,7 +2807,221 @@ elif painel == "🧠 Diagnóstico ECO & Estado (V16)":
         )
 
     st.markdown("### 🧠 Leitura Geral")
+    
     st.success(diag.get("leitura_geral", "—"))
+
+
+elif painel == "🧾 APS — Auditoria de Postura (V16)":
+
+    st.markdown("## 🧾 APS — Auditoria de Postura (V16)")
+    st.caption("Auditoria observacional do risco/postura do sistema. NÃO muda listas. NÃO decide volume. Serve para proteger contra postura errada (ex.: ancoragem excessiva em E0 + ruído alto).")
+
+    # Coleta segura
+    nr = st.session_state.get("nr_percent_v16") or st.session_state.get("nr_percent") or st.session_state.get("NR_PERCENT")
+    orbita = st.session_state.get("orbita_selo_v16") or st.session_state.get("orbita_selo") or st.session_state.get("ORBITA_SELO") or "E0"
+    diag = st.session_state.get("diagnostico_eco_estado_v16") or {}
+    eco_acion = diag.get("eco_acionabilidade") or "N/D"
+
+    anti_exato = st.session_state.get("anti_exato_level_v16") or st.session_state.get("anti_exato_level")  # opcional
+
+    selo, titulo, msg = v16_calcular_aps_postura(nr_percent=nr, orbita_selo=orbita, eco_acionabilidade=eco_acion, anti_exato_level=anti_exato)
+
+    st.markdown(f"### {selo} {titulo}")
+    st.info(msg)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Entradas observadas**")
+        st.write(f"- NR%: **{nr if nr is not None else 'N/D'}**")
+        st.write(f"- Órbita (selo): **{orbita}**")
+        st.write(f"- ECO (acionabilidade): **{eco_acion}**")
+        if anti_exato is not None:
+            st.write(f"- Anti-EXATO (nível): **{anti_exato}**")
+    with col2:
+        st.markdown("**Compatibilidades sugeridas (não obrigatórias)**")
+        if selo == "🟡":
+            st.write("- ✔ Duplo pacote: **base + anti-âncora**")
+            st.write("- ✔ Envelope estreito / microvariações")
+            st.write("- ⚠ Evitar ancoragem forte única")
+        elif selo == "🔴":
+            st.write("- ✔ Pacote mais espalhado e volume baixo")
+            st.write("- ⚠ Evitar densidade e insistência")
+        elif selo == "🟢":
+            st.write("- ✔ Densidade moderada pode ser compatível")
+            st.write("- ✔ Observar persistência por 1–3 séries")
+        else:
+            st.write("- ✔ Manter pacote base e acompanhar série a série")
+
+    st.markdown("### 📌 Nota de governança")
+    st.caption("Se a APS 'apontar o dedo', o sistema NÃO muda nada automaticamente nesta fase. A função aqui é blindar leitura e evitar postura errada; a execução segue com os pacotes já gerados.")
+
+
+elif painel == "🧭 RMO/DMO — Retrato do Momento (V16)":
+
+
+    st.markdown("## 🧭 RMO/DMO — Retrato do Momento (V16)")
+    st.caption("Síntese integrada (RMO) + governança temporal (DMO) + voz operacional (VOS). Observacional. Não decide ação.")
+
+    # -----------------------------
+    # Coleta segura de sinais
+    # -----------------------------
+    risco_pack = st.session_state.get("diagnostico_risco") or {}
+    diag = st.session_state.get("diagnostico_eco_estado_v16") or {}
+
+    nr_ruido = st.session_state.get("nr_percent")  # Painel de Ruído Condicional (normalizado)
+    nr_risco = risco_pack.get("nr_percent")        # Monitor de risco (NR% usado no índice)
+    div = risco_pack.get("divergencia")
+    classe_risco = risco_pack.get("classe_risco")
+    indice_risco = risco_pack.get("indice_risco")
+
+    orb = st.session_state.get("orbita_info") or {}
+    orb_estado = orb.get("estado", "N/D")
+    orb_selo = orb.get("selo", "N/D")
+    grad = st.session_state.get("orbita_gradiente", "N/D")
+    orb_score = st.session_state.get("orbita_score")
+
+    eco_forca = diag.get("eco_forca", diag.get("forca", "N/D"))
+    eco_persist = diag.get("eco_persistencia", diag.get("persistencia", "N/D"))
+    eco_acion = diag.get("eco_acionabilidade", diag.get("acionabilidade", "N/D"))
+
+    estado_alvo = diag.get("estado", "N/D")
+    estado_conf = "alta" if diag.get("estado_confiavel") else "baixa / transição"
+
+    b3_pronto = bool(st.session_state.get("b3_pronto_refinar", False))
+    pipeline_ok = bool(st.session_state.get("pipeline_flex_ultra_concluido", False))
+    turbo_ultra_rodou = bool(st.session_state.get("turbo_ultra_rodou", False))
+    modo6_total = st.session_state.get("modo6_n_total")
+
+    # -----------------------------
+    # RMO — Retrato do Momento Operacional
+    # -----------------------------
+    st.markdown("### 🖼️ RMO — Retrato do Momento Operacional")
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("NR% (Ruído)", f"{nr_ruido:.2f}%" if isinstance(nr_ruido, (int, float)) else "N/D")
+        st.caption("Painel 📡 Ruído Condicional")
+    with c2:
+        st.metric("NR% (Risco)", f"{nr_risco:.2f}%" if isinstance(nr_risco, (int, float)) else "N/D")
+        st.caption("Monitor k & k*")
+    with c3:
+        st.metric("Divergência S6×MC", f"{div:.4f}" if isinstance(div, (int, float)) else "N/D")
+        st.caption("do Monitor (quando disponível)")
+    with c4:
+        st.metric("Índice de Risco", f"{indice_risco:.4f}" if isinstance(indice_risco, (int, float)) else "N/D")
+        st.caption(classe_risco or "Classe N/D")
+
+    st.markdown("#### 🌊 ECO & 🐟 Estado (leitura mastigada)")
+    c5, c6, c7 = st.columns(3)
+    with c5:
+        st.write(f"**ECO**: {eco_forca} · {eco_persist} · {eco_acion}")
+    with c6:
+        st.write(f"**Estado do alvo**: {estado_alvo} (conf.: {estado_conf})")
+    with c7:
+        st.write(f"**Órbita**: {orb_estado} · {orb_selo} · grad {grad}")
+
+    st.markdown("#### 🧱 Integridade operacional (sem julgamento)")
+    c8, c9, c10 = st.columns(3)
+    with c8:
+        st.write(f"Pipeline FLEX ULTRA: **{'✅' if pipeline_ok else '—'}**")
+    with c9:
+        st.write(f"TURBO++ ULTRA rodou: **{'✅' if turbo_ultra_rodou else '—'}**")
+    with c10:
+        st.write(f"Modo 6 (N_total): **{modo6_total if modo6_total is not None else 'N/D'}**")
+
+    st.markdown("#### 🧼 Perna B (prontidão)")
+    st.write(f"B3 — Pronto para refinamento: **{'🟢 SIM' if b3_pronto else '🟡 AINDA NÃO'}**")
+
+    # -----------------------------
+    # DMO — Detector de Momento Operável (governança temporal)
+    # -----------------------------
+    st.markdown("### ⏳ DMO — Detector de Momento Operável (governança)")
+
+    # histórico curto (memória leve, apenas dentro da sessão)
+    if "dmo_hist_sinais" not in st.session_state:
+        st.session_state["dmo_hist_sinais"] = []
+    if "dmo_estado" not in st.session_state:
+        st.session_state["dmo_estado"] = "🟥 SOBREVIVÊNCIA"
+
+    sinais = []
+
+    # Sinal A: Órbita sugere estrutura (E2 ou E1 forte via gradiente)
+    if str(orb_estado).upper() in ["E2"]:
+        sinais.append("Órbita E2 (interceptação plausível)")
+    elif str(orb_estado).upper() in ["E1"] and str(grad).upper() in ["G2", "G3", "FORTE"]:
+        sinais.append("Órbita E1 forte (gradiente alto)")
+
+    # Sinal B: ECO persistente e (mesmo que fraco) não recuando
+    if str(eco_persist).lower() in ["persistente", "sim", "alta", "ok"]:
+        sinais.append("ECO com persistência")
+
+    # Sinal C: Ruído não está piorando (tendência curta)
+    # (usa NR do Painel de Ruído, quando disponível)
+    hist = st.session_state["dmo_hist_sinais"]
+    nr_ok = None
+    try:
+        if isinstance(nr_ruido, (int, float)):
+            prev_nr = st.session_state.get("dmo_prev_nr_ruido")
+            if isinstance(prev_nr, (int, float)):
+                nr_ok = (nr_ruido <= prev_nr + 1e-9)
+                if nr_ok:
+                    sinais.append("NR não crescente (curto prazo)")
+            st.session_state["dmo_prev_nr_ruido"] = float(nr_ruido)
+    except Exception:
+        pass
+
+    # Sinal D: B3 pronto (refinamento viável)
+    if b3_pronto:
+        sinais.append("B3 pronto (refinamento viável)")
+
+    # pontuação simples
+    score = int(len(sinais))
+    hist.append(score)
+    hist[:] = hist[-5:]  # memória curta
+
+    # regra de estados (consistente com o canônico)
+    estado_atual = st.session_state.get("dmo_estado", "🟥 SOBREVIVÊNCIA")
+    media2 = sum(hist[-2:]) / max(1, len(hist[-2:]))
+    media3 = sum(hist[-3:]) / max(1, len(hist[-3:]))
+
+    if len(hist) >= 3 and media3 >= 2.0:
+        novo_estado = "🟩 OPERÁVEL"
+    elif len(hist) >= 2 and media2 >= 1.0:
+        novo_estado = "🟨 ATENÇÃO"
+    else:
+        novo_estado = "🟥 SOBREVIVÊNCIA"
+
+    st.session_state["dmo_estado"] = novo_estado
+
+    # exibição
+    st.write(f"**Estado DMO:** {novo_estado}")
+    st.caption("O DMO não decide ação. Ele governa o tempo (evita sair cedo demais).")
+
+    if sinais:
+        st.markdown("**Sinais ativos agora:**")
+        for s in sinais:
+            st.write(f"- {s}")
+    else:
+        st.markdown("**Sinais ativos agora:** nenhum (isso é um estado válido)")
+
+    st.caption(f"Memória curta (scores últimas rodadas na sessão): {hist}")
+
+    # -----------------------------
+    # VOS — Voz Operacional do Sistema (1 frase, sem decisão)
+    # -----------------------------
+    st.markdown("### 🔊 VOS — Voz Operacional do Sistema (curta)")
+
+    if novo_estado.startswith("🟥"):
+        frase = "Ambiente não sustenta precisão. Permanecer ou trocar não altera o risco."
+        st.warning(frase)
+    elif novo_estado.startswith("🟨"):
+        frase = "Estrutura começa a se repetir. Evite desmontar o que ainda está coerente."
+        st.info(frase)
+    else:
+        frase = "Persistência custa menos que mudança. Reduza variação."
+        st.success(frase)
+
+    st.stop()
 
 elif painel == "📊 V16 Premium — Erro por Regime (Retrospectivo)":
 
