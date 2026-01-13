@@ -233,6 +233,18 @@ import textwrap
 from typing import List, Dict, Tuple, Optional, Any
 
 import numpy as np
+
+# ============================================================
+# V16 — GUARDA DE RUÍDO TÉCNICO (DIVISÃO SEGURA)
+# ============================================================
+def _div_segura(num, den, default=None):
+    try:
+        if den is None or den == 0:
+            return default
+        return num / den
+    except Exception:
+        return default
+
 import pandas as pd
 import streamlit as st
 
@@ -780,9 +792,7 @@ def v16_blindar_ultima_previsao_universo():
 # ============================================================
 
 # Inicialização de estado
-if "historico_df" not in st.session_state:
-    st.session_state["historico_df"] = None
-
+if "historico_d"\1\n"    st.session_state["historico_d"\1\n"
 if "ultima_previsao" not in st.session_state:
     st.session_state["ultima_previsao"] = None
 
@@ -817,10 +827,8 @@ def detectar_n_alvo(historico_df):
 
 
 # Atualização automática de n_alvo
-if st.session_state.get("historico_df") is not None:
-    st.session_state["n_alvo"] = detectar_n_alvo(
-        st.session_state["historico_df"]
-    )
+if st.session_state.get("historico_d"\1\n"    st.session_state["n_alvo"] = detectar_n_alvo(
+        st.session_state["historico_d"\1\n"    )
 
 # ============================================================
 # V16 PREMIUM — INFRAESTRUTURA UNIVERSAL
@@ -1007,8 +1015,7 @@ def pc16_calcular_continuidade_por_janelas(
         return {
             "ok": False,
             "motivo": f"Histórico insuficiente para janela={janela}. Séries válidas: {n}.",
-            "df": pd.DataFrame(),
-            "resumo": {}
+            "d"\1\n"            "resumo": {}
         }
 
     rows = []
@@ -1036,8 +1043,7 @@ def pc16_calcular_continuidade_por_janelas(
         return {
             "ok": False,
             "motivo": "Não foi possível gerar janelas (df vazio).",
-            "df": pd.DataFrame(),
-            "resumo": {}
+            "d"\1\n"            "resumo": {}
         }
 
     # Classificação de regime (ECO/PRE/RUIM) baseada em dx_janela
@@ -1090,8 +1096,7 @@ def pc16_calcular_continuidade_por_janelas(
     return {
         "ok": True,
         "motivo": "",
-        "df": df,
-        "resumo": resumo,
+        "d"\1\n"        "resumo": resumo,
         "resumo_geral": resumo_geral
     }
 
@@ -1769,8 +1774,7 @@ if painel == "🔵 MODO ESPECIAL — Evento Condicionado":
         "✔ Decisão HUMANA (Rogério + Auri)"
     )
 
-    historico_df = st.session_state.get("historico_df")
-
+    historico_df = st.session_state.get("historico_d"\1\n"
     # ============================================================
     # 🔵 SELETOR DE FONTE DO PACOTE (TURBO × MODO 6)
     # OBSERVACIONAL | NÃO decide | NÃO aprende | NÃO interfere
@@ -2012,8 +2016,7 @@ def v16_diagnosticar_eco_estado():
     NÃO altera motores | NÃO decide | NÃO bloqueia
     """
 
-    historico_df = st.session_state.get("historico_df")
-
+    historico_df = st.session_state.get("historico_d"\1\n"
     # -----------------------------
     # Fallback seguro
     # -----------------------------
@@ -2144,8 +2147,7 @@ def v16_diagnosticar_eco_estado():
 # ============================================================
 # ATIVAÇÃO SILENCIOSA — DIAGNÓSTICO ECO & ESTADO (V16)
 # ============================================================
-if "historico_df" in st.session_state:
-    try:
+if "historico_d"\1\n"    try:
         v16_diagnosticar_eco_estado()
     except Exception:
         pass
@@ -2222,8 +2224,7 @@ def v16_calcular_expectativa_curto_prazo(
 def v16_registrar_expectativa():
     estado = st.session_state.get("estado_alvo_v16")
     expectativa = v16_calcular_expectativa_curto_prazo(
-        st.session_state.get("historico_df"),
-        estado,
+        st.session_state.get("historico_d"\1\n"        estado,
         st.session_state.get("sentinela_kstar"),
         st.session_state.get("nr_percent"),
         st.session_state.get("div_s6_mc"),
@@ -2545,8 +2546,7 @@ if painel == "📁 Carregar Histórico (Arquivo)":
         )
         st.stop()
 
-    st.session_state["historico_df"] = df
-
+    st.session_state["historico_d"\1\n"
     metricas = calcular_metricas_basicas_historico(df)
     exibir_resumo_inicial_historico(metricas)
 
@@ -2707,8 +2707,7 @@ if "Carregar Histórico (Colar)" in painel:
 
         df = carregar_historico_universal(linhas)
 
-        st.session_state["historico_df"] = df
-
+        st.session_state["historico_d"\1\n"
         st.success(f"Histórico carregado com sucesso: {len(df)} séries")
 
 
@@ -2820,8 +2819,7 @@ elif painel == "📊 V16 Premium — Erro por Regime (Retrospectivo)":
 
     resumo_geral = out.get("resumo_geral", {})
     resumo = out.get("resumo", {})
-    df = out.get("df", pd.DataFrame())
-
+    df = out.get("d"\1\n"
     # ============================================================
     # RESULTADO OBJETIVO
     # ============================================================
@@ -2911,8 +2909,7 @@ if painel == "🎯 Compressão do Alvo (Observacional)":
     k_star = st.session_state.get("sentinela_kstar")
     risco = (st.session_state.get("diagnostico_risco") or {}).get("indice_risco")
 
-    df = st.session_state.get("historico_df")
-
+    df = st.session_state.get("historico_d"\1\n"
     if df is None or nr is None or div is None or k_star is None or risco is None:
         exibir_bloco_mensagem(
             "Pré-requisitos ausentes",
@@ -3115,12 +3112,10 @@ def v16_replay_historico_observacional(
 # ============================================================
 
 if (
-    "historico_df" in st.session_state
-    and "pipeline_matriz_norm" in st.session_state
+    "historico_d"\1\n"    and "pipeline_matriz_norm" in st.session_state
 ):
     registros_obs = v16_replay_historico_observacional(
-        df=st.session_state.get("historico_df"),
-        matriz_norm=st.session_state.get("pipeline_matriz_norm"),
+        df=st.session_state.get("historico_d"\1\n"        matriz_norm=st.session_state.get("pipeline_matriz_norm"),
         janela_max=800,  # DECISÃO DO COMANDO
     )
 
@@ -3253,11 +3248,9 @@ def construir_contexto_historico_offline_v16(df):
 # NÃO BLOQUEIA | NÃO DECIDE | NÃO OPERA
 # ============================================================
 
-if "historico_df" in st.session_state:
-    try:
+if "historico_d"\1\n"    try:
         construir_contexto_historico_offline_v16(
-            st.session_state.get("historico_df")
-        )
+            st.session_state.get("historico_d"\1\n"        )
     except Exception:
         pass
 
@@ -3343,9 +3336,7 @@ def extrair_eventos_k_historico(
 # EXECUÇÃO AUTOMÁTICA (APENAS SE HISTÓRICO EXISTIR)
 # ============================================================
 
-if "historico_df" in st.session_state:
-    df_hist = st.session_state.get("historico_df")
-
+if "historico_d"\1\n"    df_hist = st.session_state.get("historico_d"\1\n"
     eventos_k = extrair_eventos_k_historico(
         df=df_hist,
         estados_alvo=st.session_state.get("estado_alvo_historico"),
@@ -3442,8 +3433,7 @@ if painel == "🎯 Compressão do Alvo — Observacional (V16)":
         "Serve para responder: **o alvo está realmente comprimido / na mira?**"
     )
 
-    df = st.session_state.get("historico_df")
-    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+    df = st.session_state.get("historico_d"\1\n"    matriz_norm = st.session_state.get("pipeline_matriz_norm")
 
     if df is None or matriz_norm is None:
         exibir_bloco_mensagem(
@@ -3680,8 +3670,7 @@ if painel == "Observação Histórica — Eventos k":
     st.markdown("## Observação Histórica — Eventos k")
     st.caption("Leitura passiva do histórico. Não interfere em decisões.")
 
-    df_hist = st.session_state.get("historico_df")
-
+    df_hist = st.session_state.get("historico_d"\1\n"
     if df_hist is None or df_hist.empty:
         exibir_bloco_mensagem(
             "Histórico ausente",
@@ -3758,8 +3747,7 @@ if painel == "🛰️ Sentinelas — k* (Ambiente de Risco)":
 
     st.markdown("## 🛰️ Sentinelas — k* (Ambiente de Risco) — V15.7 MAX")
 
-    df = st.session_state.get("historico_df")
-
+    df = st.session_state.get("historico_d"\1\n"
     if df is None:
         exibir_bloco_mensagem(
             "Histórico não carregado",
@@ -3890,8 +3878,7 @@ if painel == "🛣️ Pipeline V14-FLEX ULTRA":
 
     st.markdown("## 🛣️ Pipeline V14-FLEX ULTRA — V15.7 MAX")
 
-    df = st.session_state.get("historico_df")
-
+    df = st.session_state.get("historico_d"\1\n"
     if df is None:
         exibir_bloco_mensagem(
             "Histórico não carregado",
@@ -4017,8 +4004,7 @@ if painel == "🔁 Replay LIGHT":
 
     st.markdown("## 🔁 Replay LIGHT — V15.7 MAX")
 
-    df = st.session_state.get("historico_df")
-    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+    df = st.session_state.get("historico_d"\1\n"    matriz_norm = st.session_state.get("pipeline_matriz_norm")
 
     if df is None or matriz_norm is None:
         exibir_bloco_mensagem(
@@ -4081,8 +4067,7 @@ if painel == "🔁 Replay ULTRA":
 
     st.markdown("## 🔁 Replay ULTRA — V15.7 MAX")
 
-    df = st.session_state.get("historico_df")
-    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+    df = st.session_state.get("historico_d"\1\n"    matriz_norm = st.session_state.get("pipeline_matriz_norm")
 
     if df is None or matriz_norm is None:
         exibir_bloco_mensagem(
@@ -4152,8 +4137,7 @@ if painel == "⚙️ Modo TURBO++ HÍBRIDO":
 
     st.markdown("## ⚙️ Modo TURBO++ HÍBRIDO — V15.7 MAX")
 
-    df = st.session_state.get("historico_df")
-    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+    df = st.session_state.get("historico_d"\1\n"    matriz_norm = st.session_state.get("pipeline_matriz_norm")
 
     if df is None or matriz_norm is None:
         exibir_bloco_mensagem(
@@ -4631,8 +4615,7 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     # ------------------------------------------------------------
     # BUSCA DE ESTADO (SOMENTE AQUI)
     # ------------------------------------------------------------
-    df = st.session_state.get("historico_df")
-    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+    df = st.session_state.get("historico_d"\1\n"    matriz_norm = st.session_state.get("pipeline_matriz_norm")
 
     _kstar_raw = st.session_state.get("sentinela_kstar")
     k_star = float(_kstar_raw) if isinstance(_kstar_raw, (int, float)) else 0.0
@@ -4816,8 +4799,7 @@ if painel == "📡 Painel de Ruído Condicional":
 
     st.markdown("## 📡 Painel de Ruído Condicional — V15.7 MAX")
 
-    df = st.session_state.get("historico_df")
-    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+    df = st.session_state.get("historico_d"\1\n"    matriz_norm = st.session_state.get("pipeline_matriz_norm")
 
     if df is None or matriz_norm is None:
         exibir_bloco_mensagem(
@@ -4871,8 +4853,7 @@ if painel == "📡 Painel de Ruído Condicional":
     except Exception as erro:
         exibir_bloco_mensagem(
             "Ruído indeterminado (base insuficiente / ruído técnico)",
-            f"Métrica de ruído não pôde ser calculada com segurança.
-
+            "\1\n"
 Detalhes técnicos: {erro}",
             tipo="warning",
         )
@@ -4971,8 +4952,7 @@ elif painel == "🧼 B1 — Higiene de Passageiros":
         "Não remove números. Não decide listas. Preparação para Perna B."
     )
 
-    df = st.session_state.get("historico_df")
-
+    df = st.session_state.get("historico_d"\1\n"
     if df is None or df.empty:
         st.info("Histórico não carregado.")
         st.stop()
@@ -5158,8 +5138,7 @@ elif painel == "🧩 B2 — Coerência Interna das Listas":
     )
 
     # Registro silencioso
-    st.session_state["b2_coerencia_df"] = df_b2
-
+    st.session_state["b2_coerencia_d"\1\n"
     st.success("B2 concluído — leitura registrada com sucesso.")
 
 # ============================================================
@@ -5183,8 +5162,7 @@ elif painel == "🟢 B3 — Prontidão (Refinamento)":
     # Leituras já consolidadas
     # ------------------------------------------------------------
     diag = st.session_state.get("diagnostico_eco_estado_v16", {})
-    df_b2 = st.session_state.get("b2_coerencia_df")
-
+    df_b2 = st.session_state.get("b2_coerencia_d"\1\n"
     if not diag or df_b2 is None or df_b2.empty:
         st.info(
             "Leituras insuficientes para avaliar prontidão.\n\n"
@@ -5374,8 +5352,7 @@ if painel == "🧭 Monitor de Risco — k & k*":
 
     st.markdown("## 🧭 Monitor de Risco — k & k* — V15.7 MAX")
 
-    df = st.session_state.get("historico_df")
-    k_star = st.session_state.get("sentinela_kstar")
+    df = st.session_state.get("historico_d"\1\n"    k_star = st.session_state.get("sentinela_kstar")
     nr_percent = st.session_state.get("nr_percent")
     divergencia = st.session_state.get("div_s6_mc")
 
@@ -5638,8 +5615,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     st.markdown("## 🎯 Modo 6 Acertos — Execução")
 
-    df = st.session_state.get("historico_df")
-
+    df = st.session_state.get("historico_d"\1\n"
     # ------------------------------------------------------------
     # k* (fallback seguro)
     # ------------------------------------------------------------
@@ -5939,8 +5915,7 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
     # ------------------------------
     # Guardas canônicas (EVIDÊNCIA REAL)
     # ------------------------------
-    historico_df = st.session_state.get("historico_df")
-    n_alvo = st.session_state.get("n_alvo")
+    historico_df = st.session_state.get("historico_d"\1\n"    n_alvo = st.session_state.get("n_alvo")
     k_calculado = st.session_state.get("k_calculado") or st.session_state.get("k_star")
 
     # Evidências indiretas do pipeline (como ele REALMENTE funciona)
@@ -6182,8 +6157,7 @@ if painel == "🧩 MVP-U3 — Cobertura Universal":
     # ------------------------------------------------------------
     # Recuperação segura do histórico
     # ------------------------------------------------------------
-    historico_df = st.session_state.get("historico_df")
-    if historico_df is None or historico_df.empty:
+    historico_df = st.session_state.get("historico_d"\1\n"    if historico_df is None or historico_df.empty:
         st.warning("Histórico não encontrado. Carregue o histórico antes.")
         st.stop()
 
@@ -6307,8 +6281,7 @@ if painel == "📈 MVP-U4 — Eficiência Marginal por Custo":
     # ------------------------------------------------------------
     # Recuperação do histórico e n_alvo
     # ------------------------------------------------------------
-    historico_df = st.session_state.get("historico_df")
-    n_alvo = st.session_state.get("n_alvo")
+    historico_df = st.session_state.get("historico_d"\1\n"    n_alvo = st.session_state.get("n_alvo")
 
     if historico_df is None or historico_df.empty or not n_alvo:
         st.warning("Histórico ou n_alvo indisponível. Carregue o histórico primeiro.")
@@ -6472,8 +6445,7 @@ if painel == "🧪 Testes de Confiabilidade REAL":
 
     st.markdown("## 🧪 Testes de Confiabilidade REAL — V15.7 MAX")
 
-    df = st.session_state.get("historico_df")
-    listas_m6 = st.session_state.get("modo6_listas")
+    df = st.session_state.get("historico_d"\1\n"    listas_m6 = st.session_state.get("modo6_listas")
     ultima_prev = st.session_state.get("ultima_previsao")
 
     if df is None or listas_m6 is None or ultima_prev is None:
@@ -6636,8 +6608,7 @@ if painel == "🧪 Replay Curto — Expectativa 1–3 Séries":
         "Este painel **não prevê números** e **não altera decisões**."
     )
 
-    df = st.session_state.get("historico_df")
-    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+    df = st.session_state.get("historico_d"\1\n"    matriz_norm = st.session_state.get("pipeline_matriz_norm")
 
     if df is None or matriz_norm is None:
         exibir_bloco_mensagem(
@@ -7025,8 +6996,7 @@ if painel == "📘 Relatório Final":
     # ------------------------------------------------------------
     # 🧲 BLOCO 0 — SUGADOR DE ESTADO CONSOLIDADO
     # ------------------------------------------------------------
-    historico_df = st.session_state.get("historico_df")
-    n_alvo = st.session_state.get("n_alvo")
+    historico_df = st.session_state.get("historico_d"\1\n"    n_alvo = st.session_state.get("n_alvo")
 
     pipeline_status = st.session_state.get("pipeline_flex_ultra_concluido")
     ultima_prev = st.session_state.get("ultima_previsao")
@@ -7673,8 +7643,7 @@ if painel == "⏱️ Duração da Janela — Análise Histórica":
         "⚠️ Este painel NÃO prevê entrada de janela."
     )
 
-    df = st.session_state.get("historico_df")
-    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+    df = st.session_state.get("historico_d"\1\n"    matriz_norm = st.session_state.get("pipeline_matriz_norm")
 
     if df is None or matriz_norm is None:
         exibir_bloco_mensagem(
@@ -9375,12 +9344,10 @@ if "painel" in locals() and painel == "📊 V16 Premium — PRÉ-ECO | Contribui
 
     # Opção 2: tenta montar a partir de um DataFrame de histórico
     if historico_carros is None:
-        for kdf in ["df_historico", "df", "dados", "historico_df"]:
-            if kdf in st.session_state and isinstance(st.session_state[kdf], pd.DataFrame):
+        for kdf in ["df_historico", "df", "dados", "historico_d"\1\n"            if kdf in st.session_state and isinstance(st.session_state[kdf], pd.DataFrame):
                 dfh = st.session_state[kdf].copy()
                 # Tenta inferir colunas com números
-                cols_num = [c for c in dfh.columns if str(c).lower().strip() in ["n1","n2","n3","n4","n5","n6","a","b","c","d","e","f"]]
-                if len(cols_num) >= 5:
+                cols_num = [c for c in dfh.columns if str(c).lower().strip() in ["n1","n2","n3","n4","n5","n6","a","b","c","d","e",""\1\n"                if len(cols_num) >= 5:
                     historico_carros = []
                     for _, r in dfh.iterrows():
                         car = []
@@ -9676,8 +9643,7 @@ if painel == "🌐 Modo Universal — Avaliação Observacional":
         "Avalia listas existentes contra o alvo real (n_real)."
     )
 
-    df = st.session_state.get("historico_df")
-    n_real = st.session_state.get("n_alvo")
+    df = st.session_state.get("historico_d"\1\n"    n_real = st.session_state.get("n_alvo")
     listas = st.session_state.get("modo6_listas_totais") or []
 
     if df is None or n_real is None:
@@ -9755,8 +9721,7 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
     # ------------------------------------------------------------
     # Recuperação segura do histórico
     # ------------------------------------------------------------
-    historico_df = st.session_state.get("historico_df")
-
+    historico_df = st.session_state.get("historico_d"\1\n"
     if historico_df is None or historico_df.empty:
         st.warning("Histórico não encontrado. Carregue o histórico antes.")
         st.stop()
