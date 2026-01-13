@@ -624,6 +624,133 @@ def v16_calcular_aps_postura(nr_percent=None, orbita_selo=None, eco_acionabilida
     return ("⚪", "Postura Neutra", "Sem evidência suficiente para postura ativa. Manter pacote base e acompanhar série a série (detecção/sensibilidade/gradiente).")
 
 
+# ============================================================
+# V16 — SINCRONIZAÇÃO CANÔNICA (ALIASES) + ANTI-ÂNCORA (OBS)
+# ============================================================
+
+def v16_sync_aliases_canonicos(force: bool = False) -> dict:
+    """Sincroniza variáveis canônicas usadas no Relatório Final / Registro.
+    - Observacional: NÃO altera motores, NÃO altera listas, NÃO decide.
+    - Objetivo: evitar N/D indevido quando dados existem sob chaves antigas/alternativas.
+    """
+    mudancas = {}
+
+    # k* (sentinela)
+    if force or (st.session_state.get("k_star") is None):
+        if st.session_state.get("sentinela_kstar") is not None:
+            st.session_state["k_star"] = st.session_state.get("sentinela_kstar")
+            mudancas["k_star<=sentinela_kstar"] = True
+
+    # Divergência S6 vs MC
+    if force or (st.session_state.get("divergencia_s6_mc") is None):
+        if st.session_state.get("div_s6_mc") is not None:
+            st.session_state["divergencia_s6_mc"] = st.session_state.get("div_s6_mc")
+            mudancas["divergencia_s6_mc<=div_s6_mc"] = True
+
+    # ECO/Estado (painel V16 mastigado)
+    diag = st.session_state.get("diagnostico_eco_estado_v16")
+    if isinstance(diag, dict):
+        eco_txt = f"{diag.get('eco_forca','')} · {diag.get('eco_persistencia','')} · {diag.get('eco_acionabilidade','')}"
+        eco_txt = eco_txt.strip(" ·").strip()
+        if eco_txt and (force or (not st.session_state.get("eco_status")) or (st.session_state.get("eco_status") in ("N/D", "DESCONHECIDO"))):
+            st.session_state["eco_status"] = eco_txt
+            mudancas["eco_status<=diagnostico_eco_estado_v16"] = True
+
+        est_txt = str(diag.get("estado") or "").strip()
+        if est_txt and (force or (not st.session_state.get("estado_atual")) or (st.session_state.get("estado_atual") in ("N/D", "DESCONHECIDO"))):
+            st.session_state["estado_atual"] = est_txt
+            mudancas["estado_atual<=diagnostico_eco_estado_v16"] = True
+
+    return mudancas
+
+
+def v16_analisar_duplo_pacote_base_anti_ancora(
+    listas: list,
+    base_n: int = 10,
+    max_anti: int = 4,
+    core_presenca_min: float = 0.60,
+) -> dict:
+    """Analisa ancoragem do pacote (OBSERVACIONAL).
+
+    - Define um 'CORE' do pacote base (Top N) por presença em listas.
+    - Mede overlap (0..len(core)) de cada lista com o CORE.
+    - Sugere (sem impor) quais listas existentes podem servir como 'anti-âncora':
+        listas com overlap baixo com o CORE (mas ainda dentro do mesmo universo).
+
+    Retorna um dict com:
+    - core: lista de passageiros do CORE
+    - overlaps: lista de overlaps por lista (índice alinhado a 'listas')
+    - base_idx: índices (1-based) do pacote base
+    - anti_idx: índices (1-based) sugeridos como anti-âncora (existentes)
+    """
+    try:
+        if not listas or not isinstance(listas, list):
+            return {"core": [], "overlaps": [], "base_idx": [], "anti_idx": [], "nota": "sem_listas"}
+
+        base_n = int(base_n or 0)
+        base_n = max(1, min(base_n, len(listas)))
+        base = listas[:base_n]
+
+        # Presença por lista (não contagem bruta)
+        from collections import Counter
+
+        pres = Counter()
+        for L in base:
+            if not isinstance(L, (list, tuple)):
+                continue
+            for p in set(int(x) for x in L):
+                pres[p] += 1
+
+        if not pres:
+            return {"core": [], "overlaps": [0 for _ in listas], "base_idx": list(range(1, base_n + 1)), "anti_idx": [], "nota": "sem_presenca"}
+
+        # CORE: passageiros com presença >= core_presenca_min no pacote base.
+        core = [p for p, v in pres.items() if (v / float(base_n)) >= float(core_presenca_min)]
+        core = sorted(core)
+
+        # fallback: se core ficou vazio, usa TOP3 por presença (mais conservador)
+        if not core:
+            core = [p for p, _ in pres.most_common(3)]
+            core = sorted(core)
+
+        core_set = set(core)
+
+        overlaps = []
+        for L in listas:
+            if not isinstance(L, (list, tuple)):
+                overlaps.append(0)
+                continue
+            overlaps.append(len(set(int(x) for x in L).intersection(core_set)))
+
+        # Anti-âncora: fora do TopN (preferência), overlap baixo com CORE.
+        # Threshold: <=1 quando core >=3, senão <=0.
+        thr = 1 if len(core) >= 3 else 0
+
+        candidatos = []
+        for idx in range(base_n, len(listas)):
+            ov = overlaps[idx]
+            if ov <= thr:
+                candidatos.append((ov, idx))
+
+        # ordena por overlap menor e por índice estável
+        candidatos = sorted(candidatos, key=lambda t: (t[0], t[1]))
+        anti_idx = [i + 1 for _, i in candidatos[:max(0, int(max_anti))]]
+
+        return {
+            "core": core,
+            "overlaps": overlaps,
+            "base_idx": list(range(1, base_n + 1)),
+            "anti_idx": anti_idx,
+            "thr": thr,
+            "base_n": base_n,
+            "max_anti": int(max_anti),
+            "core_presenca_min": float(core_presenca_min),
+        }
+    except Exception:
+        return {"core": [], "overlaps": [], "base_idx": [], "anti_idx": [], "nota": "falha_silenciosa"}
+
+
+
 st.set_page_config(
     page_title="Predict Cars V15.7 MAX — V16 Premium",
     page_icon="🚗",
@@ -2063,6 +2190,7 @@ def v16_diagnosticar_eco_estado():
             "leitura_geral": "Histórico insuficiente para diagnóstico.",
         }
         st.session_state["diagnostico_eco_estado_v16"] = diag
+        v16_sync_aliases_canonicos()
         return diag
 
     # =========================================================
@@ -2775,6 +2903,10 @@ elif painel == "🧠 Diagnóstico ECO & Estado (V16)":
     st.markdown("## 🧠 Diagnóstico ECO & Estado — V16")
     st.caption("Leitura mastigada do ambiente e do alvo. Observacional.")
 
+    # Sincroniza chaves canônicas (evita N/D indevido no RF)
+    v16_sync_aliases_canonicos()
+
+
     diag = st.session_state.get("diagnostico_eco_estado_v16")
 
     if not diag:
@@ -2861,6 +2993,10 @@ elif painel == "🧭 RMO/DMO — Retrato do Momento (V16)":
 
     st.markdown("## 🧭 RMO/DMO — Retrato do Momento (V16)")
     st.caption("Síntese integrada (RMO) + governança temporal (DMO) + voz operacional (VOS). Observacional. Não decide ação.")
+
+    # Sincroniza chaves canônicas (ECO/Estado/k*/Divergência) antes do retrato
+    v16_sync_aliases_canonicos()
+
 
     # -----------------------------
     # Coleta segura de sinais
@@ -5161,6 +5297,10 @@ if painel == "📉 Painel de Divergência S6 vs MC":
 
     st.markdown("## 📉 Painel de Divergência S6 vs MC — V15.7 MAX")
 
+    # Sincroniza alias de divergência (div_s6_mc -> divergencia_s6_mc)
+    v16_sync_aliases_canonicos()
+
+
     divergencia = st.session_state.get("div_s6_mc", None)
 
     if divergencia is None:
@@ -7269,6 +7409,10 @@ if painel == "📘 Relatório Final":
 
     st.markdown("## 📘 Relatório Final — V15.7 MAX — V16 Premium Profundo")
 
+    # Sincroniza chaves canônicas (ECO/Estado/k*/Divergência) antes de consolidar
+    v16_sync_aliases_canonicos()
+
+
     # ------------------------------------------------------------
     # 🧲 BLOCO 0 — SUGADOR DE ESTADO CONSOLIDADO
     # ------------------------------------------------------------
@@ -7354,6 +7498,50 @@ if painel == "📘 Relatório Final":
     top10 = listas_m6_totais[:10]
     for i, lst in enumerate(top10, 1):
         st.markdown(f"**{i:02d})** {formatar_lista_passageiros(lst)}")
+
+
+    # ------------------------------------------------------------
+    # 🧷 Anti-Âncora (OBSERVACIONAL) — rotulagem Base × Anti
+    # ------------------------------------------------------------
+    try:
+        analise_anti = v16_analisar_duplo_pacote_base_anti_ancora(
+            listas=listas_m6_totais,
+            base_n=10,
+            max_anti=4,
+            core_presenca_min=0.60,
+        )
+        st.session_state["v16_anti_ancora"] = analise_anti
+
+        st.markdown("### 🧷 Anti-Âncora — Observacional (Base × Anti)")
+        core = analise_anti.get("core") or []
+        if core:
+            st.write("**CORE do pacote base (presença alta no Top 10):** " + ", ".join(map(str, core)))
+        else:
+            st.write("CORE indisponível (sem base suficiente).")
+
+        anti_idx = analise_anti.get("anti_idx") or []
+        if anti_idx:
+            st.success(
+                "Sugestão (não obrigatória): **Duplo pacote** = Base (Top 10) + "
+                + f"Anti-âncora (listas existentes): {', '.join('L'+str(i) for i in anti_idx)}"
+            )
+            for i in anti_idx:
+                try:
+                    lst = listas_m6_totais[int(i) - 1]
+                    ov = (analise_anti.get("overlaps") or [None])[int(i) - 1]
+                    st.write(f"**L{i:02d} (anti-âncora | overlap CORE={ov})** — {formatar_lista_passageiros(lst)}")
+                except Exception:
+                    pass
+        else:
+            st.info(
+                "Nenhuma lista anti-âncora clara foi detectada entre as listas disponíveis. "
+                "Isso é compatível com pacote muito comprimido (E0 + envelope estreito)."
+            )
+    except Exception:
+        st.session_state["v16_anti_ancora"] = None
+        # falha silenciosa (não derruba o RF)
+
+
 
     # ------------------------------------------------------------
     # 📊 EIXO 1 — CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
@@ -7457,6 +7645,8 @@ if painel == "📘 Relatório Final":
     EIXO1_PUXADORES: {', '.join(map(str, (eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes'])[:8])) if eixo1_resultado else '—'}
     EIXO1_CONVERGENCIA: {'alta' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 4 else 'média' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 2 else 'baixa'}
     EIXO1_LEITURA: {' '.join(eixo1_resultado['leitura_sintetica']) if eixo1_resultado else 'pacote disperso'}
+    PACOTE_BASE: Top10
+    PACOTE_ANTI_ANCORA: {", ".join("L"+str(i) for i in (st.session_state.get("v16_anti_ancora") or {}).get("anti_idx", [])) or "—"}
     """.strip()
     
         st.code(registro_txt, language="text")
