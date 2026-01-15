@@ -593,6 +593,234 @@ def v16_gerar_listas_extra_por_orbita(info_orbita, universo_min, universo_max, n
 
 
 # ============================================================
+# V16 — CAMADA FASE 2 (ESQUELETO) — DETECÇÃO → TRANSIÇÃO → NÚCLEO
+# ------------------------------------------------------------
+# Objetivo:
+#   Preparar infraestrutura observacional para:
+#   - Persistência (micro) por interseção entre séries recentes
+#   - Competição vs evidência (core dominante vs espalhamento)
+#   - Termômetro visual de estágio (0–100) para acompanhar série a série
+#
+# Regras INEGOCIÁVEIS:
+#   ✔ NÃO altera listas
+#   ✔ NÃO decide ação
+#   ✔ NÃO muda volumes
+#   ✔ NÃO mexe nos motores (Pipeline/TURBO/Modo 6)
+#   ✔ Só lê, classifica e registra (governança observacional)
+# ============================================================
+
+V16_FASE2_ESTAGIO_COMPETITIVO = "COMPETITIVO"
+V16_FASE2_ESTAGIO_TRANSICAO   = "TRANSIÇÃO"
+V16_FASE2_ESTAGIO_ACIONAVEL   = "ACIONÁVEL"
+
+
+def v16_fase2__colunas_passageiros(historico_df, n_alvo: int = 6):
+    """Detecta colunas p1..pN (robusto), sem assumir nomes fixos além do padrão p\d+."""
+    try:
+        if historico_df is None:
+            return []
+        cols = []
+        for c in list(historico_df.columns):
+            if isinstance(c, str) and re.fullmatch(r"p\d+", c.strip()):
+                cols.append(c.strip())
+        # ordena por índice numérico (p1..p6)
+        cols = sorted(cols, key=lambda x: int(x.replace("p", "")))
+        if n_alvo is not None and len(cols) >= int(n_alvo):
+            return cols[: int(n_alvo)]
+        return cols
+    except Exception:
+        return []
+
+
+def v16_fase2__serie_set(row, cols):
+    try:
+        vals = []
+        for c in cols:
+            v = row.get(c)
+            if v is None:
+                continue
+            try:
+                iv = int(v)
+                # guarda apenas passageiros positivos (k pode ser 0 em alguns históricos)
+                if iv > 0:
+                    vals.append(iv)
+            except Exception:
+                continue
+        return set(vals)
+    except Exception:
+        return set()
+
+
+def v16_fase2_detector_persistencia(historico_df, n_alvo: int = 6, janela: int = 3):
+    """Persistência micro por interseção nas últimas 'janela' séries.
+    Retorna:
+      - intersecoes: [|S(t-2)∩S(t-1)|, |S(t-1)∩S(t)|] (quando janela=3)
+      - score_persist: 0..20 (heurística simples e transparente)
+      - ok_persistência: bool
+    """
+    try:
+        if historico_df is None or len(historico_df) < max(3, int(janela)):
+            return {"intersecoes": [], "score_persist": 0, "ok_persistencia": False}
+
+        cols = v16_fase2__colunas_passageiros(historico_df, n_alvo=n_alvo)
+        if not cols:
+            return {"intersecoes": [], "score_persist": 0, "ok_persistencia": False}
+
+        tail = historico_df.tail(int(janela))
+        sets = [v16_fase2__serie_set(r, cols) for _, r in tail.iterrows()]
+        if len(sets) < 3:
+            return {"intersecoes": [], "score_persist": 0, "ok_persistencia": False}
+
+        inters = []
+        for i in range(1, len(sets)):
+            inters.append(len(sets[i - 1].intersection(sets[i])))
+
+        avg = float(sum(inters)) / float(len(inters)) if inters else 0.0
+
+        # score simples (0..20)
+        if avg >= 3.0:
+            score = 20
+        elif avg >= 2.0:
+            score = 12
+        elif avg >= 1.0:
+            score = 6
+        else:
+            score = 0
+
+        ok = all(x >= 2 for x in inters[-2:]) if len(inters) >= 2 else (inters and inters[-1] >= 2)
+
+        return {"intersecoes": inters, "score_persist": score, "ok_persistencia": bool(ok), "avg_intersec": avg}
+    except Exception:
+        return {"intersecoes": [], "score_persist": 0, "ok_persistencia": False}
+
+
+def v16_fase2_detector_competicao_core(analise_anti: dict):
+    """Leitura de competição via CORE do pacote base (Top N do Modo 6).
+    Quanto maior o CORE (e mais dominante), maior risco de ancoragem em E0/ruído alto.
+    Retorna score_competicao (0..30), e um indicador de 'competição caiu' (bom).
+    """
+    try:
+        analise_anti = analise_anti or {}
+        core = analise_anti.get("core") or []
+        core_size = int(len(core))
+
+        # score de "queda de competição" (bom) é inverso do core_size
+        # core grande => competição alta (ruim para E0+ruído), core pequeno => competição menor (melhor)
+        if core_size <= 1:
+            score = 30
+        elif core_size == 2:
+            score = 22
+        elif core_size == 3:
+            score = 14
+        elif core_size == 4:
+            score = 8
+        else:
+            score = 0
+
+        competicao_caiu = core_size <= 2
+        return {"core": core, "core_size": core_size, "score_competicao": score, "competicao_caiu": competicao_caiu}
+    except Exception:
+        return {"core": [], "core_size": 0, "score_competicao": 0, "competicao_caiu": False}
+
+
+def v16_fase2_termometro_estagio(nr_percent, orbita_selo: str, aps_selo: str, persist: dict, comp: dict):
+    """Termômetro visual 0–100 (observacional) para acompanhar estágio série a série.
+    Transparente (sem 'número mágico'): soma de componentes simples.
+    """
+    # Ruído (0..30): quanto menor NR%, melhor
+    s_ruido = 0
+    try:
+        if nr_percent is not None:
+            nr = float(nr_percent)
+            if nr <= 30:
+                s_ruido = 30
+            elif nr <= 45:
+                s_ruido = 20
+            elif nr <= 60:
+                s_ruido = 10
+            else:
+                s_ruido = 0
+    except Exception:
+        s_ruido = 0
+
+    # Órbita (0..30): E0=0, E1=15, E2=30
+    orb = str(orbita_selo or "E0")
+    if orb == "E2":
+        s_orbita = 30
+    elif orb == "E1":
+        s_orbita = 15
+    else:
+        s_orbita = 0
+
+    # Persistência (0..20)
+    s_persist = int((persist or {}).get("score_persist") or 0)
+    s_persist = max(0, min(20, s_persist))
+
+    # APS (0..20) — postura do sistema
+    selo = str(aps_selo or "⚪")
+    if selo == "🟢":
+        s_aps = 20
+    elif selo == "🟡":
+        s_aps = 15
+    elif selo == "⚪":
+        s_aps = 10
+    else:  # 🔴 ou N/D
+        s_aps = 0
+
+    # Competição (0..30) — já é “bom quando alto”
+    s_comp = int((comp or {}).get("score_competicao") or 0)
+    s_comp = max(0, min(30, s_comp))
+
+    total = int(max(0, min(100, s_ruido + s_orbita + s_persist + s_aps + s_comp)))
+
+    if total >= 66:
+        estagio = V16_FASE2_ESTAGIO_ACIONAVEL
+    elif total >= 35:
+        estagio = V16_FASE2_ESTAGIO_TRANSICAO
+    else:
+        estagio = V16_FASE2_ESTAGIO_COMPETITIVO
+
+    return {
+        "score": total,
+        "estagio": estagio,
+        "componentes": {
+            "ruido": s_ruido,
+            "orbita": s_orbita,
+            "persistencia": s_persist,
+            "aps": s_aps,
+            "competicao": s_comp,
+        },
+    }
+
+
+def v16_fase2_calcular_painel(historico_df, n_alvo: int, analise_anti: dict):
+    """Computa e registra (session_state) o pacote observacional da Fase 2."""
+    try:
+        nr = st.session_state.get("nr_percent_v16") or st.session_state.get("nr_percent")
+        orb = st.session_state.get("orbita_selo_v16") or st.session_state.get("orbita_selo") or "E0"
+        aps_selo = st.session_state.get("aps_postura_selo") or "⚪"
+
+        persist = v16_fase2_detector_persistencia(historico_df, n_alvo=n_alvo, janela=3)
+        comp = v16_fase2_detector_competicao_core(analise_anti or {})
+        termo = v16_fase2_termometro_estagio(nr, orb, aps_selo, persist, comp)
+
+        pacote = {
+            "nr_percent": nr,
+            "orbita": orb,
+            "aps_selo": aps_selo,
+            "persistencia": persist,
+            "competicao": comp,
+            "termometro": termo,
+        }
+
+        st.session_state["v16_fase2"] = pacote
+        return pacote
+    except Exception:
+        pacote = {"termometro": {"score": 0, "estagio": V16_FASE2_ESTAGIO_COMPETITIVO, "componentes": {}}}
+        st.session_state["v16_fase2"] = pacote
+        return pacote
+
+# ============================================================
 # V16 — APS (Auditoria de Postura do Sistema) — Observacional
 # ============================================================
 def v16_calcular_aps_postura(nr_percent=None, orbita_selo=None, eco_acionabilidade=None, anti_exato_level=None):
@@ -954,6 +1182,25 @@ if "diagnostico_risco" not in st.session_state:
 
 if "n_alvo" not in st.session_state:
     st.session_state["n_alvo"] = None
+
+if "v16_fase2" not in st.session_state:
+    st.session_state["v16_fase2"] = None
+
+if "v16_fase2_score" not in st.session_state:
+    st.session_state["v16_fase2_score"] = None
+
+if "v16_fase2_estagio" not in st.session_state:
+    st.session_state["v16_fase2_estagio"] = None
+
+if "aps_postura_selo" not in st.session_state:
+    st.session_state["aps_postura_selo"] = None
+
+if "aps_postura_titulo" not in st.session_state:
+    st.session_state["aps_postura_titulo"] = None
+
+if "aps_postura_msg" not in st.session_state:
+    st.session_state["aps_postura_msg"] = None
+
 
 
 # ============================================================
@@ -2957,6 +3204,20 @@ elif painel == "🧾 APS — Auditoria de Postura (V16)":
     anti_exato = st.session_state.get("anti_exato_level_v16") or st.session_state.get("anti_exato_level")  # opcional
 
     selo, titulo, msg = v16_calcular_aps_postura(nr_percent=nr, orbita_selo=orbita, eco_acionabilidade=eco_acion, anti_exato_level=anti_exato)
+
+    # Registro canônico (observacional)
+
+    try:
+
+        st.session_state["aps_postura_selo"] = selo
+
+        st.session_state["aps_postura_titulo"] = titulo
+
+        st.session_state["aps_postura_msg"] = msg
+
+    except Exception:
+
+        pass
 
     st.markdown(f"### {selo} {titulo}")
     st.info(msg)
@@ -6285,6 +6546,21 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     st.session_state["modo6_listas_top10"] = listas_top10
     st.session_state["modo6_listas"] = listas_totais
 
+    # ------------------------------------------------------------
+    # REGISTRO AUTOMÁTICO DO PACOTE ATUAL (Backtest Rápido N=60)
+    # ------------------------------------------------------------
+    # Regra: não decide ação e não muda geração.
+    # Apenas "congela" qual pacote está ativo para o painel de Backtest.
+    # Preferência: Top10 (priorizadas) quando existir; senão, usa o total.
+    try:
+        _pacote_bt = listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais
+        st.session_state["pacote_listas_atual"] = _pacote_bt
+        st.session_state["pacote_listas_origem"] = "Modo 6 (Top10)" if _pacote_bt is listas_top10 else "Modo 6 (Total)"
+    except Exception:
+        # Falha silenciosa: não deve travar a execução do Modo 6.
+        pass
+
+
     st.success(
         f"Modo 6 (PRÉ-ECO | n-base={n_real}) — "
         f"{len(listas_totais)} listas totais | "
@@ -7605,6 +7881,41 @@ if painel == "📘 Relatório Final":
     # 📌 REGISTRO CANÔNICO DO MOMENTO — DIAGNÓSTICO (COPIÁVEL)
     # ============================================================
     try:
+        try:
+            # ------------------------------------------------------------
+            # 🧭 FASE 2 (ESQUELETO) — Termômetro Visual de Estágio (0–100)
+            # ------------------------------------------------------------
+            st.markdown("### 🌡️ Termômetro Visual de Estágio (Fase 2 — Observacional)")
+            st.caption("0–100% | Não altera listas | Não decide ação | Serve para comparar série a série.")
+
+            pacote_f2 = v16_fase2_calcular_painel(
+                historico_df=historico_df,
+                n_alvo=n_alvo or 6,
+                analise_anti=st.session_state.get("v16_anti_ancora") or {},
+            )
+
+            termo = (pacote_f2 or {}).get("termometro") or {}
+            score = int(termo.get("score") or 0)
+            estagio = termo.get("estagio") or "N/D"
+            comps = termo.get("componentes") or {}
+
+            st.write(f"**Estágio atual:** **{estagio}**")
+            st.progress(max(0.0, min(1.0, score / 100.0)))
+            st.write(f"**Score:** {score}/100")
+
+            with st.expander("Ver componentes (transparente)"):
+                st.write(f"- Ruído (NR%): **{comps.get('ruido', 0)}** / 30")
+                st.write(f"- Órbita: **{comps.get('orbita', 0)}** / 30")
+                st.write(f"- Persistência (micro): **{comps.get('persistencia', 0)}** / 20")
+                st.write(f"- APS (postura): **{comps.get('aps', 0)}** / 20")
+                st.write(f"- Competição (core): **{comps.get('competicao', 0)}** / 30")
+
+            # Registro resumido para RF-GOV / auditoria
+            st.session_state["v16_fase2_score"] = score
+            st.session_state["v16_fase2_estagio"] = estagio
+        except Exception:
+            pass
+
         st.markdown("### 📌 Registro Canônico do Momento")
     
         # Série base
@@ -7626,6 +7937,11 @@ if painel == "📘 Relatório Final":
     
         universo_min = st.session_state.get("universo_min", "N/D")
         universo_max = st.session_state.get("universo_max", "N/D")
+    
+        fase2_estagio = st.session_state.get("v16_fase2_estagio", "N/D")
+    
+        fase2_score = st.session_state.get("v16_fase2_score", "N/D")
+
     
         registro_txt = f"""
     SÉRIE_BASE: {serie_base}
