@@ -1876,6 +1876,9 @@ def construir_navegacao_v157() -> str:
         # BLOCO 7.5 — EIXO 2 | MOMENTO & ANTECIPAÇÃO
         # -----------------------------------------------------
         "📊 V16 Premium — Backtest Rápido do Pacote (N=60)",
+        "🧠 V16 Premium — Análogos Históricos do Momento",
+        "⏱️ V16 Premium — Dinâmica de Transição do Momento",
+        "🔬 V16 Premium — FASE 2 & Reconstrução (Status)",
         "🧭 V16 Premium — Rodadas Estratificadas (A/B)",
 
         # -----------------------------------------------------
@@ -1947,7 +1950,7 @@ st.sidebar.caption(f"Painel ativo: {painel}")
 # ============================================================
 try:
     st.sidebar.markdown("---")
-    st.sidebar.caption("✅ BUILD-ID: NAV_AB_FASE2_BLOQUEADA_2026-01-16A")
+    st.sidebar.caption("✅ BUILD-ID: NAV_AB_FASE2_RECONSTR_ANALOGOS_2026-01-16C")
     # Observação: build-id atualizado quando há alteração canônica na navegação.
     st.sidebar.caption(f"📄 __file__: {__file__}")
     st.sidebar.caption(f"🔎 Primeiro item NAV: {construir_navegacao_v157.__name__}")
@@ -10619,6 +10622,175 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
 # - Este painel é 100% opcional.
 # - Se nada for marcado, o app se comporta como sempre.
 # ============================================================
+
+
+# ============================================================
+# V16 Premium — Análogos Históricos & Dinâmica de Transição (OBSERVACIONAL)
+# ============================================================
+# - Usa apenas registros já capturados na sessão (memória operacional).
+# - Não gera números, não muda listas, não decide.
+# - Serve para responder:
+#   “O momento atual já apareceu antes? Quanto tempo costuma demorar para virar?”
+
+V16_FASE2_ATIVA = False
+V16_RECONSTR_ATIVA = False
+
+def v16_snapshot_momento_atual():
+    """Coleta um snapshot mínimo do momento atual a partir de session_state.
+    Se algum campo não existir, cai em None (observacional / robusto).
+    """
+    ss = st.session_state
+    def get(k, default=None):
+        return ss.get(k, default)
+
+    # Tenta capturar selos já usados nos painéis V16
+    snap = {
+        "serie_base": get('serie_base'),
+        "series_alvo": get('series_alvo'),
+        "k_star": get('k_star') or get('kstar') or get('k*'),
+        "nr_percent": get('nr_percent') or get('NR_PERCENT'),
+        "nr_risco": get('nr_percent_risco') or get('NR_RISCO') or get('nr_risco'),
+        "divergencia": get('divergencia_s6_mc') or get('DIVERGENCIA') or get('divergencia'),
+        "orbita": get('orbita_selo') or get('ORBITA') or get('orbita'),
+        "eco_acionabilidade": get('eco_acionabilidade') or get('ECO_ACIONABILIDADE'),
+        "estado_alvo": get('estado_alvo') or get('ESTADO_ALVO'),
+        "dmo_estado": get('dmo_estado') or get('DMO_ESTADO'),
+        "aps_postura": get('aps_postura') or get('APS_POSTURA'),
+        "termometro_score": get('termometro_score') or get('TERMOMETRO_SCORE')
+    }
+    return snap
+
+def v16_chave_estado(snap: dict) -> str:
+    # Chave simples e auditável: só “selos” (strings) + bins básicos
+    orb = snap.get('orbita') or 'N/D'
+    eco = snap.get('eco_acionabilidade') or 'N/D'
+    est = snap.get('estado_alvo') or 'N/D'
+    dmo = snap.get('dmo_estado') or 'N/D'
+    aps = snap.get('aps_postura') or 'N/D'
+    return f"orb:{orb} | eco:{eco} | est:{est} | dmo:{dmo} | aps:{aps}"
+
+
+def v16_score_analogo(snap_now: dict, snap_old: dict) -> float:
+    # Score por coincidência de selos (0..1). Não “mede distância”; só compara chaves.
+    keys = ["orbita", "eco_acionabilidade", "estado_alvo", "dmo_estado", "aps_postura"]
+    total = len(keys)
+    hit = 0
+    for k in keys:
+        if (snap_now.get(k) is not None) and (snap_now.get(k) == snap_old.get(k)):
+            hit += 1
+    return hit / total if total else 0.0
+
+
+if painel == "🧠 V16 Premium — Análogos Históricos do Momento":
+    st.subheader("🧠 V16 Premium — Análogos Históricos do Momento")
+    st.caption("Observacional. Compara o momento atual com registros anteriores na memória operacional (sessão).")
+
+    if 'memoria_operacional' not in st.session_state or not st.session_state.memoria_operacional:
+        st.info("Nenhum registro na Memória Operacional ainda. Rode algumas rodadas e use o painel de Registro Semi-Automático para acumular exemplos.")
+    else:
+        snap_now = v16_snapshot_momento_atual()
+        chave_now = v16_chave_estado(snap_now)
+        st.markdown(f"**Chave do momento atual (selo):** `{chave_now}`")
+
+        registros = []
+        for i, r in enumerate(st.session_state.memoria_operacional):
+            snap_old = r.get('snapshot_momento') or {}
+            score = v16_score_analogo(snap_now, snap_old)
+            if score <= 0:
+                continue
+            registros.append({
+                'idx': i,
+                'score': score,
+                'serie_base': r.get('serie_base') or r.get('série_base') or r.get('serie') or 'N/D',
+                'eco': snap_old.get('eco_acionabilidade') or r.get('eco_status') or 'N/D',
+                'estado': snap_old.get('estado_alvo') or r.get('estado_status') or 'N/D',
+                'orbita': snap_old.get('orbita') or 'N/D',
+                'dmo': snap_old.get('dmo_estado') or 'N/D',
+                'aps': snap_old.get('aps_postura') or 'N/D',
+            })
+
+        if not registros:
+            st.warning("Ainda não há análogos com coincidência de selos. Isso é comum no começo: falta histórico de registros na sessão.")
+        else:
+            registros.sort(key=lambda x: (x['score'], x['idx']), reverse=True)
+            top = registros[:15]
+            st.write("Top análogos (sessão):")
+            st.dataframe(top, use_container_width=True)
+            st.caption("Score = fração de selos coincidentes (órbita / ECO / estado / DMO / APS).")
+
+
+if painel == "⏱️ V16 Premium — Dinâmica de Transição do Momento":
+    st.subheader("⏱️ V16 Premium — Dinâmica de Transição do Momento")
+    st.caption("Observacional. Mede, na sua sessão, em quantos registros o estado costuma mudar (ou não).")
+
+    if 'memoria_operacional' not in st.session_state or len(st.session_state.memoria_operacional) < 3:
+        st.info("Poucos registros na Memória Operacional para medir transição. Use mais rodadas e registre momentos.")
+    else:
+        mem = st.session_state.memoria_operacional
+        snaps = [ (i, (r.get('snapshot_momento') or {})) for i, r in enumerate(mem) ]
+        keys = [ v16_chave_estado(s) for _, s in snaps ]
+
+        # Estatística: para cada ocorrência, em quantos passos muda a chave
+        horizons = [1,2,3,4,5,8,12]
+        buckets = {h:0 for h in horizons}
+        never = 0
+        total = 0
+        for i in range(len(keys)-1):
+            total += 1
+            base = keys[i]
+            changed = False
+            for h in horizons:
+                j = i+h
+                if j >= len(keys):
+                    continue
+                if keys[j] != base:
+                    buckets[h] += 1
+                    changed = True
+                    break
+            if not changed:
+                never += 1
+
+        st.markdown("**Leitura direta (sessão):**")
+        if total > 0:
+            rows = []
+            for h in horizons:
+                rows.append({"até (registros)": f"≤ {h}", "freq": buckets[h], "taxa": round(buckets[h]/total*100,2)})
+            rows.append({"até (registros)": "> horizonte", "freq": never, "taxa": round(never/total*100,2)})
+            st.dataframe(rows, use_container_width=True)
+
+        st.caption("\"Quase nunca\" aqui significa: dentro do horizonte escolhido, poucas ocorrências mudaram de selo. Não é promessa de futuro; é frequência observada nos seus registros.")
+
+
+if painel == "🔬 V16 Premium — FASE 2 & Reconstrução (Status)":
+    st.subheader("🔬 V16 Premium — FASE 2 & Reconstrução (Status)")
+    st.caption("Painel canônico de governança: PREPARAR ≠ ATIVAR. Tudo aqui é BLOQUEADO por padrão.")
+
+    st.markdown("### 🧭 FASE 2 — Exploração de Momento Bom")
+    st.write({
+        "status": "BLOQUEADA" if not V16_FASE2_ATIVA else "ATIVA",
+        "motivo": "Aguardando critérios objetivos de liberação (sinais consistentes por 2–3 séries).",
+        "impacto": "Observacional: não altera geração, não muda volume, não decide."
+    })
+
+    st.markdown("### 🧱 Reconstrução Estrutural do Barco")
+    st.write({
+        "status": "SUGESTÃO BLOQUEADA" if not V16_RECONSTR_ATIVA else "ATIVA",
+        "regra": "No máximo UMA vez por pacote (Backtest autoriza parar, não insistir).",
+        "objetivo": "Engenharia de forma (reduzir auto-sabotagem / redundância fraca), não previsão."
+    })
+
+    st.markdown("### ✅ Critérios (rascunho) para LIBERAR no futuro")
+    st.markdown(
+        "- DMO sair de 🟥 SOBREVIVÊNCIA para 🟨 ATENÇÃO ou 🟩 OPERÁVEL por 2–3 séries\n"
+        "- NR% (Ruído Condicional) melhorar de forma consistente\n"
+        "- Análogos mostrarem transição real no passado (frequência não desprezível)\n"
+        "- Backtest do pacote indicar fragilidade (se for o caso de reconstrução)\n"
+    )
+
+# ============================================================
+# FIM — Análogos & Dinâmica (OBSERVACIONAL)
+# ============================================================
+
 if painel == "🧭 V16 Premium — Rodadas Estratificadas (A/B)":
 
     st.subheader("🧭 V16 Premium — Rodadas Estratificadas (A/B)")
@@ -10952,111 +11124,127 @@ if painel == "🧭 Modo Guiado Oficial — PredictCars":
     st.markdown("---")
 
     st.markdown("""
-🧭 **MODO GUIADO OFICIAL — CONTRATO OPERACIONAL**
+🧭 **Modo Guiado Oficial — PredictCars**
+Guia operacional único · uso diário · contrato de uso do sistema.
+**Não executa, não calcula, não decide — apenas orienta a sequência correta.**
 
-Este painel descreve **COMO o PredictCars deve ser usado**.
-Ele existe para evitar decisões fora de ordem e misturas perigosas
-entre leitura, decisão, execução e aprendizado.
+# 🧭 MODO GUIADO OFICIAL — CONTRATO OPERACIONAL
 
-━━━━━━━━━━━━━━━━━━━━
-🔵 **AGORA — DECIDIR E JOGAR**
-━━━━━━━━━━━━━━━━━━━━
+Este painel descreve **COMO** o PredictCars deve ser usado.
+Ele existe para evitar decisões fora de ordem e **misturas perigosas** entre leitura, decisão, execução e aprendizado.
 
-**1️⃣ ENTRADA**
-- 📁 Carregar Histórico (Arquivo ou Colar)
+━━━━━━━━━━━━━━━━━━━━ 🔵 AGORA — DECIDIR E JOGAR ━━━━━━━━━━━━━━━━━━━━
 
-**2️⃣ EIXO 1 — ESTRUTURA DO AMBIENTE**
-*(saúde da estrada · não números)*
+## 1️⃣ ENTRADA
 
-Painéis:
-- 🛰️ Sentinelas — k*
-- 🧭 Monitor de Risco — k & k*
-- 📡 Painel de Ruído Condicional
-- 📉 Painel de Divergência S6 vs MC
+📁 Carregar Histórico (Arquivo ou Colar)
 
-Pergunta respondida:
-- O ambiente permite ataque?
+## 2️⃣ EIXO 1 — ESTRUTURA DO AMBIENTE (saúde da estrada · não números)
 
----
+**Painéis:**
 
-**3️⃣ EIXO 2 — MOMENTO & ANTECIPAÇÃO**
-*(ritmo do alvo + evidência recente)*
+🛰️ Sentinelas — k*
+🧭 Monitor de Risco — k & k*
+📡 Painel de Ruído Condicional
+📉 Painel de Divergência S6 vs MC
 
-Painéis:
-- 🔁 Replay LIGHT
-- 🔁 Replay ULTRA
-- 🧪 Replay Curto — Expectativa 1–3 Séries
-- 📊 V16 Premium — Backtest Rápido do Pacote (N=60)
+**Pergunta respondida:**
 
-Pergunta respondida:
-- O momento favorece agir agora?
+O ambiente permite ataque?
 
----
+## 3️⃣ EIXO 2 — MOMENTO & ANTECIPAÇÃO (ritmo do alvo + evidência recente)
 
-**4️⃣ DECISÃO ÚNICA (HUMANA)**
-*(registrada · sem retorno)*
+**Painéis:**
 
-Painel:
-- 🧭 Checklist Operacional — Decisão (AGORA)
+🔁 Replay LIGHT
+🔁 Replay ULTRA
+🧪 Replay Curto — Expectativa 1–3 Séries
+📊 V16 Premium — Backtest Rápido do Pacote (N=60)
+
+**Pergunta respondida:**
+
+O momento favorece agir agora?
+
+## 3️⃣B EIXO 2B — ANÁLOGOS & TRANSIÇÃO (observacional · sem decisão)
+
+Quando você quiser **comparar o presente com o passado**, use:
+
+🧠 V16 Premium — Análogos Históricos do Momento
+⏱️ V16 Premium — Dinâmica de Transição do Momento
+
+📌 Estes dois painéis:
+- não geram números
+- não mudam pacotes
+- não liberam nada
+
+Eles só respondem:
+**“Isso já aconteceu antes? Em quantas séries costuma virar? Com que frequência melhora/piora?”**
+
+## 4️⃣ DECISÃO ÚNICA (HUMANA) (registrada · sem retorno)
+
+**Painel:**
+
+🧭 Checklist Operacional — Decisão (AGORA)
 
 Aqui você define:
+
 - atacar ou não
 - concentrar, equilibrar ou expandir
 - volume de listas
 
-📌 **Depois disso, não se volta atrás.**
+📌 Depois disso, **não se volta atrás**.
 
----
+## 5️⃣ MOTOR
 
-**5️⃣ MOTOR**
-- 🛣️ Pipeline V14-FLEX ULTRA
-- ⚙️ Modo TURBO++ HÍBRIDO
-- ⚙️ Modo TURBO++ ULTRA
+🛣️ Pipeline V14-FLEX ULTRA
+⚙️ Modo TURBO++ HÍBRIDO
+⚙️ Modo TURBO++ ULTRA
 
----
+## 6️⃣ EXECUÇÃO
 
-**6️⃣ EXECUÇÃO**
-- 🎯 Modo 6 Acertos — Execução
-- 🧪 Testes de Confiabilidade REAL
-- 📘 Relatório Final
-- 🔥 Mandar Bala
+🎯 Modo 6 Acertos — Execução
+🧪 Testes de Confiabilidade REAL
+📘 Relatório Final
+🔥 Mandar Bala
 
-━━━━━━━━━━━━━━━━━━━━
-🟣 **EXTENSÃO CONDICIONAL — MODO ESPECIAL**
-━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━ 🟣 EXTENSÃO CONDICIONAL — “FASE 2” (PREPARADA, BLOQUEADA) ━━━━━━━━━━━━━━━━━━━━
 
-Use **somente após** concluir o fluxo acima.
+🔬 V16 Premium — FASE 2 & Reconstrução (Status)
 
-- 🔵 MODO ESPECIAL — Evento Condicionado
-- Atua sobre pacotes já gerados
-- Não cria listas novas
-- Útil apenas para eventos únicos
+📌 Esta área existe para:
+- mostrar o **status canônico** (bloqueada/liberável)
+- proteger a linha mestra (não ativar nada cedo)
+- manter governança: **PREPARAR ≠ ATIVAR**
 
-━━━━━━━━━━━━━━━━━━━━
-🟢 **DEPOIS — APRENDER**
-━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━ 🟣 EXTENSÃO CONDICIONAL — MODO ESPECIAL ━━━━━━━━━━━━━━━━━━━━
 
-Painéis:
-- 📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos
-- 📊 EXATO / ECO / Regime
+Use somente após concluir o fluxo acima.
 
-📌 Aprendizado **somente para a próxima rodada**.
+🔵 MODO ESPECIAL — Evento Condicionado
+- atua sobre pacotes já gerados
+- não cria listas novas
+- útil apenas para eventos únicos
 
-━━━━━━━━━━━━━━━━━━━━
-🧱 **OS 3 EIXOS DO SISTEMA**
-━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━ 🟢 DEPOIS — APRENDER (para a próxima rodada) ━━━━━━━━━━━━━━━━━━━━
 
-- **Eixo 1** — Estrutura das Listas  
-- **Eixo 2** — Momento & Antecipação  
-- **Eixo 3** — Aprendizado  
+Painéis (exemplos):
 
-━━━━━━━━━━━━━━━━━━━━
-📜 **REGRA FINAL**
-━━━━━━━━━━━━━━━━━━━━
+📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos
+📊 EXATO / ECO / Regime
 
-A decisão acontece **ANTES**.  
-O aprendizado acontece **DEPOIS**.  
-**Nunca ao mesmo tempo.**
+📌 Aprendizado vale **somente para a próxima rodada**.
+
+━━━━━━━━━━━━━━━━━━━━ 🧱 OS 3 EIXOS DO SISTEMA ━━━━━━━━━━━━━━━━━━━━
+
+Eixo 1 — Estrutura do Ambiente
+Eixo 2 — Momento & Antecipação
+Eixo 3 — Aprendizado
+
+━━━━━━━━━━━━━━━━━━━━ 📜 REGRA FINAL ━━━━━━━━━━━━━━━━━━━━
+
+A decisão acontece **ANTES**.
+O aprendizado acontece **DEPOIS**.
+Nunca ao mesmo tempo.
 """)
 
     st.success(
