@@ -1876,6 +1876,7 @@ def construir_navegacao_v157() -> str:
         # BLOCO 7.5 — EIXO 2 | MOMENTO & ANTECIPAÇÃO
         # -----------------------------------------------------
         "📊 V16 Premium — Backtest Rápido do Pacote (N=60)",
+        "🧭 V16 Premium — Rodadas Estratificadas (A/B)",
 
         # -----------------------------------------------------
         # BLOCO 8 — EXECUÇÃO
@@ -1946,7 +1947,8 @@ st.sidebar.caption(f"Painel ativo: {painel}")
 # ============================================================
 try:
     st.sidebar.markdown("---")
-    st.sidebar.caption("✅ BUILD-ID: NAV_ORDEM_FINAL_2025-12-29A")
+    st.sidebar.caption("✅ BUILD-ID: NAV_AB_FASE2_BLOQUEADA_2026-01-16A")
+    # Observação: build-id atualizado quando há alteração canônica na navegação.
     st.sidebar.caption(f"📄 __file__: {__file__}")
     st.sidebar.caption(f"🔎 Primeiro item NAV: {construir_navegacao_v157.__name__}")
     st.sidebar.caption("🧭 TOP-5: (debug desativado — não chamar construir_navegacao_v157() aqui)")
@@ -10595,6 +10597,242 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
         "- Percentuais estáveis indicam pacote resiliente\n"
         "- Isso NÃO prevê o próximo alvo\n"
         "- Serve apenas para calibrar postura e volume"
+    )
+
+
+# ============================================================
+# PAINEL V16 PREMIUM — RODADAS ESTRATIFICADAS (A/B)
+# (Preparação operacional: NÃO ativa motores; NÃO mistura pacotes)
+#
+# OBJETIVO:
+# - Permitir que o operador registre DUAS execuções independentes
+#   para o MESMO evento considerado "Bom + Oportunidade Rara".
+# - Rodada A: modelo-base (n=6) — normalmente via Modo 6.
+# - Rodada B: modelo alternativo (n≠6) — por colagem manual (por enquanto)
+#
+# REGRAS:
+# - Nunca misturar listas/volumes/decisões.
+# - Nunca somar resultados.
+# - Registrar e analisar separadamente.
+#
+# IMPORTANTE:
+# - Este painel é 100% opcional.
+# - Se nada for marcado, o app se comporta como sempre.
+# ============================================================
+if painel == "🧭 V16 Premium — Rodadas Estratificadas (A/B)":
+
+    st.subheader("🧭 V16 Premium — Rodadas Estratificadas (A/B)")
+    st.caption(
+        "Painel de preparação e registro. Não gera listas automaticamente. "
+        "Não ativa FASE 2. Não muda Modo 6/TURBO. "
+        "Serve apenas para organizar duas rodadas independentes no MESMO evento raro."
+    )
+
+    # ------------------------------
+    # Leitura do momento (somente leitura)
+    # ------------------------------
+    dmo_estado = st.session_state.get("dmo_estado", "🟥 SOBREVIVÊNCIA")
+    eco_status = st.session_state.get("eco_status", st.session_state.get("eco_acionabilidade", "N/D"))
+    nr_ruido = st.session_state.get("nr_percent", st.session_state.get("nr_percent_v16"))
+
+    colm1, colm2, colm3 = st.columns(3)
+    colm1.metric("DMO", str(dmo_estado))
+    colm2.metric("ECO", str(eco_status) if eco_status else "N/D")
+    colm3.metric("NR%", f"{nr_ruido:.2f}%" if isinstance(nr_ruido, (int, float)) else "N/D")
+
+    st.markdown("---")
+
+    # ------------------------------
+    # Travas (governança)
+    # ------------------------------
+    st.markdown("### 🔒 Travas (governança)")
+    st.caption(
+        "Este painel não decide por você. Ele só permite registro A/B quando você confirma conscientemente."
+    )
+
+    confirmar_momento_bom = st.checkbox(
+        "Confirmo que este evento é: 🟢 Momento Bom + Oportunidade Rara (decisão do operador)",
+        value=False,
+        key="AB_CONFIRMAR_MOMENTO_BOM_RARO",
+    )
+
+    habilitar_rodada_b = st.checkbox(
+        "(Opcional) Quero preparar Rodada B (Proteção de Modelo) — execução separada", 
+        value=False,
+        key="AB_HABILITAR_RODADA_B",
+        disabled=(not confirmar_momento_bom),
+    )
+
+    # Guarda leve (não bloqueia o operador, só avisa)
+    avisos = []
+    if isinstance(nr_ruido, (int, float)) and nr_ruido >= 70:
+        avisos.append("NR% alto (>=70): cuidado com leitura de momento.")
+    if isinstance(dmo_estado, str) and dmo_estado.strip().startswith("🟥"):
+        avisos.append("DMO em SOBREVIVÊNCIA: este cenário normalmente não é 'momento bom'.")
+    if isinstance(eco_status, str) and eco_status.strip() in ("N/D", "DESCONHECIDO"):
+        avisos.append("ECO indefinido: leitura parcial do momento.")
+
+    if avisos:
+        st.warning("⚠️ Avisos de governança:\n- " + "\n- ".join(avisos))
+
+    st.markdown("---")
+
+    # ------------------------------
+    # Identificação do evento (rótulo humano)
+    # ------------------------------
+    st.markdown("### 🏷️ Identificação do evento")
+    st.caption("Use um rótulo simples (ex.: C5823 / 'Evento Raro Jan-2026').")
+    evento_id = st.text_input(
+        "Evento (ID/rótulo):",
+        value=st.session_state.get("AB_EVENTO_ID", ""),
+        key="AB_EVENTO_ID_INPUT",
+        disabled=(not confirmar_momento_bom),
+    )
+
+    if confirmar_momento_bom and evento_id:
+        st.session_state["AB_EVENTO_ID"] = evento_id.strip()
+
+    st.markdown("---")
+
+    # ------------------------------
+    # Rodada A — n=6 (captura do pacote atual)
+    # ------------------------------
+    st.markdown("## 🔵 Rodada A — Estratégia Principal (modelo-base)")
+    st.caption(
+        "Normalmente você gera o pacote no 🎯 Modo 6. Aqui você apenas registra uma fotografia desse pacote como Rodada A."
+    )
+
+    pacote_atual = st.session_state.get("pacote_listas_atual")
+    pacote_origem = st.session_state.get("pacote_listas_origem", "N/D")
+
+    if pacote_atual and isinstance(pacote_atual, list):
+        st.success(f"Pacote atual detectado: {len(pacote_atual)} lista(s) — origem: {pacote_origem}")
+        st.dataframe(pd.DataFrame({"Lista": [str(L) for L in pacote_atual]}), use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhum pacote atual detectado. Gere listas no 🎯 Modo 6 para ter algo a registrar aqui.")
+
+    registrar_a = st.button(
+        "📦 Registrar Rodada A (capturar pacote atual)",
+        disabled=(not (confirmar_momento_bom and evento_id and pacote_atual)),
+        key="AB_REGISTRAR_A",
+    )
+
+    if registrar_a:
+        st.session_state["AB_RODADA_A"] = {
+            "evento": evento_id.strip(),
+            "origem": pacote_origem,
+            "listas": pacote_atual,
+            "meta": {
+                "dmo": dmo_estado,
+                "eco": eco_status,
+                "nr": nr_ruido,
+            },
+        }
+        st.success("✅ Rodada A registrada como pacote independente.")
+
+    st.markdown("---")
+
+    # ------------------------------
+    # Rodada B — n≠6 (proteção) — por colagem manual
+    # ------------------------------
+    st.markdown("## 🔴 Rodada B — Proteção de Modelo (execução paralela)")
+    st.caption(
+        "Esta rodada não complementa a A: ela coexiste como hipótese paralela. "
+        "Por enquanto, o registro B é por colagem manual (listas 7/8/9/10)."
+    )
+
+    def _ab_parse_listas_texto(txt: str):
+        """Parse simples: aceita linhas com números separados por vírgula, espaço ou ';'."""
+        import re
+        listas = []
+        if not txt:
+            return listas
+        for linha in txt.splitlines():
+            linha = linha.strip()
+            if not linha:
+                continue
+            nums = re.findall(r"\d+", linha)
+            if not nums:
+                continue
+            listas.append([int(x) for x in nums])
+        return listas
+
+    n_b = st.number_input(
+        "n da Rodada B (tamanho esperado da lista):",
+        min_value=7,
+        max_value=12,
+        value=int(st.session_state.get("AB_N_B", 7)),
+        step=1,
+        disabled=(not (confirmar_momento_bom and habilitar_rodada_b)),
+        key="AB_N_B_INPUT",
+    )
+    if confirmar_momento_bom and habilitar_rodada_b:
+        st.session_state["AB_N_B"] = int(n_b)
+
+    texto_b = st.text_area(
+        "Cole aqui as listas da Rodada B (uma por linha):",
+        value=st.session_state.get("AB_LISTAS_B_TEXTO", ""),
+        height=180,
+        disabled=(not (confirmar_momento_bom and habilitar_rodada_b and evento_id)),
+        key="AB_LISTAS_B_TEXTO",
+    )
+
+    listas_b = _ab_parse_listas_texto(texto_b)
+    listas_b_validas = [L for L in listas_b if isinstance(L, list) and len(L) == int(n_b)]
+    invalidas = len(listas_b) - len(listas_b_validas)
+
+    if confirmar_momento_bom and habilitar_rodada_b:
+        st.info(
+            f"Leitura da Rodada B: {len(listas_b_validas)} lista(s) válidas (n={int(n_b)})"
+            + (f" · {invalidas} inválida(s) (tamanho diferente)." if invalidas else "")
+        )
+
+    registrar_b = st.button(
+        "📦 Registrar Rodada B (proteção) — pacote independente",
+        disabled=(not (confirmar_momento_bom and habilitar_rodada_b and evento_id and len(listas_b_validas) > 0)),
+        key="AB_REGISTRAR_B",
+    )
+
+    if registrar_b:
+        st.session_state["AB_RODADA_B"] = {
+            "evento": evento_id.strip(),
+            "n": int(n_b),
+            "origem": "Colagem manual (Rodada B)",
+            "listas": listas_b_validas,
+            "meta": {
+                "dmo": dmo_estado,
+                "eco": eco_status,
+                "nr": nr_ruido,
+            },
+        }
+        st.success("✅ Rodada B registrada como pacote independente.")
+
+    st.markdown("---")
+
+    # ------------------------------
+    # Resumo final (A/B) — sem soma, sem mistura
+    # ------------------------------
+    st.markdown("### 📌 Resumo A/B (sem mistura)")
+    a = st.session_state.get("AB_RODADA_A")
+    b = st.session_state.get("AB_RODADA_B")
+
+    colr1, colr2 = st.columns(2)
+    with colr1:
+        st.markdown("**Rodada A**")
+        if a:
+            st.success(f"Evento: {a.get('evento')} · listas: {len(a.get('listas') or [])} · origem: {a.get('origem')}")
+        else:
+            st.info("Ainda não registrada.")
+    with colr2:
+        st.markdown("**Rodada B**")
+        if b:
+            st.success(f"Evento: {b.get('evento')} · n={b.get('n')} · listas: {len(b.get('listas') or [])}")
+        else:
+            st.info("Ainda não registrada (opcional).")
+
+    st.caption(
+        "Regra canônica: A e B são pacotes distintos. Não somar volumes. "
+        "Não interpretar como um único ataque. Replay/Backtest devem ser feitos separadamente."
     )
 
 
