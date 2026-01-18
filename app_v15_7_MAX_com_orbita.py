@@ -14,58 +14,6 @@ st.set_page_config(
     layout="wide",
 )
 
-# ============================================================
-# MÓDULO 1 — MIRROR (Diagnóstico Não-Intrusivo)
-# ============================================================
-# Camada SOMENTE leitura para espelhar o estado real da execução.
-# Não altera motores, não recalcula métricas, não decide nada.
-
-from typing import Dict, Any
-
-def _m1_collect_mirror_state(globals_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Espelha variáveis já existentes no app. Nada é criado, nada é recalculado."""
-    keys_of_interest = [
-        # Histórico
-        "historico_df",
-        "historico_carregado",
-        "range_historico",
-        # Sentinelas / métricas
-        "k",
-        "k_star",
-        "nr_percent",
-        # Regime / estado
-        "regime_identificado",
-        "estado_alvo",
-        # Modos / volumes
-        "volumes_usados",
-        "modo_6_ativo",
-        # Listas
-        "listas_geradas",
-        "pacote_atual",
-    ]
-
-    mirror: Dict[str, Any] = {}
-    for key in keys_of_interest:
-        if key in globals_dict:
-            try:
-                mirror[key] = globals_dict[key]
-            except Exception as e:
-                mirror[key] = f"<erro ao ler: {e}>"
-        else:
-            mirror[key] = "<não definido>"
-
-    return mirror
-
-
-def _m1_render_mirror_panel(st, mirror_state: Dict[str, Any]) -> None:
-    st.header("🔍 Diagnóstico Espelho (Mirror)")
-    st.caption("Painel somente leitura — estado real da execução")
-
-    for key, value in mirror_state.items():
-        with st.expander(key):
-            st.write(value)
-
-
 
 
 # ============================================================
@@ -1455,11 +1403,6 @@ def construir_navegacao_v157() -> str:
         "🧭 Modo Guiado Oficial — PredictCars",
 
         # -----------------------------------------------------
-        # MÓDULO 1 — MIRROR (SOMENTE LEITURA)
-        # -----------------------------------------------------
-        "🔍 Diagnóstico Espelho (Mirror)",
-
-        # -----------------------------------------------------
         # BLOCO 2 — LEITURA DO AMBIENTE
         # -----------------------------------------------------
         "🛰️ Sentinelas — k* (Ambiente de Risco)",
@@ -1568,18 +1511,6 @@ def construir_navegacao_v157() -> str:
 # ============================================================
 
 painel = construir_navegacao_v157()
-
-
-# ============================================================
-# MÓDULO 1 — MIRROR | ROTEAMENTO (NÃO INTRUSIVO)
-# ============================================================
-# Se o painel Mirror estiver ativo, renderiza e interrompe a execução do restante.
-if painel == "🔍 Diagnóstico Espelho (Mirror)":
-    try:
-        _m1_render_mirror_panel(st, _m1_collect_mirror_state(globals()))
-    except Exception as _m1_e:
-        st.warning(f"⚠️ Mirror falhou (silencioso): {_m1_e}")
-    st.stop()
 st.sidebar.caption(f"Painel ativo: {painel}")
 
 # ============================================================
@@ -7533,26 +7464,26 @@ if painel == "📘 Relatório Final":
         termometro_estagio = "N/D"
         termometro_score = "N/D"
         registro_txt = f"""
-        SÉRIE_BASE: {serie_base}
-        SÉRIES_ALVO: {series_alvo}
+    SÉRIE_BASE: {serie_base}
+    SÉRIES_ALVO: {series_alvo}
     
-        ECO: {st.session_state.get("eco_status", "N/D")}
-        ESTADO_ALVO: {st.session_state.get("estado_atual", "N/D")}
-        REGIME: {st.session_state.get("pipeline_estrada", "N/D")}
-        CLASSE_RISCO: {st.session_state.get("classe_risco", "N/D")}
-        NR_PERCENT: {st.session_state.get("nr_percent", "N/D")}
-        K_STAR: {st.session_state.get("k_star", "N/D")}
-        DIVERGENCIA: {st.session_state.get("divergencia_s6_mc", "N/D")}
-        UNIVERSO: {universo_min}-{universo_max}
-        N_CARRO: {n_alvo if n_alvo is not None else "N/D"}
-        EIXO1_NUCLEO_DETECTADO: {'SIM' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'NÃO'}
-        EIXO1_TIPO_NUCLEO: {eixo1_resultado['nucleo']['tipo'] if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'inexistente'}
-        EIXO1_PUXADORES: {', '.join(map(str, (eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes'])[:8])) if eixo1_resultado else '—'}
-        EIXO1_CONVERGENCIA: {'alta' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 4 else 'média' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 2 else 'baixa'}
-        EIXO1_LEITURA: {' '.join(eixo1_resultado['leitura_sintetica']) if eixo1_resultado else 'pacote disperso'}
-        PACOTE_BASE: Top10
-        PACOTE_ANTI_ANCORA: {", ".join("L"+str(i) for i in (st.session_state.get("v16_anti_ancora") or {}).get("anti_idx", [])) or "—"}
-        """.strip()
+    ECO: {st.session_state.get("eco_status", "N/D")}
+    ESTADO_ALVO: {st.session_state.get("estado_atual", "N/D")}
+    REGIME: {st.session_state.get("pipeline_estrada", "N/D")}
+    CLASSE_RISCO: {st.session_state.get("classe_risco", "N/D")}
+    NR_PERCENT: {st.session_state.get("nr_percent", "N/D")}
+    K_STAR: {st.session_state.get("k_star", "N/D")}
+    DIVERGENCIA: {st.session_state.get("divergencia_s6_mc", "N/D")}
+    UNIVERSO: {universo_min}-{universo_max}
+    N_CARRO: {n_alvo if n_alvo is not None else "N/D"}
+    EIXO1_NUCLEO_DETECTADO: {'SIM' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'NÃO'}
+    EIXO1_TIPO_NUCLEO: {eixo1_resultado['nucleo']['tipo'] if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'inexistente'}
+    EIXO1_PUXADORES: {', '.join(map(str, (eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes'])[:8])) if eixo1_resultado else '—'}
+    EIXO1_CONVERGENCIA: {'alta' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 4 else 'média' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 2 else 'baixa'}
+    EIXO1_LEITURA: {' '.join(eixo1_resultado['leitura_sintetica']) if eixo1_resultado else 'pacote disperso'}
+    PACOTE_BASE: Top10
+    PACOTE_ANTI_ANCORA: {", ".join("L"+str(i) for i in (st.session_state.get("v16_anti_ancora") or {}).get("anti_idx", [])) or "—"}
+    """.strip()
     
         st.code(registro_txt, language="text")
     
@@ -7671,12 +7602,12 @@ if painel == "📘 Relatório Final":
         st.markdown("### 📋 Resumo Canônico de Aptidão")
     
         aptidao_txt = f"""
-        STATUS_APTIDAO: {status_aptidao}
-        MOTIVO_PRINCIPAL: {motivo_principal}
-        EIXO1_RESUMO: {eixo1_resumo}
-        COMPATIBILIDADE_DENSIDADE: {compatibilidade}
-        OBSERVACAO: {observacao}
-        """.strip()
+    STATUS_APTIDAO: {status_aptidao}
+    MOTIVO_PRINCIPAL: {motivo_principal}
+    EIXO1_RESUMO: {eixo1_resumo}
+    COMPATIBILIDADE_DENSIDADE: {compatibilidade}
+    OBSERVACAO: {observacao}
+    """.strip()
     
         st.code(aptidao_txt, language="text")
     
