@@ -10770,11 +10770,7 @@ if painel == "🧠 V16 Premium — Análogos Históricos do Momento":
     st.caption("Observacional. Compara o momento atual com registros anteriores **registrados automaticamente** na Memória Operacional (sessão).")
 
     if 'memoria_operacional' not in st.session_state or not st.session_state.memoria_operacional:
-        st.info("Nenhum registro na Memória Operacional ainda.
-
-✅ Agora o registro é **automático** (invisível): ele acontece quando você gera o **📘 Relatório Final**.
-
-➡️ Rode uma rodada completa (até o Relatório Final) e volte aqui.")
+        st.info("Nenhum registro na Memória Operacional ainda.  ✅ Agora o registro é **automático** (invisível): ele acontece quando você gera o **📘 Relatório Final**.  ➡️ Rode uma rodada completa (até o Relatório Final) e volte aqui.")
     else:
         snap_now = v16_snapshot_momento_atual()
         chave_now = v16_chave_estado(snap_now)
