@@ -1,3 +1,55 @@
+
+# ============================================================
+# 🧭 PRÓXIMO PASSO ATUAL — GOVERNANÇA DE FLUXO (REFINADO)
+# Somente leitura de estado | Sem execução | Sem memória
+# ============================================================
+def _pp_flag(state, *keys):
+    return any(k in state for k in keys)
+
+def determinar_proximo_passo_refinado(state):
+    # Histórico
+    if not _pp_flag(state, "historico_df", "df_historico"):
+        return ("👉 Carregue o histórico (Arquivo ou Colar).", "Histórico ausente.")
+    # Leituras básicas
+    if not _pp_flag(state, "k", "k_star"):
+        return ("👉 Execute as leituras básicas (Sentinelas, Risco, Ruído, Replays).", "Leituras básicas pendentes.")
+    # Decisão humana
+    if not _pp_flag(state, "decisao_agora", "sintese_decisao"):
+        return ("👉 Feche o Checklist Operacional — Decisão (AGORA).", "Decisão não fechada.")
+    # TURBO (materialização)
+    if not _pp_flag(state, "pacote_listas", "listas_geradas", "pacote_base"):
+        # Sugestão de TURBO
+        acao = state.get("acao_escolhida") or state.get("acao")
+        if acao and "EXPANDIR" in str(acao).upper():
+            return ("👉 Execute o TURBO++ ULTRA.", "Ação = EXPANDIR COM CRITÉRIO.")
+        return ("👉 Execute o TURBO++ HÍBRIDO.", "Padrão seguro para materializar o pacote.")
+    # Modo 6
+    if not _pp_flag(state, "modo6_executado", "resultado_modo6"):
+        return ("👉 Execute o Modo 6 Acertos.", "Pacote existe; falta normalizar o alvo.")
+    # Divergência (quando aplicável)
+    if _pp_flag(state, "turbo_ultra_executado") and not _pp_flag(state, "divergencia_s6_mc"):
+        return ("👉 Verifique Divergência S6 vs MC.", "ULTRA rodou; divergência pode ser condicional.")
+    # Relatório
+    if not _pp_flag(state, "relatorio_final"):
+        return ("👉 Revise o Relatório Final.", "Fechamento pendente.")
+    return ("👉 Rodada concluída. Inicie nova rodada ou encerre a sessão.", "Fluxo completo.")
+
+def render_proximo_passo_refinado(st):
+    try:
+        acao, motivo = determinar_proximo_passo_refinado(st.session_state)
+        st.markdown("### 🧭 Próximo Passo Atual")
+        st.info(f"{acao}\n\n*Motivo:* {motivo}")
+    except Exception:
+        st.warning("Próximo passo indisponível (estado incompleto).")
+\n\n
+# ============================================================
+# V16 — MEMÓRIA OPERACIONAL (INTERNA / INVISÍVEL)
+# Registro automático de estados canônicos por rodada (sessão)
+# ============================================================
+if "memoria_operacional" not in st.session_state:
+    st.session_state.memoria_operacional = []
+if "memoria_operacional_ids" not in st.session_state:
+    st.session_state.memoria_operacional_ids = set()
 # ============================================================
 # PARTE 1/8 — INÍCIO
 # ============================================================
@@ -174,6 +226,12 @@ Somente evoluir quando:
 """
 
 import streamlit as st
+# --- Ativação do bloco 🧭 Próximo Passo Atual ---
+try:
+    render_proximo_passo_refinado(st)
+except Exception:
+    pass
+
 # =====================================================================
 # 📜 TEXTO CANÔNICO — CONTRATO OPERACIONAL DO PREDICTCARS
 # Versão: V15.7 MAX
@@ -228,6 +286,7 @@ st.sidebar.warning("Rodando arquivo: app_v15_7_MAX.py")
 # Arquivo oficial: app_v15_7_MAX.py
 # ============================================================
 import math
+import datetime
 import itertools
 import textwrap
 from typing import List, Dict, Tuple, Optional, Any
@@ -1903,8 +1962,6 @@ def construir_navegacao_v157() -> str:
         # -----------------------------------------------------
         # BLOCO 11 — DEPOIS | APRENDIZADO (EIXO 3)
         # -----------------------------------------------------
-        "🧠 Memória Operacional (Observacional)",
-        "🧠 Memória Operacional — Registro Semi-Automático",
         "🧠 Laudo Operacional V16",
         "🧠 Diagnóstico ECO & Estado (V16)",
         "🧭 RMO/DMO — Retrato do Momento (V16)",
@@ -7469,11 +7526,11 @@ def v16_priorizar_listas_por_contexto(listas):
         return listas
 
 # ============================================================
-# >>> PAINEL X — 🧠 Memória Operacional — Observacional
+# >>> PAINEL X — 🧠 Memória Operacional — Observacional (LEGADO / DESATIVADO NA LINHA MESTRA)
 # ============================================================
-if painel == "🧠 Memória Operacional — Observacional":
+if painel == "🧠 Memória Operacional — Observacional (LEGADO / DESATIVADO NA LINHA MESTRA)":
 
-    st.markdown("## 🧠 Memória Operacional — Observacional")
+    st.markdown("## 🧠 Memória Operacional — Observacional (LEGADO / DESATIVADO NA LINHA MESTRA)")
     st.caption(
         "Registro passivo da rodada.\n"
         "Não executa decisões. Não altera previsões."
@@ -7564,11 +7621,11 @@ if painel == "🧠 Memória Operacional — Observacional":
 
 
 # ============================================================
-# >>> PAINEL Y — 🧠 Memória Operacional — Registro Semi-Automático
+# >>> PAINEL Y — 🧠 Memória Operacional — Registro Semi-Automático (LEGADO / DESATIVADO NA LINHA MESTRA)
 # ============================================================
-if painel == "🧠 Memória Operacional — Registro Semi-Automático":
+if painel == "🧠 Memória Operacional — Registro Semi-Automático (LEGADO / DESATIVADO NA LINHA MESTRA)":
 
-    st.markdown("## 🧠 Memória Operacional — Registro Semi-Automático (Passivo)")
+    st.markdown("## 🧠 Memória Operacional — Registro Semi-Automático (LEGADO / DESATIVADO NA LINHA MESTRA) (Passivo)")
 
     st.caption(
         "Este painel **NÃO decide** e **NÃO bloqueia**.\n\n"
@@ -7678,7 +7735,7 @@ if painel == "🧠 Memória Operacional — Registro Semi-Automático":
     )
 
 # ============================================================
-# <<< FIM — PAINEL Y — 🧠 Memória Operacional — Registro Semi-Automático
+# <<< FIM — PAINEL Y — 🧠 Memória Operacional — Registro Semi-Automático (LEGADO / DESATIVADO NA LINHA MESTRA)
 # ============================================================
 
 
@@ -7972,6 +8029,42 @@ if painel == "📘 Relatório Final":
     
         st.code(registro_txt, language="text")
     
+
+# ============================================================
+# V16 — REGISTRO AUTOMÁTICO NA MEMÓRIA OPERACIONAL (sessão)
+# (invisível; sem confirmação humana; sem "apto/inapto" manual)
+# ============================================================
+try:
+    _mo_id = f"{serie_base}|{universo_min}-{universo_max}|n{n_carro}"
+    if _mo_id not in st.session_state.memoria_operacional_ids:
+        st.session_state.memoria_operacional_ids.add(_mo_id)
+
+        _registro_auto = {
+            "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+            "serie_base": serie_base,
+            "series_alvo": series_alvo,
+            "universo": f"{universo_min}-{universo_max}",
+            "n_carro": n_carro,
+            "eco": eco_str,
+            "estado_alvo": estado_alvo_str,
+            "regime_pipeline": regime_pipe,
+            "classe_risco": classe_risco,
+            "k_star": k_star,
+            "nr_percent": nr_percent,
+            "divergencia": divergencia,
+            "aptidao_status": status_aptidao,
+            "aptidao_motivo": motivo_principal,
+            "eixo1_nucleo_detectado": eixo1_nucleo_detectado,
+            "eixo1_tipo_nucleo": eixo1_tipo_nucleo,
+            "eixo1_convergencia": eixo1_convergencia,
+            "pacote_base": "Top10",
+            "pacote_qtd_listas": len(listas_top10) if isinstance(listas_top10, list) else None,
+        }
+        st.session_state.memoria_operacional.append(_registro_auto)
+except Exception:
+    # Registro automático não pode quebrar a rodada
+    pass
+
     except Exception:
         pass
     
@@ -10683,10 +10776,14 @@ def v16_score_analogo(snap_now: dict, snap_old: dict) -> float:
 
 if painel == "🧠 V16 Premium — Análogos Históricos do Momento":
     st.subheader("🧠 V16 Premium — Análogos Históricos do Momento")
-    st.caption("Observacional. Compara o momento atual com registros anteriores na memória operacional (sessão).")
+    st.caption("Observacional. Compara o momento atual com registros anteriores **registrados automaticamente** na Memória Operacional (sessão).")
 
     if 'memoria_operacional' not in st.session_state or not st.session_state.memoria_operacional:
-        st.info("Nenhum registro na Memória Operacional ainda. Rode algumas rodadas e use o painel de Registro Semi-Automático para acumular exemplos.")
+        st.info("Nenhum registro na Memória Operacional ainda.
+
+✅ Agora o registro é **automático** (invisível): ele acontece quando você gera o **📘 Relatório Final**.
+
+➡️ Rode uma rodada completa (até o Relatório Final) e volte aqui.")
     else:
         snap_now = v16_snapshot_momento_atual()
         chave_now = v16_chave_estado(snap_now)
