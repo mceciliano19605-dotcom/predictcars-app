@@ -1,4 +1,3 @@
-
 # ============================================================
 # 🧭 PRÓXIMO PASSO ATUAL — GOVERNANÇA DE FLUXO (REFINADO)
 # Somente leitura de estado | Sem execução | Sem memória
@@ -7,41 +6,35 @@ def _pp_flag(state, *keys):
     return any(k in state for k in keys)
 
 def determinar_proximo_passo_refinado(state):
-    # Histórico
-    if not _pp_flag(state, "historico_df", "df_historico"):
-        return ("👉 Carregue o histórico (Arquivo ou Colar).", "Histórico ausente.")
-    # Leituras básicas
-    if not _pp_flag(state, "k", "k_star"):
-        return ("👉 Execute as leituras básicas (Sentinelas, Risco, Ruído, Replays).", "Leituras básicas pendentes.")
-    # Decisão humana
-    if not _pp_flag(state, "decisao_agora", "sintese_decisao"):
-        return ("👉 Feche o Checklist Operacional — Decisão (AGORA).", "Decisão não fechada.")
-    # TURBO (materialização)
-    if not _pp_flag(state, "pacote_listas", "listas_geradas", "pacote_base"):
-        # Sugestão de TURBO
-        acao = state.get("acao_escolhida") or state.get("acao")
-        if acao and "EXPANDIR" in str(acao).upper():
-            return ("👉 Execute o TURBO++ ULTRA.", "Ação = EXPANDIR COM CRITÉRIO.")
-        return ("👉 Execute o TURBO++ HÍBRIDO.", "Padrão seguro para materializar o pacote.")
-    # Modo 6
-    if not _pp_flag(state, "modo6_executado", "resultado_modo6"):
-        return ("👉 Execute o Modo 6 Acertos.", "Pacote existe; falta normalizar o alvo.")
-    # Divergência (quando aplicável)
-    if _pp_flag(state, "turbo_ultra_executado") and not _pp_flag(state, "divergencia_s6_mc"):
-        return ("👉 Verifique Divergência S6 vs MC.", "ULTRA rodou; divergência pode ser condicional.")
-    # Relatório
-    if not _pp_flag(state, "relatorio_final"):
-        return ("👉 Revise o Relatório Final.", "Fechamento pendente.")
-    return ("👉 Rodada concluída. Inicie nova rodada ou encerre a sessão.", "Fluxo completo.")
+    if not _pp_flag(state, 'historico_df', 'df_historico'):
+        return ('👉 Carregue o histórico (Arquivo ou Colar).', 'Histórico ausente.')
+    if not _pp_flag(state, 'k', 'k_star'):
+        return ('👉 Execute as leituras básicas (Sentinelas, Risco, Ruído, Replays).', 'Leituras básicas pendentes.')
+    if not _pp_flag(state, 'decisao_agora', 'sintese_decisao'):
+        return ('👉 Feche o Checklist Operacional — Decisão (AGORA).', 'Decisão não fechada.')
+    if not _pp_flag(state, 'pacote_listas', 'listas_geradas', 'pacote_base'):
+        acao = state.get('acao_escolhida') or state.get('acao')
+        if acao and 'EXPANDIR' in str(acao).upper():
+            return ('👉 Execute o TURBO++ ULTRA.', 'Ação = EXPANDIR COM CRITÉRIO.')
+        return ('👉 Execute o TURBO++ HÍBRIDO.', 'Padrão seguro para materializar o pacote.')
+    if not _pp_flag(state, 'modo6_executado', 'resultado_modo6'):
+        return ('👉 Execute o Modo 6 Acertos.', 'Pacote existe; falta normalizar o alvo.')
+    if _pp_flag(state, 'turbo_ultra_executado') and not _pp_flag(state, 'divergencia_s6_mc'):
+        return ('👉 Verifique Divergência S6 vs MC.', 'ULTRA rodou; divergência pode ser condicional.')
+    if not _pp_flag(state, 'relatorio_final'):
+        return ('👉 Revise o Relatório Final.', 'Fechamento pendente.')
+    return ('👉 Rodada concluída. Inicie nova rodada ou encerre a sessão.', 'Fluxo completo.')
 
 def render_proximo_passo_refinado(st):
     try:
         acao, motivo = determinar_proximo_passo_refinado(st.session_state)
-        st.markdown("### 🧭 Próximo Passo Atual")
+        st.markdown('### 🧭 Próximo Passo Atual')
         st.info(f"{acao}\n\n*Motivo:* {motivo}")
     except Exception:
-        st.warning("Próximo passo indisponível (estado incompleto).")
-\n\n
+        st.warning('Próximo passo indisponível (estado incompleto).')
+
+
+
 # ============================================================
 # V16 — MEMÓRIA OPERACIONAL (INTERNA / INVISÍVEL)
 # Registro automático de estados canônicos por rodada (sessão)
@@ -226,12 +219,10 @@ Somente evoluir quando:
 """
 
 import streamlit as st
-# --- Ativação do bloco 🧭 Próximo Passo Atual ---
-try:
-    render_proximo_passo_refinado(st)
-except Exception:
-    pass
 
+
+# --- Ativação do bloco 🧭 Próximo Passo Atual ---
+render_proximo_passo_refinado(st)
 # =====================================================================
 # 📜 TEXTO CANÔNICO — CONTRATO OPERACIONAL DO PREDICTCARS
 # Versão: V15.7 MAX
