@@ -1,222 +1,79 @@
 # ============================================================
 # PARTE 1/8 — INÍCIO
 # ============================================================
+"""PredictCars V15.7 MAX — Âncora Estável (base: app_v15_7_MAX_com_orbita.py)
+Arquivo único, íntegro e operacional.
 """
-📜 BLOCO CANÔNICO DE GOVERNANÇA — PREDICTCARS
-============================================================
 
-⚠️ ESTE BLOCO É PARTE ESTRUTURAL DO SISTEMA
-⚠️ NÃO EXECUTA
-⚠️ NÃO ALTERA COMPORTAMENTO
-⚠️ NÃO PODE SER REMOVIDO, REDUZIDO OU REINTERPRETADO
-
-Este bloco existe para garantir CONTINUIDADE, GOVERNANÇA,
-RASTREABILIDADE e SEGURANÇA EVOLUTIVA do PredictCars.
-
-Ele substitui QUALQUER dependência de:
-- memória do operador
-- memória de chats
-- explicações externas
-- “contexto implícito”
-
-============================================================
-🔒 ESTADO BASELINE DO SISTEMA
-============================================================
-
-Sistema: PredictCars
-Versão-base: V15.7 MAX + V16 Premium
-Estado: ESTÁVEL (BASELINE A)
-
-Este arquivo representa um sistema:
-- operacional
-- validado
-- em uso real
-- sem regressões conhecidas
-
-Qualquer evolução futura DEVE:
-- partir deste estado
-- ser ADITIVA
-- ser auditada
-- preservar o “jeitão” histórico do PredictCars
-
-============================================================
-🧭 MAPA CANÔNICO DOS PAINÉIS (ORDEM OPERACIONAL)
-============================================================
-
-A navegação do PredictCars segue UM TRILHO ÚNICO.
-Os painéis abaixo NÃO são concorrentes.
-
-A exclusividade é garantida por:
-- seleção única via sidebar.radio
-- roteador sequencial
-- encerramento explícito via st.stop()
-
-ORDEM OPERACIONAL CANÔNICA:
-
-0️⃣ 📁 Carregar Histórico
-1️⃣ 🧭 Modo Guiado Oficial — PredictCars
-2️⃣ 🧭 Checklist Operacional — Decisão (AGORA)
-
-3️⃣ 🛣️ Pipeline V14-FLEX ULTRA
-4️⃣ 📊 Sentinelas (k / k*)
-5️⃣ 🌊 ECO / PRÉ-ECO / Estado
-
-6️⃣ ⚙️ Modo 6
-7️⃣ ⚙️ Modo TURBO++ HÍBRIDO
-8️⃣ ⚙️ Modo TURBO++ ULTRA
-
-9️⃣ 📡 Painel de Ruído Condicional
-🔟 📉 Painel de Divergência S6 vs MC
-
-1️⃣1️⃣ 🔵 Modo Especial — Evento Condicionado
-1️⃣2️⃣ 🧠 V16 Premium (painéis retrospectivos e observacionais)
-
-============================================================
-🚫 REGRA ABSOLUTA — NÃO EXISTE “CONCORRÊNCIA DE PAINÉIS”
-============================================================
-
-O uso de múltiplos blocos:
-
-    if painel == "...":
-        ...
-        st.stop()
-
-NÃO gera concorrência, pois:
-
-- apenas UM valor de `painel` existe por execução
-- st.stop() encerra o fluxo imediatamente
-- nenhum painel abaixo é executado
-
-⚠️ Qualquer remoção de st.stop() em painéis existentes
-é considerada ALTERAÇÃO ESTRUTURAL CRÍTICA.
-
-============================================================
-🔴 PAINÉIS CRÍTICOS — NÃO TOCAR
-============================================================
-
-Os painéis abaixo são ÁREAS CRÍTICAS DO SISTEMA:
-
-- 🧭 Checklist Operacional — Decisão (AGORA)
-- 🌊 ECO / PRÉ-ECO / Estado
-- 📊 Sentinelas (k / k*)
-- ⚙️ Modo 6
-- ⚙️ Modo TURBO++ ULTRA
-- 📄 Relatório Final
-
-Regras:
-- NÃO automatizar decisão
-- NÃO alterar sem auditoria formal
-- NÃO “corrigir resultado”
-- NÃO introduzir heurística silenciosa
-
-============================================================
-🟡 PAINÉIS OBSERVACIONAIS
-============================================================
-
-- Modo Guiado Oficial
-- Painel de Ruído Condicional
-- Painel de Divergência S6 vs MC
-- MVPs do Modo Especial
-- Painéis V16 retrospectivos
-
-Regras:
-- podem evoluir conceitualmente
-- NÃO podem decidir
-- NÃO podem gerar listas
-- NÃO podem aprender
-
-============================================================
-🟢 PAINÉIS EXPLORATÓRIOS
-============================================================
-
-- Visualizações auxiliares
-- Diagnósticos paralelos
-- Leituras de apoio
-
-Regras:
-- nunca substituem painéis críticos
-- nunca alteram fluxo principal
-- podem ser removidos se inúteis
-
-============================================================
-🧠 PRINCÍPIOS DE EVOLUÇÃO (NORMATIVOS)
-============================================================
-
-- Toda evolução é ADITIVA
-- Nada é substitutivo
-- Leitura precede ação
-- Observação precede decisão
-- Decisão é HUMANA
-- Aprendizado ocorre APÓS o evento
-- Correções ocorrem NA ORIGEM, nunca por filtro tardio
-
-============================================================
-📌 REGRA FINAL
-============================================================
-
-Se houver dúvida entre:
-- “melhorar”
-- “refatorar”
-- “organizar”
-- “otimizar”
-
-A ação padrão é:
-❌ NÃO MEXER
-
-Somente evoluir quando:
-- o sistema pedir
-- os dados sustentarem
-- o impacto for analisado
-
-============================================================
-📜 FIM DO BLOCO CANÔNICO DE GOVERNANÇA — PREDICTCARS
-============================================================
-"""
 
 import streamlit as st
-# =====================================================================
-# 📜 TEXTO CANÔNICO — CONTRATO OPERACIONAL DO PREDICTCARS
-# Versão: V15.7 MAX
-#
-# ESTE BLOCO É A ÂNCORA DO SISTEMA.
-# Ele define COMO o PredictCars deve ser usado, evoluído e interpretado.
-#
-# REGRA ABSOLUTA:
-# - A decisão acontece UMA ÚNICA VEZ, ANTES do evento
-# - O aprendizado acontece SOMENTE DEPOIS do evento
-# - Nunca ao mesmo tempo
-#
-# SEQUÊNCIA OFICIAL — AGORA (DECIDIR E JOGAR)
-# A0: Carregar Histórico
-# A1: Leitura Estrutural do Ambiente (k*, risco, histórico)
-# A2: Qualidade do Sinal (ruído, divergência)
-# A3: Ritmo do Alvo (replays)
-# A4: DECISÃO ÚNICA (Checklist Operacional)
-# A5: Motor (Pipeline / TURBO)
-# A6: EIXO 2 — Momento & Antecipação (Backtest do Pacote)
-# A7: Execução (Modo 6, Relatório)
-#
-# SEQUÊNCIA OFICIAL — DEPOIS (APRENDER)
-# B0: Incorporação da Série Real
-# B1: Diagnóstico de Regime
-# B2: EIXO 3 — Passageiros (ECO / ANTI-EXATO)
-# B3: Ajuste de Lente (humano, não automático)
-#
-# OS 3 EIXOS DO SISTEMA
-# EIXO 1: Estrutura das Listas (higiene, coerência, prontidão)
-# EIXO 2: Momento & Antecipação (ritmo + backtest)
-# EIXO 3: Aprendizado (regime + passageiros)
-#
-# MODO ESPECIAL:
-# - Nunca substitui o modo normal
-# - Nunca cria listas do zero
-# - Atua apenas sobre pacotes já gerados
-#
-# QUALQUER EVOLUÇÃO FUTURA DO PREDICTCARS
-# DEVE RESPEITAR ESTE CONTRATO.
-# =====================================================================
 
-st.sidebar.warning("Rodando arquivo: app_v15_7_MAX.py")
+st.set_page_config(
+    page_title="Predict Cars V15.7 MAX — V16 Premium",
+    page_icon="🚗",
+    layout="wide",
+)
+
+# ============================================================
+# MÓDULO 1 — MIRROR (Diagnóstico Não-Intrusivo)
+# ============================================================
+# Camada SOMENTE leitura para espelhar o estado real da execução.
+# Não altera motores, não recalcula métricas, não decide nada.
+
+from typing import Dict, Any
+
+def _m1_collect_mirror_state(globals_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Espelha variáveis já existentes no app. Nada é criado, nada é recalculado."""
+    keys_of_interest = [
+        # Histórico
+        "historico_df",
+        "historico_carregado",
+        "range_historico",
+        # Sentinelas / métricas
+        "k",
+        "k_star",
+        "nr_percent",
+        # Regime / estado
+        "regime_identificado",
+        "estado_alvo",
+        # Modos / volumes
+        "volumes_usados",
+        "modo_6_ativo",
+        # Listas
+        "listas_geradas",
+        "pacote_atual",
+    ]
+
+    mirror: Dict[str, Any] = {}
+    for key in keys_of_interest:
+        if key in globals_dict:
+            try:
+                mirror[key] = globals_dict[key]
+            except Exception as e:
+                mirror[key] = f"<erro ao ler: {e}>"
+        else:
+            mirror[key] = "<não definido>"
+
+    return mirror
+
+
+def _m1_render_mirror_panel(st, mirror_state: Dict[str, Any]) -> None:
+    st.header("🔍 Diagnóstico Espelho (Mirror)")
+    st.caption("Painel somente leitura — estado real da execução")
+
+    for key, value in mirror_state.items():
+        with st.expander(key):
+            st.write(value)
+
+
+
+
+# ============================================================
+# PredictCars V15.7 MAX — Âncora Estável
+# (sem governança / sem fases extras / sem 'próximo passo')
+# ============================================================
+
+st.sidebar.warning("Rodando arquivo âncora: app_v15_7_MAX_ANCORA_ESTAVEL.py")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
@@ -593,232 +450,10 @@ def v16_gerar_listas_extra_por_orbita(info_orbita, universo_min, universo_max, n
 
 
 # ============================================================
-# V16 — CAMADA FASE 2 (ESQUELETO) — DETECÇÃO → TRANSIÇÃO → NÚCLEO
-# ------------------------------------------------------------
-# Objetivo:
-#   Preparar infraestrutura observacional para:
-#   - Persistência (micro) por interseção entre séries recentes
-#   - Competição vs evidência (core dominante vs espalhamento)
-#   - Termômetro visual de estágio (0–100) para acompanhar série a série
-#
-# Regras INEGOCIÁVEIS:
-#   ✔ NÃO altera listas
-#   ✔ NÃO decide ação
-#   ✔ NÃO muda volumes
-#   ✔ NÃO mexe nos motores (Pipeline/TURBO/Modo 6)
-#   ✔ Só lê, classifica e registra (governança observacional)
 # ============================================================
-
-V16_FASE2_ESTAGIO_COMPETITIVO = "COMPETITIVO"
-V16_FASE2_ESTAGIO_TRANSICAO   = "TRANSIÇÃO"
-V16_FASE2_ESTAGIO_ACIONAVEL   = "ACIONÁVEL"
-
-
-def v16_fase2__colunas_passageiros(historico_df, n_alvo: int = 6):
-    """Detecta colunas p1..pN (robusto), sem assumir nomes fixos além do padrão p\d+."""
-    try:
-        if historico_df is None:
-            return []
-        cols = []
-        for c in list(historico_df.columns):
-            if isinstance(c, str) and re.fullmatch(r"p\d+", c.strip()):
-                cols.append(c.strip())
-        # ordena por índice numérico (p1..p6)
-        cols = sorted(cols, key=lambda x: int(x.replace("p", "")))
-        if n_alvo is not None and len(cols) >= int(n_alvo):
-            return cols[: int(n_alvo)]
-        return cols
-    except Exception:
-        return []
-
-
-def v16_fase2__serie_set(row, cols):
-    try:
-        vals = []
-        for c in cols:
-            v = row.get(c)
-            if v is None:
-                continue
-            try:
-                iv = int(v)
-                # guarda apenas passageiros positivos (k pode ser 0 em alguns históricos)
-                if iv > 0:
-                    vals.append(iv)
-            except Exception:
-                continue
-        return set(vals)
-    except Exception:
-        return set()
-
-
-def v16_fase2_detector_persistencia(historico_df, n_alvo: int = 6, janela: int = 3):
-    """Persistência micro por interseção nas últimas 'janela' séries.
-    Retorna:
-      - intersecoes: [|S(t-2)∩S(t-1)|, |S(t-1)∩S(t)|] (quando janela=3)
-      - score_persist: 0..20 (heurística simples e transparente)
-      - ok_persistência: bool
-    """
-    try:
-        if historico_df is None or len(historico_df) < max(3, int(janela)):
-            return {"intersecoes": [], "score_persist": 0, "ok_persistencia": False}
-
-        cols = v16_fase2__colunas_passageiros(historico_df, n_alvo=n_alvo)
-        if not cols:
-            return {"intersecoes": [], "score_persist": 0, "ok_persistencia": False}
-
-        tail = historico_df.tail(int(janela))
-        sets = [v16_fase2__serie_set(r, cols) for _, r in tail.iterrows()]
-        if len(sets) < 3:
-            return {"intersecoes": [], "score_persist": 0, "ok_persistencia": False}
-
-        inters = []
-        for i in range(1, len(sets)):
-            inters.append(len(sets[i - 1].intersection(sets[i])))
-
-        avg = float(sum(inters)) / float(len(inters)) if inters else 0.0
-
-        # score simples (0..20)
-        if avg >= 3.0:
-            score = 20
-        elif avg >= 2.0:
-            score = 12
-        elif avg >= 1.0:
-            score = 6
-        else:
-            score = 0
-
-        ok = all(x >= 2 for x in inters[-2:]) if len(inters) >= 2 else (inters and inters[-1] >= 2)
-
-        return {"intersecoes": inters, "score_persist": score, "ok_persistencia": bool(ok), "avg_intersec": avg}
-    except Exception:
-        return {"intersecoes": [], "score_persist": 0, "ok_persistencia": False}
-
-
-def v16_fase2_detector_competicao_core(analise_anti: dict):
-    """Leitura de competição via CORE do pacote base (Top N do Modo 6).
-    Quanto maior o CORE (e mais dominante), maior risco de ancoragem em E0/ruído alto.
-    Retorna score_competicao (0..30), e um indicador de 'competição caiu' (bom).
-    """
-    try:
-        analise_anti = analise_anti or {}
-        core = analise_anti.get("core") or []
-        core_size = int(len(core))
-
-        # score de "queda de competição" (bom) é inverso do core_size
-        # core grande => competição alta (ruim para E0+ruído), core pequeno => competição menor (melhor)
-        if core_size <= 1:
-            score = 30
-        elif core_size == 2:
-            score = 22
-        elif core_size == 3:
-            score = 14
-        elif core_size == 4:
-            score = 8
-        else:
-            score = 0
-
-        competicao_caiu = core_size <= 2
-        return {"core": core, "core_size": core_size, "score_competicao": score, "competicao_caiu": competicao_caiu}
-    except Exception:
-        return {"core": [], "core_size": 0, "score_competicao": 0, "competicao_caiu": False}
-
-
-def v16_fase2_termometro_estagio(nr_percent, orbita_selo: str, aps_selo: str, persist: dict, comp: dict):
-    """Termômetro visual 0–100 (observacional) para acompanhar estágio série a série.
-    Transparente (sem 'número mágico'): soma de componentes simples.
-    """
-    # Ruído (0..30): quanto menor NR%, melhor
-    s_ruido = 0
-    try:
-        if nr_percent is not None:
-            nr = float(nr_percent)
-            if nr <= 30:
-                s_ruido = 30
-            elif nr <= 45:
-                s_ruido = 20
-            elif nr <= 60:
-                s_ruido = 10
-            else:
-                s_ruido = 0
-    except Exception:
-        s_ruido = 0
-
-    # Órbita (0..30): E0=0, E1=15, E2=30
-    orb = str(orbita_selo or "E0")
-    if orb == "E2":
-        s_orbita = 30
-    elif orb == "E1":
-        s_orbita = 15
-    else:
-        s_orbita = 0
-
-    # Persistência (0..20)
-    s_persist = int((persist or {}).get("score_persist") or 0)
-    s_persist = max(0, min(20, s_persist))
-
-    # APS (0..20) — postura do sistema
-    selo = str(aps_selo or "⚪")
-    if selo == "🟢":
-        s_aps = 20
-    elif selo == "🟡":
-        s_aps = 15
-    elif selo == "⚪":
-        s_aps = 10
-    else:  # 🔴 ou N/D
-        s_aps = 0
-
-    # Competição (0..30) — já é “bom quando alto”
-    s_comp = int((comp or {}).get("score_competicao") or 0)
-    s_comp = max(0, min(30, s_comp))
-
-    total = int(max(0, min(100, s_ruido + s_orbita + s_persist + s_aps + s_comp)))
-
-    if total >= 66:
-        estagio = V16_FASE2_ESTAGIO_ACIONAVEL
-    elif total >= 35:
-        estagio = V16_FASE2_ESTAGIO_TRANSICAO
-    else:
-        estagio = V16_FASE2_ESTAGIO_COMPETITIVO
-
-    return {
-        "score": total,
-        "estagio": estagio,
-        "componentes": {
-            "ruido": s_ruido,
-            "orbita": s_orbita,
-            "persistencia": s_persist,
-            "aps": s_aps,
-            "competicao": s_comp,
-        },
-    }
-
-
-def v16_fase2_calcular_painel(historico_df, n_alvo: int, analise_anti: dict):
-    """Computa e registra (session_state) o pacote observacional da Fase 2."""
-    try:
-        nr = st.session_state.get("nr_percent_v16") or st.session_state.get("nr_percent")
-        orb = st.session_state.get("orbita_selo_v16") or st.session_state.get("orbita_selo") or "E0"
-        aps_selo = st.session_state.get("aps_postura_selo") or "⚪"
-
-        persist = v16_fase2_detector_persistencia(historico_df, n_alvo=n_alvo, janela=3)
-        comp = v16_fase2_detector_competicao_core(analise_anti or {})
-        termo = v16_fase2_termometro_estagio(nr, orb, aps_selo, persist, comp)
-
-        pacote = {
-            "nr_percent": nr,
-            "orbita": orb,
-            "aps_selo": aps_selo,
-            "persistencia": persist,
-            "competicao": comp,
-            "termometro": termo,
-        }
-
-        st.session_state["v16_fase2"] = pacote
-        return pacote
-    except Exception:
-        pacote = {"termometro": {"score": 0, "estagio": V16_FASE2_ESTAGIO_COMPETITIVO, "componentes": {}}}
-        st.session_state["v16_fase2"] = pacote
-        return pacote
+# V16 — CAMADA REMOVIDA (âncora estável)
+# Motivo: este arquivo âncora opera sem camadas experimentais.
+# ============================================================
 
 # ============================================================
 # V16 — APS (Auditoria de Postura do Sistema) — Observacional
@@ -978,12 +613,6 @@ def v16_analisar_duplo_pacote_base_anti_ancora(
         return {"core": [], "overlaps": [], "base_idx": [], "anti_idx": [], "nota": "falha_silenciosa"}
 
 
-
-st.set_page_config(
-    page_title="Predict Cars V15.7 MAX — V16 Premium",
-    page_icon="🚗",
-    layout="wide",
-)
 
 # ============================================================
 # Estilos globais — preservando jeitão V14-FLEX + V15.6 MAX
@@ -1183,14 +812,8 @@ if "diagnostico_risco" not in st.session_state:
 if "n_alvo" not in st.session_state:
     st.session_state["n_alvo"] = None
 
-if "v16_fase2" not in st.session_state:
-    st.session_state["v16_fase2"] = None
 
-if "v16_fase2_score" not in st.session_state:
-    st.session_state["v16_fase2_score"] = None
 
-if "v16_fase2_estagio" not in st.session_state:
-    st.session_state["v16_fase2_estagio"] = None
 
 if "aps_postura_selo" not in st.session_state:
     st.session_state["aps_postura_selo"] = None
@@ -1832,6 +1455,11 @@ def construir_navegacao_v157() -> str:
         "🧭 Modo Guiado Oficial — PredictCars",
 
         # -----------------------------------------------------
+        # MÓDULO 1 — MIRROR (SOMENTE LEITURA)
+        # -----------------------------------------------------
+        "🔍 Diagnóstico Espelho (Mirror)",
+
+        # -----------------------------------------------------
         # BLOCO 2 — LEITURA DO AMBIENTE
         # -----------------------------------------------------
         "🛰️ Sentinelas — k* (Ambiente de Risco)",
@@ -1876,9 +1504,6 @@ def construir_navegacao_v157() -> str:
         # BLOCO 7.5 — EIXO 2 | MOMENTO & ANTECIPAÇÃO
         # -----------------------------------------------------
         "📊 V16 Premium — Backtest Rápido do Pacote (N=60)",
-        "🧠 V16 Premium — Análogos Históricos do Momento",
-        "⏱️ V16 Premium — Dinâmica de Transição do Momento",
-        "🔬 V16 Premium — FASE 2 & Reconstrução (Status)",
         "🧭 V16 Premium — Rodadas Estratificadas (A/B)",
 
         # -----------------------------------------------------
@@ -1943,6 +1568,18 @@ def construir_navegacao_v157() -> str:
 # ============================================================
 
 painel = construir_navegacao_v157()
+
+
+# ============================================================
+# MÓDULO 1 — MIRROR | ROTEAMENTO (NÃO INTRUSIVO)
+# ============================================================
+# Se o painel Mirror estiver ativo, renderiza e interrompe a execução do restante.
+if painel == "🔍 Diagnóstico Espelho (Mirror)":
+    try:
+        _m1_render_mirror_panel(st, _m1_collect_mirror_state(globals()))
+    except Exception as _m1_e:
+        st.warning(f"⚠️ Mirror falhou (silencioso): {_m1_e}")
+    st.stop()
 st.sidebar.caption(f"Painel ativo: {painel}")
 
 # ============================================================
@@ -1950,7 +1587,7 @@ st.sidebar.caption(f"Painel ativo: {painel}")
 # ============================================================
 try:
     st.sidebar.markdown("---")
-    st.sidebar.caption("✅ BUILD-ID: NAV_AB_FASE2_RECONSTR_ANALOGOS_2026-01-16C")
+    st.sidebar.caption("✅ BUILD-ID: NAV_ANCORA_ESTAVEL_2026-01-18")
     # Observação: build-id atualizado quando há alteração canônica na navegação.
     st.sidebar.caption(f"📄 __file__: {__file__}")
     st.sidebar.caption(f"🔎 Primeiro item NAV: {construir_navegacao_v157.__name__}")
@@ -3665,7 +3302,7 @@ if painel == "🎯 Compressão do Alvo (Observacional)":
 
 # ============================================================
 # BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
-# FASE 2 — REPLAY HISTÓRICO OBSERVACIONAL (MEMÓRIA REAL)
+# REPLAY HISTÓRICO OBSERVACIONAL (MEMÓRIA REAL)
 # NÃO decide | NÃO prevê | NÃO altera motores | NÃO altera volumes
 # ============================================================
 
@@ -3778,7 +3415,7 @@ if (
     st.session_state["observador_historico_v16"] = registros_obs
 
 # ============================================================
-# FIM — BLOCO OBSERVADOR HISTÓRICO (V16) — FASE 2
+# FIM — BLOCO OBSERVADOR HISTÓRICO (V16)
 # ============================================================
 
 
@@ -7888,66 +7525,13 @@ if painel == "📘 Relatório Final":
     try:
         try:
             # ------------------------------------------------------------
-            # 🧭 FASE 2 (ESQUELETO) — Termômetro Visual de Estágio (0–100)
-            # ------------------------------------------------------------
-            st.markdown("### 🌡️ Termômetro Visual de Estágio (Fase 2 — Observacional)")
-            st.caption("0–100% | Não altera listas | Não decide ação | Serve para comparar série a série.")
+            # 
+            # (camada experimental removida na âncora estável)
 
-            pacote_f2 = v16_fase2_calcular_painel(
-                historico_df=historico_df,
-                n_alvo=n_alvo or 6,
-                analise_anti=st.session_state.get("v16_anti_ancora") or {},
-            )
-
-            termo = (pacote_f2 or {}).get("termometro") or {}
-            score = int(termo.get("score") or 0)
-            estagio = termo.get("estagio") or "N/D"
-            comps = termo.get("componentes") or {}
-
-            st.write(f"**Estágio atual:** **{estagio}**")
-            st.progress(max(0.0, min(1.0, score / 100.0)))
-            st.write(f"**Score:** {score}/100")
-
-            with st.expander("Ver componentes (transparente)"):
-                st.write(f"- Ruído (NR%): **{comps.get('ruido', 0)}** / 30")
-                st.write(f"- Órbita: **{comps.get('orbita', 0)}** / 30")
-                st.write(f"- Persistência (micro): **{comps.get('persistencia', 0)}** / 20")
-                st.write(f"- APS (postura): **{comps.get('aps', 0)}** / 20")
-                st.write(f"- Competição (core): **{comps.get('competicao', 0)}** / 30")
-
-            # Registro resumido para RF-GOV / auditoria
-            st.session_state["v16_fase2_score"] = score
-            st.session_state["v16_fase2_estagio"] = estagio
-        except Exception:
-            pass
-
-        st.markdown("### 📌 Registro Canônico do Momento")
-    
-        # Série base
-        serie_base = "N/D"
-        try:
-            if historico_df is not None and "serie" in historico_df.columns:
-                serie_base = f"C{int(historico_df['serie'].max())}"
-        except Exception:
-            pass
-    
-        # Séries alvo (sempre duas)
-        series_alvo = "N/D"
-        if serie_base != "N/D":
-            try:
-                num = int(serie_base.replace("C", ""))
-                series_alvo = f"C{num + 1} / C{num + 2}"
-            except Exception:
-                pass
-    
         universo_min = st.session_state.get("universo_min", "N/D")
         universo_max = st.session_state.get("universo_max", "N/D")
-    
-        fase2_estagio = st.session_state.get("v16_fase2_estagio", "N/D")
-    
-        fase2_score = st.session_state.get("v16_fase2_score", "N/D")
-
-    
+        termometro_estagio = "N/D"
+        termometro_score = "N/D"
         registro_txt = f"""
     SÉRIE_BASE: {serie_base}
     SÉRIES_ALVO: {series_alvo}
@@ -8005,7 +7589,7 @@ if painel == "📘 Relatório Final":
 
 
     # ============================================================
-    # 🧠 FASE 2 — PAINEL DE APTIDÃO DO EVENTO (CANÔNICO | SOMENTE LEITURA)
+    # 🧠 Painel — Aptidão do Evento (CANÔNICO | SOMENTE LEITURA)
     # Avaliação AUTOMÁTICA de aptidão para Memória Operacional
     # ============================================================
     try:
@@ -10622,181 +10206,12 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
 # - Este painel é 100% opcional.
 # - Se nada for marcado, o app se comporta como sempre.
 # ============================================================
-
-
-# ============================================================
-# V16 Premium — Análogos Históricos & Dinâmica de Transição (OBSERVACIONAL)
-# ============================================================
-# - Usa apenas registros já capturados na sessão (memória operacional).
-# - Não gera números, não muda listas, não decide.
-# - Serve para responder:
-#   “O momento atual já apareceu antes? Quanto tempo costuma demorar para virar?”
-
-V16_FASE2_ATIVA = False
-V16_RECONSTR_ATIVA = False
-
-def v16_snapshot_momento_atual():
-    """Coleta um snapshot mínimo do momento atual a partir de session_state.
-    Se algum campo não existir, cai em None (observacional / robusto).
-    """
-    ss = st.session_state
-    def get(k, default=None):
-        return ss.get(k, default)
-
-    # Tenta capturar selos já usados nos painéis V16
-    snap = {
-        "serie_base": get('serie_base'),
-        "series_alvo": get('series_alvo'),
-        "k_star": get('k_star') or get('kstar') or get('k*'),
-        "nr_percent": get('nr_percent') or get('NR_PERCENT'),
-        "nr_risco": get('nr_percent_risco') or get('NR_RISCO') or get('nr_risco'),
-        "divergencia": get('divergencia_s6_mc') or get('DIVERGENCIA') or get('divergencia'),
-        "orbita": get('orbita_selo') or get('ORBITA') or get('orbita'),
-        "eco_acionabilidade": get('eco_acionabilidade') or get('ECO_ACIONABILIDADE'),
-        "estado_alvo": get('estado_alvo') or get('ESTADO_ALVO'),
-        "dmo_estado": get('dmo_estado') or get('DMO_ESTADO'),
-        "aps_postura": get('aps_postura') or get('APS_POSTURA'),
-        "termometro_score": get('termometro_score') or get('TERMOMETRO_SCORE')
-    }
-    return snap
-
-def v16_chave_estado(snap: dict) -> str:
-    # Chave simples e auditável: só “selos” (strings) + bins básicos
-    orb = snap.get('orbita') or 'N/D'
-    eco = snap.get('eco_acionabilidade') or 'N/D'
-    est = snap.get('estado_alvo') or 'N/D'
-    dmo = snap.get('dmo_estado') or 'N/D'
-    aps = snap.get('aps_postura') or 'N/D'
-    return f"orb:{orb} | eco:{eco} | est:{est} | dmo:{dmo} | aps:{aps}"
-
-
-def v16_score_analogo(snap_now: dict, snap_old: dict) -> float:
-    # Score por coincidência de selos (0..1). Não “mede distância”; só compara chaves.
-    keys = ["orbita", "eco_acionabilidade", "estado_alvo", "dmo_estado", "aps_postura"]
-    total = len(keys)
-    hit = 0
-    for k in keys:
-        if (snap_now.get(k) is not None) and (snap_now.get(k) == snap_old.get(k)):
-            hit += 1
-    return hit / total if total else 0.0
-
-
-if painel == "🧠 V16 Premium — Análogos Históricos do Momento":
-    st.subheader("🧠 V16 Premium — Análogos Históricos do Momento")
-    st.caption("Observacional. Compara o momento atual com registros anteriores na memória operacional (sessão).")
-
-    if 'memoria_operacional' not in st.session_state or not st.session_state.memoria_operacional:
-        st.info("Nenhum registro na Memória Operacional ainda. Rode algumas rodadas e use o painel de Registro Semi-Automático para acumular exemplos.")
-    else:
-        snap_now = v16_snapshot_momento_atual()
-        chave_now = v16_chave_estado(snap_now)
-        st.markdown(f"**Chave do momento atual (selo):** `{chave_now}`")
-
-        registros = []
-        for i, r in enumerate(st.session_state.memoria_operacional):
-            snap_old = r.get('snapshot_momento') or {}
-            score = v16_score_analogo(snap_now, snap_old)
-            if score <= 0:
-                continue
-            registros.append({
-                'idx': i,
-                'score': score,
-                'serie_base': r.get('serie_base') or r.get('série_base') or r.get('serie') or 'N/D',
-                'eco': snap_old.get('eco_acionabilidade') or r.get('eco_status') or 'N/D',
-                'estado': snap_old.get('estado_alvo') or r.get('estado_status') or 'N/D',
-                'orbita': snap_old.get('orbita') or 'N/D',
-                'dmo': snap_old.get('dmo_estado') or 'N/D',
-                'aps': snap_old.get('aps_postura') or 'N/D',
-            })
-
-        if not registros:
-            st.warning("Ainda não há análogos com coincidência de selos. Isso é comum no começo: falta histórico de registros na sessão.")
-        else:
-            registros.sort(key=lambda x: (x['score'], x['idx']), reverse=True)
-            top = registros[:15]
-            st.write("Top análogos (sessão):")
-            st.dataframe(top, use_container_width=True)
-            st.caption("Score = fração de selos coincidentes (órbita / ECO / estado / DMO / APS).")
-
-
-if painel == "⏱️ V16 Premium — Dinâmica de Transição do Momento":
-    st.subheader("⏱️ V16 Premium — Dinâmica de Transição do Momento")
-    st.caption("Observacional. Mede, na sua sessão, em quantos registros o estado costuma mudar (ou não).")
-
-    if 'memoria_operacional' not in st.session_state or len(st.session_state.memoria_operacional) < 3:
-        st.info("Poucos registros na Memória Operacional para medir transição. Use mais rodadas e registre momentos.")
-    else:
-        mem = st.session_state.memoria_operacional
-        snaps = [ (i, (r.get('snapshot_momento') or {})) for i, r in enumerate(mem) ]
-        keys = [ v16_chave_estado(s) for _, s in snaps ]
-
-        # Estatística: para cada ocorrência, em quantos passos muda a chave
-        horizons = [1,2,3,4,5,8,12]
-        buckets = {h:0 for h in horizons}
-        never = 0
-        total = 0
-        for i in range(len(keys)-1):
-            total += 1
-            base = keys[i]
-            changed = False
-            for h in horizons:
-                j = i+h
-                if j >= len(keys):
-                    continue
-                if keys[j] != base:
-                    buckets[h] += 1
-                    changed = True
-                    break
-            if not changed:
-                never += 1
-
-        st.markdown("**Leitura direta (sessão):**")
-        if total > 0:
-            rows = []
-            for h in horizons:
-                rows.append({"até (registros)": f"≤ {h}", "freq": buckets[h], "taxa": round(buckets[h]/total*100,2)})
-            rows.append({"até (registros)": "> horizonte", "freq": never, "taxa": round(never/total*100,2)})
-            st.dataframe(rows, use_container_width=True)
-
-        st.caption("\"Quase nunca\" aqui significa: dentro do horizonte escolhido, poucas ocorrências mudaram de selo. Não é promessa de futuro; é frequência observada nos seus registros.")
-
-
-if painel == "🔬 V16 Premium — FASE 2 & Reconstrução (Status)":
-    st.subheader("🔬 V16 Premium — FASE 2 & Reconstrução (Status)")
-    st.caption("Painel canônico de governança: PREPARAR ≠ ATIVAR. Tudo aqui é BLOQUEADO por padrão.")
-
-    st.markdown("### 🧭 FASE 2 — Exploração de Momento Bom")
-    st.write({
-        "status": "BLOQUEADA" if not V16_FASE2_ATIVA else "ATIVA",
-        "motivo": "Aguardando critérios objetivos de liberação (sinais consistentes por 2–3 séries).",
-        "impacto": "Observacional: não altera geração, não muda volume, não decide."
-    })
-
-    st.markdown("### 🧱 Reconstrução Estrutural do Barco")
-    st.write({
-        "status": "SUGESTÃO BLOQUEADA" if not V16_RECONSTR_ATIVA else "ATIVA",
-        "regra": "No máximo UMA vez por pacote (Backtest autoriza parar, não insistir).",
-        "objetivo": "Engenharia de forma (reduzir auto-sabotagem / redundância fraca), não previsão."
-    })
-
-    st.markdown("### ✅ Critérios (rascunho) para LIBERAR no futuro")
-    st.markdown(
-        "- DMO sair de 🟥 SOBREVIVÊNCIA para 🟨 ATENÇÃO ou 🟩 OPERÁVEL por 2–3 séries\n"
-        "- NR% (Ruído Condicional) melhorar de forma consistente\n"
-        "- Análogos mostrarem transição real no passado (frequência não desprezível)\n"
-        "- Backtest do pacote indicar fragilidade (se for o caso de reconstrução)\n"
-    )
-
-# ============================================================
-# FIM — Análogos & Dinâmica (OBSERVACIONAL)
-# ============================================================
-
 if painel == "🧭 V16 Premium — Rodadas Estratificadas (A/B)":
 
     st.subheader("🧭 V16 Premium — Rodadas Estratificadas (A/B)")
     st.caption(
         "Painel de preparação e registro. Não gera listas automaticamente. "
-        "Não ativa FASE 2. Não muda Modo 6/TURBO. "
+        "Não ativa camadas experimentais. Não muda Modo 6/TURBO. "
         "Serve apenas para organizar duas rodadas independentes no MESMO evento raro."
     )
 
@@ -11124,127 +10539,111 @@ if painel == "🧭 Modo Guiado Oficial — PredictCars":
     st.markdown("---")
 
     st.markdown("""
-🧭 **Modo Guiado Oficial — PredictCars**
-Guia operacional único · uso diário · contrato de uso do sistema.
-**Não executa, não calcula, não decide — apenas orienta a sequência correta.**
+🧭 **MODO GUIADO OFICIAL — CONTRATO OPERACIONAL**
 
-# 🧭 MODO GUIADO OFICIAL — CONTRATO OPERACIONAL
+Este painel descreve **COMO o PredictCars deve ser usado**.
+Ele existe para evitar decisões fora de ordem e misturas perigosas
+entre leitura, decisão, execução e aprendizado.
 
-Este painel descreve **COMO** o PredictCars deve ser usado.
-Ele existe para evitar decisões fora de ordem e **misturas perigosas** entre leitura, decisão, execução e aprendizado.
+━━━━━━━━━━━━━━━━━━━━
+🔵 **AGORA — DECIDIR E JOGAR**
+━━━━━━━━━━━━━━━━━━━━
 
-━━━━━━━━━━━━━━━━━━━━ 🔵 AGORA — DECIDIR E JOGAR ━━━━━━━━━━━━━━━━━━━━
+**1️⃣ ENTRADA**
+- 📁 Carregar Histórico (Arquivo ou Colar)
 
-## 1️⃣ ENTRADA
+**2️⃣ EIXO 1 — ESTRUTURA DO AMBIENTE**
+*(saúde da estrada · não números)*
 
-📁 Carregar Histórico (Arquivo ou Colar)
+Painéis:
+- 🛰️ Sentinelas — k*
+- 🧭 Monitor de Risco — k & k*
+- 📡 Painel de Ruído Condicional
+- 📉 Painel de Divergência S6 vs MC
 
-## 2️⃣ EIXO 1 — ESTRUTURA DO AMBIENTE (saúde da estrada · não números)
+Pergunta respondida:
+- O ambiente permite ataque?
 
-**Painéis:**
+---
 
-🛰️ Sentinelas — k*
-🧭 Monitor de Risco — k & k*
-📡 Painel de Ruído Condicional
-📉 Painel de Divergência S6 vs MC
+**3️⃣ EIXO 2 — MOMENTO & ANTECIPAÇÃO**
+*(ritmo do alvo + evidência recente)*
 
-**Pergunta respondida:**
+Painéis:
+- 🔁 Replay LIGHT
+- 🔁 Replay ULTRA
+- 🧪 Replay Curto — Expectativa 1–3 Séries
+- 📊 V16 Premium — Backtest Rápido do Pacote (N=60)
 
-O ambiente permite ataque?
+Pergunta respondida:
+- O momento favorece agir agora?
 
-## 3️⃣ EIXO 2 — MOMENTO & ANTECIPAÇÃO (ritmo do alvo + evidência recente)
+---
 
-**Painéis:**
+**4️⃣ DECISÃO ÚNICA (HUMANA)**
+*(registrada · sem retorno)*
 
-🔁 Replay LIGHT
-🔁 Replay ULTRA
-🧪 Replay Curto — Expectativa 1–3 Séries
-📊 V16 Premium — Backtest Rápido do Pacote (N=60)
-
-**Pergunta respondida:**
-
-O momento favorece agir agora?
-
-## 3️⃣B EIXO 2B — ANÁLOGOS & TRANSIÇÃO (observacional · sem decisão)
-
-Quando você quiser **comparar o presente com o passado**, use:
-
-🧠 V16 Premium — Análogos Históricos do Momento
-⏱️ V16 Premium — Dinâmica de Transição do Momento
-
-📌 Estes dois painéis:
-- não geram números
-- não mudam pacotes
-- não liberam nada
-
-Eles só respondem:
-**“Isso já aconteceu antes? Em quantas séries costuma virar? Com que frequência melhora/piora?”**
-
-## 4️⃣ DECISÃO ÚNICA (HUMANA) (registrada · sem retorno)
-
-**Painel:**
-
-🧭 Checklist Operacional — Decisão (AGORA)
+Painel:
+- 🧭 Checklist Operacional — Decisão (AGORA)
 
 Aqui você define:
-
 - atacar ou não
 - concentrar, equilibrar ou expandir
 - volume de listas
 
-📌 Depois disso, **não se volta atrás**.
+📌 **Depois disso, não se volta atrás.**
 
-## 5️⃣ MOTOR
+---
 
-🛣️ Pipeline V14-FLEX ULTRA
-⚙️ Modo TURBO++ HÍBRIDO
-⚙️ Modo TURBO++ ULTRA
+**5️⃣ MOTOR**
+- 🛣️ Pipeline V14-FLEX ULTRA
+- ⚙️ Modo TURBO++ HÍBRIDO
+- ⚙️ Modo TURBO++ ULTRA
 
-## 6️⃣ EXECUÇÃO
+---
 
-🎯 Modo 6 Acertos — Execução
-🧪 Testes de Confiabilidade REAL
-📘 Relatório Final
-🔥 Mandar Bala
+**6️⃣ EXECUÇÃO**
+- 🎯 Modo 6 Acertos — Execução
+- 🧪 Testes de Confiabilidade REAL
+- 📘 Relatório Final
+- 🔥 Mandar Bala
 
-━━━━━━━━━━━━━━━━━━━━ 🟣 EXTENSÃO CONDICIONAL — “FASE 2” (PREPARADA, BLOQUEADA) ━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━
+🟣 **EXTENSÃO CONDICIONAL — MODO ESPECIAL**
+━━━━━━━━━━━━━━━━━━━━
 
-🔬 V16 Premium — FASE 2 & Reconstrução (Status)
+Use **somente após** concluir o fluxo acima.
 
-📌 Esta área existe para:
-- mostrar o **status canônico** (bloqueada/liberável)
-- proteger a linha mestra (não ativar nada cedo)
-- manter governança: **PREPARAR ≠ ATIVAR**
+- 🔵 MODO ESPECIAL — Evento Condicionado
+- Atua sobre pacotes já gerados
+- Não cria listas novas
+- Útil apenas para eventos únicos
 
-━━━━━━━━━━━━━━━━━━━━ 🟣 EXTENSÃO CONDICIONAL — MODO ESPECIAL ━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━
+🟢 **DEPOIS — APRENDER**
+━━━━━━━━━━━━━━━━━━━━
 
-Use somente após concluir o fluxo acima.
+Painéis:
+- 📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos
+- 📊 EXATO / ECO / Regime
 
-🔵 MODO ESPECIAL — Evento Condicionado
-- atua sobre pacotes já gerados
-- não cria listas novas
-- útil apenas para eventos únicos
+📌 Aprendizado **somente para a próxima rodada**.
 
-━━━━━━━━━━━━━━━━━━━━ 🟢 DEPOIS — APRENDER (para a próxima rodada) ━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━
+🧱 **OS 3 EIXOS DO SISTEMA**
+━━━━━━━━━━━━━━━━━━━━
 
-Painéis (exemplos):
+- **Eixo 1** — Estrutura das Listas  
+- **Eixo 2** — Momento & Antecipação  
+- **Eixo 3** — Aprendizado  
 
-📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos
-📊 EXATO / ECO / Regime
+━━━━━━━━━━━━━━━━━━━━
+📜 **REGRA FINAL**
+━━━━━━━━━━━━━━━━━━━━
 
-📌 Aprendizado vale **somente para a próxima rodada**.
-
-━━━━━━━━━━━━━━━━━━━━ 🧱 OS 3 EIXOS DO SISTEMA ━━━━━━━━━━━━━━━━━━━━
-
-Eixo 1 — Estrutura do Ambiente
-Eixo 2 — Momento & Antecipação
-Eixo 3 — Aprendizado
-
-━━━━━━━━━━━━━━━━━━━━ 📜 REGRA FINAL ━━━━━━━━━━━━━━━━━━━━
-
-A decisão acontece **ANTES**.
-O aprendizado acontece **DEPOIS**.
-Nunca ao mesmo tempo.
+A decisão acontece **ANTES**.  
+O aprendizado acontece **DEPOIS**.  
+**Nunca ao mesmo tempo.**
 """)
 
     st.success(
