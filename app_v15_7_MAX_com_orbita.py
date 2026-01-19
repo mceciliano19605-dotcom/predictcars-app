@@ -6158,6 +6158,25 @@ if painel == "🧭 Monitor de Risco — k & k*":
         "divergencia": divergencia,
     }
 
+
+    # ============================================================
+    # M1 — ESPELHO CANÔNICO DO RISCO (S3)
+    # (apenas espelhamento: não recalcula, não decide, não altera motores)
+    # ============================================================
+    st.session_state["k_star"] = float(k_star) if isinstance(k_star, (int, float)) else k_star
+    st.session_state["nr_percent"] = float(nr_percent) if isinstance(nr_percent, (int, float)) else nr_percent
+
+    # Divergência: manter chave histórica (div_s6_mc) e chave canônica do Mirror
+    st.session_state["div_s6_mc"] = float(divergencia) if isinstance(divergencia, (int, float)) else divergencia
+    st.session_state["divergencia_s6_mc"] = float(divergencia) if isinstance(divergencia, (int, float)) else divergencia
+
+    st.session_state["indice_risco"] = float(indice_risco) if isinstance(indice_risco, (int, float)) else indice_risco
+    st.session_state["classe_risco"] = classe_risco
+
+    # Selos M1 (S3)
+    st.session_state["m1_selo_risco_ok"] = True
+    st.session_state["m1_ts_risco_ok"] = __import__("time").time()
+
     st.success("Monitor de Risco atualizado com sucesso!")
 
 # ============================================================
