@@ -46,6 +46,224 @@ import streamlit as st
 st.sidebar.caption("🧪 DEBUG: arquivo carregado")
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
+
+# ============================================================
+# MÓDULO 1 — GOVERNANÇA & MIRROR (OBSERVACIONAL)
+# Camada de VISIBILIDADE (read-only)
+# - NÃO executa motores
+# - NÃO altera comportamento
+# - NÃO bloqueia operações
+# - Falha silenciosa (nunca derruba o app)
+# ============================================================
+
+def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
+    """Coleta um snapshot read-only do estado atual (session_state + sinais básicos).
+    Regra: nunca levanta exceção para o app; devolve N/D quando não existir.
+    """
+
+    ss = st.session_state
+
+    def g(key: str, default: Any = "N/D") -> Any:
+        try:
+            return ss.get(key, default)
+        except Exception:
+            return default
+
+    # Base
+    historico_df = g("historico_df", None)
+    historico_ok = historico_df is not None
+
+    # Sinais universais (quando existirem)
+    n_alvo = g("n_alvo", "N/D")
+    universo_min = g("universo_min", "N/D")
+    universo_max = g("universo_max", "N/D")
+
+    # Pipeline / Diagnóstico (nomes variam no arquivo; usar fallback N/D)
+    pipeline_ok = bool(g("pipeline_flex_ultra_concluido", False) or g("pipeline_executado", False))
+    regime = g("regime_identificado", g("regime", "N/D"))
+    energia = g("energia_media", g("energia_media_estrada", "N/D"))
+    volatilidade = g("volatilidade_media", "N/D")
+    clusters = g("clusters_formados", "N/D")
+
+    # Monitor de risco
+    k_star = g("k_star", g("k*", "N/D"))
+    nr_percent = g("nr_percent", g("nr%", "N/D"))
+    divergencia = g("divergencia_s6_mc", g("divergencia", "N/D"))
+    indice_risco = g("indice_risco", "N/D")
+    classe_risco = g("classe_risco", "N/D")
+
+    # Execução / TURBO / Modo 6
+    turbo_tentado = bool(g("turbo_ultra_executado", False) or g("turbo_executado", False))
+    turbo_bloqueado = bool(g("turbo_bloqueado", False))
+    turbo_motivo = g("turbo_motivo_bloqueio", g("motivo_bloqueio", "N/D"))
+    modo6_executado = bool(g("modo_6_ativo", False) or g("modo6_executado", False) or g("modo_6_executado", False))
+    listas_geradas = g("listas_geradas", g("listas_finais", g("pacote_atual", "N/D")))
+    volumes_usados = g("volumes_usados", "N/D")
+    estado_alvo = g("estado_alvo", "N/D")
+    eco_status = g("eco_status", g("eco", "N/D"))
+    dmo_status = g("estado_dmo", "N/D")
+
+    # Rastro de navegação (quando existir)
+    painel_atual = g("NAV_V157_CANONICA", "N/D")
+
+    # Keys (para auditoria leve)
+    try:
+        keys = sorted([str(k) for k in ss.keys()])
+    except Exception:
+        keys = []
+
+    return {
+        "historico_ok": historico_ok,
+        "historico_df": "definido" if historico_ok else "<não definido>",
+        "n_alvo": n_alvo,
+        "universo_min": universo_min,
+        "universo_max": universo_max,
+        "pipeline_ok": pipeline_ok,
+        "regime": regime,
+        "energia_media": energia,
+        "volatilidade_media": volatilidade,
+        "clusters": clusters,
+        "k_star": k_star,
+        "nr_percent": nr_percent,
+        "divergencia_s6_mc": divergencia,
+        "indice_risco": indice_risco,
+        "classe_risco": classe_risco,
+        "turbo_tentado": turbo_tentado,
+        "turbo_bloqueado": turbo_bloqueado,
+        "turbo_motivo": turbo_motivo,
+        "modo6_executado": modo6_executado,
+        "listas_geradas": "definidas" if (listas_geradas not in (None, "N/D", "<não definido>")) else "<não definido>",
+        "volumes_usados": volumes_usados,
+        "estado_alvo": estado_alvo,
+        "eco_status": eco_status,
+        "dmo_status": dmo_status,
+        "painel_atual": painel_atual,
+        "keys": keys,
+    }
+
+
+def _m1_classificar_estado(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    """Classifica estado S0–S6 (canônico) com base no snapshot.
+    Regra: conservador; se faltar evidência, não avança estado.
+    """
+
+    S = "S0"
+    nome = "Histórico inexistente"
+    faltas: List[str] = []
+    avisos: List[str] = []
+
+    if snapshot.get("historico_ok"):
+        S = "S1"
+        nome = "Histórico carregado"
+    else:
+        faltas.append("Carregar Histórico")
+        return {"estado": S, "nome": nome, "faltas": faltas, "avisos": avisos}
+
+    if snapshot.get("pipeline_ok"):
+        S = "S2"
+        nome = "Pipeline consolidado"
+    else:
+        faltas.append("Rodar Pipeline V14-FLEX ULTRA")
+        return {"estado": S, "nome": nome, "faltas": faltas, "avisos": avisos}
+
+    # Diagnóstico completo (não exigir tudo; se houver k* e NR% já é bom indicativo)
+    if snapshot.get("k_star") != "N/D" or snapshot.get("nr_percent") != "N/D":
+        S = "S3"
+        nome = "Diagnóstico disponível"
+    else:
+        avisos.append("Diagnóstico ainda parcial (k*/NR% N/D)")
+        return {"estado": S, "nome": nome, "faltas": faltas, "avisos": avisos}
+
+    if snapshot.get("turbo_tentado"):
+        S = "S4"
+        nome = "Sondagem de execução (TURBO)"
+    else:
+        avisos.append("TURBO não executado nesta sessão (permitido, mas reduz visibilidade do envelope)")
+
+    if snapshot.get("modo6_executado"):
+        S = "S5"
+        nome = "Execução real (Modo 6)"
+    else:
+        faltas.append("Executar Modo 6")
+
+    # Pós-execução: listas e/ou relatório já gerados na sessão (heurística conservadora)
+    if snapshot.get("modo6_executado") and snapshot.get("listas_geradas") == "definidas":
+        S = "S6"
+        nome = "Pós-execução (Relatório / Governança)"
+
+    return {"estado": S, "nome": nome, "faltas": faltas, "avisos": avisos}
+
+
+def _m1_render_barra_estados(estado: str) -> None:
+    ordem = ["S0", "S1", "S2", "S3", "S4", "S5", "S6"]
+    marcadores = []
+    for s in ordem:
+        if ordem.index(s) < ordem.index(estado):
+            marcadores.append("✓")
+        elif s == estado:
+            marcadores.append("●")
+        else:
+            marcadores.append("○")
+    st.write(" ".join([f"[{s}]" for s in ordem]))
+    st.write(" ".join([f" {m} " for m in marcadores]))
+
+
+def _m1_render_mirror_panel() -> None:
+    """Painel Mirror canônico (observacional). Nunca derruba o app."""
+    try:
+        snapshot = _m1_collect_mirror_snapshot()
+        meta = _m1_classificar_estado(snapshot)
+
+        st.markdown("## 🔍 Diagnóstico Espelho (Mirror)")
+        st.caption("Painel somente leitura — estado real da execução · governança informativa · sem decisão")
+
+        st.markdown("### 🧭 Estado Operacional Atual")
+        st.markdown(f"**{meta['estado']} — {meta['nome']}**")
+        _m1_render_barra_estados(meta["estado"])
+
+        if meta.get("faltas"):
+            st.info("Ainda não percorrido (na sessão): " + " · ".join(meta["faltas"]))
+        if meta.get("avisos"):
+            for a in meta["avisos"]:
+                st.warning(a)
+
+        st.markdown("---")
+        st.markdown("### 📋 Snapshot (read-only)")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.write({
+                "historico_df": snapshot.get("historico_df"),
+                "n_alvo": snapshot.get("n_alvo"),
+                "universo": f"{snapshot.get('universo_min')}–{snapshot.get('universo_max')}",
+                "pipeline_ok": snapshot.get("pipeline_ok"),
+                "regime": snapshot.get("regime"),
+            })
+        with col2:
+            st.write({
+                "k_star": snapshot.get("k_star"),
+                "nr_percent": snapshot.get("nr_percent"),
+                "divergencia_s6_mc": snapshot.get("divergencia_s6_mc"),
+                "indice_risco": snapshot.get("indice_risco"),
+                "classe_risco": snapshot.get("classe_risco"),
+            })
+        with col3:
+            st.write({
+                "turbo_tentado": snapshot.get("turbo_tentado"),
+                "turbo_bloqueado": snapshot.get("turbo_bloqueado"),
+                "turbo_motivo": snapshot.get("turbo_motivo"),
+                "modo6_executado": snapshot.get("modo6_executado"),
+                "listas_geradas": snapshot.get("listas_geradas"),
+            })
+
+        with st.expander("🧪 Chaves do session_state (auditoria leve)"):
+            st.write(snapshot.get("keys", []))
+
+    except Exception as _e:
+        # Falha silenciosa: não derrubar o app.
+        st.warning(f"⚠️ Mirror falhou (silencioso): {_e}")
+
+
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # V16 — GUARDA CANÔNICA (ANTI-NAMEERROR) — TOPO DO ARQUIVO
 # (DESATIVADA — substituída pela CAMADA D real)
@@ -1401,6 +1619,7 @@ def construir_navegacao_v157() -> str:
         # BLOCO 1 — ORIENTAÇÃO
         # -----------------------------------------------------
         "🧭 Modo Guiado Oficial — PredictCars",
+        "🔍 Diagnóstico Espelho (Mirror)",
 
         # -----------------------------------------------------
         # BLOCO 2 — LEITURA DO AMBIENTE
@@ -10602,6 +10821,13 @@ if painel == "🧭 Modo Guiado Oficial — PredictCars":
         "Este painel apenas orienta o uso correto do sistema.\n"
         "Siga a sequência indicada no menu."
     )
+    st.stop()
+
+# ------------------------------------------------------------
+# GOVERNANÇA / VISIBILIDADE (M1)
+# ------------------------------------------------------------
+if painel == "🔍 Diagnóstico Espelho (Mirror)":
+    _m1_render_mirror_panel()
     st.stop()
 
 # ------------------------------------------------------------
