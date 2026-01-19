@@ -7454,7 +7454,6 @@ if painel == "📘 Relatório Final":
     # 📌 REGISTRO CANÔNICO DO MOMENTO — DIAGNÓSTICO (COPIÁVEL)
     # ============================================================
     try:
-        try:
             # ------------------------------------------------------------
             # 
             # (camada experimental removida na âncora estável)
