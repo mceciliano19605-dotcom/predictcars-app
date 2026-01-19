@@ -15,42 +15,6 @@ st.set_page_config(
 )
 
 
-# ============================================================
-# MÓDULO 1 — MIRROR (Diagnóstico Não-Intrusivo)
-# ============================================================
-# Camada SOMENTE leitura.
-# Lê preferencialmente do st.session_state, com fallback seguro.
-# NÃO altera motores, NÃO recalcula métricas, NÃO decide nada.
-
-from typing import Dict, Any
-
-
-
-
-
-
-
-
-def _m1_render_mirror_panel(st):
-    st.header("🔍 Diagnóstico Espelho (Mirror)")
-    st.caption("Painel somente leitura — modo seguro")
-    st.info("Mirror estabilizado. Nenhuma leitura de estado é realizada.")
-
-from typing import Dict, Any
-
-
-
-
-def _m1_render_mirror_panel(st) -> None:
-    st.header("🔍 Diagnóstico Espelho (Mirror)")
-    st.caption("Painel somente leitura — estado real da execução")
-
-    for key, value in .items():
-        with st.expander(key):
-            st.write(value)
-
-
-
 
 # ============================================================
 # PredictCars V15.7 MAX — Âncora Estável
@@ -1439,11 +1403,6 @@ def construir_navegacao_v157() -> str:
         "🧭 Modo Guiado Oficial — PredictCars",
 
         # -----------------------------------------------------
-        # MÓDULO 1 — MIRROR (SOMENTE LEITURA)
-        # -----------------------------------------------------
-        "🔍 Diagnóstico Espelho (Mirror)",
-
-        # -----------------------------------------------------
         # BLOCO 2 — LEITURA DO AMBIENTE
         # -----------------------------------------------------
         "🛰️ Sentinelas — k* (Ambiente de Risco)",
@@ -1552,18 +1511,6 @@ def construir_navegacao_v157() -> str:
 # ============================================================
 
 painel = construir_navegacao_v157()
-
-
-# ============================================================
-# MÓDULO 1 — MIRROR | ROTEAMENTO (NÃO INTRUSIVO)
-# ============================================================
-# Se o painel Mirror estiver ativo, renderiza e interrompe a execução do restante.
-if painel == "🔍 Diagnóstico Espelho (Mirror)":
-    try:
-        _m1_render_mirror_panel(st)
-    except Exception as _m1_e:
-        st.warning(f"⚠️ Mirror falhou (silencioso): {_m1_e}")
-    st.stop()
 st.sidebar.caption(f"Painel ativo: {painel}")
 
 # ============================================================
@@ -7507,6 +7454,7 @@ if painel == "📘 Relatório Final":
     # 📌 REGISTRO CANÔNICO DO MOMENTO — DIAGNÓSTICO (COPIÁVEL)
     # ============================================================
     try:
+        try:
             # ------------------------------------------------------------
             # 
             # (camada experimental removida na âncora estável)
