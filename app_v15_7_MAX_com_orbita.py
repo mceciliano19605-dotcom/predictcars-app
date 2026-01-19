@@ -24,68 +24,18 @@ st.set_page_config(
 
 from typing import Dict, Any
 
-def _m1_collect_mirror_state(st) -> Dict[str, Any]:
-    ss = getattr(st, "session_state", {})
 
-    def get(key):
-        return ss.get(key, "<não definido>")
 
-    mirror = {
-        # Histórico
-        "historico_carregado": get("historico_carregado"),
-        "range_historico": get("range_historico"),
-        "n_passageiros": get("n_passageiros"),
-
-        # Sentinelas / métricas
-        "k": get("k"),
-        "k_star": get("k_star"),
-        "nr_percent": get("nr_percent"),
-
-        # Regime / estado
-        "regime_identificado": get("regime_identificado"),
-        "estado_alvo": get("estado_alvo"),
-
-        # Modos / volumes
-        "volumes_usados": get("volumes_usados"),
-        "modo_6_ativo": get("modo_6_ativo"),
-
-        # Listas / pacotes
-        "listas_geradas": get("listas_geradas"),
-        "pacote_atual": get("pacote_atual"),
-    }
-
-    return mirror
 
 
 
 def _m1_render_mirror_panel(st):
     st.header("🔍 Diagnóstico Espelho (Mirror)")
-    st.caption("Painel somente leitura — estado real da execução")
-
-    mirror = _m1_collect_mirror_state(st)
-
-    def show(label, key):
-        st.subheader(label)
-        st.write(mirror.get(key, "<não definido>"))
-
-    show("Histórico carregado", "historico_carregado")
-    show("Range histórico", "range_historico")
-    show("Passageiros (n)", "n_passageiros")
-
-    show("k", "k")
-    show("k*", "k_star")
-    show("NR%", "nr_percent")
-
-    show("Regime identificado", "regime_identificado")
-    show("Estado do alvo", "estado_alvo")
-
-    show("Volumes usados", "volumes_usados")
-    show("Modo 6 ativo", "modo_6_ativo")
-
-    show("Listas geradas", "listas_geradas")
-    show("Pacote atual", "pacote_atual")
-
+    st.caption("Painel somente leitura — observacional")
+    st.info("Mirror em modo seguro: observação desativada para preservar estabilidade.")
+    st.write("Estado será integrado futuramente sem impactar o Predicar.")
 # ============================================================
+
 
 
 # Camada SOMENTE leitura para espelhar o estado real da execução.
@@ -93,39 +43,7 @@ def _m1_render_mirror_panel(st):
 
 from typing import Dict, Any
 
-def _m1_collect_mirror_state(globals_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Espelha variáveis já existentes no app. Nada é criado, nada é recalculado."""
-    keys_of_interest = [
-        # Histórico
-        "historico_df",
-        "historico_carregado",
-        "range_historico",
-        # Sentinelas / métricas
-        "k",
-        "k_star",
-        "nr_percent",
-        # Regime / estado
-        "regime_identificado",
-        "estado_alvo",
-        # Modos / volumes
-        "volumes_usados",
-        "modo_6_ativo",
-        # Listas
-        "listas_geradas",
-        "pacote_atual",
-    ]
 
-    mirror: Dict[str, Any] = {}
-    for key in keys_of_interest:
-        if key in globals_dict:
-            try:
-                mirror[key] = globals_dict[key]
-            except Exception as e:
-                mirror[key] = f"<erro ao ler: {e}>"
-        else:
-            mirror[key] = "<não definido>"
-
-    return mirror
 
 
 def _m1_render_mirror_panel(st) -> None:
