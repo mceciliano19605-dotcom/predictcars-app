@@ -4441,6 +4441,29 @@ if painel == "🛣️ Pipeline V14-FLEX ULTRA":
     st.session_state["pipeline_matriz_norm"] = matriz_norm
     st.session_state["pipeline_estrada"] = estrada
 
+    # Sinais observáveis (para governança / leitura — não altera motor)
+    st.session_state["regime_identificado"] = estrada
+    st.session_state["energia_media"] = float(media_geral)
+    st.session_state["energia_media_estrada"] = float(media_geral)
+    st.session_state["volatilidade_media"] = float(desvio_geral)
+    st.session_state["clusters_formados"] = int(max(clusters) + 1) if len(np.atleast_1d(clusters)) else 0
+
+    # ============================================================
+    # M1 — SELO CANÔNICO (Governança/Mirror)
+    # S2: Pipeline Consolidado (observável, mínimo, sem tocar no núcleo)
+    # ============================================================
+    # Regra: só carimba aqui, no caminho feliz (pós-cálculo, pré-success).
+    # O Mirror lê este selo; nenhum motor depende dele.
+    st.session_state["pipeline_flex_ultra_concluido"] = True
+    st.session_state["pipeline_executado"] = True
+    st.session_state["m1_selo_pipeline_ok"] = True
+    try:
+        from datetime import datetime
+        st.session_state["m1_ts_pipeline_ok"] = datetime.now().isoformat(timespec="seconds")
+    except Exception:
+        # Falha silenciosa (observacional)
+        pass
+
     st.success("Pipeline FLEX ULTRA concluído com sucesso!")
 
 # ============================================================
