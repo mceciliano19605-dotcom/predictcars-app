@@ -57,17 +57,36 @@ def _m1_collect_mirror_state(st) -> Dict[str, Any]:
     return mirror
 
 
+
 def _m1_render_mirror_panel(st):
     st.header("🔍 Diagnóstico Espelho (Mirror)")
-    st.caption("Painel somente leitura — estado real (session_state)")
+    st.caption("Painel somente leitura — estado real da execução")
 
+    mirror = _m1_collect_mirror_state(st)
 
-    mirror_state = _m1_collect_mirror_state(st)
-    for key, value in mirror_state.items():
-        with st.expander(key):
-            st.write(value)
+    def show(label, key):
+        st.subheader(label)
+        st.write(mirror.get(key, "<não definido>"))
+
+    show("Histórico carregado", "historico_carregado")
+    show("Range histórico", "range_historico")
+    show("Passageiros (n)", "n_passageiros")
+
+    show("k", "k")
+    show("k*", "k_star")
+    show("NR%", "nr_percent")
+
+    show("Regime identificado", "regime_identificado")
+    show("Estado do alvo", "estado_alvo")
+
+    show("Volumes usados", "volumes_usados")
+    show("Modo 6 ativo", "modo_6_ativo")
+
+    show("Listas geradas", "listas_geradas")
+    show("Pacote atual", "pacote_atual")
 
 # ============================================================
+
 
 # Camada SOMENTE leitura para espelhar o estado real da execução.
 # Não altera motores, não recalcula métricas, não decide nada.
