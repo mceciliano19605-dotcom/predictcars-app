@@ -1668,6 +1668,8 @@ def construir_navegacao_v157() -> str:
         "📊 V16 Premium — Backtest Rápido do Pacote (N=60)",
         "🧭 V16 Premium — Rodadas Estratificadas (A/B)",
 
+        "📈 Expectativa Histórica — Contexto do Momento (V16)",
+
         # -----------------------------------------------------
         # BLOCO 8 — EXECUÇÃO
         # -----------------------------------------------------
@@ -2699,12 +2701,252 @@ def avaliar_gatilho_eco(
 
 
 
-# ============================================================
-# Painel 1 — 📁 Carregar Histórico (Arquivo)
-# ============================================================
-if painel == "📁 Carregar Histórico (Arquivo)":
 
-    st.markdown("## 📁 Carregar Histórico — V15.7 MAX")
+
+# ============================================================
+# MÓDULO 3 — EXPECTATIVA HISTÓRICA (CONTEXTO DO MOMENTO) — V16
+# Observacional | Retrospectivo | NÃO decide | NÃO gera listas
+# Depende de S2 (Pipeline) + S3 (Diagnóstico de Risco mínimo: k*/NR%/classe)
+# ============================================================
+
+M3_PAINEL_EXPECTATIVA_NOME = "📈 Expectativa Histórica — Contexto do Momento (V16)"
+
+
+def _m3_has_s2_pipeline() -> bool:
+    return bool(st.session_state.get("pipeline_flex_ultra_concluido") or st.session_state.get("pipeline_executado") or st.session_state.get("m1_ts_pipeline_ok"))
+
+
+def _m3_has_s3_risco_minimo() -> bool:
+    risco = st.session_state.get("diagnostico_risco") or {}
+
+    k_star = risco.get("k_star", risco.get("kstar", None))
+    nr = risco.get("nr_percent", None)
+    classe = risco.get("classe_risco", None)
+
+    # fallback: algumas chaves aparecem fora do pack
+    if k_star is None:
+        k_star = st.session_state.get("k_star")
+    if nr is None:
+        nr = st.session_state.get("nr_percent")
+    if classe is None:
+        classe = st.session_state.get("classe_risco")
+
+    ok_k = isinstance(k_star, (int, float))
+    ok_nr = isinstance(nr, (int, float))
+    ok_classe = isinstance(classe, str) and classe.strip() not in ("", "N/D")
+
+    return bool(ok_k and ok_nr and ok_classe)
+
+
+def _m3_norm_int(v):
+    try:
+        return int(float(str(v).strip().replace(",", ".")))
+    except Exception:
+        return None
+
+
+def _m3_dx_janela(df_window, cols_pass):
+    vals = []
+    for c in cols_pass:
+        s = [_m3_norm_int(x) for x in df_window[c].values]
+        s = [x for x in s if x is not None]
+        if len(s) >= 2:
+            try:
+                vals.append(float(np.std(s, ddof=1)))
+            except Exception:
+                pass
+    if not vals:
+        return None
+    try:
+        return float(np.mean(vals))
+    except Exception:
+        return None
+
+
+def _m3_classificar_regime_dx(dx, q1, q2):
+    if dx is None:
+        return "N/D"
+    if dx <= q1:
+        return "ECO"
+    if dx <= q2:
+        return "PRÉ-ECO"
+    return "RUIM"
+
+
+def m3_painel_expectativa_historica_contexto():
+    st.markdown("## 📈 Expectativa Histórica — Contexto do Momento (V16)")
+    st.caption(
+        "Observacional e retrospectivo. Não gera listas. Não muda motores. "
+        "Serve para responder: *em momentos parecidos no passado, o que costuma acontecer nas próximas 1–3 séries?*"
+    )
+
+    # --------------------------------------------------------
+    # Governança (dependências)
+    # --------------------------------------------------------
+    s2 = _m3_has_s2_pipeline()
+    s3 = _m3_has_s3_risco_minimo()
+
+    if not ("historico_df" in st.session_state):
+        st.warning("⚠️ Carregue o histórico primeiro.")
+        return
+
+    if not s2:
+        st.warning("⚠️ Dependência: rode primeiro o 🛣️ Pipeline V14-FLEX ULTRA (S2).")
+        return
+
+    if not s3:
+        st.info("ℹ️ Dependência: complete o Diagnóstico mínimo de risco (S3).\n\n➡️ Rode: 🛰️ Sentinelas — k*  e  🧭 Monitor de Risco — k & k*.\n(Este painel não bloqueia você por 'burocracia'; ele apenas evita leitura fora de hora.)")
+        return
+
+    # --------------------------------------------------------
+    # Base histórica
+    # --------------------------------------------------------
+    try:
+        nome_df, df_base = v16_identificar_df_base()
+    except Exception:
+        nome_df, df_base = None, None
+
+    if df_base is None or len(df_base) == 0:
+        st.warning("⚠️ Histórico não disponível.")
+        return
+
+    cols = list(df_base.columns)
+    if len(cols) < 7:
+        st.error("❌ Histórico não tem colunas suficientes (precisa: série + 6 passageiros).")
+        return
+
+    cols_pass = cols[1:7]
+
+    # Parâmetros (fixos, anti-zumbi interno)
+    W = 60
+    LOOKAHEAD_MAX = 3
+    MAX_JANELAS = 2500
+
+    if len(df_base) <= W + LOOKAHEAD_MAX:
+        st.error(f"❌ Histórico insuficiente para W={W} + lookahead.")
+        return
+
+    t_final = len(df_base) - 1
+    t_inicial = max(W, t_final - MAX_JANELAS)
+
+    # --------------------------------------------------------
+    # 1) Calcula dx nas janelas recentes para quantis
+    # --------------------------------------------------------
+    dx_list = []
+    dx_por_t = {}
+
+    for t in range(t_inicial, t_final + 1):
+        wdf = df_base.iloc[t - W : t]
+        dx = _m3_dx_janela(wdf, cols_pass)
+        if dx is not None:
+            dx_list.append(dx)
+            dx_por_t[t] = dx
+
+    if len(dx_list) < 120:
+        st.warning("⚠️ Poucas janelas válidas para estimar quantis com estabilidade. (Resultados ainda são informativos.)")
+
+    try:
+        q1 = float(np.quantile(dx_list, 0.33))
+        q2 = float(np.quantile(dx_list, 0.66))
+    except Exception:
+        st.error("❌ Falha ao calcular quantis do dx (dados insuficientes ou inválidos).")
+        return
+
+    dx_atual = dx_por_t.get(t_final)
+    regime_atual = _m3_classificar_regime_dx(dx_atual, q1, q2)
+
+    # --------------------------------------------------------
+    # 2) Regime por t (mesma regra do painel PRÉ-ECO→ECO)
+    # --------------------------------------------------------
+    regime_por_t = {}
+    for t, dx in dx_por_t.items():
+        regime_por_t[t] = _m3_classificar_regime_dx(dx, q1, q2)
+
+    # --------------------------------------------------------
+    # 3) Expectativa: quando estava no MESMO regime, o que ocorreu em 1–3 séries?
+    # --------------------------------------------------------
+    total = 0
+    vira_eco_1 = 0
+    vira_eco_2 = 0
+    vira_eco_3 = 0
+
+    permanece_mesmo_1 = 0
+    permanece_mesmo_2 = 0
+    permanece_mesmo_3 = 0
+
+    for t in sorted(regime_por_t.keys()):
+        if t + 1 > t_final:
+            continue
+        if regime_por_t[t] != regime_atual:
+            continue
+
+        total += 1
+
+        r1 = regime_por_t.get(t + 1)
+        r2 = regime_por_t.get(t + 2)
+        r3 = regime_por_t.get(t + 3)
+
+        if r1 == "ECO":
+            vira_eco_1 += 1
+        if (r1 == "ECO") or (r2 == "ECO"):
+            vira_eco_2 += 1
+        if (r1 == "ECO") or (r2 == "ECO") or (r3 == "ECO"):
+            vira_eco_3 += 1
+
+        if r1 == regime_atual:
+            permanece_mesmo_1 += 1
+        if (r1 == regime_atual) or (r2 == regime_atual):
+            permanece_mesmo_2 += 1
+        if (r1 == regime_atual) or (r2 == regime_atual) or (r3 == regime_atual):
+            permanece_mesmo_3 += 1
+
+    # --------------------------------------------------------
+    # 4) Exibição
+    # --------------------------------------------------------
+    st.markdown("### 🧭 Momento atual (classificação por dx)")
+
+    colA, colB, colC = st.columns(3)
+    colA.metric("dx (janela)", f"{dx_atual:.6f}" if isinstance(dx_atual, (int, float)) else "N/D")
+    colB.metric("Regime (dx)", regime_atual)
+    colC.metric("Janelas analisadas", f"{len(dx_list)}")
+
+    st.caption(
+        "Regra: dx ≤ q1 → ECO | dx ≤ q2 → PRÉ-ECO | dx > q2 → RUIM. "
+        "(Quantis calculados nas últimas janelas, com anti-zumbi interno.)"
+    )
+
+    st.markdown("### 📈 Expectativa histórica (condicional ao regime atual)")
+
+    if total == 0:
+        st.warning("⚠️ Não houve eventos suficientes no histórico para estimar expectativa condicional neste regime.")
+        return
+
+    taxa_eco_1 = vira_eco_1 / total
+    taxa_eco_2 = vira_eco_2 / total
+    taxa_eco_3 = vira_eco_3 / total
+
+    taxa_perm_1 = permanece_mesmo_1 / total
+    taxa_perm_2 = permanece_mesmo_2 / total
+    taxa_perm_3 = permanece_mesmo_3 / total
+
+    df_out = pd.DataFrame(
+        [
+            {
+                "Regime atual (dx)": regime_atual,
+                "Eventos similares": int(total),
+                "Vira ECO em 1": round(taxa_eco_1, 4),
+                "Vira ECO em 2": round(taxa_eco_2, 4),
+                "Vira ECO em 3": round(taxa_eco_3, 4),
+                "Permanece no mesmo (1)": round(taxa_perm_1, 4),
+                "Permanece no mesmo (2)": round(taxa_perm_2, 4),
+                "Permanece no mesmo (3)": round(taxa_perm_3, 4),
+            }
+        ]
+    )
+
+    st.dataframe(df_out, use_container_width=True, hide_index=True)
+
+    st.info("📌 Interpretação correta (sem viés):\n- Isso NÃO prevê o próximo alvo.\n- Isso mede *o que costuma acontecer* quando o ambiente cai no mesmo tipo de regime.\n- Serve para calibrar expectativa, postura e paciência — não para aumentar convicção por '3 acertos'.")
 
     st.markdown(
         "Envie um arquivo de histórico em formato **FLEX ULTRA**.\n\n"
@@ -3042,8 +3284,6 @@ elif painel == "🧾 APS — Auditoria de Postura (V16)":
 
 
 elif painel == "🧭 RMO/DMO — Retrato do Momento (V16)":
-
-
     st.markdown("## 🧭 RMO/DMO — Retrato do Momento (V16)")
     st.caption("Síntese integrada (RMO) + governança temporal (DMO) + voz operacional (VOS). Observacional. Não decide ação.")
 
@@ -3975,13 +4215,7 @@ if painel == "🎯 Compressão do Alvo — Observacional (V16)":
         tipo="info",
     )
 
-    st.info(
-        "📌 Interpretação correta:\n"
-        "- **Compressão NÃO prevê**\n"
-        "- **Compressão NÃO decide**\n"
-        "- Compressão **aumenta convicção** quando outros sinais já são positivos\n"
-        "- Serve para **pisar mais fundo**, não para apertar o gatilho sozinho"
-    )
+    st.info("📌 Interpretação correta (sem viés):\n- Isso NÃO prevê o próximo alvo.\n- Isso mede *o que costuma acontecer* quando o ambiente cai no mesmo tipo de regime.\n- Serve para calibrar expectativa, postura e paciência — não para aumentar convicção por '3 acertos'.")
 
 # ============================================================
 # FIM — Painel 🎯 Compressão do Alvo — Observacional (V16)
