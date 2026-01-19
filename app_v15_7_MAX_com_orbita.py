@@ -109,7 +109,7 @@ def _m1_collect_mirror_state(globals_dict: Dict[str, Any]) -> Dict[str, Any]:
     return mirror
 
 
-def _m1_render_mirror_panel(st, mirror_state: Dict[str, Any]) -> None:
+def _m1_render_mirror_panel(st) -> None:
     st.header("🔍 Diagnóstico Espelho (Mirror)")
     st.caption("Painel somente leitura — estado real da execução")
 
