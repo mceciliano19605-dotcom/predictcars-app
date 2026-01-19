@@ -29,10 +29,12 @@ from typing import Dict, Any
 
 
 
+
 def _m1_render_mirror_panel(st):
     st.header("🔍 Diagnóstico Espelho (Mirror)")
-    st.caption("Painel somente leitura — observacional")
-    st.info("Mirror em modo seguro: observação desativada para preservar estabilidade.")
+    st.caption("Painel somente leitura — modo seguro")
+    st.info("Mirror estabilizado: observação desativada para preservar a execução do Predicar.")
+
     st.write("Estado será integrado futuramente sem impactar o Predicar.")
 # ============================================================
 
@@ -50,7 +52,7 @@ def _m1_render_mirror_panel(st) -> None:
     st.header("🔍 Diagnóstico Espelho (Mirror)")
     st.caption("Painel somente leitura — estado real da execução")
 
-    mirror_state = _m1_collect_mirror_state(st)
+    mirror_state = 
     for key, value in mirror_state.items():
         with st.expander(key):
             st.write(value)
