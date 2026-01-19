@@ -14,9 +14,61 @@ st.set_page_config(
     layout="wide",
 )
 
+
 # ============================================================
 # MÓDULO 1 — MIRROR (Diagnóstico Não-Intrusivo)
 # ============================================================
+# Camada SOMENTE leitura.
+# Lê preferencialmente do st.session_state, com fallback seguro.
+# NÃO altera motores, NÃO recalcula métricas, NÃO decide nada.
+
+from typing import Dict, Any
+
+def _m1_collect_mirror_state(st) -> Dict[str, Any]:
+    ss = getattr(st, "session_state", {})
+
+    def get(key):
+        return ss.get(key, "<não definido>")
+
+    mirror = {
+        # Histórico
+        "historico_carregado": get("historico_carregado"),
+        "range_historico": get("range_historico"),
+        "n_passageiros": get("n_passageiros"),
+
+        # Sentinelas / métricas
+        "k": get("k"),
+        "k_star": get("k_star"),
+        "nr_percent": get("nr_percent"),
+
+        # Regime / estado
+        "regime_identificado": get("regime_identificado"),
+        "estado_alvo": get("estado_alvo"),
+
+        # Modos / volumes
+        "volumes_usados": get("volumes_usados"),
+        "modo_6_ativo": get("modo_6_ativo"),
+
+        # Listas / pacotes
+        "listas_geradas": get("listas_geradas"),
+        "pacote_atual": get("pacote_atual"),
+    }
+
+    return mirror
+
+
+def _m1_render_mirror_panel(st):
+    st.header("🔍 Diagnóstico Espelho (Mirror)")
+    st.caption("Painel somente leitura — estado real (session_state)")
+
+    mirror_state = _m1_collect_mirror_state(st)
+
+    for key, value in mirror_state.items():
+        with st.expander(key):
+            st.write(value)
+
+# ============================================================
+
 # Camada SOMENTE leitura para espelhar o estado real da execução.
 # Não altera motores, não recalcula métricas, não decide nada.
 
@@ -1576,7 +1628,7 @@ painel = construir_navegacao_v157()
 # Se o painel Mirror estiver ativo, renderiza e interrompe a execução do restante.
 if painel == "🔍 Diagnóstico Espelho (Mirror)":
     try:
-        _m1_render_mirror_panel(st, _m1_collect_mirror_state(globals()))
+        _m1_render_mirror_panel(st)
     except Exception as _m1_e:
         st.warning(f"⚠️ Mirror falhou (silencioso): {_m1_e}")
     st.stop()
