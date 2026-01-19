@@ -30,18 +30,11 @@ from typing import Dict, Any
 
 
 
+
 def _m1_render_mirror_panel(st):
     st.header("🔍 Diagnóstico Espelho (Mirror)")
     st.caption("Painel somente leitura — modo seguro")
-    st.info("Mirror estabilizado: observação desativada para preservar a execução do Predicar.")
-
-    st.write("Estado será integrado futuramente sem impactar o Predicar.")
-# ============================================================
-
-
-
-# Camada SOMENTE leitura para espelhar o estado real da execução.
-# Não altera motores, não recalcula métricas, não decide nada.
+    st.info("Mirror estabilizado. Nenhuma leitura de estado é realizada.")
 
 from typing import Dict, Any
 
@@ -52,7 +45,7 @@ def _m1_render_mirror_panel(st) -> None:
     st.header("🔍 Diagnóstico Espelho (Mirror)")
     st.caption("Painel somente leitura — estado real da execução")
 
-    for key, value in mirror_state.items():
+    for key, value in .items():
         with st.expander(key):
             st.write(value)
 
