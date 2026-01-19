@@ -62,7 +62,8 @@ def _m1_render_mirror_panel(st):
     st.caption("Painel somente leitura — estado real (session_state)")
 
 
-    for key, value in .items():
+    mirror_state = _m1_collect_mirror_state(st)
+    for key, value in mirror_state.items():
         with st.expander(key):
             st.write(value)
 
@@ -112,7 +113,8 @@ def _m1_render_mirror_panel(st) -> None:
     st.header("🔍 Diagnóstico Espelho (Mirror)")
     st.caption("Painel somente leitura — estado real da execução")
 
-    for key, value in .items():
+    mirror_state = _m1_collect_mirror_state(st)
+    for key, value in mirror_state.items():
         with st.expander(key):
             st.write(value)
 
