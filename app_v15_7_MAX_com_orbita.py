@@ -214,6 +214,10 @@ def _m1_render_mirror_panel() -> None:
         snapshot = _m1_collect_mirror_snapshot()
         meta = _m1_classificar_estado(snapshot)
 
+        # MODULO 2 (infraestrutura): registrar memoria no gatilho canonico
+        _m2_registrar_minimo_se_preciso(snapshot, meta)
+        _m2_registrar_fechamento_se_preciso(snapshot, meta)
+
         st.markdown("## 🔍 Diagnóstico Espelho (Mirror)")
         st.caption("Painel somente leitura — estado real da execução · governança informativa · sem decisão")
 
@@ -258,6 +262,10 @@ def _m1_render_mirror_panel() -> None:
 
         with st.expander("🧪 Chaves do session_state (auditoria leve)"):
             st.write(snapshot.get("keys", []))
+
+
+        with st.expander('🧠 M2 - Memoria de Estados (auditoria controlada)'):
+            st.write(_m2_resumo_auditavel())
 
     except Exception as _e:
         # Falha silenciosa: não derrubar o app.
@@ -2534,6 +2542,210 @@ def v16_registrar_volume_e_confiabilidade():
 # ============================================================
 # PARTE 1/8 — FIM
 # ============================================================
+
+
+# ============================================================
+# MODULO 2 - MEMORIA HISTORICA DE ESTADOS (OBSERVACIONAL)
+# Objetivo:
+# - Registrar estados canonicos (S0..S6) por rodada, sem listas e sem acerto
+# - Alimentar o MODULO 3 (Expectativa) com base comparavel e sem vies
+# Regras:
+# - NUNCA decide
+# - NUNCA altera motores
+# - NUNCA bloqueia
+# - Falha silenciosa (nao derruba o app)
+# ============================================================
+
+import json
+from datetime import datetime
+
+
+def _m2_init_memoria() -> None:
+    """Inicializa a memoria em session_state (infraestrutura invisivel)."""
+    try:
+        ss = st.session_state
+        if "m2_memoria_estados" not in ss or not isinstance(ss.get("m2_memoria_estados"), list):
+            ss["m2_memoria_estados"] = []
+        if "m2_memoria_selo_s3" not in ss:
+            ss["m2_memoria_selo_s3"] = set()
+        if "m2_memoria_selo_s6" not in ss:
+            ss["m2_memoria_selo_s6"] = set()
+    except Exception:
+        # falha silenciosa
+        pass
+
+
+def _m2_guess_serie_id(snapshot: dict) -> str:
+    """Tenta inferir o id da serie atual. Regra: nunca falhar."""
+    try:
+        ss = st.session_state
+        # Preferencias: chaves explicitas (quando existirem)
+        for k in ("serie_id", "serie_atual", "serie_corrente", "concurso_atual", "c_atual"):
+            v = ss.get(k)
+            if v not in (None, "", "N/D"):
+                return str(v)
+        # Fallback: tamanho do historico
+        df = ss.get("historico_df")
+        if df is not None:
+            try:
+                n = int(len(df))
+                return f"C{n}"
+            except Exception:
+                pass
+        # ultimo fallback
+        return "N/D"
+    except Exception:
+        return "N/D"
+
+
+def _m2_build_registro_minimo(snapshot: dict, meta: dict) -> dict:
+    """Registro minimo (obrigatorio) - comparavel e sem vies."""
+    ss = st.session_state
+    serie_id = _m2_guess_serie_id(snapshot)
+    # normalizar universo
+    umin = snapshot.get("universo_min", ss.get("universo_min", "N/D"))
+    umax = snapshot.get("universo_max", ss.get("universo_max", "N/D"))
+    # normalizar diagnostico
+    regime = snapshot.get("regime", ss.get("regime_identificado", "N/D"))
+    classe = snapshot.get("classe_risco", ss.get("classe_risco", "N/D"))
+    nrp = snapshot.get("nr_percent", ss.get("nr_percent", "N/D"))
+    div = snapshot.get("divergencia_s6_mc", ss.get("divergencia_s6_mc", "N/D"))
+
+    return {
+        "ts": datetime.utcnow().isoformat() + "Z",
+        "serie_id": serie_id,
+        "estado": str(meta.get("estado", "N/D")),
+        "n_alvo": snapshot.get("n_alvo", ss.get("n_alvo", "N/D")),
+        "universo_min": umin,
+        "universo_max": umax,
+        "regime": regime,
+        "classe_risco": classe,
+        "nr_percent": nrp,
+        "divergencia_s6_mc": div,
+    }
+
+
+def _m2_build_registro_estendido(snapshot: dict, meta: dict) -> dict:
+    """Registro estendido (opcional) - fechamento de rodada, sem acerto."""
+    ss = st.session_state
+    base = _m2_build_registro_minimo(snapshot, meta)
+
+    # postura humana (se existir) - NUNCA vira gatilho automatico
+    postura = ss.get("postura_humana", ss.get("checklist_decisao", "N/D"))
+
+    # exposicao e execucao
+    base.update({
+        "houve_execucao": bool(snapshot.get("modo6_executado")),
+        "turbo_tentado": bool(snapshot.get("turbo_tentado")),
+        "turbo_bloqueado": bool(snapshot.get("turbo_bloqueado")),
+        "turbo_motivo": snapshot.get("turbo_motivo", "N/D"),
+        "postura_humana": postura,
+        "listas_geradas": snapshot.get("listas_geradas", "<nao definido>"),
+    })
+
+    return base
+
+
+def _m2_persistir_linha_jsonl(registro: dict) -> None:
+    """Persistencia best-effort em JSONL. Falha silenciosa (Streamlit Cloud pode restringir)."""
+    try:
+        # arquivo local no diretorio do app (best-effort)
+        path = "memoria_estados_v16.jsonl"
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(registro, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def _m2_registrar_minimo_se_preciso(snapshot: dict, meta: dict) -> None:
+    """Gatilho canonico: registrar no primeiro S3 auditavel (sem duplicar)."""
+    try:
+        _m2_init_memoria()
+        estado = str(meta.get("estado", ""))
+        if estado not in ("S3", "S4", "S5", "S6"):
+            return
+
+        serie_id = _m2_guess_serie_id(snapshot)
+        chave = f"{serie_id}|S3"
+        selos = st.session_state.get("m2_memoria_selo_s3")
+        if isinstance(selos, set) and chave in selos:
+            return
+
+        reg = _m2_build_registro_minimo(snapshot, {"estado": "S3"})
+        st.session_state["m2_memoria_estados"].append(reg)
+        if isinstance(selos, set):
+            selos.add(chave)
+        st.session_state["m2_ts_ultimo_registro_s3"] = reg.get("ts")
+
+        _m2_persistir_linha_jsonl(reg)
+    except Exception:
+        pass
+
+
+def _m2_registrar_fechamento_se_preciso(snapshot: dict, meta: dict) -> None:
+    """Gatilho complementar: registrar fechamento (S6 heuristico), sem duplicar."""
+    try:
+        _m2_init_memoria()
+        estado = str(meta.get("estado", ""))
+        if estado != "S6":
+            return
+
+        serie_id = _m2_guess_serie_id(snapshot)
+        chave = f"{serie_id}|S6"
+        selos = st.session_state.get("m2_memoria_selo_s6")
+        if isinstance(selos, set) and chave in selos:
+            return
+
+        reg = _m2_build_registro_estendido(snapshot, {"estado": "S6"})
+        st.session_state["m2_memoria_estados"].append(reg)
+        if isinstance(selos, set):
+            selos.add(chave)
+        st.session_state["m2_ts_ultimo_registro_s6"] = reg.get("ts")
+
+        _m2_persistir_linha_jsonl(reg)
+    except Exception:
+        pass
+
+
+def _m2_resumo_auditavel() -> dict:
+    """Resumo leve para aparecer no Mirror (auditoria controlada)."""
+    try:
+        _m2_init_memoria()
+        mem = st.session_state.get("m2_memoria_estados", [])
+        total = len(mem) if isinstance(mem, list) else 0
+
+        # contagens simples por estado
+        cont = {}
+        if isinstance(mem, list):
+            for r in mem:
+                try:
+                    e = str(r.get("estado", "N/D"))
+                    cont[e] = cont.get(e, 0) + 1
+                except Exception:
+                    pass
+
+        # diversidade de contexto (n e universo)
+        ns = set()
+        universos = set()
+        if isinstance(mem, list):
+            for r in mem:
+                try:
+                    ns.add(str(r.get("n_alvo", "N/D")))
+                    universos.add(f"{r.get('universo_min','N/D')}–{r.get('universo_max','N/D')}")
+                except Exception:
+                    pass
+
+        return {
+            "memoria_total": total,
+            "por_estado": cont,
+            "n_distintos": sorted(list(ns))[:8],
+            "universos_distintos": sorted(list(universos))[:8],
+            "ts_ultimo_s3": st.session_state.get("m2_ts_ultimo_registro_s3", "N/D"),
+            "ts_ultimo_s6": st.session_state.get("m2_ts_ultimo_registro_s6", "N/D"),
+        }
+    except Exception:
+        return {"memoria_total": "N/D"}
+
 # ============================================================
 # PARTE 2/8 — INÍCIO
 # ============================================================
