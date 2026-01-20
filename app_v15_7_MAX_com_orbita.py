@@ -1676,6 +1676,8 @@ def construir_navegacao_v157() -> str:
         "📊 V16 Premium — Backtest Rápido do Pacote (N=60)",
         "🧭 V16 Premium — Rodadas Estratificadas (A/B)",
 
+        "🧠 M5 — Pulo do Gato (Coleta Automática de Estados)",
+
         "📈 Expectativa Histórica — Contexto do Momento (V16)",
 
         # -----------------------------------------------------
@@ -2922,6 +2924,177 @@ def avaliar_gatilho_eco(
 # ============================================================
 
 M3_PAINEL_EXPECTATIVA_NOME = "📈 Expectativa Histórica — Contexto do Momento (V16)"
+
+# ============================================================
+# MÓDULO 5 (V16) — “PULO DO GATO” OPERACIONAL
+# Coleta automática de estados (para dar massa ao M2/M3)
+# ============================================================
+
+M5_PAINEL_PULO_GATO_NOME = "🧠 M5 — Pulo do Gato (Coleta Automática de Estados)"
+
+
+def _m5_identidade_historico_para_coleta(df_full, n_alvo, universo_min, universo_max):
+    """ID estável (best-effort) para limitar coleta por histórico sem depender de hash pesado."""
+    try:
+        tam = int(len(df_full)) if df_full is not None else -1
+    except Exception:
+        tam = -1
+    return f"H|n={n_alvo}|U={universo_min}-{universo_max}|len={tam}"
+
+
+def _m5_leitura_regime_light(df_cut, universo_min, universo_max):
+    """Leitura LIGHT (rápida) para regime/volatilidade sem rodar pipeline completo.
+
+    Objetivo: registrar um *sinal* coerente para M2 (não substituir o pipeline).
+    """
+    try:
+        # janela curta para captar irregularidade recente
+        w = min(120, max(30, int(len(df_cut) * 0.05)))
+        dfw = df_cut.tail(w)
+        # tenta extrair colunas numéricas de passageiros
+        cols_num = [c for c in dfw.columns if str(c).strip().isdigit()]
+        if not cols_num:
+            # fallback: tenta padrão comum (p1..p6)
+            cols_num = [c for c in dfw.columns if str(c).lower().startswith("p")]
+        vals = []
+        for _, row in dfw.iterrows():
+            linha = []
+            for c in cols_num:
+                try:
+                    v = int(row[c])
+                    if universo_min <= v <= universo_max:
+                        linha.append(v)
+                except Exception:
+                    pass
+            vals.append(len(set(linha)))
+        if not vals:
+            return "N/D", None, None
+
+        # “energia” simples = diversidade média normalizada
+        u = max(1, (universo_max - universo_min + 1))
+        energia = float(np.mean(vals)) / float(min(u, 60))
+        # “volatilidade” simples = desvio da diversidade
+        volatilidade = float(np.std(vals)) / float(max(1, np.mean(vals)))
+
+        if volatilidade >= 0.28:
+            regime = "🟥 Estrada Quente (Alta volatilidade)"
+        elif volatilidade >= 0.18:
+            regime = "🟨 Estrada Mista / Irregular"
+        else:
+            regime = "🟩 Estrada Neutra / Estável"
+
+        return regime, energia, volatilidade
+    except Exception:
+        return "N/D", None, None
+
+
+def m5_painel_pulo_do_gato_v16():
+    """Painel canônico: coleta automática de estados para dar massa mínima ao M2/M3.
+
+    - Não mexe no núcleo
+    - Não decide
+    - Não substitui pipeline/monitor
+    """
+    st.subheader("🧠 M5 — Pulo do Gato (Coleta Automática de Estados)")
+    st.caption("Coleta assistida para preencher Memória de Estados (M2) e habilitar Expectativa Histórica (M3) sem exigir que você rode manualmente dezenas de vezes.")
+
+    df_full = st.session_state.get("historico_df")
+    if df_full is None or len(df_full) < 50:
+        st.warning("Carregue um histórico válido antes de usar o M5.")
+        return
+
+    n_alvo = int(st.session_state.get("n_alvo", 6) or 6)
+    universo_min = int(st.session_state.get("universo_min", 0) or 0)
+    universo_max = int(st.session_state.get("universo_max", 50) or 50)
+
+    # limites (anti-zumbi canônico do M5)
+    max_sessao = int(st.session_state.get("m5_max_por_sessao", 25) or 25)
+    max_hist = int(st.session_state.get("m5_max_por_historico", 50) or 50)
+
+    st.markdown("""
+**Como funciona (sem mágica):**
+
+- Você escolhe quantas “fotos” o sistema deve coletar.
+- Cada foto simula um ponto de corte do histórico (C... menor) e registra **um estado S3** com um *regime light*.
+- Isso alimenta o M2; o M3 passa a ter base mínima para expectativa histórica.
+
+**Importante:**
+
+- O M5 **não** roda o Pipeline completo em cada corte (para não zumbizar).
+- Ele registra um sinal *light* e honesto para memória.
+""")
+
+    restante_sessao = max(0, max_sessao - int(st.session_state.get("m5_contador_sessao", 0) or 0))
+    hist_id = _m5_identidade_historico_para_coleta(df_full, n_alvo, universo_min, universo_max)
+    por_hist = st.session_state.get("m5_contador_por_historico", {})
+    restante_hist = max(0, max_hist - int(por_hist.get(hist_id, 0) or 0))
+
+    st.info(f"Limites ativos: Máx. por sessão: {max_sessao} (restante: {restante_sessao}) · Máx. por histórico: {max_hist} (restante: {restante_hist})")
+
+    if restante_sessao <= 0 or restante_hist <= 0:
+        st.warning("Limite atingido. Para coletar mais: reinicie a sessão (para limite por sessão) ou troque o histórico (para limite por histórico).")
+        return
+
+    n_solicitado = st.slider("Quantas fotos coletar agora?", 1, min(25, restante_sessao, restante_hist), 12)
+    passo = st.slider("Passo entre cortes (em séries)", 1, 10, 1)
+    janela_recente = st.slider("Janela recente para coleta (últimas séries)", 60, 600, 180, step=30)
+
+    btn = st.button("📸 Coletar agora (M5)")
+
+    if not btn:
+        return
+
+    # prepara M2
+    if "m2_memoria_estados" not in st.session_state:
+        st.session_state["m2_memoria_estados"] = []
+
+    # pontos de corte: fatiamos a janela recente para não varrer o histórico inteiro (anti-zumbi)
+    total = len(df_full)
+    base_ini = max(50, total - int(janela_recente))
+    pontos = list(range(total, base_ini, -int(passo)))
+    pontos = pontos[: int(n_solicitado)]
+
+    adicionados = 0
+    falhas = 0
+
+    for cut_len in pontos:
+        try:
+            df_cut = df_full.iloc[:cut_len].copy()
+            regime_light, energia_light, vol_light = _m5_leitura_regime_light(df_cut, universo_min, universo_max)
+
+            registro = {
+                "ts": datetime.utcnow().isoformat() + "Z",
+                "n_alvo": int(n_alvo),
+                "universo": f"{universo_min}–{universo_max}",
+                "tamanho": int(cut_len),
+                "estado": "S3",
+                "regime": regime_light,
+                "energia_light": energia_light,
+                "volatilidade_light": vol_light,
+                "origem": "M5",
+            }
+            st.session_state["m2_memoria_estados"].append(registro)
+            adicionados += 1
+        except Exception:
+            falhas += 1
+            continue
+
+    # atualiza contadores
+    st.session_state["m5_contador_sessao"] = int(st.session_state.get("m5_contador_sessao", 0) or 0) + int(adicionados)
+    por_hist = st.session_state.get("m5_contador_por_historico", {})
+    por_hist[hist_id] = int(por_hist.get(hist_id, 0) or 0) + int(adicionados)
+    st.session_state["m5_contador_por_historico"] = por_hist
+
+    st.success(f"M5 concluído: {adicionados} fotos adicionadas à Memória de Estados (M2).")
+    if falhas:
+        st.caption(f"Falhas silenciosas (válidas): {falhas}")
+
+    st.markdown("""
+**Próximo passo canônico:**
+
+1) Abra **📈 Expectativa Histórica — Contexto do Momento (V16)**
+2) Veja se o N mínimo já foi atingido.
+""")
 
 
 def _m3_has_s2_pipeline() -> bool:
@@ -11122,6 +11295,20 @@ if painel == "🧭 V16 Premium — Rodadas Estratificadas (A/B)":
         "Regra canônica: A e B são pacotes distintos. Não somar volumes. "
         "Não interpretar como um único ataque. Replay/Backtest devem ser feitos separadamente."
     )
+
+
+# ============================================================
+# PAINEL — 🧠 M5 — PULO DO GATO (COLETA AUTOMÁTICA DE ESTADOS)
+# ============================================================
+if painel == M5_PAINEL_PULO_GATO_NOME:
+    m5_painel_pulo_do_gato_operacional()
+
+
+# ============================================================
+# PAINEL — 📈 EXPECTATIVA HISTÓRICA — CONTEXTO DO MOMENTO (V16)
+# ============================================================
+if painel == M3_PAINEL_EXPECTATIVA_NOME:
+    v16_painel_expectativa_historica_contexto()
 
 
 # ============================================================
