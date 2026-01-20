@@ -3097,6 +3097,19 @@ def m5_painel_pulo_do_gato_v16():
 """)
 
 
+# ============================================================
+# M5 — ALIAS CANÔNICO (compatibilidade de chamada)
+# ============================================================
+
+def m5_painel_pulo_do_gato_operacional():
+    """Painel canônico (nome histórico).
+
+    Mantém compatibilidade com chamadas antigas/âncoras que apontam para
+    `m5_painel_pulo_do_gato_operacional()`.
+    """
+    return m5_painel_pulo_do_gato_v16()
+
+
 def _m3_has_s2_pipeline() -> bool:
     return bool(st.session_state.get("pipeline_flex_ultra_concluido") or st.session_state.get("pipeline_executado") or st.session_state.get("m1_ts_pipeline_ok"))
 
