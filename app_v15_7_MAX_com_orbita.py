@@ -3158,6 +3158,27 @@ def m3_painel_expectativa_historica_contexto():
 
     st.dataframe(df_out, use_container_width=True, hide_index=True)
 
+
+
+    # --- M3: exporta um resumo mínimo para uso em outros painéis (read-only)
+
+    try:
+
+        st.session_state["m3_ts"] = datetime.utcnow().isoformat() + "Z"
+
+        st.session_state["m3_regime_dx"] = regime_atual
+
+        st.session_state["m3_eventos_similares"] = int(total)
+
+        st.session_state["m3_taxa_eco1"] = float(taxa_eco_1)
+
+        st.session_state["m3_taxa_estado_bom"] = float(taxa_estado_bom)
+
+        st.session_state["m3_taxa_transicao"] = float(taxa_transicao)
+
+    except Exception:
+
+        pass
     st.info("📌 Interpretação correta (sem viés):\n- Isso NÃO prevê o próximo alvo.\n- Isso mede *o que costuma acontecer* quando o ambiente cai no mesmo tipo de regime.\n- Serve para calibrar expectativa, postura e paciência — não para aumentar convicção por '3 acertos'.")
 
     st.markdown(
@@ -7967,6 +7988,49 @@ if painel == "📘 Relatório Final":
 
     # Sincroniza chaves canônicas (ECO/Estado/k*/Divergência) antes de consolidar
     v16_sync_aliases_canonicos()
+
+    # ------------------------------------------------------------
+    # 🧭 BLOCO -1 — SUMÁRIO EXECUTIVO (read-only)
+    # ------------------------------------------------------------
+    try:
+        _snap = _m1_collect_mirror_snapshot() if '_m1_collect_mirror_snapshot' in globals() else {}
+        _estado = _m1_classificar_estado(_snap) if '_m1_classificar_estado' in globals() else {'estado':'S0','avisos':[],'snapshot':_snap}
+        st.markdown('### 🧭 Sumário Executivo (rodada atual)')
+        st.caption('Somente leitura. Não decide nada. Serve para você bater o olho e saber: **o que rodou**, **o que falta**, e **quais leituras estão disponíveis**.')
+        if '_m1_render_barra_estados' in globals():
+            _m1_render_barra_estados(_estado.get('estado','S0'))
+        if _estado.get('avisos'):
+            st.warning('Ainda não percorrido (na sessão): ' + ' · '.join(_estado.get('avisos', [])))
+        # Snapshot resumido
+        _s = _estado.get('snapshot', {})
+        _bl0 = {'historico_df': 'definido' if _s.get('historico_df') else '<não definido>', 'n_alvo': _s.get('n_alvo','N/D'), 'universo': _s.get('universo','N/D'), 'pipeline_ok': bool(_s.get('pipeline_ok')), 'regime': _s.get('regime','N/D')}
+        _bl1 = {'k_star': _s.get('k_star','N/D'), 'nr_percent': _s.get('nr_percent','N/D'), 'divergencia_s6_mc': _s.get('divergencia_s6_mc','N/D'), 'indice_risco': _s.get('indice_risco','N/D'), 'classe_risco': _s.get('classe_risco','N/D')}
+        _bl2 = {'turbo_tentado': bool(_s.get('turbo_tentado')), 'turbo_bloqueado': bool(_s.get('turbo_bloqueado')), 'turbo_motivo': _s.get('turbo_motivo','N/D'), 'modo6_executado': bool(_s.get('modo6_executado')), 'listas_geradas': _s.get('listas_geradas','<não definido>')}
+        st.json(_bl0)
+        st.json(_bl1)
+        st.json(_bl2)
+    except Exception:
+        pass
+
+    # ------------------------------------------------------------
+    # 🎞️ BLOCO -0.5 — MEMÓRIA & EXPECTATIVA (read-only, se disponíveis)
+    # ------------------------------------------------------------
+    with st.expander('🎞️ Memória de Estados (M2) + Expectativa Histórica (M3) — resumo', expanded=False):
+        try:
+            m2 = st.session_state.get('m2_memoria_resumo_auditavel')
+            if m2:
+                st.markdown('#### 🎞️ M2 — Memória de Estados (resumo)')
+                st.json(m2)
+            else:
+                st.info('M2 ainda sem massa mínima nesta sessão. (Isso não é erro.)')
+            m3n = st.session_state.get('m3_eventos_similares')
+            if m3n is not None:
+                st.markdown('#### 📈 M3 — Expectativa Histórica (resumo)')
+                st.json({'m3_regime_dx': st.session_state.get('m3_regime_dx','N/D'), 'm3_eventos_similares': m3n, 'taxa_eco1': st.session_state.get('m3_taxa_eco1','N/D'), 'taxa_estado_bom': st.session_state.get('m3_taxa_estado_bom','N/D'), 'taxa_transicao': st.session_state.get('m3_taxa_transicao','N/D'), 'ts': st.session_state.get('m3_ts','N/D')})
+            else:
+                st.info('Para preencher M3 no Relatório Final: rode o painel **📈 Expectativa Histórica — Contexto do Momento (V16)** nesta sessão.')
+        except Exception:
+            pass
 
 
     # ------------------------------------------------------------
