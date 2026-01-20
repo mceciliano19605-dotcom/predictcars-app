@@ -4115,6 +4115,20 @@ if painel == "🎯 Compressão do Alvo (Observacional)":
 # NÃO decide | NÃO prevê | NÃO altera motores | NÃO altera volumes
 # ============================================================
 
+
+# ============================================================
+# ALIAS CANÔNICO (V16) — M3
+# Expectativa Histórica — Contexto do Momento
+# ============================================================
+def v16_painel_expectativa_historica_contexto():
+    """Alias canônico para preservar âncoras/painéis que chamam a função V16.
+
+    Regra: NÃO calcula listas, NÃO decide, NÃO altera fluxo.
+    Encaminha para o painel observacional M3.
+    """
+    return m3_painel_expectativa_historica_contexto()
+
+
 def v16_replay_historico_observacional(
     *,
     df,
