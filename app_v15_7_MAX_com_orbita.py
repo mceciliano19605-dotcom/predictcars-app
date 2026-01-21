@@ -1702,7 +1702,7 @@ def construir_navegacao_v157() -> str:
         # -----------------------------------------------------
         # BLOCO 11 — DEPOIS | APRENDIZADO (EIXO 3)
         # -----------------------------------------------------
-        "🧠 Memória Operacional (Observacional)",
+        "🧠 Memória Operacional",
         "🧠 Memória Operacional — Registro Semi-Automático",
         "🧠 Laudo Operacional V16",
         "🧠 Diagnóstico ECO & Estado (V16)",
@@ -8196,6 +8196,30 @@ if painel == "📘 Relatório Final":
         _snap = _m1_collect_mirror_snapshot() if '_m1_collect_mirror_snapshot' in globals() else {}
         _estado = _m1_classificar_estado(_snap) if '_m1_classificar_estado' in globals() else {'estado':'S0','avisos':[],'snapshot':_snap}
         st.markdown('### 🧭 Sumário Executivo (rodada atual)')
+        # --- Regime por fonte (consolidação) ---
+        st.markdown('### 🧷 Regime por fonte (consolidação)')
+        reg_pipeline = st.session_state.get('pipeline_estrada', None)
+        reg_global = st.session_state.get('regime', None)
+        reg_m3 = st.session_state.get('m3_regime_dx', None)
+        classe_risco = st.session_state.get('classe_risco', None)
+        k_star = st.session_state.get('k_star', None)
+        nr = st.session_state.get('nr_percent', None)
+        div_s6_mc = st.session_state.get('divergencia_s6_mc', None)
+        colA, colB, colC = st.columns(3)
+        with colA:
+            st.markdown('**🛣️ Pipeline (Estrada)**')
+            st.write(reg_pipeline if reg_pipeline is not None else '—')
+            st.caption('Regime global atual: {}'.format(reg_global) if reg_global is not None else 'Regime global atual: —')
+        with colB:
+            st.markdown('**🛰️ Sentinelas / Risco**')
+            st.write('Classe: {}'.format(classe_risco) if classe_risco is not None else 'Classe: —')
+            st.write('k*: {:.4f}'.format(k_star) if isinstance(k_star, (int, float)) else ('k*: {}'.format(k_star) if k_star is not None else 'k*: —'))
+            st.write('NR%: {:.2f}%'.format(nr) if isinstance(nr, (int, float)) else ('NR%: {}'.format(nr) if nr is not None else 'NR%: —'))
+            st.write('Div S6×MC: {:.4f}'.format(div_s6_mc) if isinstance(div_s6_mc, (int, float)) else ('Div S6×MC: {}'.format(div_s6_mc) if div_s6_mc is not None else 'Div S6×MC: —'))
+        with colC:
+            st.markdown('**📈 M3 / Expectativa (dx)**')
+            st.write(reg_m3 if reg_m3 is not None else '—')
+        st.caption('Pode haver divergência porque cada fonte mede uma coisa: Pipeline descreve a estrada, Sentinelas medem risco/turbulência, e M3 (dx) mede expectativa/analogia. Use cada leitura no seu uso canônico — sem misturar.')
         st.caption('Somente leitura. Não decide nada. Serve para você bater o olho e saber: **o que rodou**, **o que falta**, e **quais leituras estão disponíveis**.')
         if '_m1_render_barra_estados' in globals():
             _m1_render_barra_estados(_estado.get('estado','S0'))
