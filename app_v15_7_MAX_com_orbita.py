@@ -7263,40 +7263,45 @@ def v16_priorizar_listas_por_contexto(listas):
 # >>> PAINEL X — 🧠 Memória Operacional — Observacional
 # ============================================================
 if painel == "🧠 Memória Operacional — Observacional":
-    pass
-st.markdown("### 🧠 Memória Operacional (Observacional)")
-st.caption("Este painel é um **espelho**: mostra registros já existentes. Não pede confirmação do operador para registros automáticos.")
+    st.markdown("### 🧠 Memória Operacional (Observacional)")
+    st.caption("Este painel é um espelho: mostra registros já existentes. Não pede confirmação do operador para registros automáticos.")
 
-registros = st.session_state.get("memoria_operacional_registros", [])
-if not registros:
-    st.info("Sem registros na Memória Operacional nesta sessão. (Isso não é erro.)\n\n"
-            "📌 Observação: o **M5 — Pulo do Gato** registra automaticamente 'fotos' na Memória de Estados (M2).\n"
-            "Se você quiser ver massa histórica, use o painel **🧠 Memória de Estados (M2)** e o **📈 M3**.")
-else:
-    st.success(f"Registros na sessão: {len(registros)}")
-    # Mostra os últimos 10
-    ultimos = registros[-10:]
-    for r in reversed(ultimos):
-        ts = r.get("ts", "N/D")
-        tag = r.get("tag", "REG")
-        resumo = r.get("resumo", "")
-        st.markdown(f"- **[{tag}]** {ts} — {resumo}")
-if painel == "🧠 Memória Operacional — Registro Semi-Automático":
-    pass
-st.markdown("### 🧠 Memória Operacional — Registro Semi-Automático (Passivo)")
-st.caption("Este painel foi mantido por compatibilidade de navegação, mas opera **passivamente** (sem botões). Use o painel de Memória Operacional para ver registros.")
+    registros = st.session_state.get("memoria_operacional", [])
 
-registros = st.session_state.get("memoria_operacional_registros", [])
-if not registros:
-    st.info("Sem registros nesta sessão.")
-else:
-    st.success(f"Registros na sessão: {len(registros)}")
-    ultimos = registros[-10:]
-    for r in reversed(ultimos):
-        ts = r.get("ts", "N/D")
-        tag = r.get("tag", "REG")
-        resumo = r.get("resumo", "")
-        st.markdown(f"- **[{tag}]** {ts} — {resumo}")
+    if not registros:
+        st.info("Sem registros na Memória Operacional nesta sessão. (Isso não é erro.)")
+    else:
+        for idx, reg in enumerate(registros, start=1):
+            ts = reg.get("ts", "N/D")
+            tag = reg.get("tag", f"R{idx}")
+            resumo = reg.get("resumo", "")
+            titulo = f"🧠 {idx:02d}) [{tag}] {ts}"
+            if resumo:
+                titulo = f"{titulo} — {resumo}"
+            with st.expander(titulo):
+                st.json(reg)
+
+    st.markdown("---")
+    st.caption("📌 Observação: o M5 — Pulo do Gato registra automaticamente 'fotos' na Memória de Estados (M2). Se você quiser ver massa histórica, use o painel 🧠 Memória de Estados (M2) e o 📈 M3.")
+
+elif painel == "🧠 Memória Operacional — Registro Semi-Automático":
+    st.markdown("### 🧠 Memória Operacional — Registro Semi-Automático (Passivo)")
+    st.caption("Este painel foi mantido por compatibilidade de navegação, mas opera passivamente (sem botões). Use o painel de Memória Operacional para ver registros.")
+
+    registros = st.session_state.get("memoria_operacional", [])
+
+    if not registros:
+        st.info("Sem registros nesta sessão.")
+    else:
+        st.markdown("Registros (resumo):")
+        for r in registros[-10:]:
+            ts = r.get("ts", "N/D")
+            tag = r.get("tag", "N/D")
+            resumo = r.get("resumo", "")
+            linha = f"**[{tag}]** {ts}"
+            if resumo:
+                linha += f" — {resumo}"
+            st.markdown(f"- {linha}")
 if painel == "🧠 Laudo Operacional V16":
 
     st.markdown("## 🧠 Laudo Operacional V16 — Leitura do Ambiente")
