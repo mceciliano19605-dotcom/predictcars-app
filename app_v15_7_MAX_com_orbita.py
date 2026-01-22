@@ -3380,43 +3380,40 @@ def m3_painel_expectativa_historica_contexto():
     st.info("📌 Interpretação correta (sem viés):\n- Isso NÃO prevê o próximo alvo.\n- Isso mede *o que costuma acontecer* quando o ambiente cai no mesmo tipo de regime.\n- Serve para calibrar expectativa, postura e paciência — não para aumentar convicção por '3 acertos'.")
 
     # ------------------------------------------------------------
-# Fonte do histórico para o M3 (canônico)
-# ------------------------------------------------------------
-# O M3 usa o histórico já carregado na sessão (Carregar Histórico).
-# Somente se não houver histórico na sessão, oferecemos um uploader opcional.
-historico_df = st.session_state.get("historico_df", None)
-if historico_df is None or getattr(historico_df, "empty", False):
-    st.info("Histórico não encontrado nesta sessão. Volte em **📁 Carregar Histórico** ou **📄 Carregar Histórico (Colar)**.")
-    with st.expander("📥 (Opcional) Enviar histórico FLEX ULTRA aqui", expanded=False):
-        st.markdown(
-            "Envie um arquivo de histórico em formato **FLEX ULTRA**.\n\n"
-            "📌 Regra universal: o último valor da linha é sempre **k**, independente da quantidade de passageiros."
-        )
-        arquivo_hist = st.file_uploader("📄 Enviar arquivo (.txt ou .csv)", type=["txt", "csv"], key="m3_hist_upload")
-        if arquivo_hist is not None:
-            try:
-                conteudo = arquivo_hist.read().decode("utf-8", errors="ignore")
-                df_temp = pc_parse_historico_flex_ultra(conteudo)
-                if df_temp is not None and not df_temp.empty:
-                    st.session_state["historico_df"] = df_temp
-                    historico_df = df_temp
-                    st.success(f"Histórico carregado via M3: {len(df_temp)} séries.")
-                else:
-                    st.error("Não consegui ler o histórico (FLEX ULTRA). Verifique o arquivo.")
-            except Exception as e:
-                st.error(f"Erro ao ler histórico: {e}")
+    # Fonte do histórico para o M3 (canônico)
+    # ------------------------------------------------------------
+    # O M3 usa o histórico já carregado na sessão (Carregar Histórico).
+    # Somente se não houver histórico na sessão, oferecemos um uploader opcional.
+    historico_df = st.session_state.get("historico_df", None)
     if historico_df is None or getattr(historico_df, "empty", False):
-        return
+        st.info("Histórico não encontrado nesta sessão. Volte em **📁 Carregar Histórico** ou **📄 Carregar Histórico (Colar)**.")
+        with st.expander("📥 (Opcional) Enviar histórico FLEX ULTRA aqui", expanded=False):
+            st.markdown(
+                "Envie um arquivo de histórico em formato **FLEX ULTRA**.\n\n"
+                "📌 Regra universal: o último valor da linha é sempre **k**, independente da quantidade de passageiros."
+            )
+            arquivo_hist = st.file_uploader("📄 Enviar arquivo (.txt ou .csv)", type=["txt", "csv"], key="m3_hist_upload")
+            if arquivo_hist is not None:
+                try:
+                    conteudo = arquivo_hist.read().decode("utf-8", errors="ignore")
+                    df_temp = pc_parse_historico_flex_ultra(conteudo)
+                    if df_temp is not None and not df_temp.empty:
+                        st.session_state["historico_df"] = df_temp
+                        historico_df = df_temp
+                        st.success(f"Histórico carregado via M3: {len(df_temp)} séries.")
+                    else:
+                        st.error("Não consegui ler o histórico (FLEX ULTRA). Verifique o arquivo.")
+                except Exception as e:
+                    st.error(f"Erro ao ler histórico: {e}")
+        if historico_df is None or getattr(historico_df, "empty", False):
+            return
 
 
 def v16_painel_expectativa_historica_contexto():
-    """Alias canônico para preservar âncoras/painéis que chamam a função V16.
-
-    Regra: NÃO calcula listas, NÃO decide, NÃO altera fluxo.
-    Encaminha para o painel observacional M3.
+    """Compat (chamada antiga).
+    Mantém o nome público do painel e aponta para a implementação real.
     """
     return m3_painel_expectativa_historica_contexto()
-
 
 def v16_replay_historico_observacional(
     *,
