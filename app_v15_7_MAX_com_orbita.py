@@ -3086,29 +3086,8 @@ def m5_painel_pulo_do_gato_v16():
     st.session_state["m5_contador_por_historico"] = por_hist
 
     st.success(f"M5 concluído: {adicionados} fotos adicionadas à Memória de Estados (M2).")
-
-    # Registro automático na Memória Operacional (passivo)
-    try:
-        regs = st.session_state.get("memoria_operacional_registros", [])
-        regs.append({
-            "ts": datetime.utcnow().isoformat() + "Z",
-            "tag": "M5_AUTO",
-            "resumo": f"M5 adicionou {adicionados} fotos em M2 (limites: sessão={limite_sessao}, histórico={limite_total_hist}).",
-        })
-        st.session_state["memoria_operacional_registros"] = regs
-    except Exception as e:
-        # Falha silenciosa (válida): não pode quebrar a sessão por registro passivo.
-        falhas_sil = st.session_state.get("falhas_silenciosas", [])
-        falhas_sil.append(f"M5_AUTO_MEMORIA_OP: {type(e).__name__}")
-        st.session_state["falhas_silenciosas"] = falhas_sil
-
-    # Se existirem falhas do M5 (coleta), mostrar apenas informativo (não bloqueia)
-    try:
-        _falhas_m5 = locals().get("falhas", 0)
-        if _falhas_m5:
-            st.caption(f"Falhas silenciosas (válidas) no M5: {_falhas_m5}")
-    except Exception:
-        pass
+    if falhas:
+        st.caption(f"Falhas silenciosas (válidas): {falhas}")
 
     st.markdown("""
 **Próximo passo canônico:**
@@ -3202,51 +3181,22 @@ def m3_painel_expectativa_historica_contexto():
     # --------------------------------------------------------
     # Governança (dependências)
     # --------------------------------------------------------
-    s2 = _m3_has_s2_pipeline()
-    s3 = _m3_has_s3_risco_minimo()
-
-    if not ("historico_df" in st.session_state):
-        st.warning("⚠️ Carregue o histórico primeiro.")
-        return
-
-    if not s2:
-        st.warning("⚠️ Dependência: rode primeiro o 🛣️ Pipeline V14-FLEX ULTRA (S2).")
-        return
-
-    if not s3:
-        st.info("ℹ️ Dependência: complete o Diagnóstico mínimo de risco (S3).\n\n➡️ Rode: 🛰️ Sentinelas — k*  e  🧭 Monitor de Risco — k & k*.\n(Este painel não bloqueia você por 'burocracia'; ele apenas evita leitura fora de hora.)")
-        return
-
-    # --------------------------------------------------------
-    # Base histórica
-    # --------------------------------------------------------
-    try:
-        nome_df, df_base = v16_identificar_df_base()
-    except Exception:
-        nome_df, df_base = None, None
-
-    if df_base is None or len(df_base) == 0:
-        st.warning("⚠️ Histórico não disponível.")
-        return
-
-    cols = list(df_base.columns)
-    if len(cols) < 7:
-        st.error("❌ Histórico não tem colunas suficientes (precisa: série + 6 passageiros).")
-        return
-
-    cols_pass = cols[1:7]
-
-    # Parâmetros (fixos, anti-zumbi interno)
-    W = 60
-    LOOKAHEAD_MAX = 3
-    MAX_JANELAS = 2500
-
-    if len(df_base) <= W + LOOKAHEAD_MAX:
-        st.error(f"❌ Histórico insuficiente para W={W} + lookahead.")
-        return
-
-    t_final = len(df_base) - 1
-    t_inicial = max(W, t_final - MAX_JANELAS)
+    # ============================================================
+    # 📤 Auditoria externa (opcional) — NÃO é necessária no uso normal
+    # ============================================================
+    with st.expander("📤 Auditoria externa (opcional) — usar outro histórico (sem substituir a sessão)", expanded=False):
+        st.caption("Uso normal: este painel usa o histórico já carregado na sessão.\n"
+                   "Este uploader é apenas para auditoria/estudo com outro arquivo, sem afetar o histórico atual.")
+        arquivo = st.file_uploader("Envie um histórico FLEX ULTRA (opcional)", type=["csv", "txt"], key="m3_upload_auditoria")
+        if arquivo is not None:
+            try:
+                df_aud = carregar_historico_flex_ultra(arquivo)
+                st.success("Histórico de auditoria carregado (não substitui a sessão).")
+                metricas = calcular_metricas_basicas_historico(df_aud)
+                exibir_resumo_inicial_historico(metricas)
+                st.info("✅ Auditoria concluída. Para operar o fluxo normal, use o histórico carregado em 📁/📄 Carregar Histórico.")
+            except Exception as e:
+                st.error(f"Falha ao carregar histórico de auditoria: {e}")
 
     # --------------------------------------------------------
     # 1) Calcula dx nas janelas recentes para quantis
@@ -3388,41 +3338,767 @@ def m3_painel_expectativa_historica_contexto():
         pass
     st.info("📌 Interpretação correta (sem viés):\n- Isso NÃO prevê o próximo alvo.\n- Isso mede *o que costuma acontecer* quando o ambiente cai no mesmo tipo de regime.\n- Serve para calibrar expectativa, postura e paciência — não para aumentar convicção por '3 acertos'.")
 
-    # ------------------------------------------------------------
-    # Fonte do histórico para o M3 (canônico)
-    # ------------------------------------------------------------
-    # O M3 usa o histórico já carregado na sessão (Carregar Histórico).
-    # Somente se não houver histórico na sessão, oferecemos um uploader opcional.
-    historico_df = st.session_state.get("historico_df", None)
-    if historico_df is None or getattr(historico_df, "empty", False):
-        st.info("Histórico não encontrado nesta sessão. Volte em **📁 Carregar Histórico** ou **📄 Carregar Histórico (Colar)**.")
-        with st.expander("📥 (Opcional) Enviar histórico FLEX ULTRA aqui", expanded=False):
-            st.markdown(
-                "Envie um arquivo de histórico em formato **FLEX ULTRA**.\n\n"
-                "📌 Regra universal: o último valor da linha é sempre **k**, independente da quantidade de passageiros."
-            )
-            arquivo_hist = st.file_uploader("📄 Enviar arquivo (.txt ou .csv)", type=["txt", "csv"], key="m3_hist_upload")
-            if arquivo_hist is not None:
-                try:
-                    conteudo = arquivo_hist.read().decode("utf-8", errors="ignore")
-                    df_temp = pc_parse_historico_flex_ultra(conteudo)
-                    if df_temp is not None and not df_temp.empty:
-                        st.session_state["historico_df"] = df_temp
-                        historico_df = df_temp
-                        st.success(f"Histórico carregado via M3: {len(df_temp)} séries.")
-                    else:
-                        st.error("Não consegui ler o histórico (FLEX ULTRA). Verifique o arquivo.")
-                except Exception as e:
-                    st.error(f"Erro ao ler histórico: {e}")
-        if historico_df is None or getattr(historico_df, "empty", False):
-            return
+    st.markdown(
+        "Envie um arquivo de histórico em formato **FLEX ULTRA**.\n\n"
+        "📌 Regra universal: o **último valor da linha é sempre k**, "
+        "independente da quantidade de passageiros."
+    )
+
+    arquivo = st.file_uploader(
+        "Envie o arquivo de histórico",
+        type=["txt", "csv"],
+    )
+
+    if arquivo is None:
+        exibir_bloco_mensagem(
+            "Aguardando arquivo de histórico",
+            "Envie seu arquivo para iniciar o processamento do PredictCars.",
+            tipo="info",
+        )
+        st.stop()
+
+    try:
+        conteudo = arquivo.getvalue().decode("utf-8")
+        linhas = conteudo.strip().split("\n")
+
+        if not limitar_operacao(
+            len(linhas),
+            limite_series=LIMITE_SERIES_REPLAY_ULTRA,
+            contexto="Carregar Histórico (Arquivo)",
+            painel="📁 Carregar Histórico (Arquivo)",
+        ):
+            st.stop()
+
+        df = carregar_historico_universal(linhas)
+
+    except Exception as erro:
+        exibir_bloco_mensagem(
+            "Erro ao processar histórico",
+            f"Detalhes técnicos: {erro}",
+            tipo="error",
+        )
+        st.stop()
+
+    st.session_state["historico_df"] = df
+
+    metricas = calcular_metricas_basicas_historico(df)
+    exibir_resumo_inicial_historico(metricas)
+
+    # ============================================================
+    # 🌐 BLOCO UNIVERSAL A — DETECTOR DO FENÔMENO
+    # ============================================================
+
+    st.markdown("### 🌐 Perfil do Fenômeno (detecção automática)")
+    st.caption(
+        "Detecção automática do formato real do fenômeno.\n"
+        "✔ Última coluna = k\n"
+        "✔ Quantidade de passageiros livre\n"
+        "✔ Universo variável\n"
+        "❌ Não há decisão automática"
+    )
+
+    import hashlib
+
+    colunas = list(df.columns)
+    col_id = colunas[0]
+    col_k = colunas[-1]
+    col_passageiros = colunas[1:-1]
+
+    passageiros_por_linha = []
+    todos_passageiros = []
+
+    for _, row in df.iterrows():
+        valores = [int(v) for v in row[col_passageiros] if pd.notna(v)]
+        passageiros_por_linha.append(len(valores))
+        todos_passageiros.extend(valores)
+
+    n_set = sorted(set(passageiros_por_linha))
+    mix_n_detectado = len(n_set) > 1
+    n_passageiros = n_set[0] if not mix_n_detectado else None
+
+    universo_min = int(min(todos_passageiros)) if todos_passageiros else None
+    universo_max = int(max(todos_passageiros)) if todos_passageiros else None
+    universo_set = sorted(set(todos_passageiros))
+
+    hash_base = f"{n_set}-{universo_min}-{universo_max}"
+    fenomeno_id = hashlib.md5(hash_base.encode()).hexdigest()[:8]
+
+    st.session_state["pc_n_passageiros"] = n_passageiros
+    st.session_state["pc_n_set_detectado"] = n_set
+    st.session_state["pc_mix_n_detectado"] = mix_n_detectado
+    st.session_state["pc_universo_min"] = universo_min
+    st.session_state["pc_universo_max"] = universo_max
+    st.session_state["pc_universo_set"] = universo_set
+    st.session_state["pc_fenomeno_id"] = fenomeno_id
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**📐 Estrutura**")
+        st.write(f"Passageiros por série (n): **{n_set}**")
+        if mix_n_detectado:
+            st.warning("Mistura de n detectada no mesmo histórico.")
+        st.write(f"Coluna ID: `{col_id}`")
+        st.write(f"Coluna k: `{col_k}`")
+
+    with col2:
+        st.markdown("**🌍 Universo observado**")
+        st.write(f"Mínimo: **{universo_min}**")
+        st.write(f"Máximo: **{universo_max}**")
+        st.write(f"Total distintos: **{len(universo_set)}**")
+
+    st.markdown("**🆔 Fenômeno ID (auditoria)**")
+    st.code(fenomeno_id)
+
+    # ============================================================
+    # 🌐 BLOCO UNIVERSAL B — PARAMETRIZAÇÃO DO FENÔMENO
+    # ============================================================
+
+    st.markdown("### 🌐 Parâmetros Ativos do Fenômeno")
+    st.caption(
+        "Parâmetros universais derivados do histórico.\n"
+        "✔ Não executa\n"
+        "✔ Não interfere\n"
+        "✔ Não altera módulos existentes"
+    )
+
+    if not mix_n_detectado:
+        pc_n_alvo = n_passageiros
+        pc_n_status = "fixo"
+    else:
+        pc_n_alvo = None
+        pc_n_status = "misto"
+
+    st.session_state["pc_n_alvo"] = pc_n_alvo
+    st.session_state["pc_range_min"] = universo_min
+    st.session_state["pc_range_max"] = universo_max
+
+    if pc_n_alvo:
+        st.session_state["pc_regua_extrema"] = f"{pc_n_alvo} ou nada"
+        st.session_state["pc_regua_mvp2"] = f"2–{pc_n_alvo}"
+    else:
+        st.session_state["pc_regua_extrema"] = "indefinida"
+        st.session_state["pc_regua_mvp2"] = "indefinida"
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.markdown("**🎯 n alvo**")
+        st.write(f"Status: **{pc_n_status}**")
+        st.write(f"n alvo: **{pc_n_alvo if pc_n_alvo else 'MISTO'}**")
+
+    with col4:
+        st.markdown("**📏 Universo ativo**")
+        st.write(f"{universo_min} – {universo_max}")
+        st.write("Origem: histórico observado")
+
+    if mix_n_detectado:
+        st.warning(
+            "⚠️ Histórico contém mistura de quantidades de passageiros.\n\n"
+            "Recomenda-se separar fenômenos antes de previsões."
+        )
+
+    if pc_n_alvo and pc_n_alvo != 6:
+        st.info(
+            f"ℹ️ Fenômeno com n = {pc_n_alvo} detectado.\n"
+            "Módulos legados ainda podem assumir n=6.\n"
+            "➡️ Próximo passo: BLOCO UNIVERSAL C."
+        )
+
+    st.success("Perfil e parâmetros do fenômeno definidos.")
+
+    st.success("Histórico carregado com sucesso!")
+    st.dataframe(df.head(20))
 
 
+# ============================================================
+# Painel 1B — 📄 Carregar Histórico (Colar)
+# ============================================================
+if "Carregar Histórico (Colar)" in painel:
+
+    st.markdown("## 📄 Carregar Histórico — Copiar e Colar (V15.7 MAX)")
+
+    texto = st.text_area(
+        "Cole aqui o histórico completo",
+        height=320,
+        key="pc_colar_texto_simples",
+    )
+
+    clicked = st.button(
+        "📥 Processar Histórico (Copiar e Colar)",
+        key="pc_colar_btn_simples",
+    )
+
+    if clicked:
+
+        st.write("PROCESSANDO HISTÓRICO...")
+
+        if not texto.strip():
+            st.error("Histórico vazio")
+            st.stop()
+
+        linhas = texto.strip().split("\n")
+
+        df = carregar_historico_universal(linhas)
+
+        st.session_state["historico_df"] = df
+
+        st.success(f"Histórico carregado com sucesso: {len(df)} séries")
+
+
+
+
+
+# ============================================================
+# BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
+# FASE 1 — OBSERVAÇÃO PURA | SEM IMPACTO OPERACIONAL
+# ============================================================
+
+
+
+
+
+
+# ============================================================
+# PAINEL — 📊 V16 PREMIUM — ERRO POR REGIME (RETROSPECTIVO)
+# (INSTRUMENTAÇÃO: mede continuidade do erro por janelas)
+# ============================================================
+
+# ============================================================
+# PAINEL — 🧠 Diagnóstico ECO & Estado (V16)
+# Observacional | NÃO decide | NÃO altera motores
+# ============================================================
+
+elif painel == "🧠 Diagnóstico ECO & Estado (V16)":
+
+    st.markdown("## 🧠 Diagnóstico ECO & Estado — V16")
+    st.caption("Leitura mastigada do ambiente e do alvo. Observacional.")
+
+    # Sincroniza chaves canônicas (evita N/D indevido no RF)
+    v16_sync_aliases_canonicos()
+
+
+    diag = st.session_state.get("diagnostico_eco_estado_v16")
+
+    if not diag:
+        st.info("Diagnóstico ainda não disponível. Carregue um histórico.")
+        st.stop()
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### 🌊 ECO")
+        eco_forca = diag.get("eco_forca") or "fraco"
+        st.write(f"Força: **{eco_forca}**")
+        st.write(f"Persistência: **{diag.get('eco_persistencia')}**")
+        st.write(f"Acionabilidade: **{diag.get('eco_acionabilidade')}**")
+
+        motivos = diag.get("motivos_eco", [])
+        if motivos:
+            st.caption("Motivos: " + ", ".join(motivos))
+
+        contradicoes = diag.get("contradicoes", [])
+        if contradicoes:
+            st.warning("⚠️ Contradições: " + "; ".join(contradicoes))
+
+    with col2:
+        st.markdown("### 🐟 Estado do Alvo")
+        st.write(f"Estado: **{diag.get('estado')}**")
+        st.write(
+            "Confiabilidade: "
+            f"**{'alta' if diag.get('estado_confiavel') else 'baixa / transição'}**"
+        )
+
+    st.markdown("### 🧠 Leitura Geral")
+    
+    st.success(diag.get("leitura_geral", "—"))
+
+
+elif painel == "🧾 APS — Auditoria de Postura (V16)":
+
+    st.markdown("## 🧾 APS — Auditoria de Postura (V16)")
+    st.caption("Auditoria observacional do risco/postura do sistema. NÃO muda listas. NÃO decide volume. Serve para proteger contra postura errada (ex.: ancoragem excessiva em E0 + ruído alto).")
+
+    # Coleta segura
+    nr = st.session_state.get("nr_percent_v16") or st.session_state.get("nr_percent") or st.session_state.get("NR_PERCENT")
+    orbita = st.session_state.get("orbita_selo_v16") or st.session_state.get("orbita_selo") or st.session_state.get("ORBITA_SELO") or "E0"
+    diag = st.session_state.get("diagnostico_eco_estado_v16") or {}
+    eco_acion = diag.get("eco_acionabilidade") or "N/D"
+
+    anti_exato = st.session_state.get("anti_exato_level_v16") or st.session_state.get("anti_exato_level")  # opcional
+
+    selo, titulo, msg = v16_calcular_aps_postura(nr_percent=nr, orbita_selo=orbita, eco_acionabilidade=eco_acion, anti_exato_level=anti_exato)
+
+    # Registro canônico (observacional)
+
+    try:
+
+        st.session_state["aps_postura_selo"] = selo
+
+        st.session_state["aps_postura_titulo"] = titulo
+
+        st.session_state["aps_postura_msg"] = msg
+
+    except Exception:
+
+        pass
+
+    st.markdown(f"### {selo} {titulo}")
+    st.info(msg)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Entradas observadas**")
+        st.write(f"- NR%: **{nr if nr is not None else 'N/D'}**")
+        st.write(f"- Órbita (selo): **{orbita}**")
+        st.write(f"- ECO (acionabilidade): **{eco_acion}**")
+        if anti_exato is not None:
+            st.write(f"- Anti-EXATO (nível): **{anti_exato}**")
+    with col2:
+        st.markdown("**Compatibilidades sugeridas (não obrigatórias)**")
+        if selo == "🟡":
+            st.write("- ✔ Duplo pacote: **base + anti-âncora**")
+            st.write("- ✔ Envelope estreito / microvariações")
+            st.write("- ⚠ Evitar ancoragem forte única")
+        elif selo == "🔴":
+            st.write("- ✔ Pacote mais espalhado e volume baixo")
+            st.write("- ⚠ Evitar densidade e insistência")
+        elif selo == "🟢":
+            st.write("- ✔ Densidade moderada pode ser compatível")
+            st.write("- ✔ Observar persistência por 1–3 séries")
+        else:
+            st.write("- ✔ Manter pacote base e acompanhar série a série")
+
+    st.markdown("### 📌 Nota de governança")
+    st.caption("Se a APS 'apontar o dedo', o sistema NÃO muda nada automaticamente nesta fase. A função aqui é blindar leitura e evitar postura errada; a execução segue com os pacotes já gerados.")
+
+
+elif painel == "🧭 RMO/DMO — Retrato do Momento (V16)":
+    st.markdown("## 🧭 RMO/DMO — Retrato do Momento (V16)")
+    st.caption("Síntese integrada (RMO) + governança temporal (DMO) + voz operacional (VOS). Observacional. Não decide ação.")
+
+    # Sincroniza chaves canônicas (ECO/Estado/k*/Divergência) antes do retrato
+    v16_sync_aliases_canonicos()
+
+
+    # -----------------------------
+    # Coleta segura de sinais
+    # -----------------------------
+    risco_pack = st.session_state.get("diagnostico_risco") or {}
+    diag = st.session_state.get("diagnostico_eco_estado_v16") or {}
+
+    nr_ruido = st.session_state.get("nr_percent")  # Painel de Ruído Condicional (normalizado)
+    nr_risco = risco_pack.get("nr_percent")        # Monitor de risco (NR% usado no índice)
+    div = risco_pack.get("divergencia")
+    classe_risco = risco_pack.get("classe_risco")
+    indice_risco = risco_pack.get("indice_risco")
+
+    orb = st.session_state.get("orbita_info") or {}
+    orb_estado = orb.get("estado", "N/D")
+    orb_selo = orb.get("selo", "N/D")
+    grad = st.session_state.get("orbita_gradiente", "N/D")
+    orb_score = st.session_state.get("orbita_score")
+
+    eco_forca = diag.get("eco_forca", diag.get("forca", "N/D"))
+    eco_persist = diag.get("eco_persistencia", diag.get("persistencia", "N/D"))
+    eco_acion = diag.get("eco_acionabilidade", diag.get("acionabilidade", "N/D"))
+
+    estado_alvo = diag.get("estado", "N/D")
+    estado_conf = "alta" if diag.get("estado_confiavel") else "baixa / transição"
+
+    b3_pronto = bool(st.session_state.get("b3_pronto_refinar", False))
+    pipeline_ok = bool(st.session_state.get("pipeline_flex_ultra_concluido", False))
+    turbo_ultra_rodou = bool(st.session_state.get("turbo_ultra_rodou", False))
+    modo6_total = st.session_state.get("modo6_n_total")
+
+    # -----------------------------
+    # RMO — Retrato do Momento Operacional
+    # -----------------------------
+    st.markdown("### 🖼️ RMO — Retrato do Momento Operacional")
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("NR% (Ruído)", f"{nr_ruido:.2f}%" if isinstance(nr_ruido, (int, float)) else "N/D")
+        st.caption("Painel 📡 Ruído Condicional")
+    with c2:
+        st.metric("NR% (Risco)", f"{nr_risco:.2f}%" if isinstance(nr_risco, (int, float)) else "N/D")
+        st.caption("Monitor k & k*")
+    with c3:
+        st.metric("Divergência S6×MC", f"{div:.4f}" if isinstance(div, (int, float)) else "N/D")
+        st.caption("do Monitor (quando disponível)")
+    with c4:
+        st.metric("Índice de Risco", f"{indice_risco:.4f}" if isinstance(indice_risco, (int, float)) else "N/D")
+        st.caption(classe_risco or "Classe N/D")
+
+    st.markdown("#### 🌊 ECO & 🐟 Estado (leitura mastigada)")
+    c5, c6, c7 = st.columns(3)
+    with c5:
+        st.write(f"**ECO**: {eco_forca} · {eco_persist} · {eco_acion}")
+    with c6:
+        st.write(f"**Estado do alvo**: {estado_alvo} (conf.: {estado_conf})")
+    with c7:
+        st.write(f"**Órbita**: {orb_estado} · {orb_selo} · grad {grad}")
+
+    st.markdown("#### 🧱 Integridade operacional (sem julgamento)")
+    c8, c9, c10 = st.columns(3)
+    with c8:
+        st.write(f"Pipeline FLEX ULTRA: **{'✅' if pipeline_ok else '—'}**")
+    with c9:
+        st.write(f"TURBO++ ULTRA rodou: **{'✅' if turbo_ultra_rodou else '—'}**")
+    with c10:
+        st.write(f"Modo 6 (N_total): **{modo6_total if modo6_total is not None else 'N/D'}**")
+
+    st.markdown("#### 🧼 Perna B (prontidão)")
+    st.write(f"B3 — Pronto para refinamento: **{'🟢 SIM' if b3_pronto else '🟡 AINDA NÃO'}**")
+
+    # -----------------------------
+    # DMO — Detector de Momento Operável (governança temporal)
+    # -----------------------------
+    st.markdown("### ⏳ DMO — Detector de Momento Operável (governança)")
+
+    # histórico curto (memória leve, apenas dentro da sessão)
+    if "dmo_hist_sinais" not in st.session_state:
+        st.session_state["dmo_hist_sinais"] = []
+    if "dmo_estado" not in st.session_state:
+        st.session_state["dmo_estado"] = "🟥 SOBREVIVÊNCIA"
+
+    sinais = []
+
+    # Sinal A: Órbita sugere estrutura (E2 ou E1 forte via gradiente)
+    if str(orb_estado).upper() in ["E2"]:
+        sinais.append("Órbita E2 (interceptação plausível)")
+    elif str(orb_estado).upper() in ["E1"] and str(grad).upper() in ["G2", "G3", "FORTE"]:
+        sinais.append("Órbita E1 forte (gradiente alto)")
+
+    # Sinal B: ECO persistente e (mesmo que fraco) não recuando
+    if str(eco_persist).lower() in ["persistente", "sim", "alta", "ok"]:
+        sinais.append("ECO com persistência")
+
+    # Sinal C: Ruído não está piorando (tendência curta)
+    # (usa NR do Painel de Ruído, quando disponível)
+    hist = st.session_state["dmo_hist_sinais"]
+    nr_ok = None
+    try:
+        if isinstance(nr_ruido, (int, float)):
+            prev_nr = st.session_state.get("dmo_prev_nr_ruido")
+            if isinstance(prev_nr, (int, float)):
+                nr_ok = (nr_ruido <= prev_nr + 1e-9)
+                if nr_ok:
+                    sinais.append("NR não crescente (curto prazo)")
+            st.session_state["dmo_prev_nr_ruido"] = float(nr_ruido)
+    except Exception:
+        pass
+
+    # Sinal D: B3 pronto (refinamento viável)
+    if b3_pronto:
+        sinais.append("B3 pronto (refinamento viável)")
+
+    # pontuação simples
+    score = int(len(sinais))
+    hist.append(score)
+    hist[:] = hist[-5:]  # memória curta
+
+    # regra de estados (consistente com o canônico)
+    estado_atual = st.session_state.get("dmo_estado", "🟥 SOBREVIVÊNCIA")
+    media2 = sum(hist[-2:]) / max(1, len(hist[-2:]))
+    media3 = sum(hist[-3:]) / max(1, len(hist[-3:]))
+
+    if len(hist) >= 3 and media3 >= 2.0:
+        novo_estado = "🟩 OPERÁVEL"
+    elif len(hist) >= 2 and media2 >= 1.0:
+        novo_estado = "🟨 ATENÇÃO"
+    else:
+        novo_estado = "🟥 SOBREVIVÊNCIA"
+
+    st.session_state["dmo_estado"] = novo_estado
+
+    # exibição
+    st.write(f"**Estado DMO:** {novo_estado}")
+    st.caption("O DMO não decide ação. Ele governa o tempo (evita sair cedo demais).")
+
+    if sinais:
+        st.markdown("**Sinais ativos agora:**")
+        for s in sinais:
+            st.write(f"- {s}")
+    else:
+        st.markdown("**Sinais ativos agora:** nenhum (isso é um estado válido)")
+
+    st.caption(f"Memória curta (scores últimas rodadas na sessão): {hist}")
+
+    # -----------------------------
+    # VOS — Voz Operacional do Sistema (1 frase, sem decisão)
+    # -----------------------------
+    st.markdown("### 🔊 VOS — Voz Operacional do Sistema (curta)")
+
+    if novo_estado.startswith("🟥"):
+        frase = "Ambiente não sustenta precisão. Permanecer ou trocar não altera o risco."
+        st.warning(frase)
+    elif novo_estado.startswith("🟨"):
+        frase = "Estrutura começa a se repetir. Evite desmontar o que ainda está coerente."
+        st.info(frase)
+    else:
+        frase = "Persistência custa menos que mudança. Reduza variação."
+        st.success(frase)
+
+    st.stop()
+
+elif painel == "📊 V16 Premium — Erro por Regime (Retrospectivo)":
+
+    st.subheader("📊 V16 Premium — Erro por Regime (Retrospectivo)")
+    st.caption(
+        "Instrumentação retrospectiva: janelas móveis → regime (ECO/PRE/RUIM) "
+        "por dispersão da janela e erro da PRÓXIMA série como proxy de 'erro contido'. "
+        "Não altera motor. Não escolhe passageiros."
+    )
+
+    # ============================================================
+    # Localização ROBUSTA do histórico (padrão oficial V16)
+    # ============================================================
+    _, historico_df = v16_identificar_df_base()
+
+    if historico_df is None or historico_df.empty:
+        st.warning(
+            "Histórico não encontrado no estado atual do app.\n\n"
+            "👉 Recarregue o histórico e volte diretamente a este painel."
+        )
+        st.stop()
+
+    if len(historico_df) < 100:
+        st.warning(
+            f"Histórico muito curto para análise retrospectiva.\n\n"
+            f"Séries detectadas: {len(historico_df)}"
+        )
+        st.stop()
+
+    # 🔒 Anti-zumbi automático (painel leve, invisível)
+    janela = 60
+    step = 1
+
+    with st.spinner("Calculando análise retrospectiva por janelas (V16 Premium)..."):
+        out = pc16_calcular_continuidade_por_janelas(
+            historico_df=historico_df,
+            janela=janela,
+            step=step,
+            usar_quantis=True
+        )
+
+    if not out.get("ok", False):
+        st.error(f"Falha na análise: {out.get('motivo','Erro desconhecido')}")
+        st.stop()
+
+    resumo_geral = out.get("resumo_geral", {})
+    resumo = out.get("resumo", {})
+    df = out.get("df", pd.DataFrame())
+
+    # ============================================================
+    # RESULTADO OBJETIVO
+    # ============================================================
+    st.markdown("### ✅ Resultado objetivo — Continuidade do erro")
+
+    diff = resumo_geral.get("diff_ruim_menos_eco_no_erro", None)
+    if diff is None:
+        st.info(
+            "Ainda não há base suficiente para comparar ECO vs RUIM.\n\n"
+            "Isso ocorre quando algum regime tem poucas janelas."
+        )
+    else:
+        st.write(
+            f"**Diferença RUIM − ECO no erro médio (erro_prox):** "
+            f"`{diff:.6f}`\n\n"
+            "➡️ Valores positivos indicam erro menor em ECO."
+        )
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total de janelas", str(resumo_geral.get("n_total_janelas", "—")))
+    col2.metric("Janela (W)", str(resumo_geral.get("janela", "—")))
+    col3.metric("q1 dx (ECO ≤)", f"{resumo_geral.get('q1_dx', 0):.6f}")
+    col4.metric("q2 dx (PRE ≤)", f"{resumo_geral.get('q2_dx', 0):.6f}")
+
+    # ============================================================
+    # TABELA POR REGIME
+    # ============================================================
+    st.markdown("### 🧭 Tabela por Regime (ECO / PRE / RUIM)")
+
+    linhas = []
+    for reg in ["ECO", "PRE", "RUIM"]:
+        r = resumo.get(reg, {"n": 0})
+        linhas.append({
+            "Regime": reg,
+            "n_janelas": r.get("n", 0),
+            "dx_janela_medio": r.get("dx_janela_medio"),
+            "erro_prox_medio": r.get("erro_prox_medio"),
+            "erro_prox_mediana": r.get("erro_prox_mediana"),
+        })
+
+    df_reg = pd.DataFrame(linhas)
+    st.dataframe(df_reg, use_container_width=True)
+
+    # ============================================================
+    # AUDITORIA LEVE
+    # ============================================================
+    st.markdown("### 🔎 Amostra das janelas (auditoria leve)")
+    st.caption(
+        "Exibe as primeiras linhas apenas para validação conceitual. "
+        "`t` é um índice interno (0-based)."
+    )
+    st.dataframe(df.head(50), use_container_width=True)
+
+    # ============================================================
+    # LEITURA OPERACIONAL
+    # ============================================================
+    st.markdown("### 🧠 Leitura operacional (objetiva)")
+    st.write(
+        "- Se **ECO** apresentar **erro_prox_medio** consistentemente menor que **RUIM**, "
+        "isso sustenta matematicamente que, em estados ECO, **o erro tende a permanecer contido**.\n"
+        "- Este painel **não escolhe passageiros**.\n"
+        "- Ele **autoriza** (ou não) a fase seguinte: **concentração para buscar 6**, "
+        "sem alterar motor ou fluxo."
+    )
+
+
+
+
+# ============================================================
+# PAINEL V16 — 🎯 Compressão do Alvo (OBSERVACIONAL)
+# Leitura pura | NÃO prevê | NÃO decide | NÃO altera motores
+# ============================================================
+
+if painel == "🎯 Compressão do Alvo (Observacional)":
+
+    st.markdown("## 🎯 Compressão do Alvo — Leitura Observacional (V16)")
+    st.caption(
+        "Este painel mede **se o erro provável está comprimindo**.\n\n"
+        "⚠️ Não prevê números, não sugere volume, não altera o fluxo."
+    )
+
+    # -----------------------------
+    # Coleta de sinais já existentes
+    # -----------------------------
+    nr = st.session_state.get("nr_percent")
+    div = st.session_state.get("div_s6_mc")
+    k_star = st.session_state.get("sentinela_kstar")
+    risco = (st.session_state.get("diagnostico_risco") or {}).get("indice_risco")
+
+    df = st.session_state.get("historico_df")
+
+    if df is None or nr is None or div is None or k_star is None or risco is None:
+        exibir_bloco_mensagem(
+            "Pré-requisitos ausentes",
+            "Execute os painéis de Sentinela, Ruído, Divergência e Monitor de Risco.",
+            tipo="warning",
+        )
+        st.stop()
+
+    # -----------------------------
+    # 1) Estabilidade do ruído
+    # -----------------------------
+    nr_ok = nr < 45.0
+
+    # -----------------------------
+    # 2) Convergência dos motores
+    # -----------------------------
+    div_ok = div < 5.0
+
+    # -----------------------------
+    # 3) Regime não-hostil
+    # -----------------------------
+    risco_ok = risco < 0.55
+
+    # -----------------------------
+    # 4) k como marcador NORMAL (não extremo)
+    # -----------------------------
+    k_ok = 0.10 <= k_star <= 0.35
+
+    # -----------------------------
+    # 5) Repetição estrutural (passageiros)
+    # -----------------------------
+    col_pass = [c for c in df.columns if c.startswith("p")]
+    ultimos = df[col_pass].iloc[-10:].values
+
+    repeticoes = []
+    for i in range(len(ultimos) - 1):
+        repeticoes.append(len(set(ultimos[i]) & set(ultimos[i + 1])))
+
+    repeticao_media = float(np.mean(repeticoes)) if repeticoes else 0.0
+    repeticao_ok = repeticao_media >= 2.5
+
+    # -----------------------------
+    # Consolidação OBSERVACIONAL
+    # -----------------------------
+    sinais = {
+        "NR% estável": nr_ok,
+        "Convergência S6 × MC": div_ok,
+        "Risco controlado": risco_ok,
+        "k em faixa normal": k_ok,
+        "Repetição estrutural": repeticao_ok,
+    }
+
+    positivos = sum(1 for v in sinais.values() if v)
+
+    # -----------------------------
+    # Exibição
+    # -----------------------------
+    st.markdown("### 📊 Sinais de Compressão do Erro")
+
+    for nome, ok in sinais.items():
+        st.markdown(
+            f"- {'🟢' if ok else '🔴'} **{nome}**"
+        )
+
+    st.markdown("### 🧠 Leitura Consolidada")
+
+    if positivos >= 4:
+        leitura = (
+            "🟢 **Alta compressão do erro provável**.\n\n"
+            "O alvo está mais bem definido do que o normal.\n"
+            "Se houver PRÉ-ECO / ECO, a convicção operacional aumenta."
+        )
+    elif positivos == 3:
+        leitura = (
+            "🟡 **Compressão parcial**.\n\n"
+            "Há foco emergente, mas ainda com dispersão residual."
+        )
+    else:
+        leitura = (
+            "🔴 **Sem compressão clara**.\n\n"
+            "Erro ainda espalhado. Operar com cautela."
+        )
+
+    exibir_bloco_mensagem(
+        "Compressão do Alvo — Diagnóstico",
+        leitura,
+        tipo="info",
+    )
+
+    st.caption(
+        f"Sinais positivos: {positivos}/5 | "
+        "Este painel **não autoriza nem bloqueia** nenhuma ação."
+    )
+
+# ============================================================
+# FIM — PAINEL V16 — COMPRESSÃO DO ALVO (OBSERVACIONAL)
+# ============================================================
+
+
+# ============================================================
+# BLOCO — OBSERVADOR HISTÓRICO DE EVENTOS k (V16)
+# REPLAY HISTÓRICO OBSERVACIONAL (MEMÓRIA REAL)
+# NÃO decide | NÃO prevê | NÃO altera motores | NÃO altera volumes
+# ============================================================
+
+
+# ============================================================
+# ALIAS CANÔNICO (V16) — M3
+# Expectativa Histórica — Contexto do Momento
+# ============================================================
 def v16_painel_expectativa_historica_contexto():
-    """Compat (chamada antiga).
-    Mantém o nome público do painel e aponta para a implementação real.
+    """Alias canônico para preservar âncoras/painéis que chamam a função V16.
+
+    Regra: NÃO calcula listas, NÃO decide, NÃO altera fluxo.
+    Encaminha para o painel observacional M3.
     """
     return m3_painel_expectativa_historica_contexto()
+
 
 def v16_replay_historico_observacional(
     *,
@@ -7263,45 +7939,1040 @@ def v16_priorizar_listas_por_contexto(listas):
 # >>> PAINEL X — 🧠 Memória Operacional — Observacional
 # ============================================================
 if painel == "🧠 Memória Operacional — Observacional":
-    st.markdown("### 🧠 Memória Operacional (Observacional)")
+    st.markdown("## 🧠 Memória Operacional (Observacional)")
     st.caption("Este painel é um espelho: mostra registros já existentes. Não pede confirmação do operador para registros automáticos.")
 
-    registros = st.session_state.get("memoria_operacional", [])
+    # Garantir estrutura mínima
+    if "memoria_operacional" not in st.session_state or st.session_state["memoria_operacional"] is None:
+        st.session_state["memoria_operacional"] = []
 
-    if not registros:
+    registros = st.session_state["memoria_operacional"]
+
+    if len(registros) == 0:
         st.info("Sem registros na Memória Operacional nesta sessão. (Isso não é erro.)")
+        st.caption("📌 Observação: o M5 — Pulo do Gato registra automaticamente 'fotos' na Memória de Estados (M2). Para massa histórica, use 🧠 Memória de Estados (M2) e o 📈 M3.")
     else:
-        for idx, reg in enumerate(registros, start=1):
-            ts = reg.get("ts", "N/D")
-            tag = reg.get("tag", f"R{idx}")
-            resumo = reg.get("resumo", "")
-            titulo = f"🧠 {idx:02d}) [{tag}] {ts}"
-            if resumo:
-                titulo = f"{titulo} — {resumo}"
-            with st.expander(titulo):
-                st.json(reg)
+        st.success(f"{len(registros)} registro(s) nesta sessão.")
+        # Exibição simples e segura (sem botões)
+        for i, r in enumerate(registros[-50:], start=max(1, len(registros)-49)):
+            st.markdown(f"**{i:02d})** `{r}`")
+if painel == "🧠 Memória Operacional — Registro Semi-Automático":
+    st.markdown("## 🧠 Memória Operacional — Registro Semi-Automático (Passivo)")
+    st.caption("Mantido por compatibilidade de navegação. Operação passiva (sem botões). Use o painel 🧠 Memória Operacional para ver registros.")
 
-    st.markdown("---")
-    st.caption("📌 Observação: o M5 — Pulo do Gato registra automaticamente 'fotos' na Memória de Estados (M2). Se você quiser ver massa histórica, use o painel 🧠 Memória de Estados (M2) e o 📈 M3.")
+    if "memoria_operacional" not in st.session_state or st.session_state["memoria_operacional"] is None:
+        st.session_state["memoria_operacional"] = []
 
-elif painel == "🧠 Memória Operacional — Registro Semi-Automático":
-    st.markdown("### 🧠 Memória Operacional — Registro Semi-Automático (Passivo)")
-    st.caption("Este painel foi mantido por compatibilidade de navegação, mas opera passivamente (sem botões). Use o painel de Memória Operacional para ver registros.")
-
-    registros = st.session_state.get("memoria_operacional", [])
-
-    if not registros:
+    if len(st.session_state["memoria_operacional"]) == 0:
         st.info("Sem registros nesta sessão.")
     else:
-        st.markdown("Registros (resumo):")
-        for r in registros[-10:]:
-            ts = r.get("ts", "N/D")
-            tag = r.get("tag", "N/D")
-            resumo = r.get("resumo", "")
-            linha = f"**[{tag}]** {ts}"
-            if resumo:
-                linha += f" — {resumo}"
-            st.markdown(f"- {linha}")
+        st.success(f"Registros nesta sessão: {len(st.session_state['memoria_operacional'])}")
+if painel == "📘 Relatório Final":
+
+    st.markdown("## 📘 Relatório Final — V15.7 MAX — V16 Premium Profundo")
+
+    # Sincroniza chaves canônicas (ECO/Estado/k*/Divergência) antes de consolidar
+    v16_sync_aliases_canonicos()
+
+    # ------------------------------------------------------------
+    # 🧭 BLOCO -1 — SUMÁRIO EXECUTIVO (read-only)
+    # ------------------------------------------------------------
+    try:
+        _snap = _m1_collect_mirror_snapshot() if '_m1_collect_mirror_snapshot' in globals() else {}
+        _estado = _m1_classificar_estado(_snap) if '_m1_classificar_estado' in globals() else {'estado':'S0','avisos':[],'snapshot':_snap}
+        st.markdown('### 🧭 Sumário Executivo (rodada atual)')
+        # --- Regime por fonte (consolidação) ---
+        st.markdown('### 🧷 Regime por fonte (consolidação)')
+        reg_pipeline = st.session_state.get('pipeline_estrada', None)
+        reg_global = st.session_state.get('regime', None)
+        reg_m3 = st.session_state.get('m3_regime_dx', None)
+        classe_risco = st.session_state.get('classe_risco', None)
+        k_star = st.session_state.get('k_star', None)
+        nr = st.session_state.get('nr_percent', None)
+        div_s6_mc = st.session_state.get('divergencia_s6_mc', None)
+        colA, colB, colC = st.columns(3)
+        with colA:
+            st.markdown('**🛣️ Pipeline (Estrada)**')
+            st.write(reg_pipeline if reg_pipeline is not None else '—')
+            st.caption('Regime global atual: {}'.format(reg_global) if reg_global is not None else 'Regime global atual: —')
+        with colB:
+            st.markdown('**🛰️ Sentinelas / Risco**')
+            st.write('Classe: {}'.format(classe_risco) if classe_risco is not None else 'Classe: —')
+            st.write('k*: {:.4f}'.format(k_star) if isinstance(k_star, (int, float)) else ('k*: {}'.format(k_star) if k_star is not None else 'k*: —'))
+            st.write('NR%: {:.2f}%'.format(nr) if isinstance(nr, (int, float)) else ('NR%: {}'.format(nr) if nr is not None else 'NR%: —'))
+            st.write('Div S6×MC: {:.4f}'.format(div_s6_mc) if isinstance(div_s6_mc, (int, float)) else ('Div S6×MC: {}'.format(div_s6_mc) if div_s6_mc is not None else 'Div S6×MC: —'))
+        with colC:
+            st.markdown('**📈 M3 / Expectativa (dx)**')
+            st.write(reg_m3 if reg_m3 is not None else '—')
+        st.caption('Pode haver divergência porque cada fonte mede uma coisa: Pipeline descreve a estrada, Sentinelas medem risco/turbulência, e M3 (dx) mede expectativa/analogia. Use cada leitura no seu uso canônico — sem misturar.')
+        st.caption('Somente leitura. Não decide nada. Serve para você bater o olho e saber: **o que rodou**, **o que falta**, e **quais leituras estão disponíveis**.')
+        if '_m1_render_barra_estados' in globals():
+            _m1_render_barra_estados(_estado.get('estado','S0'))
+        if _estado.get('avisos'):
+            st.warning('Ainda não percorrido (na sessão): ' + ' · '.join(_estado.get('avisos', [])))
+        # Snapshot resumido
+        _s = _estado.get('snapshot', {})
+        _bl0 = {'historico_df': 'definido' if _s.get('historico_df') else '<não definido>', 'n_alvo': _s.get('n_alvo','N/D'), 'universo': _s.get('universo','N/D'), 'pipeline_ok': bool(_s.get('pipeline_ok')), 'regime': _s.get('regime','N/D')}
+        _bl1 = {'k_star': _s.get('k_star','N/D'), 'nr_percent': _s.get('nr_percent','N/D'), 'divergencia_s6_mc': _s.get('divergencia_s6_mc','N/D'), 'indice_risco': _s.get('indice_risco','N/D'), 'classe_risco': _s.get('classe_risco','N/D')}
+        _bl2 = {'turbo_tentado': bool(_s.get('turbo_tentado')), 'turbo_bloqueado': bool(_s.get('turbo_bloqueado')), 'turbo_motivo': _s.get('turbo_motivo','N/D'), 'modo6_executado': bool(_s.get('modo6_executado')), 'listas_geradas': _s.get('listas_geradas','<não definido>')}
+        st.json(_bl0)
+        st.json(_bl1)
+        st.json(_bl2)
+    except Exception:
+        pass
+
+    # ------------------------------------------------------------
+    # 🎞️ BLOCO -0.5 — MEMÓRIA & EXPECTATIVA (read-only, se disponíveis)
+    # ------------------------------------------------------------
+    with st.expander('🎞️ Memória de Estados (M2) + Expectativa Histórica (M3) — resumo', expanded=False):
+        try:
+            m2 = st.session_state.get('m2_memoria_resumo_auditavel')
+            if m2:
+                st.markdown('#### 🎞️ M2 — Memória de Estados (resumo)')
+                st.json(m2)
+            else:
+                st.info('M2 ainda sem massa mínima nesta sessão. (Isso não é erro.)')
+            m3n = st.session_state.get('m3_eventos_similares')
+            if m3n is not None:
+                st.markdown('#### 📈 M3 — Expectativa Histórica (resumo)')
+                st.json({'m3_regime_dx': st.session_state.get('m3_regime_dx','N/D'), 'm3_eventos_similares': m3n, 'taxa_eco1': st.session_state.get('m3_taxa_eco1','N/D'), 'taxa_estado_bom': st.session_state.get('m3_taxa_estado_bom','N/D'), 'taxa_transicao': st.session_state.get('m3_taxa_transicao','N/D'), 'ts': st.session_state.get('m3_ts','N/D')})
+            else:
+                st.info('Para preencher M3 no Relatório Final: rode o painel **📈 Expectativa Histórica — Contexto do Momento (V16)** nesta sessão.')
+        except Exception:
+            pass
+
+
+    # ------------------------------------------------------------
+    # 🧲 BLOCO 0 — SUGADOR DE ESTADO CONSOLIDADO
+    # ------------------------------------------------------------
+    historico_df = st.session_state.get("historico_df")
+    n_alvo = st.session_state.get("n_alvo")
+
+    pipeline_status = st.session_state.get("pipeline_flex_ultra_concluido")
+    ultima_prev = st.session_state.get("ultima_previsao")
+
+    listas_m6_totais = (
+        st.session_state.get("modo6_listas_totais")
+        or st.session_state.get("modo6_listas")
+        or []
+    )
+
+    listas_ultra = st.session_state.get("turbo_ultra_listas_leves") or []
+
+    # Validação mínima
+    if not listas_m6_totais:
+        exibir_bloco_mensagem(
+            "Sem pacote do Modo 6",
+            "Execute o painel **🎯 Modo 6 Acertos — Execução** antes.",
+            tipo="warning",
+        )
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Estado consolidado
+    # ------------------------------------------------------------
+    linhas = []
+
+    if historico_df is not None:
+        linhas.append(f"- Séries carregadas: **{len(historico_df)}**")
+
+    if n_alvo is not None:
+        linhas.append(f"- Passageiros por carro (n): **{n_alvo}**")
+
+    if pipeline_status is True:
+        linhas.append("- Pipeline FLEX ULTRA: ✅ **CONCLUÍDO**")
+
+    exibir_bloco_mensagem(
+        "🧲 Estado Consolidado da Rodada",
+        "\n".join(linhas),
+        tipo="info",
+    )
+
+    # ============================================================
+    # 🧠 DIAGNÓSTICO CONSOLIDADO DA RODADA (NOVO — ADITIVO)
+    # ============================================================
+    eco_consolidado = st.session_state.get("eco_status", "DESCONHECIDO")
+    estado_consolidado = st.session_state.get("estado_atual", "DESCONHECIDO")
+
+    st.markdown("### 🧠 Diagnóstico Consolidado da Rodada")
+
+    st.info(
+        f"**ECO:** {eco_consolidado}\n\n"
+        f"**Estado do alvo:** {estado_consolidado}"
+    )
+
+    st.caption(
+        "Leitura consolidada do sistema nesta rodada.\n"
+        "Não gera decisão automática."
+    )
+
+    # ------------------------------------------------------------
+    # Núcleo TURBO (se existir)
+    # ------------------------------------------------------------
+    st.markdown("### 🔮 Previsão Principal (Núcleo — TURBO++ ULTRA)")
+
+    if ultima_prev:
+        st.success(formatar_lista_passageiros(ultima_prev))
+    else:
+        st.info(
+            "Nenhuma previsão TURBO disponível nesta rodada "
+            "(isso é válido em regime estável)."
+        )
+
+    # ------------------------------------------------------------
+    # 🛡️ Pacote Prioritário — Top 10 (Modo 6)
+    # ------------------------------------------------------------
+    st.markdown("### 🛡️ Pacote Prioritário (Top 10) — Modo 6")
+
+    top10 = listas_m6_totais[:10]
+    for i, lst in enumerate(top10, 1):
+        st.markdown(f"**{i:02d})** {formatar_lista_passageiros(lst)}")
+
+
+    # ------------------------------------------------------------
+    # 🧷 Anti-Âncora (OBSERVACIONAL) — rotulagem Base × Anti
+    # ------------------------------------------------------------
+    try:
+        analise_anti = v16_analisar_duplo_pacote_base_anti_ancora(
+            listas=listas_m6_totais,
+            base_n=10,
+            max_anti=4,
+            core_presenca_min=0.60,
+        )
+        st.session_state["v16_anti_ancora"] = analise_anti
+
+        st.markdown("### 🧷 Anti-Âncora — Observacional (Base × Anti)")
+        core = analise_anti.get("core") or []
+        if core:
+            st.write("**CORE do pacote base (presença alta no Top 10):** " + ", ".join(map(str, core)))
+        else:
+            st.write("CORE indisponível (sem base suficiente).")
+
+        anti_idx = analise_anti.get("anti_idx") or []
+        if anti_idx:
+            st.success(
+                "Sugestão (não obrigatória): **Duplo pacote** = Base (Top 10) + "
+                + f"Anti-âncora (listas existentes): {', '.join('L'+str(i) for i in anti_idx)}"
+            )
+            for i in anti_idx:
+                try:
+                    lst = listas_m6_totais[int(i) - 1]
+                    ov = (analise_anti.get("overlaps") or [None])[int(i) - 1]
+                    st.write(f"**L{i:02d} (anti-âncora | overlap CORE={ov})** — {formatar_lista_passageiros(lst)}")
+                except Exception:
+                    pass
+        else:
+            st.info(
+                "Nenhuma lista anti-âncora clara foi detectada entre as listas disponíveis. "
+                "Isso é compatível com pacote muito comprimido (E0 + envelope estreito)."
+            )
+    except Exception:
+        st.session_state["v16_anti_ancora"] = None
+        # falha silenciosa (não derruba o RF)
+
+
+
+    # ------------------------------------------------------------
+    # 📊 EIXO 1 — CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
+    # ------------------------------------------------------------
+    try:
+        listas_pacote_eixo1 = listas_m6_totais[:]
+    
+        historico_label = (
+            f"C1 → C{len(historico_df)}"
+            if historico_df is not None
+            else "Histórico indefinido"
+        )
+    
+        eixo1_resultado = calcular_eixo1_contribuicao(
+            listas_pacote=listas_pacote_eixo1,
+            historico_label=historico_label,
+            modo_geracao="Modo 6",
+            n_base=n_alvo or 6,
+            eco_status=st.session_state.get("eco_status", "DESCONHECIDO"),
+            estado_status=st.session_state.get("estado_atual", "DESCONHECIDO"),
+        )
+    except Exception:
+        eixo1_resultado = None
+    
+    if eixo1_resultado:
+        st.markdown("### 📊 Eixo 1 — Contribuição de Passageiros (Observacional)")
+    
+        st.write(
+            f"**Núcleo local detectado:** "
+            f"{'SIM' if eixo1_resultado['nucleo']['detectado'] else 'NÃO'} "
+            f"({eixo1_resultado['nucleo']['tipo']})"
+        )
+    
+        st.write(
+            "**Estruturais do pacote:** "
+            + (
+                ", ".join(map(str, eixo1_resultado["papeis"]["estruturais"]))
+                if eixo1_resultado["papeis"]["estruturais"]
+                else "—"
+            )
+        )
+    
+        st.write(
+            "**Contribuintes:** "
+            + (
+                ", ".join(map(str, eixo1_resultado["papeis"]["contribuintes"]))
+                if eixo1_resultado["papeis"]["contribuintes"]
+                else "—"
+            )
+        )
+    
+        st.write(
+            "**Leitura sintética:** "
+            + " ".join(eixo1_resultado["leitura_sintetica"])
+        )
+    
+        st.caption(eixo1_resultado["trava"])
+    
+    
+    # ============================================================
+    # 📌 REGISTRO CANÔNICO DO MOMENTO — DIAGNÓSTICO (COPIÁVEL)
+    # ============================================================
+    try:
+            # ------------------------------------------------------------
+            # 
+            # (camada experimental removida na âncora estável)
+
+        universo_min = st.session_state.get("universo_min", "N/D")
+        universo_max = st.session_state.get("universo_max", "N/D")
+        termometro_estagio = "N/D"
+        termometro_score = "N/D"
+        registro_txt = f"""
+    SÉRIE_BASE: {serie_base}
+    SÉRIES_ALVO: {series_alvo}
+    
+    ECO: {st.session_state.get("eco_status", "N/D")}
+    ESTADO_ALVO: {st.session_state.get("estado_atual", "N/D")}
+    REGIME: {st.session_state.get("pipeline_estrada", "N/D")}
+    CLASSE_RISCO: {st.session_state.get("classe_risco", "N/D")}
+    NR_PERCENT: {st.session_state.get("nr_percent", "N/D")}
+    K_STAR: {st.session_state.get("k_star", "N/D")}
+    DIVERGENCIA: {st.session_state.get("divergencia_s6_mc", "N/D")}
+    UNIVERSO: {universo_min}-{universo_max}
+    N_CARRO: {n_alvo if n_alvo is not None else "N/D"}
+    EIXO1_NUCLEO_DETECTADO: {'SIM' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'NÃO'}
+    EIXO1_TIPO_NUCLEO: {eixo1_resultado['nucleo']['tipo'] if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] else 'inexistente'}
+    EIXO1_PUXADORES: {', '.join(map(str, (eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes'])[:8])) if eixo1_resultado else '—'}
+    EIXO1_CONVERGENCIA: {'alta' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 4 else 'média' if eixo1_resultado and eixo1_resultado['nucleo']['detectado'] and len(eixo1_resultado['papeis']['estruturais'] + eixo1_resultado['papeis']['contribuintes']) >= 2 else 'baixa'}
+    EIXO1_LEITURA: {' '.join(eixo1_resultado['leitura_sintetica']) if eixo1_resultado else 'pacote disperso'}
+    PACOTE_BASE: Top10
+    PACOTE_ANTI_ANCORA: {", ".join("L"+str(i) for i in (st.session_state.get("v16_anti_ancora") or {}).get("anti_idx", [])) or "—"}
+    """.strip()
+    
+        st.code(registro_txt, language="text")
+    
+    except Exception:
+        pass
+    
+    
+    # ============================================================
+    # 📌 LISTAS DE PREVISÃO ASSOCIADAS AO MOMENTO (COPIÁVEL)
+    # ============================================================
+    try:
+        st.markdown("### 📌 Listas de Previsão Associadas ao Momento")
+    
+        listas_para_registro = []
+    
+        if "pacote_operacional" in locals() and pacote_operacional:
+            listas_para_registro = pacote_operacional[:]
+        elif listas_m6_totais:
+            listas_para_registro = listas_m6_totais[:]
+    
+        if listas_para_registro:
+            linhas_listas = []
+            for i, lst in enumerate(listas_para_registro[:20], start=1):
+                linhas_listas.append(
+                    f"L{i}: " + ", ".join(str(x) for x in lst)
+                )
+    
+            st.code("\n".join(linhas_listas), language="text")
+        else:
+            st.info("Nenhuma lista disponível para registro neste momento.")
+    
+    except Exception:
+        pass
+
+
+    # ============================================================
+    # 🧠 Painel — Aptidão do Evento (CANÔNICO | SOMENTE LEITURA)
+    # Avaliação AUTOMÁTICA de aptidão para Memória Operacional
+    # ============================================================
+    try:
+        st.markdown("## 🧠 Painel de Aptidão do Evento")
+    
+        # -------------------------------
+        # Inicialização defensiva
+        # -------------------------------
+        status_aptidao = "NÃO APTO"
+        motivo_principal = "Critérios mínimos não atendidos"
+        compatibilidade = "indefinida"
+        observacao = "Leitura automática do sistema"
+        eixo1_resumo = "N/D"
+    
+        # -------------------------------
+        # Fontes (já calculadas no app)
+        # -------------------------------
+        eixo1_ok = bool(
+            eixo1_resultado
+            and eixo1_resultado.get("nucleo", {}).get("detectado", False)
+        )
+    
+        regime = st.session_state.get("pipeline_estrada", "N/D")
+        nr_percent = st.session_state.get("nr_percent", None)
+        divergencia = st.session_state.get("divergencia_s6_mc", None)
+    
+        # -------------------------------
+        # Regras de APTIDÃO (sistema decide)
+        # -------------------------------
+        if eixo1_ok and regime in ["🟩 Estrada Neutra / Estável", "🟨 Estrada Moderada"]:
+            status_aptidao = "APTO"
+            motivo_principal = "Núcleo observável + regime compatível"
+    
+        elif eixo1_ok and regime not in ["🟥 Estrada Ruim / Instável"]:
+            status_aptidao = "APTO"
+            motivo_principal = "Núcleo fraco porém reutilizável"
+    
+        else:
+            status_aptidao = "NÃO APTO"
+            motivo_principal = "Ausência de núcleo ou regime incompatível"
+    
+        # -------------------------------
+        # Compatibilidade de densidade
+        # -------------------------------
+        if eixo1_ok and regime.startswith("🟩"):
+            compatibilidade = "microvariações / envelope estreito"
+        elif eixo1_ok:
+            compatibilidade = "repescagem controlada"
+        else:
+            compatibilidade = "nenhuma (densidade bloqueada)"
+    
+        # -------------------------------
+        # Resumo do EIXO 1 (canônico)
+        # -------------------------------
+        if eixo1_resultado:
+            eixo1_resumo = (
+                f"Núcleo={ 'SIM' if eixo1_resultado['nucleo']['detectado'] else 'NÃO' } | "
+                f"Tipo={ eixo1_resultado['nucleo']['tipo'] } | "
+                f"Puxadores="
+                + (
+                    ", ".join(
+                        map(
+                            str,
+                            (
+                                eixo1_resultado["papeis"]["estruturais"]
+                                + eixo1_resultado["papeis"]["contribuintes"]
+                            )[:6],
+                        )
+                    )
+                    if eixo1_resultado["papeis"]["estruturais"]
+                    or eixo1_resultado["papeis"]["contribuintes"]
+                    else "—"
+                )
+            )
+    
+        # -------------------------------
+        # Exibição CANÔNICA (sem decisão)
+        # -------------------------------
+        st.markdown("### 📋 Resumo Canônico de Aptidão")
+    
+        aptidao_txt = f"""
+    STATUS_APTIDAO: {status_aptidao}
+    MOTIVO_PRINCIPAL: {motivo_principal}
+    EIXO1_RESUMO: {eixo1_resumo}
+    COMPATIBILIDADE_DENSIDADE: {compatibilidade}
+    OBSERVACAO: {observacao}
+    """.strip()
+    
+        st.code(aptidao_txt, language="text")
+    
+    except Exception as e:
+        st.warning("Painel de Aptidão indisponível nesta rodada.")
+
+    
+    # ------------------------------------------------------------
+    # 📦 Pacote Operacional TOTAL (Modo 6 + TURBO ULTRA)
+    # ------------------------------------------------------------
+    pacote_operacional = listas_m6_totais.copy()
+
+    for lst in listas_ultra:
+        if lst not in pacote_operacional:
+            pacote_operacional.append(lst)
+
+    try:
+        pacote_operacional = v16_priorizar_listas_por_contexto(pacote_operacional)
+    except Exception:
+        pass
+
+    total_listas = len(pacote_operacional)
+
+    # ------------------------------------------------------------
+    # 🧭 PAINEL CANÔNICO — BALA HUMANO DENSO (MODO ASSISTIDO)
+    # (Somente leitura | sem execução | sem recomendação)
+    # ------------------------------------------------------------
+    try:
+        st.markdown("## 🧭 Bala Humano Denso — Modo Assistido (Painel Canônico)")
+
+        # Leituras já existentes no sistema (somente leitura)
+        diag_risco = st.session_state.get("diagnostico_risco", {}) or {}
+        estrada = st.session_state.get("pipeline_estrada", "N/D")
+
+        classe_risco = diag_risco.get("classe_risco", "N/D")
+        nr_percent = diag_risco.get("nr_percent", None)
+        divergencia = diag_risco.get("divergencia", None)
+        indice_risco = diag_risco.get("indice_risco", None)
+
+        # ------------------------------------------------------------
+        # BLOCO 1 — Condição do Momento (sem score mágico)
+        # ------------------------------------------------------------
+        st.markdown("### 1️⃣ Condição do Momento")
+
+        st.write(f"- Estrada (Pipeline): **{estrada}**")
+        st.write(f"- Classe de risco (Monitor): **{classe_risco}**")
+
+        if nr_percent is not None:
+            st.write(f"- NR% (Ruído Condicional): **{float(nr_percent):.2f}%**")
+        else:
+            st.write("- NR% (Ruído Condicional): **N/D**")
+
+        if divergencia is not None:
+            st.write(f"- Divergência S6 vs MC: **{float(divergencia):.4f}**")
+        else:
+            st.write("- Divergência S6 vs MC: **N/D**")
+
+        if indice_risco is not None:
+            st.write(f"- Índice composto de risco: **{float(indice_risco):.4f}**")
+        else:
+            st.write("- Índice composto de risco: **N/D**")
+
+        # Nota canônica (a comparabilidade “momento passado vs atual” entra na Fase C)
+        st.info(
+            "Leitura informativa: este painel descreve o terreno atual com métricas já existentes. "
+            "A comparabilidade com momentos passados e a seleção automática de densidade entram na fase seguinte."
+        )
+
+        # ------------------------------------------------------------
+        # BLOCO 2 — Formas de Densidade Compatíveis (canônico)
+        # ------------------------------------------------------------
+        st.markdown("### 2️⃣ Formas de Densidade Compatíveis (canônico)")
+
+        st.write("- ✔ **Microvariações controladas**")
+        st.write("- ✔ **Envelope estreito**")
+        st.write("- ⚠ **Repescagem controlada**")
+        st.write("- ❌ **Expansão de universo** (incompatível com o espírito do Bala Humano)")
+
+        st.caption(
+            "Observação: aqui ainda não há escolha automática de formato. "
+            "O sistema apenas delimita o que é compatível com densidade (aprofundar, não dispersar)."
+        )
+
+        # ------------------------------------------------------------
+        # BLOCO 3 — Expectativa sob Densidade (canônico)
+        # ------------------------------------------------------------
+        st.markdown("### 3️⃣ Expectativa sob Densidade (informativo)")
+
+        st.write("- Redistribuição típica para **4/6**")
+        st.write("- Elevação marginal de **5/6**")
+        st.write("- **6/6 não observado** como viável de forma consistente neste tipo de leitura")
+        st.write("- Ganho associado a **volume controlado**, não a salto de acerto")
+
+        st.caption("Regra: densidade altera **distribuição**, não compra **certeza**.")
+
+        # ------------------------------------------------------------
+        # BLOCO 4 — Cláusula de Responsabilidade (canônico)
+        # ------------------------------------------------------------
+        st.markdown("### 4️⃣ Decisão Humana — Fronteira de Responsabilidade")
+
+        st.write("- O sistema **não recomenda ação**")
+        st.write("- O sistema **não define volume**")
+        st.write("- O sistema **não executa automaticamente**")
+        st.write("- A decisão e a exposição são do **operador**")
+
+        st.markdown("---")
+
+    except Exception:
+        # Falha silenciosa canônica: não derruba fluxo operacional
+        pass
+    
+    # ------------------------------------------------------------
+    # 🔥 MANDAR BALA — POSTURA OPERACIONAL
+    # ------------------------------------------------------------
+    st.markdown("### 🔥 Mandar Bala — Postura Operacional (Ação Consciente)")
+
+    qtd_bala = st.slider(
+        "Quantas listas você quer levar para a ação nesta rodada?",
+        min_value=1,
+        max_value=total_listas,
+        value=min(10, total_listas),
+        step=1,
+        key="slider_mandar_bala_restaurado",
+    )
+
+    for i, lst in enumerate(pacote_operacional[:qtd_bala], 1):
+        st.markdown(f"**🔥 {i:02d})** {formatar_lista_passageiros(lst)}")
+
+    exibir_bloco_mensagem(
+        "🧩 Fechamento Operacional",
+        f"- Listas disponíveis: **{total_listas}**\n"
+        f"- Listas levadas para ação: **{qtd_bala}**\n\n"
+        "📌 O sistema **não decide**. O operador **assume a postura**.",
+        tipo="success",
+    )
+
+    # ============================================================
+    # 🧠 RF-GOV — GOVERNANÇA INFORMATIVA (AVISOS | SEM EFEITO)
+    # ============================================================
+    try:
+        st.markdown("### 🧠 RF-GOV — Governança Informativa")
+
+        fenomeno_id = st.session_state.get("fenomeno_id", "N/D")
+        alvo_atual = st.session_state.get("n_alvo", "N/D")
+
+        eco_status = st.session_state.get("eco_status", "N/D")
+        estado_status = st.session_state.get("estado_atual", "N/D")
+
+        mo = st.session_state.get("memoria_operacional", [])
+        tentativas_mesmo_alvo = [r for r in mo if r.get("alvo") == alvo_atual]
+
+        avisos = []
+
+        if len(tentativas_mesmo_alvo) >= 2:
+            avisos.append(
+                "⚠️ Múltiplas tentativas recentes para o mesmo alvo registradas."
+            )
+
+        if eco_status in ("RUIM", "DESCONHECIDO"):
+            avisos.append("ℹ️ ECO desfavorável ou indefinido.")
+
+        if estado_status in ("RÁPIDO", "INSTÁVEL"):
+            avisos.append("ℹ️ Estado do alvo indica instabilidade.")
+
+        st.info(
+            f"**Fenômeno ID:** {fenomeno_id}\n\n"
+            f"**Alvo:** {alvo_atual}\n\n"
+            f"**ECO:** {eco_status}\n"
+            f"**Estado:** {estado_status}"
+        )
+
+        for a in avisos:
+            st.warning(a)
+
+        if not avisos:
+            st.success("Nenhum alerta relevante de governança nesta rodada.")
+
+    except Exception:
+        st.caption("RF-GOV indisponível nesta execução.")
+
+    st.success("Relatório Final gerado com sucesso!")
+
+# ============================================================
+# <<< FIM — PAINEL 13 — 📘 Relatório Final
+# ============================================================
+
+
+
+
+
+
+
+
+
+
+
+
+# ============================================================
+# Painel — ⏱️ DURAÇÃO DA JANELA — ANÁLISE HISTÓRICA (V16)
+# Diagnóstico PURO | Mede quantas séries janelas favoráveis duraram
+# NÃO prevê | NÃO decide | NÃO altera motores
+# ============================================================
+
+# ============================================================
+# Painel — 🔍 Cruzamento Histórico do k (Observacional)
+# V16 | LEITURA PURA | NÃO DECIDE | NÃO ALTERA MOTORES
+# ============================================================
+
+if painel == "🔍 Cruzamento Histórico do k":
+
+    st.markdown("## 🔍 Cruzamento Histórico do k")
+    st.caption(
+        "Leitura observacional do histórico. "
+        "Este painel NÃO interfere em decisões, volumes ou modos."
+    )
+
+    eventos = st.session_state.get("eventos_k_historico", [])
+
+    if not eventos:
+        exibir_bloco_mensagem(
+            "Nenhum evento k encontrado",
+            "Carregue o histórico para analisar os eventos k.",
+            tipo="warning",
+        )
+        st.stop()
+
+    df_k = pd.DataFrame(eventos)
+
+    # ============================================================
+    # FILTROS SIMPLES (OBSERVACIONAIS)
+    # ============================================================
+    st.markdown("### 🎛️ Filtros Observacionais")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        filtro_estado = st.multiselect(
+            "Estado do alvo",
+            options=sorted(df_k["estado_alvo"].dropna().unique().tolist()),
+            default=None,
+        )
+
+    with col2:
+        filtro_pre_eco = st.selectbox(
+            "PRÉ-ECO",
+            options=["Todos", "Sim", "Não"],
+            index=0,
+        )
+
+    with col3:
+        filtro_eco = st.selectbox(
+            "ECO",
+            options=["Todos", "Sim", "Não"],
+            index=0,
+        )
+
+    df_f = df_k.copy()
+
+    if filtro_estado:
+        df_f = df_f[df_f["estado_alvo"].isin(filtro_estado)]
+
+    if filtro_pre_eco != "Todos":
+        df_f = df_f[df_f["pre_eco"] == (filtro_pre_eco == "Sim")]
+
+    if filtro_eco != "Todos":
+        df_f = df_f[df_f["eco"] == (filtro_eco == "Sim")]
+
+    # ============================================================
+    # MÉTRICAS RESUMIDAS
+    # ============================================================
+    st.markdown("### 📊 Resumo Estatístico")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Eventos k", len(df_f))
+
+    with col2:
+        st.metric(
+            "Δ médio entre ks",
+            round(df_f["delta_series"].dropna().mean(), 2)
+            if "delta_series" in df_f else "—",
+        )
+
+    with col3:
+        st.metric(
+            "k médio",
+            round(df_f["k_valor"].mean(), 2)
+            if "k_valor" in df_f else "—",
+        )
+
+    with col4:
+        st.metric(
+            "Máx k observado",
+            int(df_f["k_valor"].max())
+            if "k_valor" in df_f else "—",
+        )
+
+    # ============================================================
+    # TABELA FINAL (LEITURA CRUA)
+    # ============================================================
+    st.markdown("### 📋 Eventos k — Histórico")
+
+    st.dataframe(
+        df_f[
+            [
+                "serie_id",
+                "k_valor",
+                "delta_series",
+                "estado_alvo",
+                "k_star",
+                "nr_percent",
+                "div_s6_mc",
+                "pre_eco",
+                "eco",
+            ]
+        ].sort_values("serie_id"),
+        use_container_width=True,
+    )
+
+# ============================================================
+# FIM — Painel Cruzamento Histórico do k
+# ============================================================
+
+
+if painel == "⏱️ Duração da Janela — Análise Histórica":
+
+    st.markdown("## ⏱️ Duração da Janela — Análise Histórica")
+
+    st.info(
+        "Este painel mede, **no passado**, quantas séries consecutivas "
+        "as janelas favoráveis **REALMENTE duraram**, após serem confirmadas.\n\n"
+        "📌 Definição usada:\n"
+        "- Abertura: melhora conjunta (NR%, divergência, k*, desempenho real)\n"
+        "- Fechamento: perda clara dessa coerência\n\n"
+        "⚠️ Este painel NÃO prevê entrada de janela."
+    )
+
+    df = st.session_state.get("historico_df")
+    matriz_norm = st.session_state.get("pipeline_matriz_norm")
+
+    if df is None or matriz_norm is None:
+        exibir_bloco_mensagem(
+            "Pipeline incompleto",
+            "Execute **Carregar Histórico** e **Pipeline V14-FLEX ULTRA**.",
+            tipo="warning",
+        )
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Parâmetros FIXOS (diagnóstico histórico)
+    # ------------------------------------------------------------
+    JANELA_ANALISE = 200
+    LIMIAR_NR_QUEDA = 0.02
+    LIMIAR_DIV_QUEDA = 0.50
+
+    col_pass = [c for c in df.columns if c.startswith("p")]
+
+    # Helpers locais (réplicas leves, sem tocar no motor)
+    def _nr_local(m):
+        variancias = np.var(m, axis=1)
+        ruido_A = float(np.mean(variancias))
+        saltos = [
+            np.linalg.norm(m[i] - m[i - 1]) for i in range(1, len(m))
+        ]
+        ruido_B = float(np.mean(saltos)) if saltos else 0.0
+        return 0.55 * min(1.0, ruido_A / 0.08) + 0.45 * min(1.0, ruido_B / 1.20)
+
+    def _div_local(m):
+        base = m[-1]
+        candidatos = m[-10:] if len(m) >= 10 else m
+        return float(np.linalg.norm(np.mean(candidatos, axis=0) - base))
+
+    resultados = []
+    n = len(matriz_norm)
+
+    for i in range(max(30, n - JANELA_ANALISE), n - 3):
+        m_i = matriz_norm[: i + 1]
+        m_f = matriz_norm[: i + 4]
+
+        nr_i = _nr_local(m_i)
+        nr_f = _nr_local(m_f)
+        div_i = _div_local(m_i)
+        div_f = _div_local(m_f)
+
+        abriu = (nr_f - nr_i) < -LIMIAR_NR_QUEDA and (div_f - div_i) < -LIMIAR_DIV_QUEDA
+
+        if abriu:
+            duracao = 1
+            for j in range(i + 1, n - 1):
+                m_j = matriz_norm[: j + 1]
+                if _nr_local(m_j) <= nr_f and _div_local(m_j) <= div_f:
+                    duracao += 1
+                else:
+                    break
+
+            resultados.append(duracao)
+
+    if not resultados:
+        st.warning("Nenhuma janela favorável clara detectada no período analisado.")
+        st.stop()
+
+    df_res = pd.DataFrame({"Duração (séries)": resultados})
+
+    st.markdown("### 📊 Distribuição Histórica da Duração das Janelas")
+    st.dataframe(df_res.describe(), use_container_width=True)
+
+    st.info(
+        f"📌 Total de janelas detectadas: **{len(resultados)}**\n\n"
+        "Este painel responde:\n"
+        "👉 *Quando a janela abre, ela costuma durar quantas séries?*\n\n"
+        "Use isso para **decidir até quando mandar bala**."
+    )
+
+# ============================================================
+# V16 — CAMADA D
+# Estado do Alvo · Expectativa · Volume × Confiabilidade
+# (FIX: usa divergência correta do Monitor de Risco)
+# ============================================================
+
+def _v16_get_nr_div_risco():
+    """
+    Leitura segura e compatível com o app:
+    - NR% vem do Ruído Condicional (nr_percent) OU do Monitor (diagnostico_risco.nr_percent)
+    - Divergência vem do Monitor (diagnostico_risco.divergencia) OU fallback (div_s6_mc)
+    - Risco vem do Monitor (diagnostico_risco.indice_risco)
+    """
+    risco_pack = st.session_state.get("diagnostico_risco") or {}
+
+    nr = st.session_state.get("nr_percent")
+    if nr is None:
+        nr = risco_pack.get("nr_percent")
+
+    # ⚠️ FIX PRINCIPAL: no seu app a divergência oficial está aqui:
+    div = risco_pack.get("divergencia")
+    if div is None:
+        # fallback legado (se existir em alguma variação do app)
+        div = st.session_state.get("div_s6_mc")
+
+    indice_risco = risco_pack.get("indice_risco")
+
+    return nr, div, indice_risco
+
+
+def v16_registrar_estado_alvo():
+    """
+    Classifica o estado do alvo com base em:
+    - NR%
+    - Divergência S6 vs MC
+    - Índice de risco (composto)
+    """
+    nr, div, risco = _v16_get_nr_div_risco()
+
+    if nr is None or div is None or risco is None:
+        estado = {
+            "tipo": "indefinido",
+            "velocidade": "indefinida",
+            "comentario": "Histórico/monitor insuficiente para classificar o alvo (rode Monitor de Risco e Ruído Condicional).",
+        }
+        st.session_state["estado_alvo_v16"] = estado
+        return estado
+
+    # velocidade ∈ [~0, ~1+] (heurística)
+    velocidade = round((float(nr) / 100.0 + float(div) / 15.0 + float(risco)) / 3.0, 3)
+
+    if velocidade < 0.30:
+        tipo = "alvo_parado"
+        comentario = "🎯 Alvo praticamente parado — oportunidade rara. Volume alto recomendado."
+    elif velocidade < 0.55:
+        tipo = "movimento_lento"
+        comentario = "🎯 Alvo em movimento lento — alternar rajadas e coberturas."
+    elif velocidade < 0.80:
+        tipo = "movimento_rapido"
+        comentario = "⚠️ Alvo em movimento rápido — reduzir agressividade."
+    else:
+        tipo = "disparado"
+        comentario = "🚨 Alvo disparado — ambiente hostil. Operar apenas de forma respiratória."
+
+    estado = {
+        "tipo": tipo,
+        "velocidade": velocidade,
+        "comentario": comentario,
+    }
+
+    st.session_state["estado_alvo_v16"] = estado
+    return estado
+
+
+def v16_registrar_expectativa():
+    """
+    Estima expectativa de curto prazo (1–3 séries)
+    com base em microjanelas, ruído e divergência.
+    """
+    micro = st.session_state.get("v16_microdiag") or {}
+    nr, div, _ = _v16_get_nr_div_risco()
+
+    if not micro or nr is None or div is None:
+        expectativa = {
+            "previsibilidade": "indefinida",
+            "erro_esperado": "indefinido",
+            "chance_janela_ouro": "baixa",
+            "comentario": "Expectativa indisponível (rode Microjanelas V16 e garanta NR/divergência).",
+        }
+        st.session_state["expectativa_v16"] = expectativa
+        return expectativa
+
+    score = float(micro.get("score_melhor", 0.0) or 0.0)
+    janela_ouro = bool(micro.get("janela_ouro", False))
+
+    if janela_ouro and score >= 0.80 and float(nr) < 40.0 and float(div) < 5.0:
+        expectativa = {
+            "previsibilidade": "alta",
+            "erro_esperado": "baixo",
+            "chance_janela_ouro": "alta",
+            "comentario": "🟢 Forte expectativa positiva nas próximas 1–3 séries.",
+        }
+    elif score >= 0.50 and float(nr) < 60.0:
+        expectativa = {
+            "previsibilidade": "moderada",
+            "erro_esperado": "moderado",
+            "chance_janela_ouro": "média",
+            "comentario": "🟡 Ambiente misto. Oportunidades pontuais podem surgir no curto prazo.",
+        }
+    else:
+        expectativa = {
+            "previsibilidade": "baixa",
+            "erro_esperado": "alto",
+            "chance_janela_ouro": "baixa",
+            "comentario": "🔴 Baixa previsibilidade nas próximas 1–3 séries (ruído/divergência dominantes).",
+        }
+
+    st.session_state["expectativa_v16"] = expectativa
+    return expectativa
+
+
+def v16_registrar_volume_e_confiabilidade():
+    """
+    Relaciona quantidade de previsões com confiabilidade estimada.
+    O sistema informa — a decisão é do operador.
+    """
+    risco_pack = st.session_state.get("diagnostico_risco") or {}
+    indice = risco_pack.get("indice_risco")
+
+    if indice is None:
+        volume_op = {
+            "minimo": 3,
+            "recomendado": 6,
+            "maximo_tecnico": 20,
+            "confiabilidades_estimadas": {},
+            "comentario": "Confiabilidade não calculada (rode o Monitor de Risco).",
+        }
+        st.session_state["volume_operacional_v16"] = volume_op
+        return volume_op
+
+    indice = float(indice)
+    conf_base = max(0.05, 1.0 - indice)
+
+    volumes = [3, 6, 10, 20, 40, 80]
+    confs = {}
+    for v in volumes:
+        confs[v] = round(max(0.01, conf_base - v * 0.003), 3)
+
+    recomendado = 20 if conf_base > 0.35 else 6
+
+    volume_op = {
+        "minimo": 3,
+        "recomendado": int(recomendado),
+        "maximo_tecnico": 80,
+        "confiabilidades_estimadas": confs,
+        "comentario": (
+            "O sistema informa volumes e confiabilidades estimadas. "
+            "A decisão final de quantas previsões gerar é do operador."
+        ),
+    }
+
+    st.session_state["volume_operacional_v16"] = volume_op
+    return volume_op
+
+
+
+
+
+# ============================================================
+# Painel X — 🧠 Laudo Operacional V16 (Estado, Expectativa, Volume)
+# ============================================================
+
 if painel == "🧠 Laudo Operacional V16":
 
     st.markdown("## 🧠 Laudo Operacional V16 — Leitura do Ambiente")
