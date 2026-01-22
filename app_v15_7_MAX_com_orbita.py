@@ -3087,19 +3087,28 @@ def m5_painel_pulo_do_gato_v16():
 
     st.success(f"M5 concluído: {adicionados} fotos adicionadas à Memória de Estados (M2).")
 
-# Registro automático na Memória Operacional (passivo)
-try:
-    regs = st.session_state.get("memoria_operacional_registros", [])
-    regs.append({
-        "ts": datetime.utcnow().isoformat() + "Z",
-        "tag": "M5_AUTO",
-        "resumo": f"M5 adicionou {adicionados} fotos em M2 (limites: sessão={limite_sessao}, histórico={limite_total_hist}).",
-    })
-    st.session_state["memoria_operacional_registros"] = regs
-except Exception:
-    pass
-    if falhas:
-        st.caption(f"Falhas silenciosas (válidas): {falhas}")
+    # Registro automático na Memória Operacional (passivo)
+    try:
+        regs = st.session_state.get("memoria_operacional_registros", [])
+        regs.append({
+            "ts": datetime.utcnow().isoformat() + "Z",
+            "tag": "M5_AUTO",
+            "resumo": f"M5 adicionou {adicionados} fotos em M2 (limites: sessão={limite_sessao}, histórico={limite_total_hist}).",
+        })
+        st.session_state["memoria_operacional_registros"] = regs
+    except Exception as e:
+        # Falha silenciosa (válida): não pode quebrar a sessão por registro passivo.
+        falhas_sil = st.session_state.get("falhas_silenciosas", [])
+        falhas_sil.append(f"M5_AUTO_MEMORIA_OP: {type(e).__name__}")
+        st.session_state["falhas_silenciosas"] = falhas_sil
+
+    # Se existirem falhas do M5 (coleta), mostrar apenas informativo (não bloqueia)
+    try:
+        _falhas_m5 = locals().get("falhas", 0)
+        if _falhas_m5:
+            st.caption(f"Falhas silenciosas (válidas) no M5: {_falhas_m5}")
+    except Exception:
+        pass
 
     st.markdown("""
 **Próximo passo canônico:**
