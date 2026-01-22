@@ -7257,6 +7257,7 @@ def v16_priorizar_listas_por_contexto(listas):
 # >>> PAINEL X — 🧠 Memória Operacional — Observacional
 # ============================================================
 if painel == "🧠 Memória Operacional — Observacional":
+    pass
 st.markdown("### 🧠 Memória Operacional (Observacional)")
 st.caption("Este painel é um **espelho**: mostra registros já existentes. Não pede confirmação do operador para registros automáticos.")
 
@@ -7275,6 +7276,7 @@ else:
         resumo = r.get("resumo", "")
         st.markdown(f"- **[{tag}]** {ts} — {resumo}")
 if painel == "🧠 Memória Operacional — Registro Semi-Automático":
+    pass
 st.markdown("### 🧠 Memória Operacional — Registro Semi-Automático (Passivo)")
 st.caption("Este painel foi mantido por compatibilidade de navegação, mas opera **passivamente** (sem botões). Use o painel de Memória Operacional para ver registros.")
 
