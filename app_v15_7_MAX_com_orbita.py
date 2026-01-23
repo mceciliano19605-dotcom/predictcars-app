@@ -1747,7 +1747,193 @@ def construir_navegacao_v157() -> str:
             "🧪 Modo N Experimental (n≠6)"
         )
 
-    painel = st.sidebar.radio("", opcoes, index=0, key="NAV_V157_CANONICA")
+    
+# ============================================================
+# V16 Premium — Funções que precisam existir (anti-NameError)
+# Estas funções são 100% observacionais e NÃO alteram motores/listas.
+# ============================================================
+
+def _v16_get_df_base():
+    df = st.session_state.get("historico_df")
+    if df is None or not hasattr(df, "copy"):
+        return None
+    return df
+
+def _v16_get_colunas_passageiros(df):
+    cols = []
+    for c in ["p1","p2","p3","p4","p5","p6","k"]:
+        if c in df.columns:
+            cols.append(c)
+    return cols
+
+def v16_painel_erro_por_regime_retrospectivo():
+    st.subheader("📊 V16 Premium — Erro por Regime (Retrospectivo)")
+    df = _v16_get_df_base()
+    if df is None:
+        st.warning("Histórico não carregado.")
+        return
+
+    cols = _v16_get_colunas_passageiros(df)
+    if len(cols) < 6:
+        st.warning("Histórico sem colunas suficientes (p1..p6).")
+        return
+
+    W = 60
+    MAX_JANELAS = 4000
+
+    df_num = df[cols].apply(pd.to_numeric, errors="coerce").dropna().astype(int)
+    if len(df_num) < W + 2:
+        st.warning("Histórico insuficiente para este painel (precisa de W+2 séries). Carregue histórico completo e rode novamente.")
+        return
+
+    # Anti-zumbi: pega apenas a faixa final (máx 4000 janelas)
+    t_end = len(df_num) - 1
+    t_ini = max(W, t_end - MAX_JANELAS)
+
+    # dx_janela (proxy): média do tamanho da diferença simétrica entre séries consecutivas dentro da janela
+    dx_list = []
+    erro_prox = []
+    idxs = []
+    for t in range(t_ini, t_end - 1):
+        win = df_num.iloc[t-W:t][["p1","p2","p3","p4","p5","p6"]].values.tolist()
+        # dx: média do delta entre consecutivos
+        deltas = []
+        for i in range(1, len(win)):
+            a = set(win[i-1]); b = set(win[i])
+            deltas.append(len(a.symmetric_difference(b)))
+        dx = float(sum(deltas)/len(deltas)) if deltas else float("nan")
+
+        # erro_prox (proxy): delta do alvo seguinte vs o último da janela
+        nxt = set(df_num.iloc[t][["p1","p2","p3","p4","p5","p6"]].tolist())
+        last = set(win[-1])
+        err = float(len(nxt.symmetric_difference(last)))
+
+        dx_list.append(dx)
+        erro_prox.append(err)
+        idxs.append(t)
+
+    s = pd.DataFrame({"t": idxs, "dx_janela": dx_list, "erro_prox": erro_prox}).dropna()
+    if s.empty:
+        st.warning("Não foi possível calcular (dx/erro) nesta sessão.")
+        return
+
+    q1 = float(s["dx_janela"].quantile(0.33))
+    q2 = float(s["dx_janela"].quantile(0.66))
+
+    def _reg(dx):
+        if dx <= q1:
+            return "ECO"
+        elif dx <= q2:
+            return "PRE"
+        return "RUIM"
+
+    s["regime"] = s["dx_janela"].apply(_reg)
+
+    resumo = s.groupby("regime").agg(
+        janelas=("t","count"),
+        dx_medio=("dx_janela","mean"),
+        erro_medio=("erro_prox","mean"),
+    ).reset_index()
+
+    # diferença RUIM - ECO (proxy)
+    eco = resumo[resumo["regime"]=="ECO"]["erro_medio"]
+    ruim = resumo[resumo["regime"]=="RUIM"]["erro_medio"]
+    if not eco.empty and not ruim.empty:
+        diff = float(ruim.iloc[0] - eco.iloc[0])
+        st.markdown(f"✅ Resultado objetivo — Continuidade do erro\n\nDiferença RUIM − ECO no erro médio (erro_prox): **{diff:.6f}**")
+    else:
+        st.markdown("✅ Resultado objetivo — Continuidade do erro\n\nDiferença RUIM − ECO no erro médio (erro_prox): **N/D**")
+
+    st.markdown(f"Total de janelas: **{len(s)}**  |  W: **{W}**  |  q1(dx): **{q1:.6f}**  |  q2(dx): **{q2:.6f}**")
+    st.dataframe(resumo)
+
+    # tabela curta final (últimas 50 janelas)
+    st.dataframe(s.tail(50))
+
+def v16_painel_compressao_alvo():
+    st.subheader("Compressão do Alvo — Observacional (V16)")
+    df = _v16_get_df_base()
+    if df is None:
+        st.warning("Histórico não carregado.")
+        return
+
+    cols = _v16_get_colunas_passageiros(df)
+    if len(cols) < 6:
+        st.warning("Histórico sem colunas suficientes (p1..p6).")
+        return
+
+    W = 60
+    MAX_JANELAS = 2000
+
+    df_num = df[cols].apply(pd.to_numeric, errors="coerce").dropna().astype(int)
+    if len(df_num) < W + 2:
+        st.warning("Histórico insuficiente para este painel (precisa de W+2 séries).")
+        return
+
+    t_end = len(df_num) - 1
+    t_ini = max(W, t_end - MAX_JANELAS)
+
+    disp_list = []
+    for t in range(t_ini, t_end):
+        win = df_num.iloc[t-W:t][["p1","p2","p3","p4","p5","p6"]].values.tolist()
+        # dispersão: quão diferentes são as séries dentro da janela (média da diferença simétrica contra o último)
+        last = set(win[-1])
+        ds = [len(set(r).symmetric_difference(last)) for r in win[:-1]]
+        disp = float(sum(ds)/len(ds)) if ds else float("nan")
+        disp_list.append(disp)
+
+    s = pd.Series(disp_list).dropna()
+    if s.empty:
+        st.warning("Não foi possível calcular dispersão nesta sessão.")
+        return
+
+    dispersao_media = float(s.mean())
+    volatilidade = float(s.std())
+
+    # score simples: quanto MENOR a dispersão e a volatilidade, maior a compressão
+    score = max(0.0, 1.0 - (dispersao_media/12.0))  # 12 ~ escala típica para n=6
+
+    st.metric("Score de Compressão", f"{score:.3f}")
+    st.metric("Dispersão média", f"{dispersao_media:.3f}")
+    st.metric("Volatilidade da dispersão", f"{volatilidade:.3f}")
+
+    if score >= 0.65 and volatilidade <= 2.5:
+        leitura = "🟢 Alvo comprimido (envelope estreito)."
+    elif score >= 0.45:
+        leitura = "🟡 Compressão parcial (cautela)."
+    else:
+        leitura = "🔴 Alvo disperso (alta variabilidade estrutural)."
+
+    st.markdown(f"**Leitura Observacional:** {leitura}")
+
+def v16_painel_premium_profundo():
+    st.subheader("🔮 V16 Premium Profundo — Diagnóstico & Calibração")
+    df = _v16_get_df_base()
+    if df is None:
+        st.warning("Histórico não carregado.")
+        return
+
+    cols = list(df.columns)
+    st.markdown(f"📁 DataFrame detectado: **historico_df**  |  Séries totais: **{len(df)}**")
+    max_series = st.slider("Quantidade máxima de séries a considerar no diagnóstico (janela final do histórico)", 200, max(200, len(df)), min(2000, len(df)))
+    dfw = df.tail(int(max_series)).copy()
+
+    st.markdown("Colunas detectadas na janela de diagnóstico")
+    st.code(str(list(dfw.columns)))
+
+    # distribuição simples de k, se existir
+    if "k" in dfw.columns:
+        k = pd.to_numeric(dfw["k"], errors="coerce").fillna(0).astype(int)
+        dist = k.value_counts().sort_index().reset_index()
+        dist.columns = ["k", "qtd"]
+        dist["pct"] = (dist["qtd"]/dist["qtd"].sum()*100).round(2)
+        st.markdown("🎯 Distribuição de k (janela final do histórico)")
+        st.dataframe(dist)
+
+        pct_k3 = float((k >= 3).mean()*100)
+        pct_k1 = float((k <= 1).mean()*100)
+        st.markdown(f"🩺 Interpretação qualitativa do regime\n\n- k ≥ 3: **{pct_k3:.2f}%**\n- k ≤ 1: **{pct_k1:.2f}%**")
+painel = st.sidebar.radio("", opcoes, index=0, key="NAV_V157_CANONICA")
     return painel
 
 
@@ -5372,6 +5558,12 @@ if painel == "⚙️ Modo TURBO++ HÍBRIDO":
 
     qtd_series = len(df)
 
+    # 🪟 Janela local (anti-zumbi): se o histórico é grande, usamos apenas a cauda para permitir o TURBO rodar
+    if qtd_series > LIMITE_PREVISOES_TURBO:
+        st.warning(f"🪟 Janela local aplicada (TURBO++ HÍBRIDO): usando as últimas {LIMITE_PREVISOES_TURBO} séries para evitar travamento.")
+        df = df.tail(LIMITE_PREVISOES_TURBO).copy()
+        qtd_series = len(df)
+
     # Anti-zumbi leve
     if not limitar_operacao(
         qtd_series,
@@ -5873,6 +6065,12 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         k_star=k_star,
         limite_series_padrao=LIMITE_SERIES_TURBO_ULTRA,
     )
+
+    # 🪟 Janela local (anti-zumbi): se o histórico é grande, usamos apenas a cauda para permitir o TURBO rodar
+    if qtd_series > LIMITE_SERIES_TURBO_ULTRA_EFETIVO:
+        st.warning(f"🪟 Janela local aplicada (TURBO++ ULTRA): usando as últimas {LIMITE_SERIES_TURBO_ULTRA_EFETIVO} séries para evitar travamento.")
+        df = df.tail(LIMITE_SERIES_TURBO_ULTRA_EFETIVO).copy()
+        qtd_series = len(df)
 
     limitar_operacao(
         qtd_series,
