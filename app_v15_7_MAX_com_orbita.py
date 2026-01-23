@@ -138,7 +138,6 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
         "n_alvo": n_alvo,
         "universo_min": universo_min,
         "universo_max": universo_max,
-        "universo": (f"{universo_min}–{universo_max}" if (universo_min not in (None,"N/D") and universo_max not in (None,"N/D")) else g("universo","N/D")),
         "pipeline_ok": pipeline_ok,
         "regime": regime,
         "energia_media": energia,
@@ -153,8 +152,7 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
         "turbo_bloqueado": turbo_bloqueado,
         "turbo_motivo": turbo_motivo,
         "modo6_executado": modo6_executado,
-        "listas_geradas": listas_geradas,
-
+        "listas_geradas": "definidas" if (listas_geradas not in (None, "N/D", "<não definido>")) else "<não definido>",
         "volumes_usados": volumes_usados,
         "estado_alvo": estado_alvo,
         "eco_status": eco_status,
@@ -3607,13 +3605,6 @@ if painel == "📁 Carregar Histórico (Arquivo)":
 
         umin = st.session_state.get("universo_min")
         umax = st.session_state.get("universo_max")
-        # Universo canônico (string) para RF/snapshot
-        try:
-            if isinstance(umin, (int, float)) and isinstance(umax, (int, float)):
-                st.session_state["universo"] = f"{int(umin)}–{int(umax)}"
-        except Exception:
-            pass
-
         if umin is not None and umax is not None:
             st.success(f"Histórico carregado com sucesso: {len(df)} séries | Universo detectado: {umin}–{umax}")
         else:
@@ -3659,15 +3650,6 @@ if "Carregar Histórico (Colar)" in painel:
         df = carregar_historico_universal(linhas)
 
         st.session_state["historico_df"] = df
-        # Universo canônico (string) para RF/snapshot (colar)
-        try:
-            umin = st.session_state.get("universo_min")
-            umax = st.session_state.get("universo_max")
-            if isinstance(umin, (int, float)) and isinstance(umax, (int, float)):
-                st.session_state["universo"] = f"{int(umin)}–{int(umax)}"
-        except Exception:
-            pass
-
 
         st.success(f"Histórico carregado com sucesso: {len(df)} séries")
 
@@ -7143,13 +7125,6 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     st.session_state["modo6_listas_totais"] = listas_totais
     st.session_state["modo6_listas_top10"] = listas_top10
     st.session_state["modo6_listas"] = listas_totais
-    # Snapshot canônico (execução do Modo 6)
-    try:
-        st.session_state["modo6_executado"] = True
-        st.session_state["modo_6_executado"] = True
-        st.session_state["listas_geradas"] = int(len(listas_totais))
-    except Exception:
-        pass
 
     # ------------------------------------------------------------
     # REGISTRO AUTOMÁTICO DO PACOTE ATUAL (Backtest Rápido N=60)
@@ -8403,6 +8378,75 @@ if painel == "📘 Relatório Final":
         pass
     
     
+
+    # ============================================================
+    # 🧨 JANELA LOCAL DE ATAQUE + 📦 PACOTES TÉCNICOS (RF CANÔNICO)
+    # ============================================================
+    try:
+        reg_m3 = (
+            st.session_state.get("m3_regime_dx")
+            or st.session_state.get("m3_regime")
+            or "N/D"
+        )
+        classe_risco_rf = (
+            st.session_state.get("classe_risco")
+            or (st.session_state.get("diagnostico_risco") or {}).get("classe_risco")
+            or "N/D"
+        )
+
+        analise_anti_rf = st.session_state.get("v16_anti_ancora") or {}
+        core_rf = analise_anti_rf.get("core") or []
+        anti_idx_rf = analise_anti_rf.get("anti_idx") or []
+
+        # Janela ATIVA = estrutura (CORE) + contexto minimamente favorável (ECO/PRÉ-ECO) + risco não vermelho
+        _reg_norm = str(reg_m3).upper().replace("É", "E")
+        janela_ativa = bool(core_rf) and (_reg_norm in ["ECO", "PRE-ECO", "PRÉ-ECO"]) and ("🔴" not in str(classe_risco_rf))
+
+        st.markdown("### 🧨 Estado da Janela Local de Ataque")
+        st.write(f"**Status da Janela:** {'ATIVA' if janela_ativa else 'NÃO ATIVA'}")
+        st.write("**Tipo:** Local · Recortada · Observacional")
+        st.write("**Base da leitura:**")
+        st.write(f"- Compressão (Modo 6 / CORE dominante): {'SIM' if bool(core_rf) else 'NÃO'}")
+        st.write(f"- Contexto histórico (M3 / dx): {reg_m3}")
+        st.write(f"- Classe de risco: {classe_risco_rf}")
+        st.caption("A existência de janela não obriga ataque. Ela apenas qualifica a leitura do momento.")
+
+        st.markdown("### 📦 Pacotes Técnicos (classificação informativa)")
+
+        # 🛡️ PACOTE BASE — sempre existe (Modo 6)
+        st.markdown("#### 🛡️ PACOTE BASE — CANÔNICO")
+        st.caption("Origem: Modo 6. Função: continuidade estatística. Sempre existe.")
+
+        # ⚖️ ALTERNATIVO — só se janela ATIVA e houver anti-âncora clara (listas já existentes)
+        st.markdown("#### ⚖️ PACOTE ALTERNATIVO — BALIZADO")
+        if janela_ativa and anti_idx_rf:
+            st.caption("Condição: janela ATIVA. Origem: listas existentes com baixo overlap com CORE (anti-âncora).")
+            for i in anti_idx_rf[:4]:
+                if 0 <= int(i) < len(listas_m6_totais):
+                    st.write(f"ALT{int(i)+1}: " + formatar_lista_passageiros(listas_m6_totais[int(i)]))
+        else:
+            st.info("Não aplicável nesta rodada (janela não ativa ou sem material anti-âncora claro).")
+
+        # 🔥 OFENSIVO — TURBO (se houver material)
+        st.markdown("#### 🔥 PACOTE OFENSIVO — CONDICIONAL")
+        turbo_tentado_rf = bool(st.session_state.get("turbo_tentado", False))
+        if janela_ativa and (listas_ultra or ultima_prev):
+            st.caption("Condição: janela ATIVA. Motor ofensivo tentado. Uso pontual e consciente.")
+            if listas_ultra:
+                for j, L in enumerate(listas_ultra[:6], start=1):
+                    st.write(f"OF{j}: " + formatar_lista_passageiros(L))
+            elif ultima_prev:
+                st.write(formatar_lista_passageiros(ultima_prev))
+        else:
+            st.info(
+                "Motor ofensivo tentado, sem material válido produzido nesta condição."
+                if turbo_tentado_rf else
+                "Motor ofensivo não tentado nesta rodada."
+            )
+            st.caption("Falha silenciosa é um resultado válido e informativo quando não há janela ofensiva.")
+    except Exception:
+        pass
+
     # ============================================================
     # 📌 LISTAS DE PREVISÃO ASSOCIADAS AO MOMENTO (COPIÁVEL)
     # ============================================================
