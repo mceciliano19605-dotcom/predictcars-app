@@ -3204,6 +3204,32 @@ def m3_painel_expectativa_historica_contexto():
     dx_list = []
     dx_por_t = {}
 
+    # --------------------------------------------------------
+    # Fonte CANÔNICA: histórico da sessão + colunas do Pipeline
+    # (M3 é observacional: não gera listas, não decide)
+    # --------------------------------------------------------
+    if "pipeline_col_pass" not in st.session_state:
+        st.warning("Execute primeiro o painel 🛣️ Pipeline V14-FLEX ULTRA (fonte canônica de passageiros).")
+        return
+
+    cols_pass = st.session_state["pipeline_col_pass"]
+    nome_df, df_base = v16_identificar_df_base()
+    if df_base is None:
+        st.warning("Histórico não encontrado. Carregue o histórico e rode o Pipeline.")
+        return
+
+    # Janela canônica (alinhada aos painéis V16 Premium PRÉ-ECO/ECO)
+    W = 60
+    n = int(len(df_base))
+    if n < (W + 5):
+        st.warning("Histórico insuficiente para Expectativa Histórica (M3).")
+        return
+
+    # Intervalo automático (sem sliders): recorte recente suficiente para quantis e estabilidade
+    t_final = n - 1
+    max_janelas = min(600, max(180, n - (W + 2)))  # 180–600 janelas, conforme tamanho do histórico
+    t_inicial = max(W, t_final - max_janelas)
+
     for t in range(t_inicial, t_final + 1):
         wdf = df_base.iloc[t - W : t]
         dx = _m3_dx_janela(wdf, cols_pass)
