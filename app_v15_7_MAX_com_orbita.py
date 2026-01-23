@@ -138,6 +138,7 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
         "n_alvo": n_alvo,
         "universo_min": universo_min,
         "universo_max": universo_max,
+        "universo": (f"{universo_min}–{universo_max}" if (universo_min not in (None,"N/D") and universo_max not in (None,"N/D")) else g("universo","N/D")),
         "pipeline_ok": pipeline_ok,
         "regime": regime,
         "energia_media": energia,
@@ -152,7 +153,8 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
         "turbo_bloqueado": turbo_bloqueado,
         "turbo_motivo": turbo_motivo,
         "modo6_executado": modo6_executado,
-        "listas_geradas": "definidas" if (listas_geradas not in (None, "N/D", "<não definido>")) else "<não definido>",
+        "listas_geradas": listas_geradas,
+
         "volumes_usados": volumes_usados,
         "estado_alvo": estado_alvo,
         "eco_status": eco_status,
@@ -3605,6 +3607,13 @@ if painel == "📁 Carregar Histórico (Arquivo)":
 
         umin = st.session_state.get("universo_min")
         umax = st.session_state.get("universo_max")
+        # Universo canônico (string) para RF/snapshot
+        try:
+            if isinstance(umin, (int, float)) and isinstance(umax, (int, float)):
+                st.session_state["universo"] = f"{int(umin)}–{int(umax)}"
+        except Exception:
+            pass
+
         if umin is not None and umax is not None:
             st.success(f"Histórico carregado com sucesso: {len(df)} séries | Universo detectado: {umin}–{umax}")
         else:
@@ -3650,6 +3659,15 @@ if "Carregar Histórico (Colar)" in painel:
         df = carregar_historico_universal(linhas)
 
         st.session_state["historico_df"] = df
+        # Universo canônico (string) para RF/snapshot (colar)
+        try:
+            umin = st.session_state.get("universo_min")
+            umax = st.session_state.get("universo_max")
+            if isinstance(umin, (int, float)) and isinstance(umax, (int, float)):
+                st.session_state["universo"] = f"{int(umin)}–{int(umax)}"
+        except Exception:
+            pass
+
 
         st.success(f"Histórico carregado com sucesso: {len(df)} séries")
 
@@ -7125,6 +7143,13 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     st.session_state["modo6_listas_totais"] = listas_totais
     st.session_state["modo6_listas_top10"] = listas_top10
     st.session_state["modo6_listas"] = listas_totais
+    # Snapshot canônico (execução do Modo 6)
+    try:
+        st.session_state["modo6_executado"] = True
+        st.session_state["modo_6_executado"] = True
+        st.session_state["listas_geradas"] = int(len(listas_totais))
+    except Exception:
+        pass
 
     # ------------------------------------------------------------
     # REGISTRO AUTOMÁTICO DO PACOTE ATUAL (Backtest Rápido N=60)
