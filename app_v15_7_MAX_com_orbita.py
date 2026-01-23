@@ -8,6 +8,26 @@ Arquivo único, íntegro e operacional.
 
 import streamlit as st
 
+import math
+
+def _pc_fmt_num(x, decimals: int = 4, nd: str = "N/D") -> str:
+    """Formata número para UX (evita mostrar nan/inf cru)."""
+    try:
+        if x is None:
+            return nd
+        if isinstance(x, (int, float)):
+            xf = float(x)
+            if math.isnan(xf) or math.isinf(xf):
+                return nd
+            return f"{xf:.{decimals}f}"
+        # tenta converter
+        xf = float(x)
+        if math.isnan(xf) or math.isinf(xf):
+            return nd
+        return f"{xf:.{decimals}f}"
+    except Exception:
+        return nd
+
 st.set_page_config(
     page_title="Predict Cars V15.7 MAX — V16 Premium",
     page_icon="🚗",
@@ -3538,6 +3558,68 @@ def m3_painel_expectativa_historica_contexto():
 
 
 # ============================================================
+
+# ============================================================
+# Painel 1A — 📁 Carregar Histórico (Arquivo)
+# ============================================================
+if painel == "📁 Carregar Histórico (Arquivo)":
+
+    st.markdown("## 📁 Carregar Histórico — Arquivo (V15.7 MAX)")
+    st.caption(
+        "Carregamento canônico via arquivo FLEX ULTRA (TXT/CSV).\n"
+        "✔ Não muda motores\n"
+        "✔ Não decide\n"
+        "✔ Alimenta a sessão atual"
+    )
+
+    up = st.file_uploader(
+        "Envie um histórico FLEX ULTRA",
+        type=["txt", "csv"],
+        accept_multiple_files=False,
+    )
+
+    if up is None:
+        st.info("Envie um arquivo para iniciar o processamento do PredictCars.")
+        st.stop()
+
+    try:
+        raw = up.getvalue()
+        try:
+            txt = raw.decode("utf-8")
+        except Exception:
+            txt = raw.decode("latin-1", errors="ignore")
+
+        linhas = [l.strip() for l in txt.splitlines() if l.strip()]
+        if not linhas:
+            st.error("Histórico vazio")
+            st.stop()
+
+        df = carregar_historico_universal(linhas)
+        st.session_state["historico_df"] = df
+
+        # Sincroniza chaves canônicas (evita N/D indevido no RF)
+        try:
+            v16_sync_aliases_canonicos()
+        except Exception:
+            pass
+
+        umin = st.session_state.get("universo_min")
+        umax = st.session_state.get("universo_max")
+        if umin is not None and umax is not None:
+            st.success(f"Histórico carregado com sucesso: {len(df)} séries | Universo detectado: {umin}–{umax}")
+        else:
+            umin = st.session_state.get("universo_min")
+        umax = st.session_state.get("universo_max")
+        if umin is not None and umax is not None:
+            st.success(f"Histórico carregado com sucesso: {len(df)} séries | Universo detectado: {umin}–{umax}")
+        else:
+            st.success(f"Histórico carregado com sucesso: {len(df)} séries")
+
+    except Exception as e:
+        st.error(f"Erro ao processar histórico: {e}")
+
+    st.stop()
+
 # Painel 1B — 📄 Carregar Histórico (Colar)
 # ============================================================
 if "Carregar Histórico (Colar)" in painel:
@@ -5084,8 +5166,8 @@ if painel == "🛣️ Pipeline V14-FLEX ULTRA":
     corpo = (
         f"- Séries carregadas: **{qtd_series}**\n"
         f"- Passageiros por carro (n): **{len(col_pass)}**\n"
-        f"- Energia média da estrada: **{media_geral:.4f}**\n"
-        f"- Volatilidade média: **{desvio_geral:.4f}**\n"
+        f"- Energia média da estrada: **{_pc_fmt_num(media_geral, decimals=4)}**\n"
+        f"- Volatilidade média: **{_pc_fmt_num(desvio_geral, decimals=4)}**\n"
         f"- Regime detectado: {estrada}\n"
         f"- Clusters formados: **{int(max(clusters)+1)}**"
     )
@@ -8037,7 +8119,7 @@ if painel == "📘 Relatório Final":
         if _estado.get('avisos'):
             st.warning('Ainda não percorrido (na sessão): ' + ' · '.join(_estado.get('avisos', [])))
         # Snapshot resumido
-        _s = _estado.get('snapshot', {})
+        _s = _m1_collect_mirror_snapshot() if '_m1_collect_mirror_snapshot' in globals() else _estado.get('snapshot', {})
         _bl0 = {'historico_df': 'definido' if _s.get('historico_df') else '<não definido>', 'n_alvo': _s.get('n_alvo','N/D'), 'universo': _s.get('universo','N/D'), 'pipeline_ok': bool(_s.get('pipeline_ok')), 'regime': _s.get('regime','N/D')}
         _bl1 = {'k_star': _s.get('k_star','N/D'), 'nr_percent': _s.get('nr_percent','N/D'), 'divergencia_s6_mc': _s.get('divergencia_s6_mc','N/D'), 'indice_risco': _s.get('indice_risco','N/D'), 'classe_risco': _s.get('classe_risco','N/D')}
         _bl2 = {'turbo_tentado': bool(_s.get('turbo_tentado')), 'turbo_bloqueado': bool(_s.get('turbo_bloqueado')), 'turbo_motivo': _s.get('turbo_motivo','N/D'), 'modo6_executado': bool(_s.get('modo6_executado')), 'listas_geradas': _s.get('listas_geradas','<não definido>')}
