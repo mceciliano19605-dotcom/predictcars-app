@@ -1747,193 +1747,209 @@ def construir_navegacao_v157() -> str:
             "🧪 Modo N Experimental (n≠6)"
         )
 
-    
 # ============================================================
-# V16 Premium — Funções que precisam existir (anti-NameError)
-# Estas funções são 100% observacionais e NÃO alteram motores/listas.
+# V16 — PAINÉIS AUXILIARES (FIX) — Erro por Regime / Compressão / Premium Profundo
+# Motivo: evitar NameError (painéis chamados no router) + manter fluxo canônico.
 # ============================================================
-
-def _v16_get_df_base():
-    df = st.session_state.get("historico_df")
-    if df is None or not hasattr(df, "copy"):
-        return None
-    return df
-
-def _v16_get_colunas_passageiros(df):
-    cols = []
-    for c in ["p1","p2","p3","p4","p5","p6","k"]:
-        if c in df.columns:
-            cols.append(c)
-    return cols
 
 def v16_painel_erro_por_regime_retrospectivo():
+    """📊 V16 Premium — Erro por Regime (Retrospectivo)
+    Instrumentação retrospectiva simples e segura.
+    NÃO altera motor. NÃO decide. NÃO gera listas.
+    """
     st.subheader("📊 V16 Premium — Erro por Regime (Retrospectivo)")
-    df = _v16_get_df_base()
-    if df is None:
-        st.warning("Histórico não carregado.")
+    df = st.session_state.get("historico_df")
+    if df is None or len(df) < 120:
+        st.warning("Histórico insuficiente para este painel (mínimo recomendado: ~120 séries).")
         return
 
-    cols = _v16_get_colunas_passageiros(df)
-    if len(cols) < 6:
-        st.warning("Histórico sem colunas suficientes (p1..p6).")
-        return
-
+    # Parâmetros fixos (canônicos)
     W = 60
-    MAX_JANELAS = 4000
 
-    df_num = df[cols].apply(pd.to_numeric, errors="coerce").dropna().astype(int)
-    if len(df_num) < W + 2:
-        st.warning("Histórico insuficiente para este painel (precisa de W+2 séries). Carregue histórico completo e rode novamente.")
+    # Colunas esperadas
+    cols = [c for c in ["p1","p2","p3","p4","p5","p6","k"] if c in df.columns]
+    if "k" not in cols or len(cols) < 7:
+        st.warning("Histórico não tem colunas suficientes (esperado p1..p6 e k).")
         return
 
-    # Anti-zumbi: pega apenas a faixa final (máx 4000 janelas)
-    t_end = len(df_num) - 1
-    t_ini = max(W, t_end - MAX_JANELAS)
-
-    # dx_janela (proxy): média do tamanho da diferença simétrica entre séries consecutivas dentro da janela
-    dx_list = []
-    erro_prox = []
-    idxs = []
-    for t in range(t_ini, t_end - 1):
-        win = df_num.iloc[t-W:t][["p1","p2","p3","p4","p5","p6"]].values.tolist()
-        # dx: média do delta entre consecutivos
-        deltas = []
-        for i in range(1, len(win)):
-            a = set(win[i-1]); b = set(win[i])
-            deltas.append(len(a.symmetric_difference(b)))
-        dx = float(sum(deltas)/len(deltas)) if deltas else float("nan")
-
-        # erro_prox (proxy): delta do alvo seguinte vs o último da janela
-        nxt = set(df_num.iloc[t][["p1","p2","p3","p4","p5","p6"]].tolist())
-        last = set(win[-1])
-        err = float(len(nxt.symmetric_difference(last)))
-
-        dx_list.append(dx)
-        erro_prox.append(err)
-        idxs.append(t)
-
-    s = pd.DataFrame({"t": idxs, "dx_janela": dx_list, "erro_prox": erro_prox}).dropna()
-    if s.empty:
-        st.warning("Não foi possível calcular (dx/erro) nesta sessão.")
+    # Sanitização (não mexe no df original)
+    dfx = df[cols].copy()
+    for c in cols:
+        dfx[c] = pd.to_numeric(dfx[c], errors="coerce")
+    dfx = dfx.replace([np.inf, -np.inf], np.nan).dropna(how="any")
+    if len(dfx) < (W + 3):
+        st.warning("Após sanitização, não há massa mínima (precisa de W+2 séries).")
         return
 
-    q1 = float(s["dx_janela"].quantile(0.33))
-    q2 = float(s["dx_janela"].quantile(0.66))
+    # dx_janela (proxy de dispersão) — reutiliza regra do M3 quando existir
+    # Se existir helper _m3_dx_janela, usa; senão, calcula um proxy simples.
+    if "_m3_dx_janela" in globals():
+        dx = _m3_dx_janela(dfx, W=W)
+    else:
+        # Proxy simples: desvio médio da janela (p1..p6) em relação ao centróide por linha
+        arr = dfx[[f"p{i}" for i in range(1,7)]].values
+        dx = pd.Series(np.nan, index=dfx.index)
+        for i in range(W-1, len(arr)):
+            win = arr[i-W+1:i+1]
+            cen = np.nanmean(win, axis=0)
+            dx.iloc[i] = float(np.nanmean(np.abs(win - cen)))
+        dx = dx.fillna(method="bfill").fillna(method="ffill")
 
-    def _reg(dx):
-        if dx <= q1:
+    dx = pd.Series(dx).reset_index(drop=True)
+    # Regimes por quantis
+    q1 = float(np.nanquantile(dx, 0.33))
+    q2 = float(np.nanquantile(dx, 0.66))
+
+    def _regime(v):
+        if v <= q1:
             return "ECO"
-        elif dx <= q2:
+        if v <= q2:
             return "PRE"
         return "RUIM"
 
-    s["regime"] = s["dx_janela"].apply(_reg)
+    regimes = dx.apply(_regime)
 
-    resumo = s.groupby("regime").agg(
-        janelas=("t","count"),
-        dx_medio=("dx_janela","mean"),
-        erro_medio=("erro_prox","mean"),
-    ).reset_index()
+    # Erro proxy: |k(t+1) - k(t)| (simples, objetivo, replicável)
+    k = dfx["k"].reset_index(drop=True)
+    erro_prox = (k.shift(-1) - k).abs()
 
-    # diferença RUIM - ECO (proxy)
-    eco = resumo[resumo["regime"]=="ECO"]["erro_medio"]
-    ruim = resumo[resumo["regime"]=="RUIM"]["erro_medio"]
-    if not eco.empty and not ruim.empty:
-        diff = float(ruim.iloc[0] - eco.iloc[0])
-        st.markdown(f"✅ Resultado objetivo — Continuidade do erro\n\nDiferença RUIM − ECO no erro médio (erro_prox): **{diff:.6f}**")
-    else:
-        st.markdown("✅ Resultado objetivo — Continuidade do erro\n\nDiferença RUIM − ECO no erro médio (erro_prox): **N/D**")
+    out = (
+        pd.DataFrame({"regime": regimes, "erro_prox": erro_prox})
+        .dropna()
+        .groupby("regime")
+        .agg(n=("erro_prox","count"), erro_medio=("erro_prox","mean"), erro_mediana=("erro_prox","median"))
+        .reset_index()
+    )
 
-    st.markdown(f"Total de janelas: **{len(s)}**  |  W: **{W}**  |  q1(dx): **{q1:.6f}**  |  q2(dx): **{q2:.6f}**")
-    st.dataframe(resumo)
+    st.caption("Instrumentação retrospectiva: dx (janela W=60) → regime (ECO/PRE/RUIM) e erro proxy = |Δk| da próxima série.")
+    st.write("q1 dx (ECO ≤):", round(q1, 6), " · q2 dx (PRE ≤):", round(q2, 6))
+    st.dataframe(out, use_container_width=True)
 
-    # tabela curta final (últimas 50 janelas)
-    st.dataframe(s.tail(50))
+    # Continuidade objetiva (RUIM vs ECO)
+    try:
+        eco = float(out.loc[out["regime"]=="ECO","erro_medio"].values[0])
+        ruim = float(out.loc[out["regime"]=="RUIM","erro_medio"].values[0])
+        st.write("✅ Resultado objetivo — Continuidade do erro")
+        st.write("Diferença RUIM − ECO no erro médio (erro_prox):", round(ruim - eco, 6))
+        st.caption("➡️ Valores positivos indicam erro menor em ECO.")
+    except Exception:
+        pass
+
 
 def v16_painel_compressao_alvo():
+    """Compressão do Alvo — Observacional (V16)
+    NÃO gera previsões. NÃO altera volume. NÃO interfere no fluxo.
+    """
     st.subheader("Compressão do Alvo — Observacional (V16)")
-    df = _v16_get_df_base()
-    if df is None:
-        st.warning("Histórico não carregado.")
+    st.caption("Painel observacional puro. Mede se o alvo tende a ficar 'apertado' (estrutura estável) vs disperso.")
+
+    df = st.session_state.get("historico_df")
+    if df is None or len(df) < 120:
+        st.warning("Histórico insuficiente para compressão (mínimo recomendado: ~120 séries).")
         return
 
-    cols = _v16_get_colunas_passageiros(df)
-    if len(cols) < 6:
-        st.warning("Histórico sem colunas suficientes (p1..p6).")
+    cols_p = [c for c in ["p1","p2","p3","p4","p5","p6"] if c in df.columns]
+    if len(cols_p) < 6:
+        st.warning("Histórico não tem colunas p1..p6 suficientes.")
         return
 
     W = 60
-    MAX_JANELAS = 2000
-
-    df_num = df[cols].apply(pd.to_numeric, errors="coerce").dropna().astype(int)
-    if len(df_num) < W + 2:
-        st.warning("Histórico insuficiente para este painel (precisa de W+2 séries).")
+    dfx = df[cols_p].copy()
+    for c in cols_p:
+        dfx[c] = pd.to_numeric(dfx[c], errors="coerce")
+    dfx = dfx.replace([np.inf, -np.inf], np.nan).dropna(how="any")
+    if len(dfx) < (W + 2):
+        st.warning("Após sanitização, não há massa mínima (precisa de W+2 séries).")
         return
 
-    t_end = len(df_num) - 1
-    t_ini = max(W, t_end - MAX_JANELAS)
+    arr = dfx.values
+    # Dispersão por janela: média do desvio absoluto ao centróide
+    disp = []
+    for i in range(W-1, len(arr)):
+        win = arr[i-W+1:i+1]
+        cen = np.nanmean(win, axis=0)
+        disp.append(float(np.nanmean(np.abs(win - cen))))
+    disp = pd.Series(disp)
 
-    disp_list = []
-    for t in range(t_ini, t_end):
-        win = df_num.iloc[t-W:t][["p1","p2","p3","p4","p5","p6"]].values.tolist()
-        # dispersão: quão diferentes são as séries dentro da janela (média da diferença simétrica contra o último)
-        last = set(win[-1])
-        ds = [len(set(r).symmetric_difference(last)) for r in win[:-1]]
-        disp = float(sum(ds)/len(ds)) if ds else float("nan")
-        disp_list.append(disp)
+    disp_media = float(disp.mean())
+    disp_vol = float(disp.std())
 
-    s = pd.Series(disp_list).dropna()
-    if s.empty:
-        st.warning("Não foi possível calcular dispersão nesta sessão.")
-        return
+    # Score simples (0..1): mais alto = mais comprimido (menos dispersão e menos variação)
+    # Normalização robusta: usa quantis para evitar outliers.
+    q_lo = float(np.nanquantile(disp, 0.15))
+    q_hi = float(np.nanquantile(disp, 0.85))
+    span = max(q_hi - q_lo, 1e-9)
+    score = 1.0 - float((disp_media - q_lo) / span)
+    score = max(0.0, min(1.0, score))
 
-    dispersao_media = float(s.mean())
-    volatilidade = float(s.std())
+    st.write("📐 Métrica de Compressão do Alvo")
+    st.metric("Score de Compressão", round(score, 4))
+    st.write("Dispersão média:", round(disp_media, 6))
+    st.write("Volatilidade da dispersão:", round(disp_vol, 6))
 
-    # score simples: quanto MENOR a dispersão e a volatilidade, maior a compressão
-    score = max(0.0, 1.0 - (dispersao_media/12.0))  # 12 ~ escala típica para n=6
-
-    st.metric("Score de Compressão", f"{score:.3f}")
-    st.metric("Dispersão média", f"{dispersao_media:.3f}")
-    st.metric("Volatilidade da dispersão", f"{volatilidade:.3f}")
-
-    if score >= 0.65 and volatilidade <= 2.5:
-        leitura = "🟢 Alvo comprimido (envelope estreito)."
+    if score >= 0.75:
+        st.success("🟢 Alvo comprimido — estrutura mais estável (bom para densidade / microvariações controladas).")
     elif score >= 0.45:
-        leitura = "🟡 Compressão parcial (cautela)."
+        st.warning("🟡 Compressão intermediária — pode haver 'aperto' parcial, sem garantia de janela.")
     else:
-        leitura = "🔴 Alvo disperso (alta variabilidade estrutural)."
+        st.error("🔴 Alvo disperso — alta variabilidade estrutural. Mesmo com k favorável, não indica alvo na mira.")
 
-    st.markdown(f"**Leitura Observacional:** {leitura}")
+    st.caption("📌 Interpretação correta: isso NÃO prevê o próximo alvo. Serve para calibrar expectativa, postura e paciência.")
+
 
 def v16_painel_premium_profundo():
+    """🔮 V16 Premium Profundo — Diagnóstico & Calibração
+    Painel de diagnóstico rápido (anti-zumbi interno) — sem alterar motor.
+    """
     st.subheader("🔮 V16 Premium Profundo — Diagnóstico & Calibração")
-    df = _v16_get_df_base()
+    st.caption("Este painel não altera nada do fluxo V15.7 MAX. Ele organiza informações do histórico e do session_state.")
+
+    df = st.session_state.get("historico_df")
     if df is None:
-        st.warning("Histórico não carregado.")
+        st.warning("Nenhum histórico carregado nesta sessão.")
         return
 
-    cols = list(df.columns)
-    st.markdown(f"📁 DataFrame detectado: **historico_df**  |  Séries totais: **{len(df)}**")
-    max_series = st.slider("Quantidade máxima de séries a considerar no diagnóstico (janela final do histórico)", 200, max(200, len(df)), min(2000, len(df)))
-    dfw = df.tail(int(max_series)).copy()
+    total = len(df)
+    st.write(f"📁 DataFrame detectado para diagnóstico: historico_df")
+    st.write(f"Séries totais disponíveis: {total}")
 
-    st.markdown("Colunas detectadas na janela de diagnóstico")
-    st.code(str(list(dfw.columns)))
+    # Anti-zumbi: janela final do histórico
+    max_n = int(st.slider("Quantidade máxima de séries a considerar no diagnóstico (janela final do histórico):", 200, max(200, total), min(2000, total)))
+    dfx = df.tail(max_n).copy()
 
-    # distribuição simples de k, se existir
-    if "k" in dfw.columns:
-        k = pd.to_numeric(dfw["k"], errors="coerce").fillna(0).astype(int)
-        dist = k.value_counts().sort_index().reset_index()
-        dist.columns = ["k", "qtd"]
-        dist["pct"] = (dist["qtd"]/dist["qtd"].sum()*100).round(2)
-        st.markdown("🎯 Distribuição de k (janela final do histórico)")
-        st.dataframe(dist)
+    st.write("Séries usadas no diagnóstico:", len(dfx))
 
-        pct_k3 = float((k >= 3).mean()*100)
-        pct_k1 = float((k <= 1).mean()*100)
-        st.markdown(f"🩺 Interpretação qualitativa do regime\n\n- k ≥ 3: **{pct_k3:.2f}%**\n- k ≤ 1: **{pct_k1:.2f}%**")
-painel = st.sidebar.radio("", opcoes, index=0, key="NAV_V157_CANONICA")
+    st.write("Qtd. de colunas detectadas:", len(dfx.columns))
+    st.write("Colunas detectadas na janela de diagnóstico")
+    st.json({i: c for i, c in enumerate(list(dfx.columns))})
+
+    if "k" in dfx.columns:
+        kk = pd.to_numeric(dfx["k"], errors="coerce").replace([np.inf, -np.inf], np.nan).dropna()
+        if len(kk) > 0:
+            dist = kk.value_counts().sort_index()
+            dist_df = pd.DataFrame({"k": dist.index.astype(int), "count": dist.values})
+            dist_df["%"] = (dist_df["count"] / dist_df["count"].sum() * 100.0).round(2)
+            st.write("🎯 Distribuição de k (janela final do histórico)")
+            st.dataframe(dist_df, use_container_width=True)
+
+            pct_k_ge3 = float((kk >= 3).mean() * 100.0)
+            pct_k_le1 = float((kk <= 1).mean() * 100.0)
+            st.write("🩺 Interpretação qualitativa do regime")
+            st.write(f"k ≥ 3: {pct_k_ge3:.2f}%")
+            st.write(f"k ≤ 1: {pct_k_le1:.2f}%")
+            if pct_k_ge3 >= 5:
+                st.success("🟢 Regime potencialmente fértil (k alto aparece com alguma frequência).")
+            elif pct_k_ge3 >= 1:
+                st.warning("🟡 Regime misto (k alto raro).")
+            else:
+                st.error("🔴 Regime turbulento (k alto quase não aparece).")
+
+    st.write("🧠 Mapa rápido de confiabilidade (session_state)")
+    st.json({k: st.session_state.get(k) for k in sorted(st.session_state.keys()) if "nr" in k or "k_star" in k or "div" in k or "dmo" in k})
+
+    st.success("Painel V16 Premium Profundo executado com sucesso!")
+
+    painel = st.sidebar.radio("", opcoes, index=0, key="NAV_V157_CANONICA")
     return painel
 
 
@@ -5558,12 +5574,6 @@ if painel == "⚙️ Modo TURBO++ HÍBRIDO":
 
     qtd_series = len(df)
 
-    # 🪟 Janela local (anti-zumbi): se o histórico é grande, usamos apenas a cauda para permitir o TURBO rodar
-    if qtd_series > LIMITE_PREVISOES_TURBO:
-        st.warning(f"🪟 Janela local aplicada (TURBO++ HÍBRIDO): usando as últimas {LIMITE_PREVISOES_TURBO} séries para evitar travamento.")
-        df = df.tail(LIMITE_PREVISOES_TURBO).copy()
-        qtd_series = len(df)
-
     # Anti-zumbi leve
     if not limitar_operacao(
         qtd_series,
@@ -6065,12 +6075,6 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
         k_star=k_star,
         limite_series_padrao=LIMITE_SERIES_TURBO_ULTRA,
     )
-
-    # 🪟 Janela local (anti-zumbi): se o histórico é grande, usamos apenas a cauda para permitir o TURBO rodar
-    if qtd_series > LIMITE_SERIES_TURBO_ULTRA_EFETIVO:
-        st.warning(f"🪟 Janela local aplicada (TURBO++ ULTRA): usando as últimas {LIMITE_SERIES_TURBO_ULTRA_EFETIVO} séries para evitar travamento.")
-        df = df.tail(LIMITE_SERIES_TURBO_ULTRA_EFETIVO).copy()
-        qtd_series = len(df)
 
     limitar_operacao(
         qtd_series,
@@ -11013,7 +11017,12 @@ if painel == "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos":
         st.warning("Fonte de passageiros inválida (menos de 6 colunas).")
         st.stop()
 
-    historico = df_base[col_pass].astype(int).values.tolist()
+    # 🛡️ Robustez: evita crash quando há NA/inf no df_base (históricos com buracos / colunas mal tipadas).
+    # Regra: para o painel observacional, descartamos linhas inválidas (não alteramos o histórico da sessão).
+    _df_pass = df_base[col_pass].apply(pd.to_numeric, errors='coerce')
+    _df_pass = _df_pass.replace([np.inf, -np.inf], np.nan)
+    _df_pass = _df_pass.dropna(how='any')
+    historico = _df_pass.astype(int).values.tolist()
     n = len(historico)
 
     if n < (W + 2):
