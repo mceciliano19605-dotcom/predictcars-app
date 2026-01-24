@@ -5948,6 +5948,39 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
     )
 
     # ------------------------------------------------------------
+    # JANELA LOCAL DE ATAQUE (GATILHO CANÔNICO)
+    # ------------------------------------------------------------
+    # Usa APENAS sinais já existentes em session_state.
+    # Não decide postura. Só governa se o TURBO ofensivo pode tentar nesta rodada.
+    m3_reg = st.session_state.get("m3_regime_dx") or st.session_state.get("m3_regime")
+    classe_risco = st.session_state.get("classe_risco")
+    if classe_risco is None:
+        classe_risco = st.session_state.get("classe_risco_texto")
+    nr_percent = st.session_state.get("nr_percent")
+    div_s6_mc = st.session_state.get("divergencia_s6_mc")
+    compressao_core = st.session_state.get("janela_compressao_core", False)
+
+    # Critério mínimo (canônico): compressão + M3 em ECO/PRÉ-ECO + risco não hostil.
+    m3_ok = str(m3_reg).upper() in ["ECO", "PRÉ-ECO", "PRE", "PRE-ECO", "PRE ECO", "PRÉ ECO"]
+    risco_txt = str(classe_risco) if classe_risco is not None else ""
+    risco_ok = ("Baixo" in risco_txt) or ("Moderado" in risco_txt) or ("🟡" in risco_txt) or ("🟢" in risco_txt)
+    janela_ativa = bool(compressao_core and m3_ok and risco_ok)
+
+    st.session_state["janela_local_ativa"] = janela_ativa
+    st.session_state["janela_local_m3"] = m3_reg if m3_reg is not None else "N/D"
+    st.session_state["janela_local_classe_risco"] = classe_risco if classe_risco is not None else "N/D"
+
+    if not janela_ativa:
+        st.info("🧨 Janela Local de Ataque: **NÃO ATIVA** — TURBO ofensivo não tentado nesta rodada (governança).")
+        st.session_state["turbo_ultra_executado"] = False
+        st.session_state["turbo_ultra_listas_leves"] = []
+        st.session_state["turbo_ultra_listas"] = []
+        # ainda marcamos como "tentado" no sentido de que o painel foi visitado e governou a tentativa
+        st.session_state["turbo_ultra_tentado"] = True
+        # encerra este painel aqui, sem gerar listas
+        st.stop()
+
+    # ------------------------------------------------------------
     # EXECUÇÃO SEGURA DO TURBO++ ULTRA
     # ------------------------------------------------------------
     st.info("Executando Modo TURBO++ ULTRA...")
@@ -8291,6 +8324,9 @@ if painel == "📘 Relatório Final":
 
         st.markdown("### 🧷 Anti-Âncora — Observacional (Base × Anti)")
         core = analise_anti.get("core") or []
+        # --- V16: registrar compressão/CORE para Janela Local (não decide) ---
+        st.session_state["janela_core_top10"] = list(core) if core else []
+        st.session_state["janela_compressao_core"] = True if core else False
         if core:
             st.write("**CORE do pacote base (presença alta no Top 10):** " + ", ".join(map(str, core)))
         else:
@@ -8440,7 +8476,12 @@ if painel == "📘 Relatório Final":
 
         # Janela ATIVA = estrutura (CORE) + contexto minimamente favorável (ECO/PRÉ-ECO) + risco não vermelho
         _reg_norm = str(reg_m3).upper().replace("É", "E")
-        janela_ativa = bool(core_rf) and (_reg_norm in ["ECO", "PRE-ECO", "PRÉ-ECO"]) and ("🔴" not in str(classe_risco_rf))
+        janela_ativa_session = st.session_state.get("janela_local_ativa")
+        if janela_ativa_session is None:
+            janela_ativa = bool(core_rf) and (_reg_norm in ["ECO", "PRE-ECO", "PRÉ-ECO"]) and ("🔴" not in str(classe_risco_rf))
+        else:
+            janela_ativa = bool(janela_ativa_session)
+
 
         st.markdown("### 🧨 Estado da Janela Local de Ataque")
         st.write(f"**Status da Janela:** {'ATIVA' if janela_ativa else 'NÃO ATIVA'}")
