@@ -83,6 +83,23 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
 
     ss = st.session_state
 
+    # ------------------------------------------------------------------
+    # UNIVERSO (auto-derivação) — especialmente para "Carregar Histórico (Colar)"
+    # ------------------------------------------------------------------
+    if (("universo_min" not in ss) or ("universo_max" not in ss)) and ss.get("historico_df") is not None:
+        try:
+            dfu = ss.get("historico_df")
+            cols = [c for c in ["p1","p2","p3","p4","p5","p6"] if c in getattr(dfu, "columns", [])]
+            if cols:
+                ser = pd.to_numeric(dfu[cols].stack(), errors="coerce")
+                vmin = ser.min()
+                vmax = ser.max()
+                if pd.notna(vmin) and pd.notna(vmax):
+                    ss["universo_min"] = int(vmin)
+                    ss["universo_max"] = int(vmax)
+        except Exception:
+            pass
+
     def g(key: str, default: Any = "N/D") -> Any:
         try:
             return ss.get(key, default)
@@ -117,7 +134,19 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
     turbo_bloqueado = bool(g("turbo_bloqueado", False))
     turbo_motivo = g("turbo_motivo_bloqueio", g("motivo_bloqueio", "N/D"))
     modo6_executado = bool(g("modo_6_ativo", False) or g("modo6_executado", False) or g("modo_6_executado", False))
-    listas_geradas = g("listas_geradas", g("listas_finais", g("pacote_atual", "N/D")))
+    # Listas geradas (numérico quando possível)
+    _lg = g("listas_geradas", None)
+    if _lg is None:
+        _lg = g("listas_finais", None)
+    if _lg is None:
+        _lg = g("pacote_atual", None)
+
+    if isinstance(_lg, list):
+        listas_geradas = len(_lg)
+    elif isinstance(_lg, int):
+        listas_geradas = _lg
+    else:
+        listas_geradas = "<não definido>"
     volumes_usados = g("volumes_usados", "N/D")
     estado_alvo = g("estado_alvo", "N/D")
     eco_status = g("eco_status", g("eco", "N/D"))
