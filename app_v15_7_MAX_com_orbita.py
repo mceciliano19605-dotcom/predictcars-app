@@ -6899,15 +6899,11 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         st.session_state.get("motor_turbo_executado"),
     ])
 
-    if df is None or df.empty or not pipeline_ok or not turbo_executado_ok:
+    if df is None or df.empty or not pipeline_ok:
         exibir_bloco_mensagem(
             "Pipeline incompleto",
-            "É necessário:\n"
-            "- Histórico carregado\n"
-            "- Pipeline V14-FLEX ULTRA executado\n"
-            "- TURBO++ ULTRA executado ao menos uma vez (bloqueio é válido)\n\n"
-            "ℹ️ O TURBO pode se recusar a gerar listas — isso é válido.",
-            tipo="warning",
+            "É necessário:\n- Histórico carregado\n- Pipeline V14-FLEX ULTRA executado\n\nℹ️ O TURBO++ é opcional para o Modo 6. Você pode rodar o TURBO antes para tentar núcleo ofensivo, mas o pacote base do Modo 6 independe disso.",
+            tipo="warning"
         )
         st.stop()
 
@@ -7158,6 +7154,13 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 # <<< FIM — BLOCO DO PAINEL 6 — MODO 6 ACERTOS (PRÉ-ECO)
 # ============================================================
 
+
+    # ✅ Snapshot canônico (para Relatório Final / Diagnóstico Espelho)
+    try:
+        st.session_state["modo6_executado"] = True
+        st.session_state["listas_geradas"] = int(len(listas_top10) if isinstance(listas_top10, list) else len(listas_totais))
+    except Exception:
+        pass
 
 
 
