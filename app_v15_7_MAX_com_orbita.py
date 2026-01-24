@@ -191,6 +191,62 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
     }
 
 
+# ============================================================
+# V16 — UNIVERSO (mín/max) — REGISTRO CANÔNICO
+# - Objetivo: garantir que o snapshot mostre 1–50 / 1–60 etc
+# - Regra: NÃO decide nada; só registra leitura.
+# - Compatível com Upload e Colar.
+# ============================================================
+
+def v16_detectar_universo_do_historico(df, n_alvo=6):
+    try:
+        if df is None or len(df) == 0:
+            return (None, None)
+        cols = []
+        for i in range(1, int(n_alvo) + 1):
+            c = f"p{i}"
+            if c in df.columns:
+                cols.append(c)
+        if not cols:
+            cols = [c for c in df.columns if isinstance(c, str) and c.startswith("p") and c[1:].isdigit()]
+            cols = sorted(cols, key=lambda x: int(x[1:]))[:int(n_alvo)]
+        if not cols:
+            return (None, None)
+
+        vals = df[cols].values.ravel()
+        clean = []
+        for v in vals:
+            if v is None:
+                continue
+            try:
+                if isinstance(v, float) and (v != v):
+                    continue
+                clean.append(int(v))
+            except Exception:
+                continue
+
+        if not clean:
+            return (None, None)
+
+        return (min(clean), max(clean))
+    except Exception:
+        return (None, None)
+
+
+def v16_registrar_universo_session_state(df, n_alvo=6):
+    try:
+        umin, umax = v16_detectar_universo_do_historico(df, n_alvo=n_alvo)
+        if umin is not None and umax is not None:
+            st.session_state["universo_min"] = int(umin)
+            st.session_state["universo_max"] = int(umax)
+            st.session_state["universo_str"] = f"{int(umin)}–{int(umax)}"
+        else:
+            st.session_state.setdefault("universo_min", None)
+            st.session_state.setdefault("universo_max", None)
+            st.session_state.setdefault("universo_str", "N/D")
+    except Exception:
+        st.session_state.setdefault("universo_str", "N/D")
+
 def _m1_classificar_estado(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     """Classifica estado S0–S6 (canônico) com base no snapshot.
     Regra: conservador; se faltar evidência, não avança estado.
@@ -3464,6 +3520,10 @@ def m3_painel_expectativa_historica_contexto():
 
     st.session_state["historico_df"] = df
 
+    # 🔎 Universo (1–50 / 1–60) — registro canônico para snapshot/RF
+
+    v16_registrar_universo_session_state(st.session_state["historico_df"], n_alvo=st.session_state.get("n_alvo", 6))
+
     metricas = calcular_metricas_basicas_historico(df)
     exibir_resumo_inicial_historico(metricas)
 
@@ -3633,6 +3693,8 @@ if painel == "📁 Carregar Histórico (Arquivo)":
 
         df = carregar_historico_universal(linhas)
         st.session_state["historico_df"] = df
+        # 🔎 Universo (1–50 / 1–60) — registro canônico para snapshot/RF
+        v16_registrar_universo_session_state(st.session_state["historico_df"], n_alvo=st.session_state.get("n_alvo", 6))
 
         # Sincroniza chaves canônicas (evita N/D indevido no RF)
         try:
@@ -3687,6 +3749,10 @@ if "Carregar Histórico (Colar)" in str(painel):
         df = carregar_historico_universal(linhas)
 
         st.session_state["historico_df"] = df
+
+        # 🔎 Universo (1–50 / 1–60) — registro canônico para snapshot/RF
+
+        v16_registrar_universo_session_state(st.session_state["historico_df"], n_alvo=st.session_state.get("n_alvo", 6))
 
         st.success(f"Histórico carregado com sucesso: {len(df)} séries")
 
