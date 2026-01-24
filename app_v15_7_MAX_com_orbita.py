@@ -3824,7 +3824,7 @@ if painel == "📁 Carregar Histórico (Arquivo)":
 
 # Painel 1B — 📄 Carregar Histórico (Colar)
 # ============================================================
-if "Carregar Histórico (Colar)" in painel:
+if isinstance(painel, str) and "Carregar Histórico (Colar)" in painel:
 
     st.markdown("## 📄 Carregar Histórico — Copiar e Colar (V15.7 MAX)")
 
