@@ -8360,7 +8360,65 @@ if painel == "📘 Relatório Final":
     # Sincroniza chaves canônicas (ECO/Estado/k*/Divergência) antes de consolidar
     v16_sync_aliases_canonicos()
 
+    # ------------------------------------
+
     # ------------------------------------------------------------
+    # 👁️ CAMADA 3 — Cegueiras ainda possíveis (hipóteses)
+    # (Somente no RF: não cria sensores, não decide nada)
+    # ------------------------------------------------------------
+    try:
+        m3_reg = st.session_state.get("m3_regime_dx") or st.session_state.get("m3_regime") or "N/D"
+        nrp = st.session_state.get("nr_percent")
+        divv = st.session_state.get("divergencia_s6_mc")
+        cls_r = st.session_state.get("classe_risco") or "N/D"
+
+        # tenta reaproveitar o diagnóstico da Camada 2 (se existir no escopo)
+        rigido_flag = False
+        try:
+            rigido_flag = bool(locals().get("diag_j", {}).get("rigido"))
+        except Exception:
+            rigido_flag = False
+
+        linhas = []
+        linhas.append("🎛️ **Instrumento vs fenômeno:** a leitura pode estar limitada pela lente (ruído/divergência), não só pelo mundo.")
+        linhas.append("🧱 **Compressão ≠ erro:** pacote estreito pode ser regime neutro/estreito real — não necessariamente rigidez ruim.")
+
+        if str(m3_reg).upper() == "RUIM":
+            linhas.append("🌫️ **RUIM com frestas:** RUIM pode ter micro‑aberturas locais (curtas) que não viram ECO/PRÉ‑ECO no agregado.")
+        if rigido_flag:
+            linhas.append("🧩 **Perda por borda:** jeitão pode estar correto, mas 1–2 passageiros de borda podem ficar fora quando o pacote fica colado.")
+            linhas.append("⚠️ **Rigidez detectada:** hipótese ativa de perda por compressão excessiva (sinal p/ governança/cobertura).")
+
+        # ausência de anti-âncora (se RF tiver essa info)
+        try:
+            if not st.session_state.get("anti_ancora_idx_detectados"):
+                linhas.append("🧲 **Anti‑âncora ausente:** pode ser E0 real OU pouca amplitude do pacote (poucas listas / pouca variação).")
+        except Exception:
+            pass
+
+        try:
+            if isinstance(nrp, (int, float)) and nrp >= 50:
+                linhas.append("🔴 **NR crítico:** ruído alto pode achatar leitura fina e mascarar sinal fraco; cuidado extra com 'miragem'.")
+        except Exception:
+            pass
+        try:
+            if isinstance(divv, (int, float)) and divv >= 3:
+                linhas.append("🟡 **Divergência moderada/alta:** modelos discordando pode ocultar padrão local; trate como hipótese, não permissão de ataque.")
+        except Exception:
+            pass
+        if "🟠" in str(cls_r) or "Elevado" in str(cls_r) or "🔴" in str(cls_r):
+            linhas.append("🛑 **Risco elevado:** mesmo com estrada neutra, turbulência pode exigir postura de cobertura (não de invenção).")
+
+        st.markdown("### 👁️ Camada 3 — Cegueiras ainda possíveis (hipóteses)")
+        st.caption("Este bloco **NÃO cria sensores novos** e **NÃO decide nada**. Ele lista hipóteses de cegueira ainda possíveis (para não confundir fresta com miragem).")
+        for ln in linhas:
+            st.markdown(f"- {ln}")
+
+        st.caption("Regra canônica: **mapa de hipóteses**, não motor. Mantém pressão evolutiva sem transformar leitura em fé.")
+    except Exception:
+        # falha silenciosa (não derruba o RF)
+        pass
+------------------------
     # 🧭 BLOCO -1 — SUMÁRIO EXECUTIVO (read-only)
     # ------------------------------------------------------------
     try:
@@ -8601,66 +8659,6 @@ if painel == "📘 Relatório Final":
     except Exception:
         st.info("Diagnóstico de rigidez indisponível nesta rodada (falha silenciosa).")
 # ------------------------------------------------------------
-# 👁️ CAMADA 3 — CEGUEIRAS POSSÍVEIS (MAPEAMENTO DE HIPÓTESES)
-# (Observacional | não cria sensor | não decide | não altera motores)
-# ------------------------------------------------------------
-try:
-    st.markdown("### 👁️ Camada 3 — Cegueiras ainda possíveis (hipóteses)")
-    st.caption(
-        "Este bloco NÃO cria sensores novos e NÃO decide nada. "
-        "Ele apenas lista hipóteses de 'cegueira' que ainda podem existir "
-        "mesmo quando M3 = RUIM e o pacote está comprimido — para evitar "
-        "confundir fresta com miragem."
-    )
-
-    _cegueiras = []
-    _m3 = st.session_state.get("m3_regime_dx", None)
-    _nr = st.session_state.get("nr_percent", None)
-    _div = st.session_state.get("divergencia_s6_mc", None)
-    _classe = st.session_state.get("classe_risco", None)
-
-    # Hipóteses gerais (sempre válidas)
-    _cegueiras.append("🎛️ **Instrumento vs fenômeno:** a leitura pode estar limitada pela lente (ruído/divergência), não só pelo mundo.")
-    _cegueiras.append("🧱 **Compressão ≠ erro:** pacote estreito pode ser regime neutro/estreito real — não necessariamente rigidez ruim.")
-
-    # Hipóteses específicas quando M3 existe
-    if _m3 == "RUIM":
-        _cegueiras.append("🌫️ **RUIM com frestas:** RUIM pode ter micro-aberturas locais (curtas) que não viram ECO/PRÉ‑ECO no histórico agregado.")
-        _cegueiras.append("🧩 **Perda por borda:** o jeitão pode estar correto, mas 1–2 passageiros de borda podem ficar fora quando o pacote fica rígido/colado.")
-        _cegueiras.append("🧲 **Anti-âncora ausente:** ausência de anti-âncora clara pode ser E0 real OU falta de amplitude do pacote (poucas listas / pouca variação).")
-
-    # Condicionais por qualidade de leitura (sem sensores novos)
-    try:
-        if _nr is not None and float(_nr) >= 60.0:
-            _cegueiras.append("🔴 **NR crítico:** ruído alto pode achatar a leitura fina e mascarar sinal fraco; cuidado extra para não ver 'miragem'.")
-    except Exception:
-        pass
-
-    try:
-        if _div is not None and float(_div) >= 4.0:
-            _cegueiras.append("🟡 **Divergência moderada:** modelos discordando pode ocultar um padrão local; trate como hipótese, não como permissão de ataque.")
-    except Exception:
-        pass
-
-    if _classe == "🟠 Risco Elevado":
-        _cegueiras.append("🛑 **Risco elevado:** mesmo com estrada neutra, turbulência pode exigir postura de cobertura (não de invenção).")
-
-    # Se o diagnóstico de rigidez rodou e indicou rigidez, explicitar a hipótese sem decidir
-    try:
-        if isinstance(diag_j, dict) and diag_j.get("rigido"):
-            _cegueiras.append("⚠️ **Rigidez detectada:** hipótese ativa de perda por compressão excessiva (não é decisão; é sinal para governança/cobertura).")
-    except Exception:
-        pass
-
-    st.write("\n".join([f"- {h}" for h in _cegueiras]))
-
-    st.caption(
-        "Regra canônica: este bloco é **mapa de hipóteses**, não motor. "
-        "Ele existe para manter pressão evolutiva sobre o sistema sem transformar leitura em fé."
-    )
-except Exception:
-    # falha silenciosa (não derruba o RF)
-    pass
 
     # ------------------------------------------------------------
     # 📊 EIXO 1 — CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
