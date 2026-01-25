@@ -893,6 +893,144 @@ def v16_analisar_duplo_pacote_base_anti_ancora(
 
 
 
+
+# ============================================================
+# V16 — DIAGNÓSTICO: RIGIDEZ DO "JEITÃO" (OBSERVACIONAL)
+# - NÃO decide, NÃO altera listas, NÃO muda volume.
+# - Objetivo: detectar quando o pacote está "rigidamente preso" a um jeitão
+#   (ex.: concentração alta em faixa/âncoras) e sugerir apenas UMA "folga"
+#   (1–2 passageiros) como alerta diagnóstico — não como decisão.
+# ============================================================
+
+def v16_diagnostico_rigidez_jeitao(
+    listas: list,
+    universo_min: int = None,
+    universo_max: int = None,
+    base_n: int = 10,
+    core_presenca_min: float = 0.60,
+) -> dict:
+    """
+    Retorna:
+      - rigido (bool)
+      - score (0..1)
+      - folga_sugerida (0/1/2)  # apenas alerta
+      - sinais (dict)           # métricas usadas
+      - mensagem (str)
+    """
+    try:
+        if not listas or not isinstance(listas, list):
+            return {"rigido": False, "score": 0.0, "folga_sugerida": 0, "sinais": {"motivo": "sem_listas"}, "mensagem": "Sem listas para diagnóstico."}
+
+        base_n = int(base_n or 0)
+        base_n = max(3, min(base_n, len(listas)))
+        topN = listas[:base_n]
+
+        # reaproveita lógica de CORE + overlaps
+        anti = v16_analisar_duplo_pacote_base_anti_ancora(
+            listas=listas,
+            base_n=base_n,
+            max_anti=4,
+            core_presenca_min=float(core_presenca_min),
+        )
+        core = anti.get("core") or []
+        overlaps = anti.get("overlaps") or []
+        anti_idx = anti.get("anti_idx") or []
+
+        core_sz = len(core)
+        if core_sz <= 0 or not overlaps:
+            return {"rigido": False, "score": 0.0, "folga_sugerida": 0, "sinais": {"core_sz": core_sz, "motivo": "core_indisponivel"}, "mensagem": "CORE indisponível — diagnóstico de rigidez não aplicado."}
+
+        # overlap médio e proporção de listas muito coladas no CORE
+        ov_mean = float(sum([o for o in overlaps if isinstance(o, (int, float))]) / max(1, len(overlaps)))
+        # "muito colado": overlap >= core_sz - 1 (quando core>=3), senão overlap==core_sz
+        if core_sz >= 3:
+            thr_colado = core_sz - 1
+        else:
+            thr_colado = core_sz
+        colados = 0
+        for o in overlaps:
+            try:
+                if int(o) >= int(thr_colado):
+                    colados += 1
+            except Exception:
+                pass
+        frac_colados = float(colados / max(1, len(overlaps)))
+
+        # métricas de faixa / âncoras via órbita (se universo estiver disponível)
+        umin = universo_min
+        umax = universo_max
+        if (umin is None or umax is None):
+            try:
+                umin = st.session_state.get("universo_min")
+                umax = st.session_state.get("universo_max")
+            except Exception:
+                umin, umax = None, None
+
+        orb = {}
+        if (umin is not None) and (umax is not None):
+            orb = v16_calcular_orbita_pacote(topN, int(umin), int(umax))
+        f_max = float(orb.get("f_max") or 0.0)
+        range_8 = orb.get("range_8")
+        range_lim = orb.get("range_lim")
+
+        # score de rigidez (conservador)
+        score = 0.0
+
+        # 1) colagem no CORE pesa muito
+        score += 0.45 * min(1.0, frac_colados / 0.80)  # saturação em 80%
+
+        # 2) overlap médio alto (normalizado por core_sz)
+        score += 0.25 * min(1.0, (ov_mean / max(1.0, float(core_sz))) / 0.85)
+
+        # 3) f_max alto = ancoragem forte (se disponível)
+        if f_max > 0.0:
+            score += 0.20 * min(1.0, max(0.0, (f_max - 0.45) / 0.35))  # acima de ~0.45 começa pesar
+
+        # 4) faixa top8 comprimida (se disponível)
+        if (range_8 is not None) and (range_lim is not None) and (range_lim > 0):
+            # quanto menor a faixa vs limite, mais rígido
+            comp = 1.0 - min(1.0, float(range_8) / float(range_lim))
+            score += 0.10 * max(0.0, comp)
+
+        score = float(round(max(0.0, min(1.0, score)), 4))
+
+        # rigidez: score >= 0.62 (limiar deliberadamente conservador)
+        rigido = score >= 0.62
+
+        # folga sugerida (diagnóstico, não decisão)
+        folga = 0
+        if rigido:
+            # se MUITO rígido e sem anti-âncora clara, sugerir 2; caso contrário 1.
+            if (score >= 0.82) and (not anti_idx):
+                folga = 2
+            else:
+                folga = 1
+
+        # mensagem operacional (sem impor ação)
+        if not rigido:
+            msg = "Jeitão **não aparenta rigidez excessiva** (ou já há folga/anti-âncora suficiente)."
+        else:
+            if folga == 2:
+                msg = "Jeitão **muito rígido**: pode estar preso demais. Diagnóstico sugere **folga de 2 passageiros** (alerta, não decisão)."
+            else:
+                msg = "Jeitão **rígido**: pode estar preso demais. Diagnóstico sugere **folga de 1 passageiro** (alerta, não decisão)."
+
+        sinais = {
+            "core_sz": core_sz,
+            "ov_mean": round(ov_mean, 4),
+            "frac_colados": round(frac_colados, 4),
+            "f_max": round(f_max, 4) if f_max is not None else None,
+            "range_8": range_8,
+            "range_lim": range_lim,
+            "anti_idx_detectados": anti_idx,
+        }
+
+        return {"rigido": rigido, "score": score, "folga_sugerida": folga, "sinais": sinais, "mensagem": msg}
+
+    except Exception:
+        return {"rigido": False, "score": 0.0, "folga_sugerida": 0, "sinais": {"motivo": "falha_silenciosa"}, "mensagem": "Falha silenciosa no diagnóstico de rigidez."}
+
+
 # ============================================================
 # Estilos globais — preservando jeitão V14-FLEX + V15.6 MAX
 # ============================================================
@@ -8422,6 +8560,45 @@ if painel == "📘 Relatório Final":
 
 
 
+
+
+    # ------------------------------------------------------------
+    # 🧩 Diagnóstico — Rigidez do Jeitão (folga) [OBSERVACIONAL]
+    # ------------------------------------------------------------
+    st.markdown("### 🧩 Jeitão do Pacote — Rigidez × Folga (diagnóstico)")
+    st.caption("Alerta diagnóstico: quando o pacote fica rígido demais, ele pode 'acertar o jeitão' mas perder 1–2 passageiros por rigidez. Isso NÃO é decisão: é só sinal para governança/cobertura.")
+
+    try:
+        umin = st.session_state.get("universo_min")
+        umax = st.session_state.get("universo_max")
+        diag_j = v16_diagnostico_rigidez_jeitao(
+            listas=listas_m6_totais,
+            universo_min=umin,
+            universo_max=umax,
+            base_n=10,
+            core_presenca_min=0.60,
+        )
+
+        if diag_j.get("rigido"):
+            st.warning(f"⚠️ {diag_j.get('mensagem')}")
+        else:
+            st.info(f"✅ {diag_j.get('mensagem')}")
+
+        sinais = diag_j.get("sinais") or {}
+        if sinais:
+            st.write({
+                "score_rigidez": diag_j.get("score"),
+                "folga_sugerida(alerta)": diag_j.get("folga_sugerida"),
+                "core_sz": sinais.get("core_sz"),
+                "frac_colados": sinais.get("frac_colados"),
+                "ov_mean": sinais.get("ov_mean"),
+                "f_max": sinais.get("f_max"),
+                "range_8": sinais.get("range_8"),
+                "range_lim": sinais.get("range_lim"),
+                "anti_idx_detectados": sinais.get("anti_idx_detectados"),
+            })
+    except Exception:
+        st.info("Diagnóstico de rigidez indisponível nesta rodada (falha silenciosa).")
     # ------------------------------------------------------------
     # 📊 EIXO 1 — CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
     # ------------------------------------------------------------
@@ -9566,6 +9743,43 @@ def v16_painel_exato_por_regime_proxy():
         })
 
     df_out = pd.DataFrame(resumo)
+
+
+    # --------------------------------------------------------
+    # 4) Diagnóstico — Rigidez do Jeitão (folga) [OBSERVACIONAL]
+    # --------------------------------------------------------
+    st.markdown("### 🧩 Jeitão do Pacote — Rigidez × Folga (diagnóstico)")
+    st.caption("Isso NÃO decide nem altera listas. Serve só para alertar sobre possível rigidez excessiva do pacote e sugerir 'folga' de 1–2 passageiros como hipótese.")
+
+    try:
+        listas_m6_totais = (
+            st.session_state.get("modo6_listas_totais")
+            or st.session_state.get("modo6_listas")
+            or []
+        )
+        if listas_m6_totais:
+            umin = st.session_state.get("universo_min")
+            umax = st.session_state.get("universo_max")
+            diag_j = v16_diagnostico_rigidez_jeitao(
+                listas=listas_m6_totais,
+                universo_min=umin,
+                universo_max=umax,
+                base_n=10,
+                core_presenca_min=0.60,
+            )
+
+            if diag_j.get("rigido"):
+                st.warning(f"⚠️ {diag_j.get('mensagem')}")
+            else:
+                st.info(f"✅ {diag_j.get('mensagem')}")
+
+            with st.expander("🔎 Ver sinais (auditável)"):
+                st.write(diag_j.get("sinais", {}))
+                st.write(f"Score: {diag_j.get('score')} | Folga sugerida (alerta): {diag_j.get('folga_sugerida')}")
+        else:
+            st.info("Sem listas do Modo 6 nesta sessão — diagnóstico de rigidez só aparece após executar o **🎯 Modo 6**.")
+    except Exception:
+        st.info("Diagnóstico de rigidez indisponível nesta sessão (falha silenciosa).")
 
     st.markdown("### 📊 Resultado (FORÇADO)")
     st.dataframe(df_out, use_container_width=True)
