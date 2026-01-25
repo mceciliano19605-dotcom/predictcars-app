@@ -913,13 +913,13 @@ def v16_diagnostico_rigidez_jeitao(
     Retorna:
       - rigido (bool)
       - score (0..1)
-      - folga_sugerida (0/1/2)  # apenas alerta
+      - folga_qualitativa (str)   # apenas diagnóstico (sem prescrição numérica)
       - sinais (dict)           # métricas usadas
       - mensagem (str)
     """
     try:
         if not listas or not isinstance(listas, list):
-            return {"rigido": False, "score": 0.0, "folga_sugerida": 0, "sinais": {"motivo": "sem_listas"}, "mensagem": "Sem listas para diagnóstico."}
+            return {"rigido": False, "score": 0.0, "folga_qualitativa": "nenhuma", "sinais": {"motivo": "sem_listas"}, "mensagem": "Sem listas para diagnóstico."}
 
         base_n = int(base_n or 0)
         base_n = max(3, min(base_n, len(listas)))
@@ -938,7 +938,7 @@ def v16_diagnostico_rigidez_jeitao(
 
         core_sz = len(core)
         if core_sz <= 0 or not overlaps:
-            return {"rigido": False, "score": 0.0, "folga_sugerida": 0, "sinais": {"core_sz": core_sz, "motivo": "core_indisponivel"}, "mensagem": "CORE indisponível — diagnóstico de rigidez não aplicado."}
+            return {"rigido": False, "score": 0.0, "folga_qualitativa": "nenhuma", "sinais": {"core_sz": core_sz, "motivo": "core_indisponivel"}, "mensagem": "CORE indisponível — diagnóstico de rigidez não aplicado."}
 
         # overlap médio e proporção de listas muito coladas no CORE
         ov_mean = float(sum([o for o in overlaps if isinstance(o, (int, float))]) / max(1, len(overlaps)))
@@ -1013,7 +1013,7 @@ def v16_diagnostico_rigidez_jeitao(
             if folga == 2:
                 msg = "Jeitão **muito rígido**: pode estar preso demais. Diagnóstico sugere **folga de 2 passageiros** (alerta, não decisão)."
             else:
-                msg = "Jeitão **rígido**: pode estar preso demais. Diagnóstico sugere **folga de 1 passageiro** (alerta, não decisão)."
+                msg = "Jeitão **rígido**: pode estar preso demais. Diagnóstico indica possível **exclusão marginal por rigidez** — considerar **folga mínima** (alerta, não decisão)."
 
         sinais = {
             "core_sz": core_sz,
@@ -1025,10 +1025,10 @@ def v16_diagnostico_rigidez_jeitao(
             "anti_idx_detectados": anti_idx,
         }
 
-        return {"rigido": rigido, "score": score, "folga_sugerida": folga, "sinais": sinais, "mensagem": msg}
+        return {"rigido": rigido, "score": score, "folga_qualitativa": folga_qual, "sinais": sinais, "mensagem": msg}
 
     except Exception:
-        return {"rigido": False, "score": 0.0, "folga_sugerida": 0, "sinais": {"motivo": "falha_silenciosa"}, "mensagem": "Falha silenciosa no diagnóstico de rigidez."}
+        return {"rigido": False, "score": 0.0, "folga_qualitativa": "nenhuma", "sinais": {"motivo": "falha_silenciosa"}, "mensagem": "Falha silenciosa no diagnóstico de rigidez."}
 
 
 # ============================================================
@@ -8588,7 +8588,7 @@ if painel == "📘 Relatório Final":
         if sinais:
             st.write({
                 "score_rigidez": diag_j.get("score"),
-                "folga_sugerida(alerta)": diag_j.get("folga_sugerida"),
+                "folga_qualitativa(alerta)": diag_j.get("folga_qualitativa"),
                 "core_sz": sinais.get("core_sz"),
                 "frac_colados": sinais.get("frac_colados"),
                 "ov_mean": sinais.get("ov_mean"),
@@ -9557,6 +9557,59 @@ if painel == "🧠 Laudo Operacional V16":
     )
 
 
+    # --------------------------------------------------------
+    # 4) Jeitão do Pacote — Rigidez (Camada 2 / observacional)
+    # --------------------------------------------------------
+    try:
+        listas_m6_totais = (
+            st.session_state.get("modo6_listas_totais")
+            or st.session_state.get("modo6_listas")
+            or []
+        )
+        umin = st.session_state.get("universo_min")
+        umax = st.session_state.get("universo_max")
+
+        if listas_m6_totais:
+            st.markdown("### 🧩 Jeitão do Pacote — Rigidez (diagnóstico)")
+            diag_j = v16_diagnostico_rigidez_jeitao(
+                listas=listas_m6_totais,
+                universo_min=umin,
+                universo_max=umax,
+                base_n=10,
+                core_presenca_min=0.60,
+            )
+
+            st.info(
+                "Alerta diagnóstico (Camada 2): quando o pacote fica rígido demais, ele pode 'acertar o jeitão' "
+                "mas perder 1–2 passageiros por compressão. Isso **não** decide nada — serve para governança/cobertura."
+            )
+
+            if diag_j.get("rigido"):
+                st.warning(f"⚠️ {diag_j.get('mensagem')}")
+            else:
+                st.success(f"✅ {diag_j.get('mensagem')}")
+
+            sinais = diag_j.get("sinais") or {}
+            if sinais:
+                st.write({
+                    "score_rigidez": diag_j.get("score"),
+                    "folga_qualitativa(alerta)": diag_j.get("folga_qualitativa"),
+                    "core_sz": sinais.get("core_sz"),
+                    "frac_colados": sinais.get("frac_colados"),
+                    "ov_mean": sinais.get("ov_mean"),
+                    "f_max": sinais.get("f_max"),
+                    "range_8": sinais.get("range_8"),
+                    "range_lim": sinais.get("range_lim"),
+                    "anti_idx_detectados": sinais.get("anti_idx_detectados"),
+                })
+        else:
+            # Sem pacote Modo 6 na sessão — nada a diagnosticar
+            pass
+    except Exception:
+        # Falha silenciosa permitida (diagnóstico não pode quebrar laudo)
+        pass
+
+
 
 # ============================================================
 # PARTE 7/8 — FIM
@@ -9775,7 +9828,7 @@ def v16_painel_exato_por_regime_proxy():
 
             with st.expander("🔎 Ver sinais (auditável)"):
                 st.write(diag_j.get("sinais", {}))
-                st.write(f"Score: {diag_j.get('score')} | Folga sugerida (alerta): {diag_j.get('folga_sugerida')}")
+                st.write(f"Score: {diag_j.get('score')} | Folga (qualitativa / alerta): {diag_j.get('folga_qualitativa')}")
         else:
             st.info("Sem listas do Modo 6 nesta sessão — diagnóstico de rigidez só aparece após executar o **🎯 Modo 6**.")
     except Exception:
