@@ -1065,6 +1065,149 @@ st.markdown(
 # (sem painel novo; muda listas quando justificado)
 # ============================================================
 
+# ============================================================
+# V16 — AJUSTE FINO (ETAPA 1)
+# Microvariações Canônicas (pré-Camada 4) — sem motor novo
+# ============================================================
+
+def v16_ajuste_fino_microvariacoes_etapa1(listas_base, diag_j=None):
+    '''
+    Gera microvariações mínimas (1 troca por lista) APENAS como sugestão observacional.
+    - Não altera motores.
+    - Não aumenta volume automaticamente.
+    - Não expande universo: só redistribuição local dentro do mesmo universo de números.
+    - Só "acorda" quando há sinal de rigidez (qualitativo) e material quasi-CORE suficiente.
+    Retorna um dict para renderização (ou None se não aplicável).
+    '''
+    try:
+        if not listas_base or not isinstance(listas_base, (list, tuple)):
+            return None
+
+        # normaliza (somente listas válidas)
+        listas = []
+        for L in listas_base:
+            if isinstance(L, (list, tuple)) and len(L) >= 6:
+                # copia defensiva + garante ints
+                try:
+                    listas.append([int(x) for x in L[:6]])
+                except Exception:
+                    continue
+
+        if len(listas) < 3:
+            return None
+
+        # --- Gate de rigidez (qualitativo) ---
+        score = None
+        folga_q = None
+        if isinstance(diag_j, dict):
+            score = diag_j.get("score_rigidez", None)
+            folga_q = diag_j.get("folga_qualitativa(alerta)", None)
+
+        # Regra: só sugerir microvariação se houver ALERTA qualitativo (mínima/moderada)
+        # OU score acima de um limiar interno (não exibido).
+        gatilho = False
+        try:
+            if isinstance(folga_q, str) and folga_q.lower().strip() in ("mínima", "minima", "moderada"):
+                gatilho = True
+        except Exception:
+            pass
+        try:
+            if score is not None and float(score) >= 0.68:
+                gatilho = True
+        except Exception:
+            pass
+
+        if not gatilho:
+            return None
+
+        # --- Frequência (para CORE / QUASE-CORE) ---
+        freq = {}
+        for L in listas:
+            for x in L:
+                freq[x] = freq.get(x, 0) + 1
+
+        n = len(listas)
+        # core: presença alta (>= 2/3) — limiar é estrutural e independe do histórico específico
+        core_thr = max(0.66, 1.0 - (2.0 / max(10.0, float(n))))
+        core = sorted([x for x,c in freq.items() if (c / n) >= core_thr], key=lambda z: (-freq[z], z))
+
+        # quasi-core: ainda forte, mas não "travado"
+        quasi = sorted([x for x,c in freq.items()
+                        if (c / n) >= 0.35 and (c / n) < core_thr],
+                       key=lambda z: (-freq[z], z))
+
+        if len(quasi) == 0:
+            return None
+
+        # --- Bordas (interno/externo) ---
+        # interno = dentro do miolo estatístico das listas atuais (q25–q75)
+        todos = sorted([x for L in listas for x in L])
+        def _q(p):
+            if not todos:
+                return None
+            k = int(round((len(todos)-1) * p))
+            k = max(0, min(len(todos)-1, k))
+            return todos[k]
+
+        q25, q75 = _q(0.25), _q(0.75)
+        borda_interna = [x for x in quasi if (q25 is None or q25 <= x <= q75)]
+        borda_externa = [x for x in quasi if x not in borda_interna]
+
+        # --- Microvariação 1-por-1 ---
+        sugestoes = []
+        for idx, L in enumerate(listas):
+            # remove: candidato menos frequente QUE NÃO SEJA CORE
+            removiveis = [x for x in L if x not in core]
+            if not removiveis:
+                continue
+            rem = sorted(removiveis, key=lambda z: (freq.get(z, 0), z))[0]
+
+            # add: melhor quasi não presente
+            add = None
+            for cand in quasi:
+                if cand not in L:
+                    add = cand
+                    break
+            if add is None:
+                continue
+
+            L2 = list(L)
+            # substitui no mesmo slot (preserva "jeitão" da lista)
+            try:
+                pos = L2.index(rem)
+                L2[pos] = add
+            except Exception:
+                continue
+
+            # evita duplicação
+            if len(set(L2)) != 6:
+                continue
+
+            sugestoes.append({
+                "base_idx": idx+1,
+                "remove": rem,
+                "add": add,
+                "lista_base": L,
+                "lista_micro": L2
+            })
+
+        if len(sugestoes) == 0:
+            return None
+
+        return {
+            "n_listas_base": n,
+            "core_thr": core_thr,
+            "core": core,
+            "quasi": quasi,
+            "borda_interna": borda_interna,
+            "borda_externa": borda_externa,
+            "sugestoes": sugestoes
+        }
+
+    except Exception:
+        # falha silenciosa: ajuste fino é opcional e nunca bloqueia execução
+        return None
+
 def v16_gerar_listas_interceptacao_orbita(info_orbita: dict,
                                          universo_min: int,
                                          universo_max: int,
@@ -8656,6 +8799,50 @@ if painel == "📘 Relatório Final":
                 "range_lim": sinais.get("range_lim"),
                 "anti_idx_detectados": sinais.get("anti_idx_detectados"),
             })
+        # ------------------------------------------------------------
+        # V16 — Ajuste Fino (Etapa 1) — Microvariações canônicas (pré-Camada 4)
+        # Só sugestão observacional: não altera motor, não muda volume, não decide.
+        # ------------------------------------------------------------
+        try:
+            _diag_norm = {
+                "score_rigidez": diag_j.get("score", None),
+                "folga_qualitativa(alerta)": diag_j.get("folga_qualitativa", None),
+            }
+            _listas_base = (
+                st.session_state.get("modo6_listas_top10")
+                or st.session_state.get("modo6_listas")
+                or st.session_state.get("modo6_listas_geradas")
+                or st.session_state.get("listas_geradas")
+                or []
+            )
+
+            ajuste = v16_ajuste_fino_microvariacoes_etapa1(_listas_base, diag_j=_diag_norm)
+
+            st.write("")
+            st.write("🧪 Ajuste Fino (Etapa 1) — Microvariações canônicas (pré-Camada 4)")
+            st.write("Regra: 1 troca por lista (1‑por‑1) quando há sinal de rigidez/folga mínima — como hipótese, não como verdade.")
+            st.write("Isso NÃO substitui o pacote base. É só uma sugestão opcional para você enxergar 'bordas' sem dispersar.")
+
+            if ajuste is None:
+                st.write("📌 Não aplicável nesta rodada (sem gatilho de rigidez suficiente ou sem material quasi‑CORE).")
+            else:
+                # resumo de CORE / QUASE‑CORE e bordas
+                st.write({
+                    "core_presenca_alta": ajuste.get("core", []),
+                    "quase_core": ajuste.get("quasi", []),
+                    "borda_interna(quase_core_no_miolo)": ajuste.get("borda_interna", []),
+                    "borda_externa(quase_core_na_borda)": ajuste.get("borda_externa", []),
+                    "sugestoes_microvar": len(ajuste.get("sugestoes", [])),
+                })
+
+                st.write("📌 Microvariações sugeridas (não obrigatórias):")
+                for item in ajuste.get("sugestoes", [])[:12]:
+                    st.write(f"L{item['base_idx']} → troca {item['remove']} ↔ {item['add']}: {', '.join(map(str, item['lista_micro']))}")
+
+        except Exception:
+            # falha silenciosa é válida (ajuste fino é opcional)
+            pass
+
     except Exception:
         st.info("Diagnóstico de rigidez indisponível nesta rodada (falha silenciosa).")
 # ------------------------------------------------------------
