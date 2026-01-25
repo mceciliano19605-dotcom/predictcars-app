@@ -899,7 +899,7 @@ def v16_analisar_duplo_pacote_base_anti_ancora(
 # - NÃO decide, NÃO altera listas, NÃO muda volume.
 # - Objetivo: detectar quando o pacote está "rigidamente preso" a um jeitão
 #   (ex.: concentração alta em faixa/âncoras) e sugerir apenas UMA "folga"
-#   (1–2 passageiros) como alerta diagnóstico — não como decisão.
+#   (folga qualitativa) como alerta diagnóstico — não como decisão.
 # ============================================================
 
 def v16_diagnostico_rigidez_jeitao(
@@ -997,24 +997,25 @@ def v16_diagnostico_rigidez_jeitao(
         # rigidez: score >= 0.62 (limiar deliberadamente conservador)
         rigido = score >= 0.62
 
-        # folga sugerida (diagnóstico, não decisão)
-        folga = 0
+        # folga qualitativa (diagnóstico, não decisão)
+        folga_qual = "nenhuma"
         if rigido:
-            # se MUITO rígido e sem anti-âncora clara, sugerir 2; caso contrário 1.
-            if (score >= 0.82) and (not anti_idx):
-                folga = 2
+            if score >= 0.85:
+                folga_qual = "moderada"
+                msg = (
+                    "Jeitão **muito rígido**: pode haver compressão excessiva. "
+                    "Diagnóstico sugere **folga moderada** (alerta, não decisão)."
+                )
             else:
-                folga = 1
-
-        # mensagem operacional (sem impor ação)
-        if not rigido:
-            msg = "Jeitão **não aparenta rigidez excessiva** (ou já há folga/anti-âncora suficiente)."
+                folga_qual = "mínima"
+                msg = (
+                    "Jeitão **rígido**: pode haver compressão excessiva. "
+                    "Diagnóstico sugere **folga mínima** (alerta, não decisão)."
+                )
         else:
-            if folga == 2:
-                msg = "Jeitão **muito rígido**: pode estar preso demais. Diagnóstico sugere **folga de 2 passageiros** (alerta, não decisão)."
-            else:
-                msg = "Jeitão **rígido**: pode estar preso demais. Diagnóstico indica possível **exclusão marginal por rigidez** — considerar **folga mínima** (alerta, não decisão)."
-
+            msg = (
+                "Jeitão **não aparenta rigidez excessiva** (ou há folga/anti-âncora suficiente)."
+            )
         sinais = {
             "core_sz": core_sz,
             "ov_mean": round(ov_mean, 4),
@@ -8566,7 +8567,7 @@ if painel == "📘 Relatório Final":
     # 🧩 Diagnóstico — Rigidez do Jeitão (folga) [OBSERVACIONAL]
     # ------------------------------------------------------------
     st.markdown("### 🧩 Jeitão do Pacote — Rigidez × Folga (diagnóstico)")
-    st.caption("Alerta diagnóstico: quando o pacote fica rígido demais, ele pode 'acertar o jeitão' mas perder 1–2 passageiros por rigidez. Isso NÃO é decisão: é só sinal para governança/cobertura.")
+    st.caption("Alerta diagnóstico: quando o pacote fica rígido demais, ele pode 'acertar o jeitão' mas perder passageiros por rigidez. Isso NÃO é decisão: é só sinal para governança/cobertura.")
 
     try:
         umin = st.session_state.get("universo_min")
@@ -9581,7 +9582,7 @@ if painel == "🧠 Laudo Operacional V16":
 
             st.info(
                 "Alerta diagnóstico (Camada 2): quando o pacote fica rígido demais, ele pode 'acertar o jeitão' "
-                "mas perder 1–2 passageiros por compressão. Isso **não** decide nada — serve para governança/cobertura."
+                "mas perder passageiros por compressão. Isso **não** decide nada — serve para governança/cobertura."
             )
 
             if diag_j.get("rigido"):
@@ -9802,7 +9803,7 @@ def v16_painel_exato_por_regime_proxy():
     # 4) Diagnóstico — Rigidez do Jeitão (folga) [OBSERVACIONAL]
     # --------------------------------------------------------
     st.markdown("### 🧩 Jeitão do Pacote — Rigidez × Folga (diagnóstico)")
-    st.caption("Isso NÃO decide nem altera listas. Serve só para alertar sobre possível rigidez excessiva do pacote e sugerir 'folga' de 1–2 passageiros como hipótese.")
+    st.caption("Isso NÃO decide nem altera listas. Serve só para alertar sobre possível rigidez excessiva do pacote e sugerir 'folga' qualitativa como hipótese.")
 
     try:
         listas_m6_totais = (
