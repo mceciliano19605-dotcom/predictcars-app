@@ -8418,7 +8418,7 @@ if painel == "📘 Relatório Final":
     except Exception:
         # falha silenciosa (não derruba o RF)
         pass
-------------------------
+# ------------------------
     # 🧭 BLOCO -1 — SUMÁRIO EXECUTIVO (read-only)
     # ------------------------------------------------------------
     try:
@@ -11940,7 +11940,7 @@ Painéis:
 Pergunta respondida:
 - O ambiente permite ataque?
 
----
+# ---
 
 **3️⃣ EIXO 2 — MOMENTO & ANTECIPAÇÃO**
 *(ritmo do alvo + evidência recente)*
@@ -11954,7 +11954,7 @@ Painéis:
 Pergunta respondida:
 - O momento favorece agir agora?
 
----
+# ---
 
 **4️⃣ DECISÃO ÚNICA (HUMANA)**
 *(registrada · sem retorno)*
@@ -11969,14 +11969,14 @@ Aqui você define:
 
 📌 **Depois disso, não se volta atrás.**
 
----
+# ---
 
 **5️⃣ MOTOR**
 - 🛣️ Pipeline V14-FLEX ULTRA
 - ⚙️ Modo TURBO++ HÍBRIDO
 - ⚙️ Modo TURBO++ ULTRA
 
----
+# ---
 
 **6️⃣ EXECUÇÃO**
 - 🎯 Modo 6 Acertos — Execução
