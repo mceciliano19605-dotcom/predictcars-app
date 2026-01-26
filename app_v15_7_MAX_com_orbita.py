@@ -2119,6 +2119,7 @@ def construir_navegacao_v157() -> str:
         # -----------------------------------------------------
         "🔁 Replay LIGHT",
         "🔁 Replay ULTRA",
+        "🧭 Replay Progressivo — Janela Móvel (Assistido)",
         "🧪 Replay Curto — Expectativa 1–3 Séries",
 
         # -----------------------------------------------------
@@ -5813,6 +5814,289 @@ if painel == "🔁 Replay ULTRA":
     )
 
     st.success("Replay ULTRA concluído!")
+
+
+# ============================================================
+# Painel X — 🧭 Replay Progressivo — Janela Móvel (Assistido)
+# OBJETIVO:
+# - Automatizar a "janela móvel" do histórico SEM você ter que ficar
+#   editando arquivo/recortando histórico na mão.
+# - NÃO roda motores sozinho. NÃO decide. NÃO altera Camada 4.
+# - Ele apenas:
+#     (1) Guarda o histórico completo uma única vez,
+#     (2) Aplica um recorte (C1..Ck) como histórico ATIVO,
+#     (3) Limpa chaves dependentes para forçar recalcular,
+#     (4) Permite registrar o pacote gerado em cada janela,
+#     (5) Avalia automaticamente o pacote registrado contra os 2 alvos seguintes.
+#
+# USO CANÔNICO (1 ciclo):
+# 1) Carregue o histórico COMPLETO (ex.: até C5832).
+# 2) Vá neste painel e aplique a janela (ex.: C5826).
+# 3) Rode: Sentinelas -> Pipeline -> (TURBO opcional) -> Modo 6.
+# 4) Volte aqui e "Registrar Pacote da Janela".
+# 5) Veja avaliação automática em (C5827,C5828).
+# 6) Repita com C5828, C5830, C5832...
+# ============================================================
+if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
+
+    st.markdown("## 🧭 Replay Progressivo — Janela Móvel (Assistido)")
+    st.caption(
+        "Este painel **não gera listas sozinho** e **não muda Camada 4**. "
+        "Ele só automatiza o recorte do histórico (janela móvel) e organiza o replay progressivo."
+    )
+
+    df_full = st.session_state.get("historico_df_full")
+    df_atual = st.session_state.get("historico_df")
+
+    if df_atual is None or df_atual.empty:
+        st.warning("Histórico não encontrado. Use primeiro **📁 Carregar Histórico**.")
+        st.stop()
+
+    # 1) Guardar histórico completo uma única vez
+    if df_full is None:
+        st.session_state["historico_df_full"] = df_atual.copy()
+        df_full = st.session_state.get("historico_df_full")
+        st.info(
+            f"📦 Histórico completo foi guardado em memória (histórico_full). "
+            f"Séries disponíveis: **{len(df_full)}**"
+        )
+
+    # 2) Contagem e limites
+    total_series = int(len(df_full))
+    if total_series < 10:
+        st.warning("Histórico muito curto para replay progressivo.")
+        st.stop()
+
+    # 3) Estado atual da janela
+    janela_k = int(st.session_state.get("replay_janela_k", len(df_atual)))
+    janela_k = max(1, min(janela_k, total_series))
+
+    colA, colB, colC = st.columns([1, 1, 1])
+    colA.metric("Séries no FULL", str(total_series))
+    colB.metric("Séries no ATIVO", str(len(df_atual)))
+    colC.metric("Janela selecionada (k)", str(janela_k))
+
+    st.markdown("---")
+
+    # 4) Seleção de janela (k)
+    st.markdown("### 1) Selecionar e aplicar janela móvel (C1..Ck)")
+    st.caption(
+        "Ao aplicar a janela, o painel **recorta o histórico ativo** e "
+        "**limpa chaves dependentes** (pipeline/sentinelas/pacotes) para você recalcular com segurança."
+    )
+
+    k_novo = st.slider(
+        "Escolha k (última série INCLUÍDA no histórico ativo)",
+        min_value=10,
+        max_value=total_series,
+        value=janela_k,
+        step=1,
+        key="replay_janela_k",
+    )
+
+    # 5) Função local: limpeza de chaves dependentes (conservadora)
+    def _replay_limpar_chaves_dependentes():
+        # Chaves típicas que dependem do histórico/pipeline/pacote
+        chaves = [
+            "pipeline_col_pass",
+            "pipeline_clusters",
+            "pipeline_centroides",
+            "pipeline_matriz_norm",
+            "pipeline_estrada",
+            "pipeline_flex_ultra_concluido",
+            "pipeline_executado",
+            "m1_selo_pipeline_ok",
+            "m1_ts_pipeline_ok",
+            "sentinela_kstar",
+            "k_star",
+            "k*",
+            "nr_percent",
+            "nr_percent_v16",
+            "div_s6_mc",
+            "divergencia_s6_mc",
+            "indice_risco",
+            "classe_risco",
+            "ultima_previsao",
+            "pacote_listas_atual",
+            "listas_geradas",
+            "listas_finais",
+            "modo6_executado",
+            "modo_6_executado",
+            "modo_6_ativo",
+            "turbo_executado",
+            "turbo_ultra_executado",
+            "turbo_ultra_rodou",
+            "turbo_bloqueado",
+            "turbo_motivo_bloqueio",
+            "motor_turbo_executado",
+            "listas_intercept_orbita",
+        ]
+        for k in chaves:
+            try:
+                if k in st.session_state:
+                    del st.session_state[k]
+            except Exception:
+                pass
+
+    # 6) Aplicar janela
+    if st.button("✅ Aplicar janela (recortar histórico ativo)", use_container_width=True):
+        try:
+            df_recorte = df_full.head(int(k_novo)).copy()
+            st.session_state["historico_df"] = df_recorte
+            _replay_limpar_chaves_dependentes()
+
+            # Atualizar universo min/max canônico (derivado do recorte)
+            try:
+                col_pass = [c for c in df_recorte.columns if c.startswith("p")]
+                universo_vals = []
+                for _, row in df_recorte.iterrows():
+                    for c in col_pass:
+                        try:
+                            v = int(row[c])
+                            if v > 0:
+                                universo_vals.append(v)
+                        except Exception:
+                            pass
+                if universo_vals:
+                    st.session_state["universo_min"] = int(min(universo_vals))
+                    st.session_state["universo_max"] = int(max(universo_vals))
+            except Exception:
+                pass
+
+            st.success(
+                f"Janela aplicada: histórico ativo agora está em **C1..C{k_novo}** "
+                f"(total: {len(df_recorte)} séries).\n\n"
+                "Agora rode **Sentinelas → Pipeline → (TURBO opcional) → Modo 6**."
+            )
+        except Exception as e:
+            st.error(f"Falha ao aplicar janela: {e}")
+        st.stop()
+
+    st.markdown("---")
+
+    # 7) Registro do pacote da janela
+    st.markdown("### 2) Registrar pacote gerado para esta janela")
+    st.caption(
+        "Depois de rodar o Modo 6 (e gerar o pacote), volte aqui e registre. "
+        "O painel guarda um snapshot por janela (k)."
+    )
+
+    pacote_atual = st.session_state.get("pacote_listas_atual")
+    if not pacote_atual:
+        st.info(
+            "Nenhum pacote atual encontrado. "
+            "Rode o **🎯 Modo 6 Acertos — Execução** para gerar e congelar um pacote."
+        )
+    else:
+        st.success(f"📦 Pacote atual detectado: **{len(pacote_atual)}** listas")
+
+    # estrutura: {k: {"ts": "...", "qtd": int, "listas": [[...], ...]}}
+    if "replay_progressivo_pacotes" not in st.session_state:
+        st.session_state["replay_progressivo_pacotes"] = {}
+
+    pacotes_reg = st.session_state.get("replay_progressivo_pacotes", {})
+    st.caption(f"Pacotes registrados até agora: **{len(pacotes_reg)}**")
+
+    colR1, colR2 = st.columns([1, 1])
+    with colR1:
+        if st.button("📌 Registrar pacote da janela atual", use_container_width=True, disabled=not bool(pacote_atual)):
+            try:
+                from datetime import datetime
+                pacotes_reg[int(k_novo)] = {
+                    "ts": datetime.now().isoformat(timespec="seconds"),
+                    "qtd": int(len(pacote_atual)),
+                    "listas": [list(map(int, lst)) for lst in pacote_atual],
+                }
+                st.session_state["replay_progressivo_pacotes"] = pacotes_reg
+                st.success(f"Pacote registrado para janela C1..C{k_novo}.")
+            except Exception as e:
+                st.error(f"Falha ao registrar pacote: {e}")
+    with colR2:
+        if st.button("🧹 Limpar todos os pacotes registrados", use_container_width=True, disabled=(len(pacotes_reg) == 0)):
+            st.session_state["replay_progressivo_pacotes"] = {}
+            st.success("Pacotes registrados foram limpos.")
+
+    st.markdown("---")
+
+    # 8) Avaliação automática (contra os 2 alvos seguintes)
+    st.markdown("### 3) Avaliar pacotes registrados (2 alvos seguintes)")
+    st.caption(
+        "Para cada janela k registrada, o painel testa o pacote contra os alvos **C(k+1)** e **C(k+2)** "
+        "do histórico FULL (quando existirem)."
+    )
+
+    pacotes_reg = st.session_state.get("replay_progressivo_pacotes", {})
+    if not pacotes_reg:
+        st.info("Nenhum pacote registrado ainda.")
+        st.stop()
+
+    # colunas de passageiros
+    col_pass_full = [c for c in df_full.columns if c.lower().startswith("p")]
+    if not col_pass_full:
+        st.error("Não consegui identificar colunas de passageiros no histórico FULL.")
+        st.stop()
+
+    def _alvo_da_linha(idx0: int):
+        # idx0 é 0-based (linha do DF)
+        row = df_full.iloc[idx0]
+        alvo = []
+        for c in col_pass_full:
+            try:
+                v = int(row[c])
+                if v > 0:
+                    alvo.append(v)
+            except Exception:
+                pass
+        return set(alvo)
+
+    resultados = []
+    for k_reg, info in sorted(pacotes_reg.items(), key=lambda x: int(x[0])):
+        k_reg = int(k_reg)
+        idx1 = k_reg  # C(k+1) em 0-based
+        idx2 = k_reg + 1  # C(k+2)
+        if idx1 >= total_series:
+            continue
+
+        alvo1 = _alvo_da_linha(idx1)
+        alvo2 = _alvo_da_linha(idx2) if idx2 < total_series else None
+
+        listas = info.get("listas", [])
+        # melhor acerto em cada alvo
+        best1 = 0
+        best2 = 0
+        if alvo1 and listas:
+            for lst in listas:
+                best1 = max(best1, len(set(lst) & alvo1))
+        if alvo2 and listas:
+            for lst in listas:
+                best2 = max(best2, len(set(lst) & alvo2))
+
+        resultados.append({
+            "janela_k": k_reg,
+            "qtd_listas": int(info.get("qtd", 0)),
+            "alvo_1": f"C{k_reg+1}",
+            "best_acerto_alvo_1": int(best1),
+            "alvo_2": f"C{k_reg+2}" if alvo2 is not None else "—",
+            "best_acerto_alvo_2": int(best2) if alvo2 is not None else None,
+            "ts_registro": str(info.get("ts", "")),
+        })
+
+    if not resultados:
+        st.warning("Nenhum resultado para exibir (verifique se as janelas k registradas têm alvos seguintes no FULL).")
+        st.stop()
+
+    df_res = pd.DataFrame(resultados).sort_values(["janela_k"], ascending=True)
+    st.dataframe(df_res, use_container_width=True, hide_index=True)
+
+    st.info(
+        "Interpretação correta:\n"
+        "- Este painel mede apenas o **melhor acerto** dentro do pacote para os 2 alvos seguintes.\n"
+        "- Ele NÃO muda o motor, NÃO decide volume, e NÃO garante performance futura.\n"
+        "- Serve para você comparar janelas e ver se o V8 está reduzindo perda por borda sem dispersar."
+    )
+
+    st.stop()
+
 
 # ============================================================
 # PARTE 3/8 — FIM
