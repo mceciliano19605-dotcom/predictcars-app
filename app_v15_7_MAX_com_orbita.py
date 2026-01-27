@@ -5868,13 +5868,13 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         st.stop()
 
     # 3) Estado atual da janela
-    janela_k = int(st.session_state.get("replay_janela_k", len(df_atual)))
+    janela_k = int(st.session_state.get("replay_janela_k_active", len(df_atual)))
     janela_k = max(1, min(janela_k, total_series))
 
     colA, colB, colC = st.columns([1, 1, 1])
     colA.metric("Séries no FULL", str(total_series))
     colB.metric("Séries no ATIVO", str(len(df_atual)))
-    colC.metric("Janela selecionada (k)", str(janela_k))
+    colC.metric("Janela ativa (k)", str(janela_k))
 
     st.markdown("---")
 
@@ -5890,9 +5890,9 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         "Informe k (última série INCLUÍDA no histórico ativo)",
         min_value=10,
         max_value=total_series,
-        value=int(janela_k),
+        value=int(st.session_state.get("replay_janela_k_input", janela_k)),
         step=1,
-        key="replay_janela_k",
+        key="replay_janela_k_input",
         help="Dica: use valores como 5826, 5828, 5830... (para simular o replay progressivo).",
     )
 
@@ -5945,7 +5945,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         try:
             df_recorte = df_full.head(int(k_novo)).copy()
             st.session_state["historico_df"] = df_recorte
-            st.session_state["replay_janela_k"] = int(k_novo)  # fixa seleção ao voltar no painel
+            st.session_state["replay_janela_k_active"] = int(k_novo)  # fixa janela ativa (não altera widget)
             _replay_limpar_chaves_dependentes()
 
             # Atualizar universo min/max canônico (derivado do recorte) — versão rápida (sem iterrows)
@@ -6001,13 +6001,14 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         if st.button("📌 Registrar pacote da janela atual", use_container_width=True, disabled=not bool(pacote_atual)):
             try:
                 from datetime import datetime
-                pacotes_reg[int(k_novo)] = {
+                k_reg = int(st.session_state.get("replay_janela_k_active", k_novo))
+                pacotes_reg[k_reg] = {
                     "ts": datetime.now().isoformat(timespec="seconds"),
                     "qtd": int(len(pacote_atual)),
                     "listas": [list(map(int, lst)) for lst in pacote_atual],
                 }
                 st.session_state["replay_progressivo_pacotes"] = pacotes_reg
-                st.success(f"Pacote registrado para janela C1..C{k_novo}.")
+                st.success(f"Pacote registrado para janela C1..C{k_reg}.")
             except Exception as e:
                 st.error(f"Falha ao registrar pacote: {e}")
     with colR2:
