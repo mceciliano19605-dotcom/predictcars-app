@@ -5885,13 +5885,15 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         "**limpa chaves dependentes** (pipeline/sentinelas/pacotes) para você recalcular com segurança."
     )
 
-    k_novo = st.slider(
-        "Escolha k (última série INCLUÍDA no histórico ativo)",
+    # OBS: slider foi trocado por entrada numérica para evitar resets e facilitar uso.
+    k_novo = st.number_input(
+        "Informe k (última série INCLUÍDA no histórico ativo)",
         min_value=10,
         max_value=total_series,
-        value=janela_k,
+        value=int(janela_k),
         step=1,
         key="replay_janela_k",
+        help="Dica: use valores como 5826, 5828, 5830... (para simular o replay progressivo).",
     )
 
     # 5) Função local: limpeza de chaves dependentes (conservadora)
@@ -5943,23 +5945,20 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         try:
             df_recorte = df_full.head(int(k_novo)).copy()
             st.session_state["historico_df"] = df_recorte
+            st.session_state["replay_janela_k"] = int(k_novo)  # fixa seleção ao voltar no painel
             _replay_limpar_chaves_dependentes()
 
-            # Atualizar universo min/max canônico (derivado do recorte)
+            # Atualizar universo min/max canônico (derivado do recorte) — versão rápida (sem iterrows)
             try:
-                col_pass = [c for c in df_recorte.columns if c.startswith("p")]
-                universo_vals = []
-                for _, row in df_recorte.iterrows():
-                    for c in col_pass:
-                        try:
-                            v = int(row[c])
-                            if v > 0:
-                                universo_vals.append(v)
-                        except Exception:
-                            pass
-                if universo_vals:
-                    st.session_state["universo_min"] = int(min(universo_vals))
-                    st.session_state["universo_max"] = int(max(universo_vals))
+                col_pass = [c for c in df_recorte.columns if str(c).startswith("p")]
+                if col_pass:
+                    vals = df_recorte[col_pass].to_numpy().ravel()
+                    # Filtra apenas inteiros positivos
+                    vals = [int(v) for v in vals if str(v).strip() not in ("", "nan", "None")]
+                    vals = [v for v in vals if v > 0]
+                    if vals:
+                        st.session_state["universo_min"] = int(min(vals))
+                        st.session_state["universo_max"] = int(max(vals))
             except Exception:
                 pass
 
