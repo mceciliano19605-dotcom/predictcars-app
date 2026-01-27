@@ -6179,6 +6179,129 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
     df_res = pd.DataFrame(resultados).sort_values(["janela_k"], ascending=True)
     st.dataframe(df_res, use_container_width=True, hide_index=True)
 
+    # ------------------------------------------------------------
+    # 🆚 Replay Comparativo — duas janelas (assistido)
+    # Objetivo: comparar janelas registradas lado a lado (sem decidir nada).
+    # ------------------------------------------------------------
+    st.markdown("---")
+    st.markdown("### 🆚 Replay Comparativo — duas janelas (assistido)")
+    st.caption(
+        "Selecione duas janelas **já registradas** para comparar, lado a lado, "
+        "o melhor acerto e a origem dos acertos (CORE/quase/borda/miolo/fora). "
+        "Isso é **leitura**, não decisão."
+    )
+
+    try:
+        janelas_disp = [int(x) for x in sorted(df_res["janela_k"].dropna().unique())]
+    except Exception:
+        janelas_disp = []
+
+    if len(janelas_disp) >= 2:
+        colX, colY = st.columns(2)
+        with colX:
+            ja = st.selectbox("Janela A (k)", options=janelas_disp, index=max(0, len(janelas_disp)-2), key="replay_comp_k_a")
+        with colY:
+            jb = st.selectbox("Janela B (k)", options=janelas_disp, index=max(0, len(janelas_disp)-1), key="replay_comp_k_b")
+
+        def _comp_agregar_k(df_: pd.DataFrame, k_: int) -> Dict[str, Any]:
+            try:
+                _r = df_[df_["janela_k"] == int(k_)].copy()
+            except Exception:
+                _r = pd.DataFrame()
+
+            if _r is None or _r.empty:
+                return {"janela_k": int(k_), "hits_total": 0, "pct_fora": None, "best1": None, "best2": None, "tot": {}}
+
+            # melhores acertos (por janela)
+            try:
+                best1 = int(_r["best_acerto_alvo_1"].fillna(0).max())
+            except Exception:
+                best1 = None
+            try:
+                best2 = int(_r["best_acerto_alvo_2"].fillna(0).max())
+            except Exception:
+                best2 = None
+
+            # agrega origem dos hits (alvo1 + alvo2)
+            def _sumcol(name: str) -> int:
+                try:
+                    return int(_r[name].fillna(0).sum())
+                except Exception:
+                    return 0
+
+            tot = {
+                "core": _sumcol("core_hit_1") + _sumcol("core_hit_2"),
+                "quase": _sumcol("quase_hit_1") + _sumcol("quase_hit_2"),
+                "borda_in": _sumcol("borda_in_hit_1") + _sumcol("borda_in_hit_2"),
+                "borda_ex": _sumcol("borda_ex_hit_1") + _sumcol("borda_ex_hit_2"),
+                "miolo": _sumcol("miolo_hit_1") + _sumcol("miolo_hit_2"),
+                "fora": _sumcol("fora_hit_1") + _sumcol("fora_hit_2"),
+            }
+            hits_total = int(sum(tot.values()))
+            pct_fora = round(100.0 * tot["fora"] / hits_total, 1) if hits_total > 0 else None
+
+            return {
+                "janela_k": int(k_),
+                "hits_total": int(hits_total),
+                "pct_fora": pct_fora,
+                "best1": best1,
+                "best2": best2,
+                "tot": tot,
+            }
+
+        a = _comp_agregar_k(df_res, int(ja))
+        b = _comp_agregar_k(df_res, int(jb))
+
+        def _fmt(v):
+            return "—" if v is None else v
+
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col1:
+            st.markdown("#### Janela A")
+            st.write(f"**k = C{a['janela_k']}** → alvos: C{a['janela_k']+1}/C{a['janela_k']+2}")
+            st.write(f"Best (alvo1/alvo2): **{_fmt(a['best1'])} / {_fmt(a['best2'])}**")
+            st.write(f"Hits agregados: **{a['hits_total']}**")
+            st.write(f"Fora do pacote: **{_fmt(a['pct_fora'])}%**")
+        with col2:
+            st.markdown("#### Janela B")
+            st.write(f"**k = C{b['janela_k']}** → alvos: C{b['janela_k']+1}/C{b['janela_k']+2}")
+            st.write(f"Best (alvo1/alvo2): **{_fmt(b['best1'])} / {_fmt(b['best2'])}**")
+            st.write(f"Hits agregados: **{b['hits_total']}**")
+            st.write(f"Fora do pacote: **{_fmt(b['pct_fora'])}%**")
+        with col3:
+            st.markdown("#### Δ (B − A)")
+            try:
+                d_pfora = None if (a["pct_fora"] is None or b["pct_fora"] is None) else round(float(b["pct_fora"]) - float(a["pct_fora"]), 1)
+            except Exception:
+                d_pfora = None
+            st.write(f"Δ Fora do pacote: **{_fmt(d_pfora)} p.p.**")
+            try:
+                d_hits = int(b["hits_total"]) - int(a["hits_total"])
+            except Exception:
+                d_hits = None
+            st.write(f"Δ Hits agregados: **{_fmt(d_hits)}**")
+            st.caption("Negativo em 'fora' é bom (menos fora do pacote).")
+
+        # Tabela comparativa de origens
+        try:
+            df_comp = pd.DataFrame([
+                {"origem": "CORE", "A": int(a["tot"]["core"]), "B": int(b["tot"]["core"])},
+                {"origem": "quase-CORE", "A": int(a["tot"]["quase"]), "B": int(b["tot"]["quase"])},
+                {"origem": "borda interna", "A": int(a["tot"]["borda_in"]), "B": int(b["tot"]["borda_in"])},
+                {"origem": "borda externa", "A": int(a["tot"]["borda_ex"]), "B": int(b["tot"]["borda_ex"])},
+                {"origem": "miolo", "A": int(a["tot"]["miolo"]), "B": int(b["tot"]["miolo"])},
+                {"origem": "fora do pacote", "A": int(a["tot"]["fora"]), "B": int(b["tot"]["fora"])},
+            ])
+            df_comp["Δ(B−A)"] = df_comp["B"] - df_comp["A"]
+            st.dataframe(df_comp, use_container_width=True, hide_index=True)
+        except Exception:
+            pass
+
+        st.caption("Leitura correta: use isto para **aprender** quais janelas reduziram 'fora_do_pacote' e em que custo (borda/miolo).")
+    else:
+        st.info("Para usar o Replay Comparativo: registre pelo menos **2 janelas** no Replay Progressivo.")
+
+
     # --- V9 (BLOCO B) — Resumo agregado (ex-post, observacional) ---
     try:
         cols1 = ["core_hit_1", "quase_hit_1", "borda_in_hit_1", "borda_ex_hit_1", "miolo_hit_1", "fora_hit_1"]
@@ -6221,6 +6344,9 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                 "resumo": _resumo,
                 "classificacao": _classif,
                 "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+                "pacotes_registrados": int(len(pacotes_reg)) if isinstance(pacotes_reg, dict) else None,
+                "janela_min": int(df_res["janela_k"].min()) if ("janela_k" in df_res.columns and not df_res.empty) else None,
+                "janela_max": int(df_res["janela_k"].max()) if ("janela_k" in df_res.columns and not df_res.empty) else None,
             }
         except Exception:
             pass
@@ -9342,6 +9468,139 @@ if painel == "📘 Relatório Final":
         st.json(_bl2)
     except Exception:
         pass
+
+
+    # ------------------------------------------------------------
+    # 🧭 C2 — Governança Legível (V9 + BLOCO C + Baliza Humana)
+    # Objetivo: explicar "o que aconteceu" de forma digerível,
+    # SEM mudar motores e SEM tocar Camada 4.
+    # ------------------------------------------------------------
+    st.markdown("---")
+    st.markdown("### 🧭 C2 — Governança Legível (V9 + BLOCO C + Baliza Humana)")
+    st.caption(
+        "Este bloco é **explicativo**: ele não muda listas, não decide volume, "
+        "e não toca Camada 4. Ele só deixa mais legível: (1) a Memória V9, "
+        "(2) o que o BLOCO C fez (ou não fez), e (3) uma baliza humana do momento."
+    )
+
+    # --- 1) Memória V9 (lastro) — legível ---
+    v9 = st.session_state.get("v9_memoria_borda", None)
+    if not isinstance(v9, dict):
+        st.info("V9 — Memória de Borda: **ainda não existe nesta sessão**. (Use 🧭 Replay Progressivo e registre janelas.)")
+        v9_status = "INEXISTENTE"
+    else:
+        resumo_v9 = v9.get("resumo", {}) or {}
+        class_v9 = v9.get("classificacao", {}) or {}
+        v9_status = str(class_v9.get("status", "INEXISTENTE"))
+        try:
+            fora_pct = float((resumo_v9.get("pct", {}) or {}).get("fora", 0.0))
+        except Exception:
+            fora_pct = None
+
+        st.markdown("#### 🧠 V9 — Memória de Borda (lastro ex‑post)")
+        st.write({
+            "status_lastro": v9_status,
+            "motivo": str(class_v9.get("motivo_curto", "—")),
+            "alvos_avaliados": int(class_v9.get("n_alvos_avaliados", 0) or 0),
+            "hits_agregados_total": int(resumo_v9.get("total_hits", 0) or 0),
+            "fora_do_pacote_pct": (f"{fora_pct:.1f}%" if isinstance(fora_pct, (int, float)) else "—"),
+            "pacotes_registrados": v9.get("pacotes_registrados", "—"),
+            "janela_range": (
+                f"C{v9.get('janela_min')}..C{v9.get('janela_max')}"
+                if (v9.get("janela_min") is not None and v9.get("janela_max") is not None)
+                else "—"
+            ),
+            "ts_memoria": v9.get("ts", "—"),
+        })
+        st.caption(
+            "Leitura correta: **INEXISTENTE/INSUFICIENTE** = pouco lastro (risco de miragem). "
+            "**EXCESSIVA** = mistura de regimes (pode diluir sinal local). "
+            "**OK** = bom o suficiente para **balizar**, sem virar decisão automática."
+        )
+
+    # --- 2) BLOCO C (V10) — legível ---
+    bc = st.session_state.get("bloco_c_info", {}) or {}
+    aplicado = bool(bc.get("aplicado"))
+    trocas = int(bc.get("trocas", 0) or 0)
+    motivo_bc = str(bc.get("motivo", ""))
+    if not aplicado:
+        modo_bc = "C0 (conservador)"
+    else:
+        modo_bc = "C1 (balanceado)" if trocas <= 4 else "C2 (refinado)"
+
+    st.markdown("#### 🧩 BLOCO C — Ajuste Fino Numérico (pré‑C4)")
+    st.write({
+        "aplicado": bool(aplicado),
+        "modo": modo_bc,
+        "trocas_total": int(trocas),
+        "motivo": motivo_bc if motivo_bc else "—",
+    })
+    st.caption(
+        "Regra canônica: o BLOCO C é **pré‑Camada 4** e só tenta melhorar coerência interna. "
+        "Se a Memória V9 estiver **INSUFICIENTE/EXCESSIVA**, ele pode não aplicar (para evitar miragem/diluição)."
+    )
+
+    # --- 3) Baliza humana do momento (sem censura) ---
+    def _c2_momento_humano() -> Dict[str, Any]:
+        m3 = st.session_state.get("m3_regime_dx") or st.session_state.get("m3_regime") or None
+        cls = st.session_state.get("classe_risco") or ""
+        kst = st.session_state.get("k_star") if isinstance(st.session_state.get("k_star"), (int, float)) else None
+        nrp = st.session_state.get("nr_percent") if isinstance(st.session_state.get("nr_percent"), (int, float)) else None
+        div = st.session_state.get("divergencia_s6_mc") if isinstance(st.session_state.get("divergencia_s6_mc"), (int, float)) else None
+
+        # Heurística simples (legível) — não decide nada.
+        # Prioridade: M3 RUIM ou risco elevado -> RUIM.
+        momento = "MÉDIO"
+        if str(m3).upper() == "RUIM":
+            momento = "RUIM"
+        if ("Elevado" in str(cls)) or ("🔴" in str(cls)) or ("🟠" in str(cls)):
+            momento = "RUIM"
+
+        # NR/div muito altos puxam p/ RUIM
+        try:
+            if isinstance(nrp, (int, float)) and nrp >= 35:
+                momento = "RUIM"
+        except Exception:
+            pass
+        try:
+            if isinstance(div, (int, float)) and div >= 3.0:
+                momento = "RUIM"
+        except Exception:
+            pass
+
+        # Momento BOM exige evidência positiva e baixa turbulência
+        if str(m3).upper() in ("BOM", "ECO", "PRE", "PRÉ-ECO") and momento != "RUIM":
+            if (nrp is None or nrp <= 25) and (div is None or div <= 2.0):
+                momento = "BOM"
+
+        # Faixas sugeridas (NÃO travam nada)
+        if momento == "BOM":
+            faixa = {"volume_sugerido": "10–80", "postura": "🟢 explorar com critério (cercar + refino)"}
+        elif momento == "MÉDIO":
+            faixa = {"volume_sugerido": "6–30", "postura": "🟡 cercar com critério (sem exagero)"}
+        else:
+            faixa = {"volume_sugerido": "3–12", "postura": "🔴 hipóteses enxutas (chance baixa, mas listas existem)"}
+
+        return {
+            "momento": momento,
+            "base": {
+                "M3_dx": m3 if m3 is not None else "—",
+                "classe_risco": cls if cls else "—",
+                "k*": (round(float(kst), 4) if isinstance(kst, (int, float)) else "—"),
+                "NR%": (round(float(nrp), 2) if isinstance(nrp, (int, float)) else "—"),
+                "div_S6xMC": (round(float(div), 4) if isinstance(div, (int, float)) else "—"),
+            },
+            **faixa,
+        }
+
+    momento = _c2_momento_humano()
+    st.markdown("#### 🧑‍✈️ Baliza humana do momento (sem censura)")
+    st.write(momento)
+    st.caption(
+        "Importante: **volume não é censurado**. Você decide 10/50/200. "
+        "Aqui é só uma régua humana para reduzir tentativa‑e‑erro psicológico."
+    )
+
 
     # ------------------------------------------------------------
     # 🎞️ BLOCO -0.5 — MEMÓRIA & EXPECTATIVA (read-only, se disponíveis)
