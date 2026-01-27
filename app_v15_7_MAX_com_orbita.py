@@ -6209,6 +6209,22 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             "miolo_do_pacote": f'{tot["miolo"]} ({pct["miolo"]}%)',
             "fora_do_pacote": f'{tot["fora"]} ({pct["fora"]}%)',
         })
+        # --- Persistência em sessão (V9 como lastro informativo) ---
+        try:
+            _resumo = {
+                "total_hits": int(total_hits),
+                "tot": {k: int(v) for k, v in tot.items()},
+                "pct": {k: float(pct.get(k, 0.0)) for k in tot.keys()},
+            }
+            _classif = v9_classificar_memoria_borda(df_res=df_res, total_hits=int(total_hits), pct=_resumo["pct"])
+            st.session_state["v9_memoria_borda"] = {
+                "resumo": _resumo,
+                "classificacao": _classif,
+                "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+            }
+        except Exception:
+            pass
+
     except Exception:
         pass
 
@@ -7714,6 +7730,199 @@ def sanidade_final_listas(listas):
 # ============================================================
 
 # ============================================================
+# BLOCO C (V10) — AJUSTE FINO NUMÉRICO (pré‑Camada 4)
+# - NÃO cria motor novo
+# - NÃO mexe em Modo 6 / TURBO / Bala
+# - NÃO expande universo (só permuta dentro do universo já presente no pacote)
+# - Objetivo: melhorar coerência interna e redistribuição do miolo sem perder borda real
+# ============================================================
+
+def v9_classificar_memoria_borda(*, df_res: Optional[pd.DataFrame], total_hits: int, pct: Dict[str, float]) -> Dict[str, Any]:
+    """
+    Classifica a qualidade de lastro da Memória V9 para uso informativo (baliza),
+    sem nunca virar decisão automática.
+
+    Retorna:
+      - status: 'INEXISTENTE' | 'INSUFICIENTE' | 'OK' | 'EXCESSIVA'
+      - motivo_curto
+      - n_alvos_avaliados
+    """
+    try:
+        n_alvos = 0
+        if df_res is not None and not df_res.empty:
+            # conta alvos existentes (k+1 e k+2) a partir das colunas alvo_*
+            if "alvo_1" in df_res.columns:
+                n_alvos += int(df_res["alvo_1"].notna().sum())
+            if "alvo_2" in df_res.columns:
+                n_alvos += int(df_res["alvo_2"].notna().sum())
+
+        if df_res is None or df_res.empty or total_hits <= 0 or n_alvos <= 0:
+            return {
+                "status": "INEXISTENTE",
+                "motivo_curto": "Sem alvos avaliados suficientes na Memória V9.",
+                "n_alvos_avaliados": int(n_alvos),
+            }
+
+        # Heurística canônica (observacional):
+        # - muito pouco: risco de miragem
+        # - muito: mistura de regimes e diluição de sinal local
+        if n_alvos < 6:
+            return {"status": "INSUFICIENTE", "motivo_curto": "Poucos alvos (risco de miragem).", "n_alvos_avaliados": int(n_alvos)}
+        if n_alvos > 60:
+            return {"status": "EXCESSIVA", "motivo_curto": "Alvos demais (pode diluir sinal local).", "n_alvos_avaliados": int(n_alvos)}
+
+        # Regra simples de saúde: se fora_do_pacote ainda está altíssimo, lastro existe, mas é fraco
+        fora_pct = float(pct.get("fora", 0.0))
+        if fora_pct >= 65.0:
+            return {"status": "OK", "motivo_curto": "Lastro existe, mas fora_do_pacote está alto.", "n_alvos_avaliados": int(n_alvos)}
+
+        return {"status": "OK", "motivo_curto": "Lastro adequado para baliza informativa.", "n_alvos_avaliados": int(n_alvos)}
+    except Exception:
+        return {"status": "INEXISTENTE", "motivo_curto": "Falha ao classificar Memória V9.", "n_alvos_avaliados": 0}
+
+
+def v10_bloco_c_aplicar_ajuste_fino_numerico(
+    listas: List[List[int]],
+    *,
+    n_real: int,
+    v8_borda_info: Optional[Dict[str, Any]] = None,
+    v9_memoria_info: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    BLOCO C (Ajuste fino numérico) — aplicado SOBRE um pacote já gerado.
+    - Não altera quantidade de listas
+    - Não expande o universo (somente troca dentro do conjunto já presente no pacote)
+    - Faz no máximo 1 troca por lista, com governança explícita.
+
+    Retorna:
+      { 'listas_ajustadas': [...], 'aplicado': bool, 'trocas': int, 'motivo': str }
+    """
+    if not listas:
+        return {"listas_ajustadas": listas, "aplicado": False, "trocas": 0, "motivo": "Sem listas para ajustar."}
+
+    # Só aplica se n_real for válido
+    try:
+        n_real = int(n_real)
+    except Exception:
+        n_real = 6
+
+    # Regras de habilitação (conservadoras)
+    v9_status = None
+    if isinstance(v9_memoria_info, dict):
+        v9_status = (v9_memoria_info.get("classificacao", {}) or {}).get("status")
+
+    # Se existir Memória V9 e for insuficiente/excessiva, não aplicar (evita miragem/diluição)
+    if v9_status in ("INSUFICIENTE", "EXCESSIVA"):
+        return {
+            "listas_ajustadas": listas,
+            "aplicado": False,
+            "trocas": 0,
+            "motivo": f"Memória V9 {v9_status}: ajuste fino numérico bloqueado (observacional).",
+        }
+
+    # Extrai CORE/quase‑CORE (se disponível)
+    core = set()
+    quase = set()
+    try:
+        if isinstance(v8_borda_info, dict):
+            core = set(v8_borda_info.get("CORE", []) or v8_borda_info.get("core", []) or [])
+            quase = set(v8_borda_info.get("quase_CORE", []) or v8_borda_info.get("quase_core", []) or [])
+    except Exception:
+        core, quase = set(), set()
+
+    # Universo do pacote (não pode expandir)
+    pacote_vals = []
+    for L in listas:
+        try:
+            pacote_vals.extend([int(x) for x in L])
+        except Exception:
+            pass
+    universo_pacote = sorted(set(pacote_vals))
+    if not universo_pacote:
+        return {"listas_ajustadas": listas, "aplicado": False, "trocas": 0, "motivo": "Universo do pacote vazio."}
+
+    # Frequências (miolo/coerência)
+    freq = {}
+    for v in pacote_vals:
+        freq[v] = freq.get(v, 0) + 1
+
+    # Candidatos de entrada: quase‑CORE primeiro; se vazio, não aplica (não inventa)
+    candidatos_in = [v for v in sorted(quase) if v in universo_pacote]
+    if not candidatos_in:
+        return {"listas_ajustadas": listas, "aplicado": False, "trocas": 0, "motivo": "Sem quase‑CORE no universo do pacote (nada para qualificar)."}
+
+    listas_out = []
+    trocas = 0
+
+    for L in listas:
+        try:
+            base = [int(x) for x in L]
+        except Exception:
+            listas_out.append(L)
+            continue
+
+        if len(base) != n_real or len(set(base)) != n_real:
+            listas_out.append(base)
+            continue
+
+        setL = set(base)
+
+        # Escolhe um candidato de entrada que NÃO esteja na lista
+        entra = None
+        for v in candidatos_in:
+            if v not in setL:
+                entra = v
+                break
+
+        if entra is None:
+            listas_out.append(base)
+            continue
+
+        # Escolhe um candidato de saída: menor frequência, evitando CORE e evitando apagar último exemplar (freq==1)
+        saida = None
+        candidatos_saida = sorted(base, key=lambda x: (freq.get(x, 0), x))
+        for v in candidatos_saida:
+            if v in core:
+                continue
+            if freq.get(v, 0) <= 1:
+                continue
+            saida = v
+            break
+
+        if saida is None:
+            # sem saída segura -> não troca
+            listas_out.append(base)
+            continue
+
+        # Aplica troca
+        novo = [x for x in base if x != saida]
+        novo.append(entra)
+
+        # Garante sanidade
+        novo = list(dict.fromkeys(novo))  # preserva ordem e remove dup
+        if len(novo) != n_real:
+            listas_out.append(base)
+            continue
+
+        # Atualiza freq (mantém universo sem expandir; não removemos último exemplar)
+        freq[saida] = max(0, freq.get(saida, 0) - 1)
+        freq[entra] = freq.get(entra, 0) + 1
+
+        listas_out.append(novo)
+        trocas += 1
+
+    if trocas <= 0:
+        return {"listas_ajustadas": listas, "aplicado": False, "trocas": 0, "motivo": "Nenhuma troca segura encontrada."}
+
+    return {
+        "listas_ajustadas": listas_out,
+        "aplicado": True,
+        "trocas": int(trocas),
+        "motivo": "Ajuste fino numérico aplicado (1 troca segura por lista, sem expandir universo).",
+    }
+
+
+# ============================================================
 # B0 — SANIDADE DE UNIVERSO (V16)
 # Observacional + corretivo leve
 # Garante que nenhum passageiro fora do universo real apareça
@@ -8028,6 +8237,40 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         st.session_state["modo6_n_extra"] = 0
         st.session_state["modo6_n_total"] = int(len(listas_totais))
 
+
+    # ============================================================
+    # BLOCO C (V10) — Ajuste Fino Numérico (miolo/coerência)
+    # Observacional, pré‑Camada 4.
+    # Usa V8 (borda qualificada) como mapa e V9 (memória) como lastro, se existir.
+    # ============================================================
+    try:
+        _v8_info = st.session_state.get("v8_borda_qualificada_info", None)
+        _v9_info = st.session_state.get("v9_memoria_borda", None)
+
+        _c_out = v10_bloco_c_aplicar_ajuste_fino_numerico(
+            listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais,
+            n_real=n_real,
+            v8_borda_info=_v8_info,
+            v9_memoria_info=_v9_info,
+        )
+
+        # aplica apenas sobre o pacote que será exibido como Top10 / pacote atual
+        if _c_out.get("aplicado"):
+            _aj = _c_out.get("listas_ajustadas", [])
+            # se estávamos trabalhando em Top10, mantém Top10 ajustado
+            if isinstance(listas_top10, list) and len(listas_top10) > 0:
+                listas_top10 = _aj
+            else:
+                listas_totais = _aj
+                listas_top10 = listas_totais[:10]
+
+        st.session_state["bloco_c_info"] = {
+            "aplicado": bool(_c_out.get("aplicado")),
+            "trocas": int(_c_out.get("trocas", 0)),
+            "motivo": str(_c_out.get("motivo", "")),
+        }
+    except Exception as _e:
+        st.session_state["bloco_c_info"] = {"aplicado": False, "trocas": 0, "motivo": f"Falha no BLOCO C: {_e}"}
     st.session_state["modo6_listas_totais"] = listas_totais
     st.session_state["modo6_listas_top10"] = listas_top10
     st.session_state["modo6_listas"] = listas_totais
