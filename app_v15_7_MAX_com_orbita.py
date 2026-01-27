@@ -6002,10 +6002,44 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             try:
                 from datetime import datetime
                 k_reg = int(st.session_state.get("replay_janela_k_active", k_novo))
+                # --- V9 (BLOCO B) — snapshot estrutural do pacote (OBSERVACIONAL / ex-post) ---
+                # Regra: separar o valor digitado (widget) do estado ativo e registrar um snapshot por janela.
+                # Isso NÃO decide nada e NÃO altera listas — apenas guarda estrutura para avaliação posterior.
+                try:
+                    v8_snap = st.session_state.get("v8_borda_qualificada") or {}
+                    # Se não houver snapshot V8 válido nesta rodada, recalcula de forma canônica a partir do pacote atual
+                    if not isinstance(v8_snap, dict) or v8_snap.get("meta", {}).get("status") not in ("ok", "presenca_vazia"):
+                        v8_snap = v8_classificar_borda_qualificada(
+                            listas=[list(map(int, lst)) for lst in pacote_atual],
+                            base_n=10,
+                            core_presenca_min=0.60,
+                            quase_delta=0.12,
+                            max_borda_interna=6,
+                            universo_min=st.session_state.get("universo_min"),
+                            universo_max=st.session_state.get("universo_max"),
+                            rigidez_info=st.session_state.get("v16_rigidez_info"),
+                        )
+                except Exception:
+                    v8_snap = {"core": [], "quase_core": [], "borda_interna": [], "borda_externa": [], "meta": {"status": "snap_falhou"}}
+
+                # Universo do pacote (união) — usado para classificar "miolo do pacote" vs "fora do pacote"
+                try:
+                    universo_pacote = sorted({int(x) for lst in pacote_atual for x in lst})
+                except Exception:
+                    universo_pacote = []
+
                 pacotes_reg[k_reg] = {
                     "ts": datetime.now().isoformat(timespec="seconds"),
                     "qtd": int(len(pacote_atual)),
                     "listas": [list(map(int, lst)) for lst in pacote_atual],
+                    "snap_v9": {
+                        "core": list(map(int, (v8_snap.get("core") or []))),
+                        "quase_core": list(map(int, (v8_snap.get("quase_core") or []))),
+                        "borda_interna": list(map(int, (v8_snap.get("borda_interna") or []))),
+                        "borda_externa": list(map(int, (v8_snap.get("borda_externa") or []))),
+                        "universo_pacote": list(map(int, universo_pacote)),
+                        "meta": v8_snap.get("meta") or {},
+                    },
                 }
                 st.session_state["replay_progressivo_pacotes"] = pacotes_reg
                 st.success(f"Pacote registrado para janela C1..C{k_reg}.")
@@ -6049,6 +6083,46 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                 pass
         return set(alvo)
 
+    
+    # --- V9 (BLOCO B) — Memória de Borda (ex-post, observacional) ---
+    # Para cada janela k registrada, além do "melhor acerto do pacote", também medimos:
+    # onde caíram os acertos (CORE / quase-CORE / borda interna / borda externa / miolo do pacote / fora do pacote)
+    def _v9_get_sets(info: dict):
+        snap = info.get("snap_v9") or {}
+        core = set(map(int, snap.get("core") or []))
+        quase = set(map(int, snap.get("quase_core") or []))
+        b_in = set(map(int, snap.get("borda_interna") or []))
+        b_ex = set(map(int, snap.get("borda_externa") or []))
+        uni = set(map(int, snap.get("universo_pacote") or []))
+        return core, quase, b_in, b_ex, uni
+
+    def _v9_contar_origens(alvo_set: set, core: set, quase: set, b_in: set, b_ex: set, uni: set):
+        # Classificação disjunta (ordem canônica):
+        # CORE > quase-CORE > borda interna > borda externa > miolo do pacote > fora do pacote
+        out = {
+            "core": 0,
+            "quase": 0,
+            "borda_in": 0,
+            "borda_ex": 0,
+            "miolo": 0,
+            "fora": 0,
+        }
+        if not alvo_set:
+            return out
+        for n in alvo_set:
+            if n in core:
+                out["core"] += 1
+            elif n in quase:
+                out["quase"] += 1
+            elif n in b_in:
+                out["borda_in"] += 1
+            elif n in b_ex:
+                out["borda_ex"] += 1
+            elif (uni and n in uni):
+                out["miolo"] += 1
+            else:
+                out["fora"] += 1
+        return out
     resultados = []
     for k_reg, info in sorted(pacotes_reg.items(), key=lambda x: int(x[0])):
         k_reg = int(k_reg)
@@ -6071,13 +6145,30 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             for lst in listas:
                 best2 = max(best2, len(set(lst) & alvo2))
 
+        # --- V9 (BLOCO B): onde caíram os acertos (ex-post) ---
+        core, quase, b_in, b_ex, uni = _v9_get_sets(info)
+        org1 = _v9_contar_origens(alvo1, core, quase, b_in, b_ex, uni) if alvo1 else None
+        org2 = _v9_contar_origens(alvo2, core, quase, b_in, b_ex, uni) if alvo2 else None
+
         resultados.append({
             "janela_k": k_reg,
             "qtd_listas": int(info.get("qtd", 0)),
             "alvo_1": f"C{k_reg+1}",
             "best_acerto_alvo_1": int(best1),
+            "core_hit_1": int(org1.get("core")) if org1 else None,
+            "quase_hit_1": int(org1.get("quase")) if org1 else None,
+            "borda_in_hit_1": int(org1.get("borda_in")) if org1 else None,
+            "borda_ex_hit_1": int(org1.get("borda_ex")) if org1 else None,
+            "miolo_hit_1": int(org1.get("miolo")) if org1 else None,
+            "fora_hit_1": int(org1.get("fora")) if org1 else None,
             "alvo_2": f"C{k_reg+2}" if alvo2 is not None else "—",
             "best_acerto_alvo_2": int(best2) if alvo2 is not None else None,
+            "core_hit_2": int(org2.get("core")) if org2 else None,
+            "quase_hit_2": int(org2.get("quase")) if org2 else None,
+            "borda_in_hit_2": int(org2.get("borda_in")) if org2 else None,
+            "borda_ex_hit_2": int(org2.get("borda_ex")) if org2 else None,
+            "miolo_hit_2": int(org2.get("miolo")) if org2 else None,
+            "fora_hit_2": int(org2.get("fora")) if org2 else None,
             "ts_registro": str(info.get("ts", "")),
         })
 
@@ -6087,6 +6178,39 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
 
     df_res = pd.DataFrame(resultados).sort_values(["janela_k"], ascending=True)
     st.dataframe(df_res, use_container_width=True, hide_index=True)
+
+    # --- V9 (BLOCO B) — Resumo agregado (ex-post, observacional) ---
+    try:
+        cols1 = ["core_hit_1", "quase_hit_1", "borda_in_hit_1", "borda_ex_hit_1", "miolo_hit_1", "fora_hit_1"]
+        cols2 = ["core_hit_2", "quase_hit_2", "borda_in_hit_2", "borda_ex_hit_2", "miolo_hit_2", "fora_hit_2"]
+
+        tot = {"core": 0, "quase": 0, "borda_in": 0, "borda_ex": 0, "miolo": 0, "fora": 0}
+        for c in cols1:
+            if c in df_res.columns:
+                tot[c.replace("_hit_1", "").replace("borda_in", "borda_in").replace("borda_ex", "borda_ex")] += int(df_res[c].fillna(0).sum())
+        for c in cols2:
+            if c in df_res.columns:
+                tot[c.replace("_hit_2", "").replace("borda_in", "borda_in").replace("borda_ex", "borda_ex")] += int(df_res[c].fillna(0).sum())
+
+        total_hits = sum(tot.values())
+        if total_hits > 0:
+            pct = {k: round(100.0 * v / total_hits, 1) for k, v in tot.items()}
+        else:
+            pct = {k: 0.0 for k in tot.keys()}
+
+        st.markdown("### 🧠 V9 — Memória de Borda (Resumo Agregado · ex‑post)")
+        st.caption("Agrega todos os alvos avaliados (C(k+1) e C(k+2) quando existirem). Não decide nada — só descreve onde os acertos nasceram.")
+        st.write({
+            "hits_total_agregado": int(total_hits),
+            "CORE": f'{tot["core"]} ({pct["core"]}%)',
+            "quase_CORE": f'{tot["quase"]} ({pct["quase"]}%)',
+            "borda_interna": f'{tot["borda_in"]} ({pct["borda_in"]}%)',
+            "borda_externa": f'{tot["borda_ex"]} ({pct["borda_ex"]}%)',
+            "miolo_do_pacote": f'{tot["miolo"]} ({pct["miolo"]}%)',
+            "fora_do_pacote": f'{tot["fora"]} ({pct["fora"]}%)',
+        })
+    except Exception:
+        pass
 
     st.info(
         "Interpretação correta:\n"
