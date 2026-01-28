@@ -6539,7 +6539,13 @@ if painel == "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo":
         }
 
     def _p1__eval_next2(df_: pd.DataFrame, k: int, universo: List[int]) -> Dict[str, Any]:
-        # Avalia fora_total / fora_perto / fora_longe nos 2 alvos seguintes (k+1, k+2), se existirem
+        """Avalia fora_total / fora_perto / fora_longe nos 2 alvos seguintes (k+1, k+2), se existirem.
+
+        ⚠️ Importante (governança):
+        - Isto é leitura ex-post.
+        - Não altera listas / não altera Camada 4.
+        - Usa preferencialmente o FULL para enxergar (k+1, k+2) mesmo quando o ATIVO foi recortado.
+        """
         cols_pass = [c for c in df_.columns if c.startswith("p")]
         u_set = set(int(x) for x in universo)
         u_sorted = sorted(u_set)
@@ -6547,37 +6553,68 @@ if painel == "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo":
         def _min_dist(x: int) -> int:
             if not u_sorted:
                 return 9999
-            # aproximação simples (universo pequeno): varre
             return min(abs(int(x) - int(u)) for u in u_sorted)
+
+        def _get_row_by_serie(df__ : pd.DataFrame, serie_id: int):
+            """Tenta achar a linha do alvo de forma robusta.
+            Prioridades:
+            1) index contém a série (loc)
+            2) iloc (assumindo série 1-based) -> iloc[serie_id-1]
+            3) iloc (assumindo série 0-based) -> iloc[serie_id]
+            """
+            try:
+                if serie_id in df__.index:
+                    return df__.loc[serie_id]
+            except Exception:
+                pass
+
+            try:
+                pos = int(serie_id) - 1
+                if 0 <= pos < len(df__):
+                    return df__.iloc[pos]
+            except Exception:
+                pass
+
+            try:
+                pos = int(serie_id)
+                if 0 <= pos < len(df__):
+                    return df__.iloc[pos]
+            except Exception:
+                pass
+
+            return None
 
         out = {
             "alvos": [],
             "fora_total": 0,
             "fora_perto": 0,
             "fora_longe": 0,
-            "detalhe_fora": [],  # lista de (k_alvo, x, perto?)
+            "detalhe_fora": [],  # lista de (serie_id, x, perto?)
         }
 
         for dk in (1, 2):
-            k_alvo = int(k) + int(dk)
-            if k_alvo >= len(df_):
+            serie_alvo = int(k) + int(dk)
+            row = _get_row_by_serie(df_, serie_alvo)
+            if row is None:
                 continue
-            row = df_.iloc[k_alvo]
+
             try:
                 alvo = [int(row[c]) for c in cols_pass]
             except Exception:
                 alvo = []
+
             fora = [x for x in alvo if int(x) not in u_set]
-            out["alvos"].append({"k": k_alvo, "alvo": alvo, "fora": fora})
+            out["alvos"].append({"k": int(serie_alvo), "alvo": alvo, "fora": fora})
+
             for x in fora:
                 out["fora_total"] += 1
                 dist = _min_dist(int(x))
                 if dist <= 1:
                     out["fora_perto"] += 1
-                    out["detalhe_fora"].append((k_alvo, int(x), True))
+                    out["detalhe_fora"].append((int(serie_alvo), int(x), True))
                 else:
                     out["fora_longe"] += 1
-                    out["detalhe_fora"].append((k_alvo, int(x), False))
+                    out["detalhe_fora"].append((int(serie_alvo), int(x), False))
 
         return out
 
@@ -6622,10 +6659,14 @@ if painel == "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo":
         st.write({"adds_B": ab["add_B"]})
         st.write(ab["UB"])
 
+    
+    # Preferir FULL para enxergar (k+1, k+2) quando o ATIVO foi recortado no Replay Progressivo
+    df_full = st.session_state.get("historico_df_full")
+    df_eval = df_full if (df_full is not None and not getattr(df_full, "empty", False)) else df
     st.markdown("### 📊 Avaliação ex-post (2 alvos seguintes): fora_total / fora_perto / fora_longe")
-    ev0 = _p1__eval_next2(df, int(k_sel), ab["U0"])
-    evA = _p1__eval_next2(df, int(k_sel), ab["UA"])
-    evB = _p1__eval_next2(df, int(k_sel), ab["UB"])
+    ev0 = _p1__eval_next2(df_eval, int(k_sel), ab["U0"])
+    evA = _p1__eval_next2(df_eval, int(k_sel), ab["UA"])
+    evB = _p1__eval_next2(df_eval, int(k_sel), ab["UB"])
 
     # Tabela simples (sem pandas para manter leve)
     st.write({
