@@ -3,7 +3,7 @@
 # ============================================================
 """PredictCars V15.7 MAX — V16 Premium
 Âncora Estável (base: app_v15_7_MAX_com_orbita.py)
-V8 — Ajuste Fino · Etapa 2 (Borda Qualificada, pré-Camada 4)
+P1 — Ajuste de Pacote (pré-C4) · Comparativo (A/B)
 Arquivo único, íntegro e operacional.
 """
 
@@ -43,7 +43,7 @@ st.set_page_config(
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning("Rodando arquivo âncora: app_v15_7_MAX_com_orbita_V8_ETAPA2_BORDA_QUALIFICADA.py")
+st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_P1_AJUSTE_PACOTE_PRE_C4.py")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
@@ -2119,7 +2119,8 @@ def construir_navegacao_v157() -> str:
         # -----------------------------------------------------
         "🔁 Replay LIGHT",
         "🔁 Replay ULTRA",
-        "🧭 Replay Progressivo — Janela Móvel (Assistido)",
+                "🧭 Replay Progressivo — Janela Móvel (Assistido)",
+        "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo",
         "🧪 Replay Curto — Expectativa 1–3 Séries",
 
         # -----------------------------------------------------
@@ -6404,6 +6405,254 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
 # ============================================================
 # Painel 6 — ⚙️ Modo TURBO++ HÍBRIDO
 # ============================================================
+
+# ============================================================
+# P1 — 🧪 Ajuste de Pacote (pré-C4) — Comparativo (A/B)
+# Base: Snapshot P0 Canônico (registrado no Replay Progressivo)
+# Regras:
+# - EX-POST (apenas análise do que já aconteceu)
+# - PRÉ-C4 (não muda listas / não decide volume / não toca Camada 4)
+# - Sem alvo "dirigido": regras A/B dependem apenas do snapshot (P0), não do alvo ex-post
+# ============================================================
+if painel == "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo":
+
+    st.markdown("## 🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo (A/B)")
+    st.caption("Baseado em **Snapshot P0 Canônico** (registrado no Replay Progressivo). Leitura ex-post; não altera Camada 4.")
+
+    df = st.session_state.get("historico_df")
+    if df is None or len(df) < 5:
+        exibir_bloco_mensagem(
+            "Histórico ausente",
+            "Execute primeiro **📁 Carregar Histórico**.",
+            tipo="warning",
+        )
+        st.stop()
+
+    # Anti-zumbi leve (painel analítico)
+    qtd_series = len(df)
+    if not limitar_operacao(
+        qtd_series,
+        limite_series=LIMITE_SERIES_REPLAY_ULTRA,
+        contexto="P1 (Ajuste de Pacote pré-C4)",
+        painel="🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo",
+    ):
+        st.stop()
+
+    snapshots = st.session_state.get("snapshot_p0_canonic") or {}
+    if not snapshots:
+        exibir_bloco_mensagem(
+            "Nenhum Snapshot P0 registrado",
+            "Vá em **🧭 Replay Progressivo — Janela Móvel (Assistido)** e clique em **📌 Registrar pacote da janela atual**.\n\n"
+            "Depois volte aqui para rodar o P1 (comparativo).",
+            tipo="info",
+        )
+        st.stop()
+
+    # ----------------------------
+    # Helpers (P1) — regras A/B
+    # ----------------------------
+    def _p1__clamp(v: int, umin: int, umax: int) -> int:
+        return max(int(umin), min(int(umax), int(v)))
+
+    def _p1__neighbors(base_vals: List[int], umin: int, umax: int, deltas: List[int]) -> List[int]:
+        out = []
+        for x in base_vals:
+            try:
+                xi = int(x)
+            except Exception:
+                continue
+            for d in deltas:
+                out.append(_p1__clamp(xi + int(d), umin, umax))
+        return out
+
+    def _p1__pick_novel(candidates: List[int], universo_base: set, limit_n: int) -> List[int]:
+        # Mantém ordem estável (por frequência implícita: candidatos já vêm ordenados)
+        out = []
+        seen = set()
+        for x in candidates:
+            xi = int(x)
+            if xi in universo_base:
+                continue
+            if xi in seen:
+                continue
+            seen.add(xi)
+            out.append(xi)
+            if len(out) >= int(limit_n):
+                break
+        return out
+
+    def _p1__build_AB(snapshot: Dict[str, Any], umin: int, umax: int) -> Dict[str, Any]:
+        u0_list = snapshot.get("universo_pacote") or []
+        u0 = set(int(x) for x in u0_list if str(x).strip() != "")
+        u0 = set(_p1__clamp(x, umin, umax) for x in u0)
+
+        snap_v8 = snapshot.get("snap_v8") or {}
+        core = [int(x) for x in (snap_v8.get("core") or [])]
+        quase = [int(x) for x in (snap_v8.get("quase_core") or [])]
+        borda_interna = [int(x) for x in (snap_v8.get("borda_interna") or [])]
+
+        # Frequências (ordenadas) — já vem como dict ordenado no snapshot
+        freq = snapshot.get("freq_passageiros") or {}
+        freq_items = []
+        try:
+            for k_str, v in freq.items():
+                try:
+                    freq_items.append((int(k_str), int(v)))
+                except Exception:
+                    continue
+            freq_items.sort(key=lambda kv: (-kv[1], kv[0]))
+        except Exception:
+            freq_items = []
+
+        top_freq = [k for k, _ in freq_items[:10]]
+
+        # ------------------------
+        # Regra A (P1.A) — "borda interna mais ativa"
+        # - Regra ex-ante: só usa P0 (core/quase/borda_interna)
+        # - Intenção: capturar parte do "fora_perto" com adição mínima e interna
+        # ------------------------
+        base_A = core + quase + borda_interna
+        cand_A = _p1__neighbors(base_A, umin, umax, deltas=[-1, +1])
+        add_A = _p1__pick_novel(cand_A, u0, limit_n=6)
+        uA = set(u0) | set(add_A)
+
+        # ------------------------
+        # Regra B (P1.B) — "deslocamento levíssimo de centro"
+        # - Regra ex-ante: só usa P0 (top freq)
+        # - Intenção: atacar parte do "fora_longe" sem explosão de universo
+        # ------------------------
+        cand_B = _p1__neighbors(top_freq, umin, umax, deltas=[-1, +1])
+        add_B = _p1__pick_novel(cand_B, u0, limit_n=8)
+        uB = set(u0) | set(add_B)
+
+        return {
+            "U0": sorted(u0),
+            "UA": sorted(uA),
+            "UB": sorted(uB),
+            "add_A": add_A,
+            "add_B": add_B,
+            "meta": {
+                "u0_len": len(u0),
+                "ua_len": len(uA),
+                "ub_len": len(uB),
+            }
+        }
+
+    def _p1__eval_next2(df_: pd.DataFrame, k: int, universo: List[int]) -> Dict[str, Any]:
+        # Avalia fora_total / fora_perto / fora_longe nos 2 alvos seguintes (k+1, k+2), se existirem
+        cols_pass = [c for c in df_.columns if c.startswith("p")]
+        u_set = set(int(x) for x in universo)
+        u_sorted = sorted(u_set)
+
+        def _min_dist(x: int) -> int:
+            if not u_sorted:
+                return 9999
+            # aproximação simples (universo pequeno): varre
+            return min(abs(int(x) - int(u)) for u in u_sorted)
+
+        out = {
+            "alvos": [],
+            "fora_total": 0,
+            "fora_perto": 0,
+            "fora_longe": 0,
+            "detalhe_fora": [],  # lista de (k_alvo, x, perto?)
+        }
+
+        for dk in (1, 2):
+            k_alvo = int(k) + int(dk)
+            if k_alvo >= len(df_):
+                continue
+            row = df_.iloc[k_alvo]
+            try:
+                alvo = [int(row[c]) for c in cols_pass]
+            except Exception:
+                alvo = []
+            fora = [x for x in alvo if int(x) not in u_set]
+            out["alvos"].append({"k": k_alvo, "alvo": alvo, "fora": fora})
+            for x in fora:
+                out["fora_total"] += 1
+                dist = _min_dist(int(x))
+                if dist <= 1:
+                    out["fora_perto"] += 1
+                    out["detalhe_fora"].append((k_alvo, int(x), True))
+                else:
+                    out["fora_longe"] += 1
+                    out["detalhe_fora"].append((k_alvo, int(x), False))
+
+        return out
+
+    # ----------------------------
+    # UI
+    # ----------------------------
+    ks = sorted([int(k) for k in snapshots.keys()])
+    k_sel = st.selectbox("Escolha a janela registrada (k)", ks, index=len(ks) - 1)
+
+    snap = snapshots.get(int(k_sel)) or snapshots.get(str(k_sel)) or {}
+    st.markdown("### 🧊 Snapshot P0 selecionado (visão rápida)")
+    try:
+        st.write({
+            "k": snap.get("k"),
+            "ts": snap.get("ts"),
+            "qtd_listas": snap.get("qtd_listas"),
+            "assinatura": snap.get("assinatura"),
+            "universo_pacote_len": len(snap.get("universo_pacote") or []),
+            "core_sz": len((snap.get("snap_v8") or {}).get("core") or []),
+            "quase_sz": len((snap.get("snap_v8") or {}).get("quase_core") or []),
+            "borda_interna_sz": len((snap.get("snap_v8") or {}).get("borda_interna") or []),
+        })
+    except Exception:
+        pass
+
+    umin = int(st.session_state.get("universo_min") or 1)
+    umax = int(st.session_state.get("universo_max") or 60)
+
+    ab = _p1__build_AB(snap, umin=umin, umax=umax)
+
+    st.markdown("### 🧠 Regras P1 (A/B) — o que muda no universo (pré-C4)")
+    colA, colB, col0 = st.columns([1, 1, 1])
+    with col0:
+        st.info(f"U0 (base) — len={ab['meta']['u0_len']}")
+        st.write(ab["U0"])
+    with colA:
+        st.success(f"P1.A — len={ab['meta']['ua_len']} (adds={len(ab['add_A'])})")
+        st.write({"adds_A": ab["add_A"]})
+        st.write(ab["UA"])
+    with colB:
+        st.success(f"P1.B — len={ab['meta']['ub_len']} (adds={len(ab['add_B'])})")
+        st.write({"adds_B": ab["add_B"]})
+        st.write(ab["UB"])
+
+    st.markdown("### 📊 Avaliação ex-post (2 alvos seguintes): fora_total / fora_perto / fora_longe")
+    ev0 = _p1__eval_next2(df, int(k_sel), ab["U0"])
+    evA = _p1__eval_next2(df, int(k_sel), ab["UA"])
+    evB = _p1__eval_next2(df, int(k_sel), ab["UB"])
+
+    # Tabela simples (sem pandas para manter leve)
+    st.write({
+        "U0": {"fora_total": ev0["fora_total"], "fora_perto": ev0["fora_perto"], "fora_longe": ev0["fora_longe"]},
+        "P1.A": {"fora_total": evA["fora_total"], "fora_perto": evA["fora_perto"], "fora_longe": evA["fora_longe"]},
+        "P1.B": {"fora_total": evB["fora_total"], "fora_perto": evB["fora_perto"], "fora_longe": evB["fora_longe"]},
+    })
+
+    with st.expander("🔎 Detalhe dos alvos e 'foras' (U0 / P1.A / P1.B)"):
+        st.markdown("#### U0 — alvos")
+        st.write(ev0["alvos"])
+        st.markdown("#### P1.A — alvos")
+        st.write(evA["alvos"])
+        st.markdown("#### P1.B — alvos")
+        st.write(evB["alvos"])
+
+    st.info(
+        "Interpretação correta:\n"
+        "- P1 é **comparativo ex-post**: mede como o 'universo do pacote' (P0) teria coberto os 2 alvos seguintes.\n"
+        "- P1.A e P1.B aplicam **regras ex-ante** (dependem apenas do snapshot), para evitar viés.\n"
+        "- Este painel **não altera listas reais**, **não decide volume** e **não toca Camada 4**.\n"
+        "- Use para comparar janelas e verificar se existe caminho para reduzir **fora_longe** sem explodir universo."
+    )
+
+    st.stop()
+
+
 if painel == "⚙️ Modo TURBO++ HÍBRIDO":
 
     st.markdown("## ⚙️ Modo TURBO++ HÍBRIDO — V15.7 MAX")
