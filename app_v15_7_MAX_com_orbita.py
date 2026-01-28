@@ -6200,6 +6200,45 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             else:
                 out["fora"] += 1
         return out
+
+    def _v9_trave_proximidade(alvo_set: set, uni: set, thr: int = 2):
+        """Métrica contínua de 'trave/proximidade' (ex‑post).
+        Para cada número do alvo que caiu FORA do universo do pacote, mede o quão perto ele ficou
+        (distância mínima até qualquer número do universo do pacote).
+
+        - fora_perto: fora do pacote, mas com distância <= thr
+        - fora_longe: fora do pacote e distância > thr
+        - dist_media: média das distâncias mínimas (apenas dos que ficaram fora)
+
+        Observacional. Não altera motor nem Camada 4.
+        """
+        if not alvo_set:
+            return {"fora_perto": 0, "fora_longe": 0, "dist_media": None, "dist_max": None}
+        if not uni:
+            # sem universo do pacote, não há como medir proximidade
+            return {"fora_perto": 0, "fora_longe": int(len(alvo_set)), "dist_media": None, "dist_max": None}
+        uni_list = sorted(list(uni))
+        dists = []
+        fora_perto = 0
+        fora_longe = 0
+        for n in alvo_set:
+            if n in uni:
+                continue
+            # distância mínima até o universo
+            md = min(abs(n - u) for u in uni_list)
+            dists.append(md)
+            if md <= thr:
+                fora_perto += 1
+            else:
+                fora_longe += 1
+        if dists:
+            dist_media = float(sum(dists)) / float(len(dists))
+            dist_max = int(max(dists))
+        else:
+            dist_media = 0.0
+            dist_max = 0
+        return {"fora_perto": int(fora_perto), "fora_longe": int(fora_longe), "dist_media": dist_media, "dist_max": dist_max}
+
     resultados = []
     for k_reg, info in sorted(pacotes_reg.items(), key=lambda x: int(x[0])):
         k_reg = int(k_reg)
@@ -6227,6 +6266,10 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         org1 = _v9_contar_origens(alvo1, core, quase, b_in, b_ex, uni) if alvo1 else None
         org2 = _v9_contar_origens(alvo2, core, quase, b_in, b_ex, uni) if alvo2 else None
 
+        # --- Trave/Proximidade (ex-post): 'fora, mas perto' vs 'fora e longe' ---
+        tr1 = _v9_trave_proximidade(alvo1, uni, thr=2) if alvo1 else None
+        tr2 = _v9_trave_proximidade(alvo2, uni, thr=2) if alvo2 else None
+
         resultados.append({
             "janela_k": k_reg,
             "qtd_listas": int(info.get("qtd", 0)),
@@ -6238,6 +6281,10 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             "borda_ex_hit_1": int(org1.get("borda_ex")) if org1 else None,
             "miolo_hit_1": int(org1.get("miolo")) if org1 else None,
             "fora_hit_1": int(org1.get("fora")) if org1 else None,
+            "fora_perto_1": int(tr1.get("fora_perto")) if tr1 else None,
+            "fora_longe_1": int(tr1.get("fora_longe")) if tr1 else None,
+            "dist_media_fora_1": tr1.get("dist_media") if tr1 else None,
+            "dist_max_fora_1": tr1.get("dist_max") if tr1 else None,
             "alvo_2": f"C{k_reg+2}" if alvo2 is not None else "—",
             "best_acerto_alvo_2": int(best2) if alvo2 is not None else None,
             "core_hit_2": int(org2.get("core")) if org2 else None,
@@ -6246,6 +6293,10 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             "borda_ex_hit_2": int(org2.get("borda_ex")) if org2 else None,
             "miolo_hit_2": int(org2.get("miolo")) if org2 else None,
             "fora_hit_2": int(org2.get("fora")) if org2 else None,
+            "fora_perto_2": int(tr2.get("fora_perto")) if tr2 else None,
+            "fora_longe_2": int(tr2.get("fora_longe")) if tr2 else None,
+            "dist_media_fora_2": tr2.get("dist_media") if tr2 else None,
+            "dist_max_fora_2": tr2.get("dist_max") if tr2 else None,
             "ts_registro": str(info.get("ts", "")),
         })
 
@@ -6286,6 +6337,34 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             "miolo_do_pacote": f'{tot["miolo"]} ({pct["miolo"]}%)',
             "fora_do_pacote": f'{tot["fora"]} ({pct["fora"]}%)',
         })
+
+        # --- Trave/Proximidade (ex-post): detalha o "fora" em perto vs longe ---
+        try:
+            fp = 0
+            fl = 0
+            for c in ["fora_perto_1", "fora_perto_2"]:
+                if c in df_res.columns:
+                    fp += int(df_res[c].fillna(0).sum())
+            for c in ["fora_longe_1", "fora_longe_2"]:
+                if c in df_res.columns:
+                    fl += int(df_res[c].fillna(0).sum())
+            tot_fora = int(tot.get("fora", 0))
+            if tot_fora > 0:
+                pct_fp = round(100.0 * fp / tot_fora, 1)
+                pct_fl = round(100.0 * fl / tot_fora, 1)
+            else:
+                pct_fp = 0.0
+                pct_fl = 0.0
+            st.markdown("#### 🎯 Trave/Proximidade (fora do pacote)")
+            st.caption("Mesmo sem aumentar acertos, esta leitura mostra se o alvo está ficando **fora, porém perto** (batendo na trave) ou **fora e longe**.")
+            st.write({
+                "fora_total": tot_fora,
+                "fora_perto": f"{fp} ({pct_fp}%)",
+                "fora_longe": f"{fl} ({pct_fl}%)",
+            })
+        except Exception:
+            pass
+
         # --- Persistência em sessão (V9 como lastro informativo) ---
         try:
             _resumo = {
