@@ -13599,7 +13599,7 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
     st.markdown("## 🧪 P2 — Hipóteses de Família (pré-C4)")
     df_full = st.session_state.get("historico_df")
-    snapshot = st.session_state.get("snapshot_p0")
+    snapshot = st.session_state.get("snapshot_p0_canonic") or st.session_state.get("snapshot_p0")
 
     if df_full is None or snapshot is None:
         st.warning("Histórico ou Snapshot P0 ausente.")
