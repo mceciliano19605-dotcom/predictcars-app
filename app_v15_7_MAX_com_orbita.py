@@ -90,6 +90,231 @@ def p2_h2_dist(df_hist, universo, cap, n=6):
     adds = [v for v, _ in cand[:cap]]
     return adds, sorted(set(universo) | set(adds))
 
+
+# ============================================================
+# CAMADA 3 — PARABÓLICA (GOVERNO PRÉ-C4) — MULTI-ESCALA + VETORIAL + PERSISTÊNCIA
+# ============================================================
+# Regra canônica:
+# - Leitura apenas (pré-C4)
+# - Governa permissões estruturais (P1/P2) sem decidir ataque
+# - Critérios objetivos (sem chute): multi-escala + persistência mínima
+# ============================================================
+
+def _parab_safe_float(x, default=0.0):
+    try:
+        xf = float(x)
+        if np.isnan(xf) or np.isinf(xf):
+            return default
+        return xf
+    except Exception:
+        return default
+
+def _parab_state_from_curvature(c: float, eps: float) -> str:
+    if c < -eps:
+        return "DESCENDO"
+    if c > eps:
+        return "SUBINDO"
+    return "PLANA"
+
+def _parab_auto_eps(dE, C):
+    # eps objetivo: escala pelo ruído real observado (dE e curvatura)
+    try:
+        mdE = float(np.median(np.abs(dE))) if len(dE) else 0.0
+        mC = float(np.median(np.abs(C))) if len(C) else 0.0
+        # piso mínimo evita “tremedeira” quando valores são pequenos
+        return max(0.05, 0.15 * mdE + 0.05 * mC)
+    except Exception:
+        return 0.05
+
+def _parab_resolver_pos_k(df: pd.DataFrame, k_val: int):
+    idxs = list(df.index)
+    if k_val in idxs:
+        return idxs.index(k_val), idxs
+    if (k_val - 1) in idxs:
+        return idxs.index(k_val - 1), idxs
+    if (k_val + 1) in idxs:
+        return idxs.index(k_val + 1), idxs
+    try:
+        if hasattr(df.index, "start") and hasattr(df.index, "stop"):
+            if df.index.start <= k_val < df.index.stop:
+                return int(k_val - df.index.start), idxs
+    except Exception:
+        pass
+    return None, idxs
+
+def _parab_series_from_df(df: pd.DataFrame, idx, n: int = 6):
+    cols = [c for c in df.columns if str(c).startswith("p")]
+    if len(cols) >= n:
+        return [int(df.loc[idx, c]) for c in cols[:n]]
+    vals = []
+    for c in df.columns:
+        try:
+            vals.append(int(df.loc[idx, c]))
+        except Exception:
+            pass
+    return vals[:n]
+
+def _parab_erro_snapshot(df: pd.DataFrame, snap: dict, n: int = 6):
+    universo = snap.get("universo_pacote") or snap.get("universo") or snap.get("universo_p0") or []
+    try:
+        universo = [int(x) for x in universo]
+    except Exception:
+        universo = []
+    uni_set = set(universo)
+
+    k_val = int(snap.get("k", -1))
+    pos, idxs = _parab_resolver_pos_k(df, k_val)
+    if pos is None:
+        return None
+
+    alvos = []
+    for off in (1, 2):
+        if pos + off < len(idxs):
+            alvos.append(_parab_series_from_df(df, idxs[pos + off], n=n))
+
+    fora_total = 0
+    fora_perto = 0
+    fora_longe = 0
+    dist_medias = []
+
+    for alvo in alvos:
+        alvo_set = set(alvo)
+        try:
+            r = _v9_trave_proximidade(alvo_set, uni_set, thr=2)
+            fora_total += int(r.get("fora_total", 0))
+            fora_perto += int(r.get("fora_perto", 0))
+            fora_longe += int(r.get("fora_longe", 0))
+            dist_medias.append(float(r.get("dist_media", 0.0)))
+        except Exception:
+            fora = list(alvo_set - uni_set)
+            fora_total += len(fora)
+            fora_longe += len(fora)
+
+    dist_media = float(np.mean(dist_medias)) if dist_medias else 0.0
+
+    return {
+        "k": k_val,
+        "universo_len": len(universo),
+        "score_rigidez": _parab_safe_float(snap.get("score_rigidez", 0.0)),
+        "fora_total": int(fora_total),
+        "fora_perto": int(fora_perto),
+        "fora_longe": int(fora_longe),
+        "dist_media": float(dist_media),
+    }
+
+def _parab_compute_curvature(vals):
+    # retorna dE, C (ddE), eps_auto, curvatura_atual
+    E = [_parab_safe_float(v) for v in vals]
+    dE = np.diff(E) if len(E) >= 2 else np.array([])
+    C = np.diff(dE) if len(dE) >= 2 else np.array([])
+    eps = _parab_auto_eps(dE, C)
+    curv = float(C[-1]) if len(C) else 0.0
+    return E, dE.tolist() if len(dE) else [], C.tolist() if len(C) else [], float(eps), float(curv)
+
+def parabola_multiescala_vetorial(df_full: pd.DataFrame, snapshots_map: dict, n: int = 6):
+    # snapshots_map: dict[k]->snapshot(dict)
+    ks = sorted([int(k) for k in snapshots_map.keys() if str(k).isdigit()])
+    if len(ks) < 3:
+        return None
+
+    # escalas objetivas (sem chute): curta/média/longa dentro do que existir
+    W_short = min(5, len(ks))
+    W_mid = min(9, len(ks))
+    W_long = min(15, len(ks))
+
+    def _serie(W):
+        ks_w = ks[-W:]
+        serie = []
+        for kk in ks_w:
+            s = snapshots_map.get(kk)
+            if isinstance(s, dict):
+                e = _parab_erro_snapshot(df_full, s, n=n)
+                if e is not None:
+                    serie.append(e)
+        return serie
+
+    out = {"ks_all": ks, "Ws": {"short": W_short, "mid": W_mid, "long": W_long}}
+
+    # métrica primária e confirmadoras (vetorial)
+    metrics = {
+        "fora_longe": {"label": "fora_longe"},
+        "fora_total": {"label": "fora_total"},
+        "dist_media": {"label": "dist_media"},
+        "universo_len": {"label": "universo_len"},
+        "score_rigidez": {"label": "score_rigidez"},
+    }
+
+    scales = {"short": _serie(W_short), "mid": _serie(W_mid), "long": _serie(W_long)}
+    out["series"] = scales
+
+    # estados por (escala, métrica)
+    estados = {}
+    debug = {}
+
+    for sname, serie in scales.items():
+        estados[sname] = {}
+        debug[sname] = {}
+        if len(serie) < 3:
+            for mname in metrics.keys():
+                estados[sname][mname] = "N/D"
+            debug[sname]["motivo"] = "serie_insuficiente"
+            continue
+        for mname in metrics.keys():
+            vals = [row.get(mname, 0.0) for row in serie]
+            E, dE, C, eps, curv = _parab_compute_curvature(vals)
+            stt = _parab_state_from_curvature(curv, eps)
+            estados[sname][mname] = stt
+            debug[sname][mname] = {"E": E, "dE": dE, "C": C, "eps": eps, "curv": curv}
+
+    out["estados"] = estados
+    out["debug"] = debug
+
+    # persistência objetiva:
+    # - exige ao menos 2 curvaturas consecutivas na mesma direção na escala longa (métrica primária)
+    pers = {"ok_subindo": False, "ok_descendo": False, "motivo": None}
+    try:
+        dbg = debug.get("long", {}).get("fora_longe", {})
+        C = dbg.get("C", [])
+        eps = float(dbg.get("eps", 0.05))
+        if len(C) >= 2:
+            c1, c2 = float(C[-2]), float(C[-1])
+            pers["ok_subindo"] = (c1 > eps and c2 > eps)
+            pers["ok_descendo"] = (c1 < -eps and c2 < -eps)
+        else:
+            pers["motivo"] = "C_insuficiente"
+    except Exception:
+        pers["motivo"] = "erro_persistencia"
+
+    out["persistencia"] = pers
+
+    # estado global (governo): usa LONG primário como “mundo”, SHORT como “momento”
+    st_long = estados.get("long", {}).get("fora_longe", "N/D")
+    st_short = estados.get("short", {}).get("fora_longe", "N/D")
+
+    if st_long == "SUBINDO" and pers["ok_subindo"]:
+        estado_global = "SUBINDO"
+    elif st_long == "DESCENDO" and pers["ok_descendo"]:
+        estado_global = "DESCENDO"
+    else:
+        # se curto diverge do longo, tratamos como PLANA (instável/ambíguo) por governança
+        estado_global = "PLANA"
+
+    # P2 “acorda” somente se:
+    # - global SUBINDO (com persistência)
+    # - e pelo menos 1 confirmador (fora_total OU dist_media) também SUBINDO em long ou mid
+    conf = False
+    for conf_metric in ("fora_total", "dist_media"):
+        if estados.get("long", {}).get(conf_metric) == "SUBINDO" or estados.get("mid", {}).get(conf_metric) == "SUBINDO":
+            conf = True
+    p2_permitido = (estado_global == "SUBINDO") and conf
+
+    out["estado_global"] = estado_global
+    out["p2_permitido"] = bool(p2_permitido)
+    out["confirmacao"] = {"confirmadores_subindo": bool(conf)}
+
+    return out
+
+
 def p2_executar(snapshot, df_full):
     k = snapshot.get("k")
     universo = list(snapshot.get("universo_pacote", []))
@@ -109,12 +334,33 @@ def p2_executar(snapshot, df_full):
         fora_longe += len(fora)
     cap = p2_calcular_cap_dinamico(len(universo), fora_longe, fora_total, score_rigidez)
 
-    # Governo estrutural (Parabólica): P2 só pode "acordar" quando estado == SUBINDO.
-    estado_parabola = st.session_state.get("parabola_estado")  # pode estar ausente
-    p2_permitido = (estado_parabola == "SUBINDO")
+    # Governo estrutural (Parabólica): P2 só pode "acordar" quando houver SUBIDA com persistência (multi-escala).
+    # Critério objetivo: parabola_multiescala_vetorial (sem chute).
+    estado_parabola = st.session_state.get("parabola_estado_global") or st.session_state.get("parabola_estado")
+    p2_permitido = st.session_state.get("parabola_p2_permitido")
+
+    if p2_permitido is None:
+        # se a Parabólica ainda não foi visitada, calculamos aqui (usando apenas histórico + snapshots)
+        snaps_map = st.session_state.get("snapshots_p0_map", {})
+        if not snaps_map:
+            # fallback: tenta converter lista->map
+            snaps_list = st.session_state.get("snapshots_p0", [])
+            if isinstance(snaps_list, list) and snaps_list:
+                try:
+                    snaps_map = {int(s.get("k")): s for s in snaps_list if isinstance(s, dict) and s.get("k") is not None}
+                except Exception:
+                    snaps_map = {}
+        if snaps_map:
+            gov = parabola_multiescala_vetorial(df_full, snaps_map, n=n)
+            if gov:
+                estado_parabola = gov.get("estado_global")
+                p2_permitido = bool(gov.get("p2_permitido"))
+                st.session_state["parabola_estado_global"] = estado_parabola
+                st.session_state["parabola_p2_permitido"] = p2_permitido
+
     motivo_p2 = None
     if not p2_permitido:
-        motivo_p2 = f"P2 vetado pela Parabólica (estado={estado_parabola}). Mantido cap=0 (P2 dormindo)."
+        motivo_p2 = f"P2 vetado pela Parabólica (estado_global={estado_parabola}). Mantido cap=0 (P2 dormindo)."
         cap = 0
     df_hist = df_full.iloc[:pos+1]
     adds_h1, U_h1 = p2_h1_freq(df_hist, universo, cap, n=n)
@@ -13715,200 +13961,78 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 
 
 elif painel == "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)":
-    st.markdown("## 📐 Parabólica — Curvatura do Erro (Governança Pré-C4)")
-    st.caption("Leitura de 2ª ordem do erro (aceleração/curvatura). Não altera Camada 4. Governa permissões estruturais (P1/P2) apenas como leitura.")
 
-    df_full = st.session_state.get("historico_df")
-    snapshots = st.session_state.get("snapshot_p0_canonic") or st.session_state.get("snapshot_p0") or {}
+    st.markdown("## 📐 Parabólica — Curvatura do Erro (Governança Pré-C4)")
+    st.caption("Leitura pré-C4. Usa apenas histórico + Snapshots P0 registrados. Não altera Camada 4.")
+
+    df_full = st.session_state.get("df_full") or st.session_state.get("historico_df")
+    snaps_map = st.session_state.get("snapshots_p0_map", {})
 
     if df_full is None:
-        st.warning("Histórico ausente. Carregue o histórico primeiro.")
+        st.warning("Histórico ausente. Carregue o histórico antes.")
         st.stop()
 
-    if not snapshots:
-        st.warning("Nenhum Snapshot P0 registrado ainda. Registre pelo Replay Progressivo.")
-        st.stop()
-
-    # Normaliza snapshots -> dict[k]->snapshot
-    if isinstance(snapshots, list):
-        snaps_map = {}
-        for s in snapshots:
+    # fallback: lista -> map
+    if not snaps_map:
+        snaps_list = st.session_state.get("snapshots_p0", [])
+        if isinstance(snaps_list, list) and snaps_list:
             try:
-                kk = int(s.get("k")) if isinstance(s, dict) else None
+                snaps_map = {int(s.get("k")): s for s in snaps_list if isinstance(s, dict) and s.get("k") is not None}
+                st.session_state["snapshots_p0_map"] = snaps_map
             except Exception:
-                kk = None
-            if kk is not None:
-                snaps_map[kk] = s
-        snapshots = snaps_map
+                snaps_map = {}
 
-    ks = sorted([int(k) for k in snapshots.keys() if str(k).isdigit()])
-    if not ks:
-        st.warning("Snapshots P0 encontrados, mas nenhum 'k' válido foi detectado.")
+    if not snaps_map or len(snaps_map) < 3:
+        st.warning("É necessário ao menos 3 Snapshots P0 registrados para calcular a Parabólica (multi-escala).")
         st.stop()
 
-    k_sel = st.selectbox("Escolha a janela registrada (k)", ks, index=len(ks)-1)
-
-    def _resolver_pos_k(df: pd.DataFrame, k_val: int):
-        # mapeia k->posição robustamente (índice pode ser 0..N-1 ou 1..N)
-        idxs = list(df.index)
-        if k_val in idxs:
-            return idxs.index(k_val), idxs
-        if (k_val - 1) in idxs:
-            return idxs.index(k_val - 1), idxs
-        if (k_val + 1) in idxs:
-            return idxs.index(k_val + 1), idxs
-        # fallback: se índice for RangeIndex
-        try:
-            if hasattr(df.index, "start") and hasattr(df.index, "stop"):
-                # RangeIndex
-                if df.index.start <= k_val < df.index.stop:
-                    return int(k_val - df.index.start), idxs
-        except Exception:
-            pass
-        return None, idxs
-
-    def _series_from_df(df: pd.DataFrame, idx):
-        cols = [c for c in df.columns if str(c).startswith("p")]
-        if len(cols) >= 6:
-            return [int(df.loc[idx, c]) for c in cols[:6]]
-        vals = []
-        for c in df.columns:
-            try:
-                vals.append(int(df.loc[idx, c]))
-            except Exception:
-                pass
-        return vals[:6]
-
-    def _erro_snapshot(df: pd.DataFrame, snap: dict):
-        # universo do pacote
-        universo = snap.get("universo_pacote") or snap.get("universo") or snap.get("universo_p0") or []
-        try:
-            universo = [int(x) for x in universo]
-        except Exception:
-            universo = []
-        uni_set = set(universo)
-
-        k_val = int(snap.get("k", -1))
-        pos, idxs = _resolver_pos_k(df, k_val)
-        if pos is None:
-            return None
-
-        # alvos (k+1, k+2), quando existirem
-        alvos = []
-        for off in (1, 2):
-            if pos + off < len(idxs):
-                alvo = _series_from_df(df, idxs[pos + off])
-                if len(alvo) >= 6:
-                    alvos.append(alvo)
-
-        if not alvos:
-            return {
-                "k": k_val,
-                "fora_total": 0,
-                "fora_perto": 0,
-                "fora_longe": 0,
-                "dist_media": 0.0,
-            }
-
-        fora_total = 0
-        fora_perto = 0
-        fora_longe = 0
-        dist_medias = []
-
-        for alvo in alvos:
-            alvo_set = set(alvo)
-            # usa a métrica canônica já adotada no V12 (thr=2)
-            try:
-                r = _v9_trave_proximidade(alvo_set, uni_set, thr=2)
-                fora_total += int(r.get("fora_total", 0))
-                fora_perto += int(r.get("fora_perto", 0))
-                fora_longe += int(r.get("fora_longe", 0))
-                dist_medias.append(float(r.get("dist_media", 0.0)))
-            except Exception:
-                # fallback simples
-                fora = list(alvo_set - uni_set)
-                fora_total += len(fora)
-                fora_longe += len(fora)
-
-        dist_media = float(np.mean(dist_medias)) if dist_medias else 0.0
-
-        return {
-            "k": k_val,
-            "fora_total": fora_total,
-            "fora_perto": fora_perto,
-            "fora_longe": fora_longe,
-            "dist_media": dist_media,
-        }
-
-    # calcula série histórica (últimos W snapshots)
-    W = st.slider("Janela (W) para análise de curvatura", min_value=3, max_value=min(15, len(ks)), value=min(7, len(ks)))
-    ks_w = ks[-W:]
-    serie = []
-    for kk in ks_w:
-        s = snapshots.get(kk)
-        if isinstance(s, dict):
-            e = _erro_snapshot(df_full, s)
-            if e is not None:
-                serie.append(e)
-
-    if len(serie) < 3:
-        st.warning("Poucos snapshots válidos para calcular curvatura (precisa de pelo menos 3).")
+    n = int(st.session_state.get("n_alvo") or 6)
+    gov = parabola_multiescala_vetorial(df_full, snaps_map, n=n)
+    if not gov:
+        st.warning("Não foi possível calcular a Parabólica (dados insuficientes).")
         st.stop()
 
-    # erro principal para curvatura: fora_longe (objetivo, sem ponderação)
-    E = [int(x["fora_longe"]) for x in serie]
-    dE = [E[i] - E[i-1] for i in range(1, len(E))]
-    C = [dE[i] - dE[i-1] for i in range(1, len(dE))]  # curvatura discreta
+    estado_global = gov.get("estado_global")
+    p2_permitido = bool(gov.get("p2_permitido"))
+    Ws = gov.get("Ws", {})
 
-    # limiar automático (anti-chute): eps baseado em MAD dos deltas
-    dE_abs = np.array([abs(x) for x in dE], dtype=float)
-    mad = float(np.median(np.abs(dE_abs - np.median(dE_abs)))) if len(dE_abs) else 0.0
-    eps = max(1.0, mad)  # mínimo 1
+    # Persistimos no estado global para governar P1/P2 em outros painéis
+    st.session_state["parabola_estado_global"] = estado_global
+    st.session_state["parabola_p2_permitido"] = p2_permitido
+    st.session_state["parabola_debug"] = gov.get("debug", {})
+    st.session_state["parabola_estados"] = gov.get("estados", {})
 
-    last_dE = float(dE[-1])
-    last_C = float(C[-1]) if C else 0.0
-
-    # classificação canônica
-    if last_dE <= -eps and last_C <= 0:
-        estado = "DESCENDO"
-    elif abs(last_dE) < eps and abs(last_C) < eps:
-        estado = "PLANA"
-    else:
-        estado = "SUBINDO"
-
-    # permissões (governo estrutural)
-    p1_permitido = estado in ("DESCENDO", "PLANA", "SUBINDO")  # P1 sempre pode rodar como leitura comparativa
-    p2_permitido = estado == "SUBINDO"
-
-    st.session_state["parabola_estado"] = estado
-    st.session_state["parabola_debug"] = {
-        "ks": [int(x["k"]) for x in serie],
-        "E_fora_longe": E,
-        "dE": dE,
-        "C": C,
-        "eps": eps,
-        "last_dE": last_dE,
-        "last_C": last_C,
-    }
-
-    st.markdown("### 🧭 Estado da Parabólica (curvatura do erro)")
+    st.markdown("### 🧭 Estado Global (Governança)")
     st.json({
-        "estado": estado,
-        "eps_auto": eps,
-        "erro_base": "fora_longe (somado em 2 alvos seguintes)",
-        "permissoes": {
-            "P1": "✅ permitido (leitura)" if p1_permitido else "❌ vetado",
-            "P2": "🟡 pode acordar (leitura)" if p2_permitido else "❌ vetado (deve dormir)",
-        }
+        "estado_global": estado_global,
+        "P1": "✅ permitido (leitura)" if estado_global in ("DESCENDO", "PLANA") else "⚠️ perde eficiência (leitura)",
+        "P2": "🟡 pode acordar (leitura)" if p2_permitido else "❌ vetado (deve dormir)",
+        "Ws": Ws,
+        "confirmacao": gov.get("confirmacao"),
+        "persistencia": gov.get("persistencia"),
     })
 
-    st.markdown("### 📊 Série (W snapshots) — fora_total / fora_perto / fora_longe")
-    st.dataframe(pd.DataFrame(serie))
+    st.markdown("### 🧠 Estados por Escala (Primário + Vetorial)")
+    estados = gov.get("estados", {})
+    df_est = []
+    for escala in ("short", "mid", "long"):
+        row = {"escala": escala, "W": Ws.get(escala)}
+        row.update(estados.get(escala, {}))
+        df_est.append(row)
+    st.dataframe(pd.DataFrame(df_est))
 
-    st.markdown("### 🔎 Debug de curvatura (auditável)")
-    st.json(st.session_state["parabola_debug"])
+    st.markdown("### 📊 Série (escala longa) — fora_total / fora_perto / fora_longe / dist_media")
+    serie_long = gov.get("series", {}).get("long", [])
+    if serie_long:
+        st.dataframe(pd.DataFrame(serie_long))
+    else:
+        st.info("Série longa insuficiente.")
 
-    st.caption("Regra canônica: Parabólica governa permissões estruturais. Não gera número, não altera listas, não toca Camada 4.")
+    with st.expander("🔎 Debug auditável (curvaturas, dE, eps)"):
+        st.json(gov.get("debug", {}))
+
+    st.caption("Regra canônica: Parabólica governa permissões estruturais. Não escolhe números e não toca Camada 4.")
+
 
 elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
     st.markdown("## 🧪 P2 — Hipóteses de Família (pré-C4)")
