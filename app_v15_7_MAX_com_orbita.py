@@ -13698,3 +13698,27 @@ def p2_render_panel():
         return
     res = p2_executar(snapshot, df_full)
     st.json(res)
+\n\n
+# ============================================================
+# 🔧 NAV PATCH — Registro do Painel P2 na navegação oficial
+# ============================================================
+try:
+    P2_LABEL = "🧪 P2 — Hipóteses de Família (pré-C4)"
+    P1_LABEL = "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo"
+
+    # Inserir P2 logo após o P1 na lista de opções
+    if 'opcoes' in globals():
+        if P2_LABEL not in opcoes:
+            if P1_LABEL in opcoes:
+                opcoes.insert(opcoes.index(P1_LABEL) + 1, P2_LABEL)
+            else:
+                opcoes.append(P2_LABEL)
+
+    # Renderização do painel P2
+    if 'painel' in globals() and painel == P2_LABEL:
+        try:
+            p2_render_panel()
+        except Exception as _e:
+            st.error(f"Erro ao renderizar P2: {_e}")
+except Exception as _nav_e:
+    pass
