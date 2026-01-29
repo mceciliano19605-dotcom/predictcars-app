@@ -24,6 +24,26 @@ def _p2_series_from_df(df, idx, n=6):
 def _p2_avaliar_fora(universo, alvo):
     return list(set(alvo) - set(universo))
 
+
+# =====================
+# FIX P2 — RESOLUÇÃO ROBUSTA DE k NO HISTÓRICO FULL
+# =====================
+def _p2_resolver_posicao_k(df_full, k):
+    # 1) Se k for índice explícito
+    if k in df_full.index:
+        return list(df_full.index).index(k)
+    # 2) Se houver coluna 'k' ou 'serie'
+    for col in ["k", "serie", "serie_id"]:
+        if col in df_full.columns:
+            matches = df_full.index[df_full[col] == k].tolist()
+            if matches:
+                return list(df_full.index).index(matches[0])
+    # 3) Fallback 1-based -> 0-based
+    if isinstance(k, int) and 1 <= k <= len(df_full):
+        return k - 1
+    raise ValueError(f"k={k} não encontrado no histórico FULL")
+
+
 def p2_calcular_cap_dinamico(universo_len, fora_longe, fora_total, score_rigidez):
     if fora_total <= 0:
         return 0
@@ -76,7 +96,7 @@ def p2_executar(snapshot, df_full):
     score_rigidez = float(snapshot.get("score_rigidez", 0.0) or 0.0)
     n = int(st.session_state.get("n_alvo") or 6)
     idxs = list(df_full.index)
-    pos = idxs.index(k)
+    pos = _p2_resolver_posicao_k(df_full, k)
     alvos = []
     for off in (1, 2):
         if pos + off < len(idxs):
