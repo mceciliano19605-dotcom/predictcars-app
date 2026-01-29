@@ -13592,3 +13592,109 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 # ============================================================
 # FIM DO ROTEADOR V16 PREMIUM — EXECUÇÃO DOS PAINÉIS
 # ============================================================
+
+
+
+# ============================================================
+# P2 — Hipóteses de Família (pré-C4, automático, observacional)
+# - Integração CANÔNICA ao arquivo âncora
+# - NÃO altera Camada 4
+# - NÃO decide ataque/volume
+# ============================================================
+
+import math
+
+def _p2_series_from_df(df, idx, n=6):
+    cols = [c for c in df.columns if isinstance(c, str) and c.startswith("p")]
+    cols = sorted(cols, key=lambda x: int(x[1:]))[:int(n)]
+    return [int(df.loc[idx, c]) for c in cols if c in df.columns]
+
+def _p2_avaliar_fora(universo, alvo):
+    return list(set(alvo) - set(universo))
+
+def p2_calcular_cap_dinamico(universo_len, fora_longe, fora_total, score_rigidez):
+    if fora_total <= 0:
+        return 0
+    p_longe = fora_longe / max(fora_total, 1)
+    if p_longe >= 0.70:
+        f_longe = 1.5
+    elif p_longe >= 0.40:
+        f_longe = 1.0
+    else:
+        f_longe = 0.0
+    if score_rigidez >= 0.75:
+        f_rig = 0.7
+    elif score_rigidez >= 0.40:
+        f_rig = 1.0
+    else:
+        f_rig = 1.3
+    cap_base = math.ceil(0.20 * max(1, int(universo_len)))
+    return max(0, int(round(cap_base * f_longe * f_rig)))
+
+def p2_h1_freq(df_hist, universo, cap, n=6):
+    if cap <= 0:
+        return [], universo
+    freq = {}
+    for i in df_hist.index:
+        for v in _p2_series_from_df(df_hist, i, n=n):
+            freq[v] = freq.get(v, 0) + 1
+    cand = [(v, c) for v, c in freq.items() if v not in universo]
+    cand.sort(key=lambda x: x[1], reverse=True)
+    adds = [v for v, _ in cand[:cap]]
+    return adds, sorted(set(universo) | set(adds))
+
+def p2_h2_dist(df_hist, universo, cap, n=6):
+    if cap <= 0:
+        return [], universo
+    dist = {}
+    idxs = list(df_hist.index)
+    for i in range(1, len(idxs)):
+        a = set(_p2_series_from_df(df_hist, idxs[i-1], n=n))
+        b = set(_p2_series_from_df(df_hist, idxs[i], n=n))
+        for v in (a | b):
+            dist[v] = dist.get(v, 0) + len(a.symmetric_difference(b))
+    cand = [(v, d) for v, d in dist.items() if v not in universo]
+    cand.sort(key=lambda x: x[1], reverse=True)
+    adds = [v for v, _ in cand[:cap]]
+    return adds, sorted(set(universo) | set(adds))
+
+def p2_executar(snapshot, df_full):
+    try:
+        k = snapshot.get("k")
+        universo = list(snapshot.get("universo_pacote", []))
+        score_rigidez = float(snapshot.get("score_rigidez", 0.0) or 0.0)
+        n = int(st.session_state.get("n_alvo") or 6)
+        idxs = list(df_full.index)
+        pos = idxs.index(k)
+        alvos = []
+        for off in (1, 2):
+            if pos + off < len(idxs):
+                alvos.append(_p2_series_from_df(df_full, idxs[pos + off], n=n))
+        fora_total = 0
+        fora_longe = 0
+        for alvo in alvos:
+            fora = _p2_avaliar_fora(universo, alvo)
+            fora_total += len(fora)
+            fora_longe += len(fora)
+        cap = p2_calcular_cap_dinamico(len(universo), fora_longe, fora_total, score_rigidez)
+        df_hist = df_full.iloc[:pos+1]
+        adds_h1, U_h1 = p2_h1_freq(df_hist, universo, cap, n=n)
+        adds_h2, U_h2 = p2_h2_dist(df_hist, universo, cap, n=n)
+        return {
+            "cap": cap,
+            "H1": {"adds": adds_h1, "U": U_h1},
+            "H2": {"adds": adds_h2, "U": U_h2},
+        }
+    except Exception as e:
+        return {"erro": str(e)}
+
+# Painel (somente leitura)
+def p2_render_panel():
+    st.markdown("## 🧪 P2 — Hipóteses de Família (pré-C4)")
+    df_full = st.session_state.get("historico_df")
+    snapshot = st.session_state.get("snapshot_p0")
+    if df_full is None or snapshot is None:
+        st.warning("Histórico ou Snapshot P0 ausente.")
+        return
+    res = p2_executar(snapshot, df_full)
+    st.json(res)
