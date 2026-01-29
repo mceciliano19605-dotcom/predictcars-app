@@ -108,19 +108,24 @@ def p2_executar(snapshot, df_full):
         fora_total += len(fora)
         fora_longe += len(fora)
     cap = p2_calcular_cap_dinamico(len(universo), fora_longe, fora_total, score_rigidez)
+
+    # Governo estrutural (Parabólica): P2 só pode "acordar" quando estado == SUBINDO.
+    estado_parabola = st.session_state.get("parabola_estado")  # pode estar ausente
+    p2_permitido = (estado_parabola == "SUBINDO")
+    motivo_p2 = None
+    if not p2_permitido:
+        motivo_p2 = f"P2 vetado pela Parabólica (estado={estado_parabola}). Mantido cap=0 (P2 dormindo)."
+        cap = 0
     df_hist = df_full.iloc[:pos+1]
     adds_h1, U_h1 = p2_h1_freq(df_hist, universo, cap, n=n)
     adds_h2, U_h2 = p2_h2_dist(df_hist, universo, cap, n=n)
     return {
         "cap": cap,
+        "parabola_estado": estado_parabola,
+        "motivo": motivo_p2,
         "H1": {"adds": adds_h1, "universo_len": len(U_h1)},
         "H2": {"adds": adds_h2, "universo_len": len(U_h2)},
-    }
-
-
-
-
-import math
+    }import math
 
 def _pc_fmt_num(x, decimals: int = 4, nd: str = "N/D") -> str:
     """Formata número para UX (evita mostrar nan/inf cru)."""
@@ -2231,6 +2236,7 @@ def construir_navegacao_v157() -> str:
         "🔁 Replay ULTRA",
                 "🧭 Replay Progressivo — Janela Móvel (Assistido)",
         "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo",
+        "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)",
     "🧪 P2 — Hipóteses de Família (pré-C4)",
         "🧪 Replay Curto — Expectativa 1–3 Séries",
 
@@ -13705,6 +13711,203 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 # ============================================================
 
 
+
+
+elif painel == "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)":
+    st.markdown("## 📐 Parabólica — Curvatura do Erro (Governança Pré-C4)")
+    st.caption("Leitura de 2ª ordem do erro (aceleração/curvatura). Não altera Camada 4. Governa permissões estruturais (P1/P2) apenas como leitura.")
+
+    df_full = st.session_state.get("historico_df")
+    snapshots = st.session_state.get("snapshot_p0_canonic") or st.session_state.get("snapshot_p0") or {}
+
+    if df_full is None:
+        st.warning("Histórico ausente. Carregue o histórico primeiro.")
+        st.stop()
+
+    if not snapshots:
+        st.warning("Nenhum Snapshot P0 registrado ainda. Registre pelo Replay Progressivo.")
+        st.stop()
+
+    # Normaliza snapshots -> dict[k]->snapshot
+    if isinstance(snapshots, list):
+        snaps_map = {}
+        for s in snapshots:
+            try:
+                kk = int(s.get("k")) if isinstance(s, dict) else None
+            except Exception:
+                kk = None
+            if kk is not None:
+                snaps_map[kk] = s
+        snapshots = snaps_map
+
+    ks = sorted([int(k) for k in snapshots.keys() if str(k).isdigit()])
+    if not ks:
+        st.warning("Snapshots P0 encontrados, mas nenhum 'k' válido foi detectado.")
+        st.stop()
+
+    k_sel = st.selectbox("Escolha a janela registrada (k)", ks, index=len(ks)-1)
+
+    def _resolver_pos_k(df: pd.DataFrame, k_val: int):
+        # mapeia k->posição robustamente (índice pode ser 0..N-1 ou 1..N)
+        idxs = list(df.index)
+        if k_val in idxs:
+            return idxs.index(k_val), idxs
+        if (k_val - 1) in idxs:
+            return idxs.index(k_val - 1), idxs
+        if (k_val + 1) in idxs:
+            return idxs.index(k_val + 1), idxs
+        # fallback: se índice for RangeIndex
+        try:
+            if hasattr(df.index, "start") and hasattr(df.index, "stop"):
+                # RangeIndex
+                if df.index.start <= k_val < df.index.stop:
+                    return int(k_val - df.index.start), idxs
+        except Exception:
+            pass
+        return None, idxs
+
+    def _series_from_df(df: pd.DataFrame, idx):
+        cols = [c for c in df.columns if str(c).startswith("p")]
+        if len(cols) >= 6:
+            return [int(df.loc[idx, c]) for c in cols[:6]]
+        vals = []
+        for c in df.columns:
+            try:
+                vals.append(int(df.loc[idx, c]))
+            except Exception:
+                pass
+        return vals[:6]
+
+    def _erro_snapshot(df: pd.DataFrame, snap: dict):
+        # universo do pacote
+        universo = snap.get("universo_pacote") or snap.get("universo") or snap.get("universo_p0") or []
+        try:
+            universo = [int(x) for x in universo]
+        except Exception:
+            universo = []
+        uni_set = set(universo)
+
+        k_val = int(snap.get("k", -1))
+        pos, idxs = _resolver_pos_k(df, k_val)
+        if pos is None:
+            return None
+
+        # alvos (k+1, k+2), quando existirem
+        alvos = []
+        for off in (1, 2):
+            if pos + off < len(idxs):
+                alvo = _series_from_df(df, idxs[pos + off])
+                if len(alvo) >= 6:
+                    alvos.append(alvo)
+
+        if not alvos:
+            return {
+                "k": k_val,
+                "fora_total": 0,
+                "fora_perto": 0,
+                "fora_longe": 0,
+                "dist_media": 0.0,
+            }
+
+        fora_total = 0
+        fora_perto = 0
+        fora_longe = 0
+        dist_medias = []
+
+        for alvo in alvos:
+            alvo_set = set(alvo)
+            # usa a métrica canônica já adotada no V12 (thr=2)
+            try:
+                r = _v9_trave_proximidade(alvo_set, uni_set, thr=2)
+                fora_total += int(r.get("fora_total", 0))
+                fora_perto += int(r.get("fora_perto", 0))
+                fora_longe += int(r.get("fora_longe", 0))
+                dist_medias.append(float(r.get("dist_media", 0.0)))
+            except Exception:
+                # fallback simples
+                fora = list(alvo_set - uni_set)
+                fora_total += len(fora)
+                fora_longe += len(fora)
+
+        dist_media = float(np.mean(dist_medias)) if dist_medias else 0.0
+
+        return {
+            "k": k_val,
+            "fora_total": fora_total,
+            "fora_perto": fora_perto,
+            "fora_longe": fora_longe,
+            "dist_media": dist_media,
+        }
+
+    # calcula série histórica (últimos W snapshots)
+    W = st.slider("Janela (W) para análise de curvatura", min_value=3, max_value=min(15, len(ks)), value=min(7, len(ks)))
+    ks_w = ks[-W:]
+    serie = []
+    for kk in ks_w:
+        s = snapshots.get(kk)
+        if isinstance(s, dict):
+            e = _erro_snapshot(df_full, s)
+            if e is not None:
+                serie.append(e)
+
+    if len(serie) < 3:
+        st.warning("Poucos snapshots válidos para calcular curvatura (precisa de pelo menos 3).")
+        st.stop()
+
+    # erro principal para curvatura: fora_longe (objetivo, sem ponderação)
+    E = [int(x["fora_longe"]) for x in serie]
+    dE = [E[i] - E[i-1] for i in range(1, len(E))]
+    C = [dE[i] - dE[i-1] for i in range(1, len(dE))]  # curvatura discreta
+
+    # limiar automático (anti-chute): eps baseado em MAD dos deltas
+    dE_abs = np.array([abs(x) for x in dE], dtype=float)
+    mad = float(np.median(np.abs(dE_abs - np.median(dE_abs)))) if len(dE_abs) else 0.0
+    eps = max(1.0, mad)  # mínimo 1
+
+    last_dE = float(dE[-1])
+    last_C = float(C[-1]) if C else 0.0
+
+    # classificação canônica
+    if last_dE <= -eps and last_C <= 0:
+        estado = "DESCENDO"
+    elif abs(last_dE) < eps and abs(last_C) < eps:
+        estado = "PLANA"
+    else:
+        estado = "SUBINDO"
+
+    # permissões (governo estrutural)
+    p1_permitido = estado in ("DESCENDO", "PLANA", "SUBINDO")  # P1 sempre pode rodar como leitura comparativa
+    p2_permitido = estado == "SUBINDO"
+
+    st.session_state["parabola_estado"] = estado
+    st.session_state["parabola_debug"] = {
+        "ks": [int(x["k"]) for x in serie],
+        "E_fora_longe": E,
+        "dE": dE,
+        "C": C,
+        "eps": eps,
+        "last_dE": last_dE,
+        "last_C": last_C,
+    }
+
+    st.markdown("### 🧭 Estado da Parabólica (curvatura do erro)")
+    st.json({
+        "estado": estado,
+        "eps_auto": eps,
+        "erro_base": "fora_longe (somado em 2 alvos seguintes)",
+        "permissoes": {
+            "P1": "✅ permitido (leitura)" if p1_permitido else "❌ vetado",
+            "P2": "🟡 pode acordar (leitura)" if p2_permitido else "❌ vetado (deve dormir)",
+        }
+    })
+
+    st.markdown("### 📊 Série (W snapshots) — fora_total / fora_perto / fora_longe")
+    st.dataframe(pd.DataFrame(serie))
+
+    st.markdown("### 🔎 Debug de curvatura (auditável)")
+    st.json(st.session_state["parabola_debug"])
+
+    st.caption("Regra canônica: Parabólica governa permissões estruturais. Não gera número, não altera listas, não toca Camada 4.")
 
 elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
     st.markdown("## 🧪 P2 — Hipóteses de Família (pré-C4)")
