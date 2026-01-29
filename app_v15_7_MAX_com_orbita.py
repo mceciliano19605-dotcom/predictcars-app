@@ -13689,16 +13689,21 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
     st.markdown("## 🧪 P2 — Hipóteses de Família (pré-C4)")
     df_full = st.session_state.get("historico_df")
-    snapshot = st.session_state.get("snapshot_p0_canonic") or st.session_state.get("snapshot_p0")
+    snapshots = st.session_state.get("snapshot_p0_canonic") or st.session_state.get("snapshot_p0") or {}
 
-    if df_full is None or snapshot is None:
+    if df_full is None or not snapshots:
         st.warning("Histórico ou Snapshot P0 ausente.")
     else:
         try:
-            res = p2_executar(snapshot, df_full)
-            st.json(res)
+            ks = sorted([int(k) for k in snapshots.keys()])
+            k_sel = st.selectbox("Escolha a janela registrada (k)", ks, index=len(ks)-1)
+            snap = snapshots.get(int(k_sel)) or snapshots.get(str(k_sel)) or {}
+            if not isinstance(snap, dict) or snap.get("k") is None:
+                st.warning("Snapshot selecionado inválido ou incompleto.")
+            else:
+                res = p2_executar(snap, df_full)
+                st.json(res)
         except Exception as e:
             st.error(f"Erro no P2: {e}")
-
 
 
