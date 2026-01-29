@@ -13698,7 +13698,6 @@ def p2_render_panel():
         return
     res = p2_executar(snapshot, df_full)
     st.json(res)
-\n\n
 # ============================================================
 # 🔧 NAV PATCH — Registro do Painel P2 na navegação oficial
 # ============================================================
