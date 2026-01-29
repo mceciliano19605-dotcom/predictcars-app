@@ -2121,6 +2121,7 @@ def construir_navegacao_v157() -> str:
         "🔁 Replay ULTRA",
                 "🧭 Replay Progressivo — Janela Móvel (Assistido)",
         "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo",
+    "🧪 P2 — Hipóteses de Família (pré-C4)",
         "🧪 Replay Curto — Expectativa 1–3 Séries",
 
         # -----------------------------------------------------
@@ -13595,11 +13596,24 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 
 
 
+elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
+    st.markdown("## 🧪 P2 — Hipóteses de Família (pré-C4)")
+    df_full = st.session_state.get("historico_df")
+    snapshot = st.session_state.get("snapshot_p0")
+
+    if df_full is None or snapshot is None:
+        st.warning("Histórico ou Snapshot P0 ausente.")
+    else:
+        try:
+            res = p2_executar(snapshot, df_full)
+            st.json(res)
+        except Exception as e:
+            st.error(f"Erro no P2: {e}")
+
+
+
 # ============================================================
 # P2 — Hipóteses de Família (pré-C4, automático, observacional)
-# - Integração CANÔNICA ao arquivo âncora
-# - NÃO altera Camada 4
-# - NÃO decide ataque/volume
 # ============================================================
 
 import math
@@ -13659,65 +13673,28 @@ def p2_h2_dist(df_hist, universo, cap, n=6):
     return adds, sorted(set(universo) | set(adds))
 
 def p2_executar(snapshot, df_full):
-    try:
-        k = snapshot.get("k")
-        universo = list(snapshot.get("universo_pacote", []))
-        score_rigidez = float(snapshot.get("score_rigidez", 0.0) or 0.0)
-        n = int(st.session_state.get("n_alvo") or 6)
-        idxs = list(df_full.index)
-        pos = idxs.index(k)
-        alvos = []
-        for off in (1, 2):
-            if pos + off < len(idxs):
-                alvos.append(_p2_series_from_df(df_full, idxs[pos + off], n=n))
-        fora_total = 0
-        fora_longe = 0
-        for alvo in alvos:
-            fora = _p2_avaliar_fora(universo, alvo)
-            fora_total += len(fora)
-            fora_longe += len(fora)
-        cap = p2_calcular_cap_dinamico(len(universo), fora_longe, fora_total, score_rigidez)
-        df_hist = df_full.iloc[:pos+1]
-        adds_h1, U_h1 = p2_h1_freq(df_hist, universo, cap, n=n)
-        adds_h2, U_h2 = p2_h2_dist(df_hist, universo, cap, n=n)
-        return {
-            "cap": cap,
-            "H1": {"adds": adds_h1, "U": U_h1},
-            "H2": {"adds": adds_h2, "U": U_h2},
-        }
-    except Exception as e:
-        return {"erro": str(e)}
-
-# Painel (somente leitura)
-def p2_render_panel():
-    st.markdown("## 🧪 P2 — Hipóteses de Família (pré-C4)")
-    df_full = st.session_state.get("historico_df")
-    snapshot = st.session_state.get("snapshot_p0")
-    if df_full is None or snapshot is None:
-        st.warning("Histórico ou Snapshot P0 ausente.")
-        return
-    res = p2_executar(snapshot, df_full)
-    st.json(res)
-# ============================================================
-# 🔧 NAV PATCH — Registro do Painel P2 na navegação oficial
-# ============================================================
-try:
-    P2_LABEL = "🧪 P2 — Hipóteses de Família (pré-C4)"
-    P1_LABEL = "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo"
-
-    # Inserir P2 logo após o P1 na lista de opções
-    if 'opcoes' in globals():
-        if P2_LABEL not in opcoes:
-            if P1_LABEL in opcoes:
-                opcoes.insert(opcoes.index(P1_LABEL) + 1, P2_LABEL)
-            else:
-                opcoes.append(P2_LABEL)
-
-    # Renderização do painel P2
-    if 'painel' in globals() and painel == P2_LABEL:
-        try:
-            p2_render_panel()
-        except Exception as _e:
-            st.error(f"Erro ao renderizar P2: {_e}")
-except Exception as _nav_e:
-    pass
+    k = snapshot.get("k")
+    universo = list(snapshot.get("universo_pacote", []))
+    score_rigidez = float(snapshot.get("score_rigidez", 0.0) or 0.0)
+    n = int(st.session_state.get("n_alvo") or 6)
+    idxs = list(df_full.index)
+    pos = idxs.index(k)
+    alvos = []
+    for off in (1, 2):
+        if pos + off < len(idxs):
+            alvos.append(_p2_series_from_df(df_full, idxs[pos + off], n=n))
+    fora_total = 0
+    fora_longe = 0
+    for alvo in alvos:
+        fora = _p2_avaliar_fora(universo, alvo)
+        fora_total += len(fora)
+        fora_longe += len(fora)
+    cap = p2_calcular_cap_dinamico(len(universo), fora_longe, fora_total, score_rigidez)
+    df_hist = df_full.iloc[:pos+1]
+    adds_h1, U_h1 = p2_h1_freq(df_hist, universo, cap, n=n)
+    adds_h2, U_h2 = p2_h2_dist(df_hist, universo, cap, n=n)
+    return {
+        "cap": cap,
+        "H1": {"adds": adds_h1, "universo_len": len(U_h1)},
+        "H2": {"adds": adds_h2, "universo_len": len(U_h2)},
+    }
