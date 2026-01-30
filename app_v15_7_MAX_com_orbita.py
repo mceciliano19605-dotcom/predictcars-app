@@ -343,14 +343,16 @@ def p2_executar(snapshot, df_full):
 
     if p2_permitido is None:
         # se a Parabólica ainda não foi visitada, calculamos aqui (usando apenas histórico + snapshots)
-        # Snapshots P0 canônicos (fonte única)
-        snapshot_p0_reg = st.session_state.get("snapshot_p0_canonic", {})
-        snaps_map = {}
-        if isinstance(snapshot_p0_reg, dict) and snapshot_p0_reg:
-            try:
-                snaps_map = {int(k): v for k, v in snapshot_p0_reg.items() if str(k).strip() != "" and isinstance(v, dict)}
-            except Exception:
-                snaps_map = {}
+        snaps_map = st.session_state.get("snapshot_p0_canonic") or st.session_state.get("snapshots_p0_map", {}) or {}
+        st.session_state["snapshots_p0_map"] = snaps_map
+        if not snaps_map:
+            # fallback: tenta converter lista->map
+            snaps_list = st.session_state.get("snapshots_p0", [])
+            if isinstance(snaps_list, list) and snaps_list:
+                try:
+                    snaps_map = {int(s.get("k")): s for s in snaps_list if isinstance(s, dict) and s.get("k") is not None}
+                except Exception:
+                    snaps_map = {}
         if snaps_map:
             gov = parabola_multiescala_vetorial(df_full, snaps_map, n=n)
             if gov:
@@ -2485,6 +2487,7 @@ def construir_navegacao_v157() -> str:
                 "🧭 Replay Progressivo — Janela Móvel (Assistido)",
         "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo",
         "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)",
+        "📡 CAP — Calibração Assistida da Parabólica (pré-C4)",
     "🧪 P2 — Hipóteses de Família (pré-C4)",
         "🧪 Replay Curto — Expectativa 1–3 Séries",
 
@@ -13961,34 +13964,181 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 
 
 
+
+elif painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
+
+    st.markdown("## 📡 CAP — Calibração Assistida da Parabólica (pré-C4)")
+    st.caption(
+        "CAP = Calibração Automática (assistida) da Parabólica usando **apenas o histórico**.\n\n"
+        "✔ Pré-C4 · Observacional · Auditável\n\n"
+        "⚠️ Nesta versão ASSISTIDA, o CAP **não executa Modo 6/Pipeline sozinho**: ele\n"
+        "organiza a calibração, define quantos snapshots são necessários, mostra o que falta\n"
+        "e acelera o fluxo (auto-seleção de k). A automação total (CAP invisível) é etapa posterior."
+    )
+
+    df_full = st.session_state.get("df_full") or st.session_state.get("historico_df")
+    if df_full is None:
+        st.warning("Histórico ausente. Carregue o histórico antes.")
+        st.stop()
+
+    # Fonte única canônica
+    if "snapshot_p0_canonic" not in st.session_state:
+        st.session_state["snapshot_p0_canonic"] = {}
+    snaps = st.session_state.get("snapshot_p0_canonic") or {}
+
+    # k atual (janela ativa do Replay Progressivo)
+    k_atual = int(st.session_state.get("replay_janela_k_active") or len(df_full))
+    k_atual = max(1, min(k_atual, len(df_full)))
+
+    # Diagnóstico de ruído (usa o que já foi calculado pelos painéis de risco quando disponível)
+    nr_pct = st.session_state.get("nr_percent")
+    diverg = st.session_state.get("divergencia_s6_mc")
+    k_star = st.session_state.get("sentinela_kstar")
+
+    def _cap_definir_snapshots_alvo(nr_pct_val, diverg_val):
+        try:
+            nr = float(nr_pct_val) if nr_pct_val is not None else None
+        except Exception:
+            nr = None
+        try:
+            dv = float(diverg_val) if diverg_val is not None else None
+        except Exception:
+            dv = None
+
+        # Regra objetiva (curta, auditável):
+        # ruído baixo -> 3; médio -> 5; alto -> 7 (teto 7 no CAP assistido)
+        if nr is None:
+            # fallback
+            return 5
+        if nr < 20:
+            return 3
+        if nr < 35:
+            return 5
+        return 7
+
+    snapshots_alvo = _cap_definir_snapshots_alvo(nr_pct, diverg)
+
+    st.markdown("### ✅ Diagnóstico do CAP (objetivo)")
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    col1.metric("k atual", str(k_atual))
+    col2.metric("NR% (se disponível)", "N/D" if nr_pct is None else f"{float(nr_pct):.2f}%")
+    col3.metric("Divergência (se disponível)", "N/D" if diverg is None else f"{float(diverg):.4f}")
+    col4.metric("Snapshots alvo", str(snapshots_alvo))
+
+    st.markdown("---")
+
+    # Sugestão de ks (linha do tempo) — sempre para trás a partir do k atual
+    # Inclui k_atual e anteriores, até preencher alvo
+    ks_sugeridos = []
+    kk = k_atual
+    while kk >= 1 and len(ks_sugeridos) < snapshots_alvo:
+        ks_sugeridos.append(int(kk))
+        kk -= 1
+
+    ks_disponiveis = sorted([int(k) for k in snaps.keys() if str(k).isdigit() or isinstance(k, int)])
+    ks_disponiveis_set = set(ks_disponiveis)
+
+    ks_faltando = [k for k in ks_sugeridos if k not in ks_disponiveis_set]
+
+    st.markdown("### 📌 Linha do tempo do CAP (k sugeridos)")
+    st.write(ks_sugeridos)
+
+    st.markdown("### 🧊 Snapshots P0 canônicos disponíveis")
+    st.caption("Fonte única: **snapshot_p0_canonic** (Replay Progressivo / CAP).")
+    st.write({"qtd": len(snaps), "ks": ks_disponiveis[-12:] if len(ks_disponiveis) > 12 else ks_disponiveis})
+
+    st.markdown("---")
+
+    if not ks_faltando:
+        st.success("✅ CAP: snapshots suficientes para calibração da Parabólica.")
+        # sincroniza alias antigo por compatibilidade
+        st.session_state["snapshots_p0_map"] = snaps
+        st.session_state["cap_status"] = "CALIBRADA (assistido)"
+        st.session_state["cap_meta"] = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "k_atual": int(k_atual),
+            "snapshots_alvo": int(snapshots_alvo),
+            "snapshots_usados": int(len(ks_sugeridos)),
+            "ks_usados": ks_sugeridos,
+            "nr_pct": nr_pct,
+            "divergencia": diverg,
+            "k_star": k_star,
+            "modo": "CAP_ASSISTIDO",
+            "obs": "Pré-C4. Observacional. Não altera Camada 4.",
+        }
+        st.markdown("### 🧾 Auditoria CAP (resumo)")
+        st.json(st.session_state.get("cap_meta") or {}, expanded=False)
+
+        st.markdown("### ▶️ Próximo passo (operacional)")
+        st.info(
+            "Agora vá em **📐 Parabólica** para ver os estados short/mid/long e a governança.\n\n"
+            "Se quiser, depois fechamos a regra do **P1 automático** (pré-C4) usando a Parabólica calibrada."
+        )
+        st.stop()
+
+    # Ainda faltam snapshots
+    st.warning("⚠️ CAP: ainda faltam snapshots para calibrar a Parabólica (assistido).")
+    st.write({"faltando": ks_faltando})
+
+    st.markdown("### 🚀 Acelerar (sem trabalho de adivinhar k)")
+    st.caption(
+        "Clique para **pré-selecionar automaticamente** o próximo k faltante na janela do Replay Progressivo.\n\n"
+        "Depois, siga o fluxo normal: gere o pacote no **🎯 Modo 6** e registre no **🧭 Replay Progressivo**."
+    )
+
+    proximo_k = int(ks_faltando[0])
+    colA, colB = st.columns([1, 1])
+    with colA:
+        if st.button(f"➡️ Ir para o próximo k faltante ({proximo_k})", use_container_width=True):
+            st.session_state["replay_janela_k_active"] = int(proximo_k)
+            st.success(f"k pré-selecionado: {proximo_k}. Vá no Replay Progressivo e aplique a janela.")
+    with colB:
+        if st.button("🧹 Limpar auditoria CAP (não apaga snapshots)", use_container_width=True):
+            st.session_state.pop("cap_meta", None)
+            st.session_state.pop("cap_status", None)
+            st.success("Auditoria CAP limpa.")
+
+    st.markdown("### ✅ Checklist rápido (para cada k faltante)")
+    st.markdown(
+        "- **🧭 Replay Progressivo**: aplique janela em `k` (C1..Ck)\n"
+        "- **🎯 Modo 6**: gere o pacote normal\n"
+        "- **🧭 Replay Progressivo**: clique **Registrar pacote**\n"
+        "- Volte no **📡 CAP** para ver se atingiu o alvo\n"
+    )
+
+    st.info(
+        "📌 Observação: o CAP total (invisível) — que roda tudo sozinho no histórico — é a próxima etapa.\n"
+        "Primeiro, garantimos calibração objetiva e auditável sem tocar Camada 4."
+    )
+
+    st.stop()
+
+
 elif painel == "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)":
 
     st.markdown("## 📐 Parabólica — Curvatura do Erro (Governança Pré-C4)")
     st.caption("Leitura pré-C4. Usa apenas histórico + Snapshots P0 registrados. Não altera Camada 4.")
 
     df_full = st.session_state.get("df_full") or st.session_state.get("historico_df")
-
-    # ------------------------------------------------------------
-    # SNAPSHOTS P0 — fonte canônica única
-    # ------------------------------------------------------------
-    # No Predicart, o Snapshot P0 canônico é armazenado em:
-    #   st.session_state["snapshot_p0_canonic"]  (dict {k: snapshot})
-    # A Parabólica opera sobre um "map" {k: snapshot} — auditável e estável.
-    snapshot_p0_reg = st.session_state.get("snapshot_p0_canonic", {})
-    snaps_map = {}
-    if isinstance(snapshot_p0_reg, dict) and snapshot_p0_reg:
-        try:
-            snaps_map = {int(k): v for k, v in snapshot_p0_reg.items() if str(k).strip() != "" and isinstance(v, dict)}
-        except Exception:
-            snaps_map = {}
-
-    # Compatibilidade: manter snapshots_p0_map atualizado (sem criar fonte paralela)
-    if snaps_map:
-        st.session_state["snapshots_p0_map"] = snaps_map
+    # Fonte única canônica (Replay Progressivo / CAP)
+    snaps_map = st.session_state.get("snapshot_p0_canonic") or {}
+    # compat: manter alias antigo atualizado
+    st.session_state["snapshots_p0_map"] = snaps_map
 
     if df_full is None:
         st.warning("Histórico ausente. Carregue o histórico antes.")
         st.stop()
+
+    # fallback: lista -> map
+    if not snaps_map:
+        snaps_list = st.session_state.get("snapshots_p0", [])
+        if isinstance(snaps_list, list) and snaps_list:
+            try:
+                snaps_map = {int(s.get("k")): s for s in snaps_list if isinstance(s, dict) and s.get("k") is not None}
+                st.session_state["snapshots_p0_map"] = snaps_map
+                st.session_state["snapshot_p0_canonic"] = snaps_map
+            except Exception:
+                snaps_map = {}
 
     if not snaps_map or len(snaps_map) < 3:
         st.warning("É necessário ao menos 3 Snapshots P0 registrados para calcular a Parabólica (multi-escala).")
