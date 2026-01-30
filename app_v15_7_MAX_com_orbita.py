@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import numpy as np
+import pandas as pd
 # ============================================================
 # PARTE 1/8 — INÍCIO
 # ============================================================
@@ -423,8 +425,8 @@ import itertools
 import textwrap
 from typing import List, Dict, Tuple, Optional, Any
 
-import numpy as np
-import pandas as pd
+# (moved) import numpy as np
+# (moved) import pandas as pd
 import streamlit as st
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -6455,6 +6457,8 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                     "nota": "Snapshot P0 canônico — leitura apenas (pré-C4). Não altera Camada 4.",
                 }
                 st.session_state["snapshot_p0_canonic"] = snapshot_p0_reg
+                # Alias oficial para a Parabólica (compatibilidade)
+                st.session_state["snapshots_p0_map"] = snapshot_p0_reg
                 st.session_state["replay_progressivo_pacotes"] = pacotes_reg
                 st.success(f"Pacote registrado para janela C1..C{k_reg}.")
             except Exception as e:
@@ -9087,6 +9091,46 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     st.session_state["modo6_listas_top10"] = listas_top10
     st.session_state["modo6_listas"] = listas_totais
 
+
+    # ------------------------------------------------------------
+    # SNAPSHOT P0 — AUTO-REGISTRO (para evitar trabalho manual)
+    # ------------------------------------------------------------
+    # Regra: isto NÃO muda listas, não decide ataque, não toca Camada 4.
+    # Apenas registra o pacote gerado na janela ativa (k) para uso em P1/P2/Parabólica.
+    try:
+        _k_auto = int(st.session_state.get("replay_janela_k") or len(df) or 0)
+        _snap_map = st.session_state.get("snapshot_p0_canonic", {}) or {}
+        _pacote_auto = st.session_state.get("pacote_listas_atual") or st.session_state.get("modo6_listas_top10") or st.session_state.get("modo6_listas_totais") or []
+        if _k_auto and isinstance(_pacote_auto, list) and len(_pacote_auto) > 0:
+            if int(_k_auto) not in _snap_map:
+                # universo do pacote
+                try:
+                    _u_pac = sorted({int(x) for lst in _pacote_auto for x in lst})
+                except Exception:
+                    _u_pac = []
+
+                # assinatura
+                try:
+                    _sig_raw = json.dumps([list(map(int, lst)) for lst in _pacote_auto], ensure_ascii=False, sort_keys=True)
+                    _sig = hashlib.sha256(_sig_raw.encode("utf-8")).hexdigest()[:16]
+                except Exception:
+                    _sig = "N/D"
+
+                _snap_map[int(_k_auto)] = {
+                    "ts": datetime.now().isoformat(timespec="seconds"),
+                    "k": int(_k_auto),
+                    "qtd_listas": int(len(_pacote_auto)),
+                    "listas": [list(map(int, lst)) for lst in _pacote_auto],
+                    "universo_pacote": list(map(int, _u_pac)),
+                    "freq_passageiros": {},
+                    "snap_v8": st.session_state.get("v8_borda_qualificada_info", {}) or {},
+                    "assinatura": _sig,
+                    "nota": "Snapshot P0 AUTO (pré-C4). Registro automático do pacote gerado; não altera Camada 4.",
+                }
+                st.session_state["snapshot_p0_canonic"] = _snap_map
+                st.session_state["snapshots_p0_map"] = _snap_map
+    except Exception:
+        pass
     # ------------------------------------------------------------
     # REGISTRO AUTOMÁTICO DO PACOTE ATUAL (Backtest Rápido N=60)
     # ------------------------------------------------------------
@@ -14055,5 +14099,4 @@ elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
                 st.json(res)
         except Exception as e:
             st.error(f"Erro no P2: {e}")
-
 
