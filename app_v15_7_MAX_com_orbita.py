@@ -413,9 +413,6 @@ def _p1_auto_decidir(df_full, snaps_map: dict, k_ref: int) -> dict:
     # CAP calibrada?
     cap_status = str(st.session_state.get("cap_status") or "")
     cap_ok = cap_status.startswith("CALIBRADA")
-    if not cap_ok:
-        return {"eligivel": False, "motivo": "cap_nao_calibrada"}
-
     # Parabólica (se não visitou o painel ainda, calcula aqui em modo leitura)
     estado_global = st.session_state.get("parabola_estado_global")
     gov = st.session_state.get("parabola_gov")
@@ -440,6 +437,20 @@ def _p1_auto_decidir(df_full, snaps_map: dict, k_ref: int) -> dict:
     if ok_subindo:
         return {"eligivel": False, "motivo": "melhora_persistente"}
 
+
+    # CAP "mincal": calibração mínima suficiente para liberar P1 defensivo (sem liberar P2).
+    Ws = gov.get("Ws") if isinstance(gov, dict) else {}
+    try:
+        ws_short = int((Ws or {}).get("short") or 0)
+        ws_mid = int((Ws or {}).get("mid") or 0)
+        ws_long = int((Ws or {}).get("long") or 0)
+    except Exception:
+        ws_short = ws_mid = ws_long = 0
+    ws_ok = (ws_short >= 5) or (ws_mid >= 5) or (ws_long >= 5)
+
+    # Se CAP não está "CALIBRADA", só libera P1 defensivo quando a Parabólica tem calibração mínima suficiente.
+    if (not cap_ok) and (not ws_ok):
+        return {"eligivel": False, "motivo": "cap_nao_calibrada"}
     # Ambiente RUIM/TURBULENTO (defensivo)
     k_star = float(st.session_state.get("sentinela_kstar") or 0.0)
     indice_risco = st.session_state.get("indice_risco")
