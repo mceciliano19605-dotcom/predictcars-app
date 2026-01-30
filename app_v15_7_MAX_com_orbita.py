@@ -317,6 +317,161 @@ def parabola_multiescala_vetorial(df_full: pd.DataFrame, snapshots_map: dict, n:
     return out
 
 
+
+# ============================================================
+# >>> P1 AUTOMÁTICO (pré-C4) — Governado pela Parabólica
+# - Não toca Camada 4
+# - Auditável
+# - Usa apenas histórico + Snapshot P0 canônico
+# ============================================================
+
+def _p1__build_ub_from_snapshot(snapshot: dict, umin: int, umax: int) -> dict:
+    """Constrói universo UB (P1.B) a partir do Snapshot P0 canônico.
+    Estratégia defensiva: adiciona vizinhos (+/-1) dos passageiros mais frequentes do pacote,
+    limitado e sem explosão. Sempre respeita [umin, umax]."""
+    if not isinstance(snapshot, dict):
+        return {"UB": [], "adds_B": [], "motivo": "snapshot_invalido"}
+
+    u0 = snapshot.get("universo_pacote") or []
+    try:
+        u0 = sorted({int(x) for x in u0 if int(umin) <= int(x) <= int(umax)})
+    except Exception:
+        u0 = []
+    if not u0:
+        return {"UB": [], "adds_B": [], "motivo": "u0_vazio"}
+
+    # Top frequentes do pacote (ex-ante, vindo do snapshot)
+    freq = snapshot.get("freq_passageiros") or {}
+    top = []
+    try:
+        # freq pode estar como dict[str]->int
+        items = []
+        for k, v in freq.items():
+            try:
+                items.append((int(k), int(v)))
+            except Exception:
+                continue
+        items.sort(key=lambda kv: (-kv[1], kv[0]))
+        top = [k for k, _ in items[:12]]
+    except Exception:
+        top = []
+
+    if not top:
+        # fallback: usa o próprio universo do pacote como "top"
+        top = u0[:12]
+
+    def clamp(v: int) -> int:
+        return max(int(umin), min(int(umax), int(v)))
+
+    cand = []
+    for x in top:
+        try:
+            xi = int(x)
+        except Exception:
+            continue
+        cand.append(clamp(xi - 1))
+        cand.append(clamp(xi + 1))
+
+    # remove já existentes e limita
+    u0_set = set(u0)
+    adds = []
+    for x in cand:
+        if x not in u0_set and x not in adds:
+            adds.append(x)
+        if len(adds) >= 8:
+            break
+
+    ub = sorted(u0_set | set(adds))
+    return {"UB": ub, "adds_B": adds, "motivo": "ok"}
+
+
+def _ambiente_ruim(*, k_star: float, indice_risco: float | None, regime_txt: str | None) -> bool:
+    """Heurística conservadora para 'RUIM/TURBULENTO' (pré-C4).
+    Não decide ataque; apenas governa se P1 pode ser aplicado defensivamente."""
+    try:
+        ks = float(k_star or 0.0)
+    except Exception:
+        ks = 0.0
+    try:
+        ir = float(indice_risco) if indice_risco is not None else None
+    except Exception:
+        ir = None
+    rt = (regime_txt or "").lower()
+
+    if "ruptura" in rt or "turbul" in rt:
+        return True
+    if ir is not None and ir >= 0.55:
+        return True
+    if ks >= 0.20:
+        return True
+    return False
+
+
+def _p1_auto_decidir(df_full, snaps_map: dict, k_ref: int) -> dict:
+    """Decide (pré-C4) se P1 deve ser aplicado automaticamente.
+    Retorna: {eligivel, motivo, estado_global, ub, adds_B} (tudo auditável)."""
+    # CAP calibrada?
+    cap_status = str(st.session_state.get("cap_status") or "")
+    cap_ok = cap_status.startswith("CALIBRADA")
+    if not cap_ok:
+        return {"eligivel": False, "motivo": "cap_nao_calibrada"}
+
+    # Parabólica (se não visitou o painel ainda, calcula aqui em modo leitura)
+    estado_global = st.session_state.get("parabola_estado_global")
+    gov = st.session_state.get("parabola_gov")
+
+    if estado_global is None or not isinstance(gov, dict):
+        try:
+            n = int(st.session_state.get("n_alvo") or 6)
+            gov = parabola_multiescala_vetorial(df_full, snaps_map, n=n) or {}
+            estado_global = gov.get("estado_global")
+            st.session_state["parabola_estado_global"] = estado_global
+            st.session_state["parabola_gov"] = gov
+        except Exception:
+            gov = {}
+            estado_global = None
+
+    if estado_global not in ("PLANA", "DESCENDO"):
+        return {"eligivel": False, "motivo": f"estado_global_{estado_global}"}
+
+    # Persistência: se há melhora sustentada, não corrige (desliga P1)
+    persist = (gov.get("persistencia") or {}) if isinstance(gov, dict) else {}
+    ok_subindo = bool(persist.get("ok_subindo"))
+    if ok_subindo:
+        return {"eligivel": False, "motivo": "melhora_persistente"}
+
+    # Ambiente RUIM/TURBULENTO (defensivo)
+    k_star = float(st.session_state.get("sentinela_kstar") or 0.0)
+    indice_risco = st.session_state.get("indice_risco")
+    regime_txt = st.session_state.get("regime_ambiente") or st.session_state.get("diagnostico_regime")
+    if not _ambiente_ruim(k_star=k_star, indice_risco=indice_risco, regime_txt=str(regime_txt) if regime_txt else None):
+        # Se não está ruim, ainda podemos permitir em PLANA/DESCENDO, mas conservador: exige RUIM
+        return {"eligivel": False, "motivo": "ambiente_nao_ruim"}
+
+    # Snapshot P0 do k de referência
+    snap = None
+    try:
+        snap = snaps_map.get(int(k_ref))
+    except Exception:
+        snap = None
+    if not isinstance(snap, dict):
+        return {"eligivel": False, "motivo": f"snapshot_ausente_k_{k_ref}"}
+
+    p1 = _p1__build_ub_from_snapshot(snap, umin=int(st.session_state.get("universo_min", 1) or 1), umax=int(st.session_state.get("universo_max", 60) or 60))
+    ub = p1.get("UB") or []
+    if len(ub) < 10:
+        return {"eligivel": False, "motivo": "ub_insuficiente"}
+
+    return {
+        "eligivel": True,
+        "motivo": "P1_DEFENSIVO_PLANO_RUIM",
+        "estado_global": estado_global,
+        "ub": ub,
+        "adds_B": p1.get("adds_B") or [],
+        "cap_status": cap_status,
+        "persistencia": persist,
+    }
+
 def p2_executar(snapshot, df_full):
     k = snapshot.get("k")
     universo = list(snapshot.get("universo_pacote", []))
@@ -8817,6 +8972,15 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ------------------------------------------------------------
     pipeline_ok = st.session_state.get("pipeline_flex_ultra_concluido") is True
 
+    # 🧭 Governança automática (pré-C4): status do P1
+    p1_auto_status = st.session_state.get("p1_auto_status")
+    if isinstance(p1_auto_status, dict) and p1_auto_status.get("eligivel"):
+        regra = p1_auto_status.get("regra")
+        kref = p1_auto_status.get("k_ref")
+        st.success(f"🧭 P1 automático elegível (pré-C4) — regra: {regra} · k_ref={kref}")
+        st.caption("Isso NÃO decide ataque e NÃO altera Camada 4 por si só; apenas governa o universo-base usado na geração do pacote.")
+    elif isinstance(p1_auto_status, dict) and p1_auto_status.get("motivo"):
+        st.info(f"🧭 P1 automático não aplicado — motivo: {p1_auto_status.get('motivo')}")
     turbo_executado_ok = any([
         st.session_state.get("turbo_ultra_executado"),
         st.session_state.get("turbo_executado"),
@@ -8900,12 +9064,58 @@ if painel == "🎯 Modo 6 Acertos — Execução":
                     out_idx.append(idx)
 
         while len(out_idx) < n_real:
-            cand = rng.choice(universo_idx)
+            cand = rng.choice(universo_idx_use)
             if cand not in out_idx:
                 out_idx.append(cand)
 
         return out_idx[:n_real]
 
+
+
+    # ------------------------------------------------------------
+    # 🧭 P1 AUTOMÁTICO (pré-C4) — REGRA PLANO/RUIM (DEFENSIVA)
+    # - Governado pela Parabólica (via CAP)
+    # - Auditável
+    # - Não toca Camada 4
+    # ------------------------------------------------------------
+    try:
+        df_full_for_gov = st.session_state.get("df_full") or st.session_state.get("historico_df")
+        snaps_map_for_gov = st.session_state.get("snapshot_p0_canonic") or {}
+        k_ref = int(st.session_state.get("replay_janela_k_active", len(df)))
+        decisao_p1 = _p1_auto_decidir(df_full_for_gov, snaps_map_for_gov, k_ref) if df_full_for_gov is not None else {"eligivel": False, "motivo": "df_full_ausente"}
+    except Exception as _e:
+        decisao_p1 = {"eligivel": False, "motivo": f"erro_decisao_p1:{_e}"}
+
+    universo_idx_use = universo_idx  # default (sem P1)
+    if isinstance(decisao_p1, dict) and decisao_p1.get("eligivel"):
+        ub = decisao_p1.get("ub") or []
+        foco = sorted({int(v) for v in ub if umin <= int(v) <= umax})
+        foco_set = set(foco)
+
+        universo_idx_foco = [i for i, v in enumerate(universo) if int(v) in foco_set]
+
+        # guarda auditável
+        st.session_state["p1_auto_status"] = {
+            "eligivel": True,
+            "regra": decisao_p1.get("motivo"),
+            "k_ref": k_ref,
+            "estado_global": decisao_p1.get("estado_global"),
+            "adds_B": decisao_p1.get("adds_B") or [],
+            "ub_len": len(foco),
+        }
+        st.session_state["p1_universo_ativo"] = foco
+
+        # se o foco ficou pequeno demais, não força viés (fallback seguro)
+        if len(universo_idx_foco) >= max(2 * n_real, 10):
+            universo_idx_use = universo_idx_foco
+        else:
+            st.session_state["p1_auto_status"]["fallback"] = "foco_insuficiente"
+    else:
+        st.session_state["p1_auto_status"] = {
+            "eligivel": False,
+            "motivo": (decisao_p1 or {}).get("motivo") if isinstance(decisao_p1, dict) else "sem_decisao",
+        }
+        st.session_state["p1_universo_ativo"] = []
 
     # ------------------------------------------------------------
     # BASE ULTRA (ORIGINAL, MAS EM ÍNDICES)
@@ -8914,8 +9124,26 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         base_vals = ultima_prev if isinstance(ultima_prev[0], int) else ultima_prev[0]
         base_idx = ajustar_para_n(base_vals)
     else:
-        base_idx = rng.choice(universo_idx, size=n_real, replace=False).tolist()
+        base_idx = rng.choice(universo_idx_use, size=n_real, replace=False).tolist()
 
+
+
+    # ------------------------------------------------------------
+    # Pool de índices (foco P1, se aplicável)
+    # ------------------------------------------------------------
+    pool_idx = universo_idx  # default: universo completo (contíguo)
+    pool_mode = "full"
+    inv_pos = None
+
+    try:
+        if isinstance(universo_idx_use, list) and universo_idx_use != universo_idx:
+            pool_idx = list(universo_idx_use)  # subset ordenado
+            pool_mode = "foco_p1"
+            inv_pos = {int(ix): j for j, ix in enumerate(pool_idx)}
+    except Exception:
+        pool_idx = universo_idx
+        pool_mode = "full"
+        inv_pos = None
 
     # ------------------------------------------------------------
     # GERAÇÃO PRÉ-ECO (SEM POSSIBILIDADE DE SAIR DO UNIVERSO)
@@ -8924,10 +9152,22 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     for _ in range(volume):
         ruido = rng.integers(-3, 4, size=n_real)  # deslocamento leve
-        nova_idx = [
-            max(0, min(len(universo_idx) - 1, idx + r))
-            for idx, r in zip(base_idx, ruido)
-        ]
+        if pool_mode == "foco_p1" and inv_pos is not None:
+            # desloca dentro do pool focado (mantém coerência defensiva)
+            nova_idx = []
+            for idx, r in zip(base_idx, ruido):
+                pos = inv_pos.get(int(idx), None)
+                if pos is None:
+                    # fallback seguro: usa o próprio idx
+                    nova_idx.append(max(0, min(len(universo) - 1, int(idx))))
+                else:
+                    new_pos = max(0, min(len(pool_idx) - 1, int(pos) + int(r)))
+                    nova_idx.append(int(pool_idx[new_pos]))
+        else:
+            nova_idx = [
+                max(0, min(len(universo_idx) - 1, idx + r))
+                for idx, r in zip(base_idx, ruido)
+            ]
         nova = [valor_por_idx[i] for i in nova_idx]
         listas_brutas.append(nova)
 
@@ -14156,6 +14396,7 @@ elif painel == "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)":
 
     # Persistimos no estado global para governar P1/P2 em outros painéis
     st.session_state["parabola_estado_global"] = estado_global
+    st.session_state["parabola_gov"] = gov
     st.session_state["parabola_p2_permitido"] = p2_permitido
     st.session_state["parabola_debug"] = gov.get("debug", {})
     st.session_state["parabola_estados"] = gov.get("estados", {})
