@@ -14762,94 +14762,26 @@ elif painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
 
     ks_faltando = [k for k in ks_sugeridos if k not in ks_disponiveis_set]
 
-# ------------------------------------------------------------
-# 🚀 CAP INVISÍVEL (V1) — EXECUÇÃO AUTOMÁTICA COMPLETA (pré-C4)
-# ------------------------------------------------------------
-# Regras:
-# - Um clique inicia; o app continua sozinho (processa 1 k por rerun)
-# - Segurança anti-zumbi: 1 janela por ciclo + limites de tentativa
-# - Ao final, restaura o histórico ativo original
-# ------------------------------------------------------------
-if st.session_state.get("cap_v1_running") is True:
-    try:
-        fila = st.session_state.get("cap_v1_queue") or []
-        feitos = st.session_state.get("cap_v1_done") or []
-        falhas = st.session_state.get("cap_v1_fail") or []
-        total = int(st.session_state.get("cap_v1_total", max(len(fila) + len(feitos), 1)))
+    # ------------------------------------------------------------
+    # 🚀 CAP INVISÍVEL (V1.1) — EXECUÇÃO AUTOMÁTICA COMPLETA (pré-C4)
+    # ------------------------------------------------------------
+    # Regras:
+    # - Um clique inicia; o app continua sozinho (processa 1 k por rerun)
+    # - Segurança anti-zumbi: 1 janela por ciclo + limites de tentativa
+    # - Ao final, restaura o histórico ativo original
+    # ------------------------------------------------------------
 
-        st.markdown("### 🚀 CAP Invisível (V1) — calibrando automaticamente…")
-        st.caption("Pré-C4 · Observacional · Auditável · 1 janela por ciclo (anti‑zumbi).")
-        st.progress(min(1.0, (len(feitos) / max(total, 1))))
-
-        st.write({
-            "pendentes": fila[:12],
-            "concluidos": feitos[-12:],
-            "falhas": falhas[-12:],
-        })
-
-        if not fila:
-            # encerra
-            st.session_state["cap_v1_running"] = False
-            # restaurar histórico ativo original (se existir)
-            try:
-                df_restore = st.session_state.get("cap_v1_restore_df")
-                k_restore = st.session_state.get("cap_v1_restore_k")
-                if df_restore is not None:
-                    st.session_state["historico_df"] = df_restore
-                if k_restore is not None:
-                    st.session_state["replay_janela_k_active"] = int(k_restore)
-            except Exception:
-                pass
-            st.success("✅ CAP Invisível (V1) concluído. Atualize o painel para ver a calibração.")
-            st.stop()
-
-        # processa 1 k por rerun
-        k_next = int(fila[0])
-
-        # proteção de repetição
-        tent_map = st.session_state.get("cap_v1_tentativas") or {}
-        tent = int(tent_map.get(str(k_next), 0))
-        if tent >= 2:
-            # marcou como falha e segue
-            falhas.append(int(k_next))
-            tent_map[str(k_next)] = tent
-            st.session_state["cap_v1_fail"] = falhas
-            st.session_state["cap_v1_tentativas"] = tent_map
-            st.session_state["cap_v1_queue"] = fila[1:]
-            st.experimental_rerun()
-
-        tent_map[str(k_next)] = tent + 1
-        st.session_state["cap_v1_tentativas"] = tent_map
-
-        # executa janela
-        ok = pc_cap_invisivel_v1_processar_um_k(df_full, k_next)
-        if ok:
-            feitos.append(int(k_next))
-            st.session_state["cap_v1_done"] = feitos
-            # remove da fila
-            st.session_state["cap_v1_queue"] = fila[1:]
-        else:
-            # mantém na fila para segunda tentativa automática (até 2)
-            st.session_state["cap_v1_queue"] = fila
-
-        # segue para o próximo ciclo
-        st.experimental_rerun()
-    except Exception:
-        # falha dura: desarma
-        st.session_state["cap_v1_running"] = False
-        st.warning("CAP Invisível (V1) foi desarmado por segurança (erro inesperado).")
-        st.stop()
-
-
+    # Sempre mostrar o status do CAP (linha do tempo / faltando), mesmo sem rodar o modo invisível
     st.markdown("### 📌 Linha do tempo do CAP (k sugeridos)")
     st.write(ks_sugeridos)
 
     st.markdown("### 🧊 Snapshots P0 canônicos disponíveis")
-    st.caption("Fonte única: **snapshot_p0_canonic** (Replay Progressivo / CAP).")
+    st.caption("Fonte única: **snapshot_p0_canonic** (Replay Progressivo / CAP / Modo 6).")
     st.write({"qtd": len(snaps), "ks": ks_disponiveis[-12:] if len(ks_disponiveis) > 12 else ks_disponiveis})
 
     st.markdown("---")
 
+    # Se já está calibrado, registra auditoria e encerra
     if not ks_faltando:
         st.success("✅ CAP: snapshots suficientes para calibração da Parabólica.")
         # sincroniza alias antigo por compatibilidade
@@ -14872,17 +14804,21 @@ if st.session_state.get("cap_v1_running") is True:
 
         st.markdown("### ▶️ Próximo passo (operacional)")
         st.info(
-            "Agora vá em **📐 Parabólica** para ver os estados short/mid/long e a governança.\n\n"
-            "Se quiser, depois fechamos a regra do **P1 automático** (pré-C4) usando a Parabólica calibrada."
+            """Agora vá em **📐 Parabólica** para ver os estados short/mid/long e a governança.
+
+Se quiser, depois fechamos a regra do **P1 automático** (pré-C4) usando a Parabólica calibrada."""
         )
         st.stop()
 
-
     # ------------------------------------------------------------
-    # 🚀 CAP INVISÍVEL (V1) — INICIAR (UM CLIQUE)
+    # 🚀 CAP INVISÍVEL (V1.1) — INICIAR (UM CLIQUE)
     # ------------------------------------------------------------
     st.markdown("### 🚀 CAP Invisível (V1) — auto-preencher snapshots (pré-C4)")
-    st.caption("Este modo executa automaticamente o fluxo mínimo (janela → pipeline → Modo 6 → snapshot) para cada k faltante, sem você precisar alternar painéis.\n\nEle é **seguro**: 1 janela por ciclo (anti‑zumbi) e com limite de tentativas.")
+    st.caption(
+        """Este modo executa automaticamente o fluxo mínimo (janela → pipeline → Modo 6 → snapshot) para cada k faltante.
+
+Ele é **seguro**: 1 janela por ciclo (anti‑zumbi) e com limite de tentativas."""
+    )
 
     if st.button("🚀 Calibrar agora (CAP Invisível V1)", use_container_width=True):
         # salva estado atual para restaurar ao fim
@@ -14901,6 +14837,79 @@ if st.session_state.get("cap_v1_running") is True:
         st.session_state["cap_v1_running"] = True
         st.experimental_rerun()
 
+    # ------------------------------------------------------------
+    # 🚀 CAP INVISÍVEL (V1.1) — RODANDO (AUTO)
+    # ------------------------------------------------------------
+    if st.session_state.get("cap_v1_running") is True:
+        try:
+            fila = st.session_state.get("cap_v1_queue") or []
+            feitos = st.session_state.get("cap_v1_done") or []
+            falhas = st.session_state.get("cap_v1_fail") or []
+            total = int(st.session_state.get("cap_v1_total", max(len(fila) + len(feitos), 1)))
+
+            st.markdown("### 🚀 CAP Invisível (V1) — calibrando automaticamente…")
+            st.caption("Pré-C4 · Observacional · Auditável · 1 janela por ciclo (anti‑zumbi).")
+            st.progress(min(1.0, (len(feitos) / max(total, 1))))
+
+            st.write({
+                "pendentes": fila[:12],
+                "concluidos": feitos[-12:],
+                "falhas": falhas[-12:],
+            })
+
+            if not fila:
+                # encerra
+                st.session_state["cap_v1_running"] = False
+                # restaurar histórico ativo original (se existir)
+                try:
+                    df_restore = st.session_state.get("cap_v1_restore_df")
+                    k_restore = st.session_state.get("cap_v1_restore_k")
+                    if df_restore is not None:
+                        st.session_state["historico_df"] = df_restore
+                    if k_restore is not None:
+                        st.session_state["replay_janela_k_active"] = int(k_restore)
+                except Exception:
+                    pass
+                st.success("✅ CAP Invisível (V1) concluído. Atualize o painel para ver a calibração.")
+                st.stop()
+
+            # processa 1 k por rerun
+            k_next = int(fila[0])
+
+            # proteção de repetição
+            tent_map = st.session_state.get("cap_v1_tentativas") or {}
+            tent = int(tent_map.get(str(k_next), 0))
+            if tent >= 2:
+                # marcou como falha e segue
+                falhas.append(int(k_next))
+                tent_map[str(k_next)] = tent
+                st.session_state["cap_v1_fail"] = falhas
+                st.session_state["cap_v1_tentativas"] = tent_map
+                st.session_state["cap_v1_queue"] = fila[1:]
+                st.experimental_rerun()
+
+            tent_map[str(k_next)] = tent + 1
+            st.session_state["cap_v1_tentativas"] = tent_map
+
+            # executa janela
+            ok = pc_cap_invisivel_v1_processar_um_k(df_full, k_next)
+            if ok:
+                feitos.append(int(k_next))
+                st.session_state["cap_v1_done"] = feitos
+                # remove da fila
+                st.session_state["cap_v1_queue"] = fila[1:]
+            else:
+                # mantém na fila para segunda tentativa automática (até 2)
+                st.session_state["cap_v1_queue"] = fila
+
+            # segue para o próximo ciclo
+            st.experimental_rerun()
+        except Exception:
+            # falha dura: desarma
+            st.session_state["cap_v1_running"] = False
+            st.warning("CAP Invisível (V1) foi desarmado por segurança (erro inesperado).")
+            st.stop()
+
     st.markdown("---")
 
     # Ainda faltam snapshots
@@ -14909,8 +14918,9 @@ if st.session_state.get("cap_v1_running") is True:
 
     st.markdown("### 🚀 Acelerar (sem trabalho de adivinhar k)")
     st.caption(
-        "Clique para **pré-selecionar automaticamente** o próximo k faltante na janela do Replay Progressivo.\n\n"
-        "Depois, siga o fluxo normal: gere o pacote no **🎯 Modo 6** e registre no **🧭 Replay Progressivo**."
+        """Clique para **pré-selecionar automaticamente** o próximo k faltante na janela do Replay Progressivo.
+
+Depois, siga o fluxo normal: gere o pacote no **🎯 Modo 6** e registre no **🧭 Replay Progressivo**."""
     )
 
     proximo_k = int(ks_faltando[0])
@@ -14934,8 +14944,8 @@ if st.session_state.get("cap_v1_running") is True:
     )
 
     st.info(
-        "📌 Observação: o CAP total (invisível) — que roda tudo sozinho no histórico — é a próxima etapa.\n"
-        "Primeiro, garantimos calibração objetiva e auditável sem tocar Camada 4."
+        "📌 Observação: o CAP total (invisível) roda o fluxo mínimo automaticamente, mas permanece **pré‑C4** e **auditável**.\n"
+        "Ele não decide ataque, não altera Camada 4 e não ativa TURBO."
     )
 
     st.stop()
