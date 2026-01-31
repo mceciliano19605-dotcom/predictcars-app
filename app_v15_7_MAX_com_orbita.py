@@ -875,6 +875,362 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, *, k_reg: int, universo_min: int,
     except Exception:
         return False
 
+
+# ============================================================
+# CAP INVISÍVEL (V1) — AUTO-PREENCHIMENTO COMPLETO (pré-C4)
+# ------------------------------------------------------------
+# Objetivo:
+# - Preencher automaticamente os snapshots faltantes do CAP (linha do tempo k_atual..k_atual-N)
+# - Sem depender do Replay Progressivo
+# - Sem tocar Camada 4 (não decide ataque)
+# - Seguro contra “zumbi”: executa 1 janela por rerun e continua sozinho até concluir (ou bater limite)
+#
+# Estratégia:
+# - Fila de ks em st.session_state["cap_v1_queue"]
+# - A cada rerun, processa 1 k:
+#   (1) recorta df_full -> df_k
+#   (2) executa pipeline (silencioso) para garantir base mínima
+#   (3) gera pacote Top10 do Modo 6 (silencioso) e registra Snapshot P0 automaticamente
+# - Ao final, restaura o histórico ativo original e encerra.
+# ============================================================
+
+def _pc_replay_limpar_chaves_dependentes_silent():
+    """Limpa chaves dependentes do histórico/pipeline/pacote (versão silenciosa)."""
+    chaves = [
+        "pipeline_col_pass",
+        "pipeline_clusters",
+        "pipeline_centroides",
+        "pipeline_matriz_norm",
+        "pipeline_estrada",
+        "pipeline_flex_ultra_concluido",
+        "pipeline_executado",
+        "m1_selo_pipeline_ok",
+        "m1_ts_pipeline_ok",
+        "sentinela_kstar",
+        "k_star",
+        "k*",
+        "nr_percent",
+        "nr_percent_v16",
+        "div_s6_mc",
+        "divergencia_s6_mc",
+        "indice_risco",
+        "classe_risco",
+        "ultima_previsao",
+        "pacote_listas_atual",
+        "pacote_listas_origem",
+        "listas_geradas",
+        "listas_finais",
+        "modo6_executado",
+        "modo_6_executado",
+        "modo_6_ativo",
+        "turbo_executado",
+        "turbo_ultra_executado",
+        "turbo_ultra_rodou",
+        "turbo_ultra_rodou_ok",
+        "turbo_ultra_rodou_flag",
+        "turbo_rodou",
+        "turbo_bloqueado",
+        "turbo_motivo_bloqueio",
+        "motor_turbo_executado",
+        "listas_intercept_orbita",
+        "modo6_listas_totais",
+        "modo6_listas_top10",
+        "modo6_listas",
+    ]
+    for k in chaves:
+        try:
+            if k in st.session_state:
+                del st.session_state[k]
+        except Exception:
+            pass
+
+
+def pc_exec_pipeline_flex_ultra_silent(df: pd.DataFrame) -> bool:
+    """Executa o Pipeline V14-FLEX ULTRA (silencioso) e grava chaves canônicas em session_state."""
+    try:
+        if df is None or df.empty:
+            return False
+
+        col_pass = [c for c in df.columns if str(c).startswith("p")]
+        if not col_pass:
+            return False
+
+        matriz = df[col_pass].astype(float).values
+
+        minimo = float(np.nanmin(matriz))
+        maximo = float(np.nanmax(matriz))
+        amplitude = (maximo - minimo) if maximo != minimo else 1.0
+        matriz_norm = (matriz - minimo) / amplitude
+
+        medias = np.mean(matriz_norm, axis=1)
+        desvios = np.std(matriz_norm, axis=1)
+
+        media_geral = float(np.mean(medias))
+        desvio_geral = float(np.mean(desvios))
+
+        if media_geral < 0.35:
+            estrada = "🟦 Estrada Fria (Baixa energia)"
+        elif media_geral < 0.65:
+            estrada = "🟩 Estrada Neutra / Estável"
+        else:
+            estrada = "🟥 Estrada Quente (Alta volatilidade)"
+
+        try:
+            from sklearn.cluster import KMeans
+            n_clusters = 3
+            modelo = KMeans(n_clusters=n_clusters, n_init="auto", random_state=42)
+            clusters = modelo.fit_predict(matriz_norm)
+            centroides = modelo.cluster_centers_
+        except Exception:
+            clusters = np.zeros(len(matriz_norm))
+            centroides = np.zeros((1, matriz_norm.shape[1]))
+
+        st.session_state["pipeline_col_pass"] = col_pass
+        st.session_state["pipeline_clusters"] = clusters
+        st.session_state["pipeline_centroides"] = centroides
+        st.session_state["pipeline_matriz_norm"] = matriz_norm
+        st.session_state["pipeline_estrada"] = estrada
+
+        st.session_state["regime_identificado"] = estrada
+        st.session_state["energia_media"] = float(media_geral)
+        st.session_state["energia_media_estrada"] = float(media_geral)
+        st.session_state["volatilidade_media"] = float(desvio_geral)
+        st.session_state["clusters_formados"] = int(max(clusters) + 1) if len(np.atleast_1d(clusters)) else 0
+
+        st.session_state["pipeline_flex_ultra_concluido"] = True
+        st.session_state["pipeline_executado"] = True
+        st.session_state["m1_selo_pipeline_ok"] = True
+        try:
+            from datetime import datetime
+            st.session_state["m1_ts_pipeline_ok"] = datetime.now().isoformat(timespec="seconds")
+        except Exception:
+            pass
+        return True
+    except Exception:
+        return False
+
+
+def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
+    """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
+    Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
+    """
+    try:
+        if df is None or df.empty:
+            return []
+
+        # k* (fallback)
+        _kstar_raw = st.session_state.get("sentinela_kstar")
+        k_star = float(_kstar_raw) if isinstance(_kstar_raw, (int, float)) else 0.0
+
+        nr_pct = st.session_state.get("nr_percent")
+        divergencia_s6_mc = st.session_state.get("div_s6_mc")
+        risco_composto = st.session_state.get("indice_risco")
+        ultima_prev = st.session_state.get("ultima_previsao")
+
+        # Ajuste de ambiente (PRÉ-ECO) — usa função canônica existente
+        config = ajustar_ambiente_modo6(
+            df=df,
+            k_star=k_star,
+            nr_pct=nr_pct,
+            divergencia_s6_mc=divergencia_s6_mc,
+            risco_composto=risco_composto,
+            previsibilidade="alta",
+        )
+        volume = int(config.get("volume_recomendado", 6))
+        volume_max = int(config.get("volume_max", max(volume, 6)))
+        volume = max(1, min(volume, volume_max))
+
+        # Detectar n_real e universo real
+        col_pass = [c for c in df.columns if str(c).startswith("p")]
+        universo_tmp = []
+        contagens = []
+        for _, row in df.iterrows():
+            vals = []
+            for c in col_pass:
+                try:
+                    if pd.notna(row[c]):
+                        vals.append(int(row[c]))
+                except Exception:
+                    pass
+            if vals:
+                contagens.append(len(vals))
+                universo_tmp.extend(vals)
+
+        if not contagens or not universo_tmp:
+            return []
+
+        n_real = int(pd.Series(contagens).mode().iloc[0])
+        st.session_state["n_alvo"] = n_real
+
+        universo = sorted({int(v) for v in universo_tmp if int(v) > 0})
+        if not universo:
+            return []
+        umin, umax = int(min(universo)), int(max(universo))
+
+        # salva universo (canônico) para o snapshot
+        st.session_state["universo_min"] = umin
+        st.session_state["universo_max"] = umax
+        st.session_state["universo_str"] = f"{umin}–{umax}"
+
+        # RNG determinístico (canônico)
+        seed = abs(hash(f"PC-M6-{len(df)}-{n_real}-{umin}-{umax}")) % (2**32)
+        rng = np.random.default_rng(seed)
+
+        universo_idx = list(range(len(universo)))
+        valor_por_idx = {i: universo[i] for i in universo_idx}
+        idx_por_valor = {v: i for i, v in valor_por_idx.items()}
+
+        # decisão P1 automático (pré-C4)
+        universo_idx_use = universo_idx
+        try:
+            df_full_for_gov = st.session_state.get("df_full") or st.session_state.get("historico_df_full") or st.session_state.get("historico_df") or df
+            snaps_map_for_gov = st.session_state.get("snapshot_p0_canonic") or {}
+            k_ref = int(st.session_state.get("replay_janela_k_active", len(df)))
+            decisao_p1 = _p1_auto_decidir(df_full_for_gov, snaps_map_for_gov, k_ref) if df_full_for_gov is not None else {"eligivel": False, "motivo": "df_full_ausente"}
+        except Exception:
+            decisao_p1 = {"eligivel": False, "motivo": "erro_decisao_p1"}
+
+        if isinstance(decisao_p1, dict) and decisao_p1.get("eligivel"):
+            ub = decisao_p1.get("ub") or []
+            foco = sorted({int(v) for v in ub if umin <= int(v) <= umax})
+            foco_set = set(foco)
+            universo_idx_foco = [i for i, v in enumerate(universo) if int(v) in foco_set]
+            if len(universo_idx_foco) >= max(2 * n_real, 10):
+                universo_idx_use = universo_idx_foco
+
+        def ajustar_para_n(lista_vals):
+            out_idx = []
+            for v in lista_vals:
+                try:
+                    vi = int(v)
+                    if vi in idx_por_valor:
+                        ix = idx_por_valor[vi]
+                        if ix not in out_idx:
+                            out_idx.append(ix)
+                except Exception:
+                    pass
+            while len(out_idx) < n_real:
+                cand = int(rng.choice(universo_idx_use))
+                if cand not in out_idx:
+                    out_idx.append(cand)
+            return out_idx[:n_real]
+
+        # base
+        if ultima_prev:
+            try:
+                base_vals = ultima_prev if isinstance(ultima_prev[0], int) else ultima_prev[0]
+            except Exception:
+                base_vals = []
+            base_idx = ajustar_para_n(base_vals)
+        else:
+            base_idx = rng.choice(universo_idx_use, size=n_real, replace=False).tolist()
+
+        pool_idx = universo_idx
+        pool_mode = "full"
+        inv_pos = None
+        try:
+            if isinstance(universo_idx_use, list) and universo_idx_use != universo_idx:
+                pool_idx = list(universo_idx_use)
+                pool_mode = "foco_p1"
+                inv_pos = {int(ix): j for j, ix in enumerate(pool_idx)}
+        except Exception:
+            pool_idx = universo_idx
+            pool_mode = "full"
+            inv_pos = None
+
+        listas_brutas = []
+        for _ in range(int(volume)):
+            ruido = rng.integers(-3, 4, size=n_real)
+            if pool_mode == "foco_p1" and inv_pos is not None:
+                nova_idx = []
+                for idx, r in zip(base_idx, ruido):
+                    pos = inv_pos.get(int(idx), None)
+                    if pos is None:
+                        nova_idx.append(max(0, min(len(universo) - 1, int(idx))))
+                    else:
+                        new_pos = max(0, min(len(pool_idx) - 1, int(pos) + int(r)))
+                        nova_idx.append(int(pool_idx[new_pos]))
+            else:
+                nova_idx = [max(0, min(len(universo_idx) - 1, int(idx) + int(r))) for idx, r in zip(base_idx, ruido)]
+            nova = [int(valor_por_idx[i]) for i in nova_idx]
+            listas_brutas.append(nova)
+
+        # filtro final de domínio
+        listas_filtradas = []
+        for lista in listas_brutas:
+            try:
+                if all(umin <= int(v) <= umax for v in lista):
+                    listas_filtradas.append([int(v) for v in lista])
+            except Exception:
+                pass
+
+        listas_totais = sanidade_final_listas(listas_filtradas)
+        listas_top10 = listas_totais[:10]
+
+        # BLOCO C (V10) — ajuste fino (se existir)
+        try:
+            _v8_info = st.session_state.get("v8_borda_qualificada_info", None)
+            _v9_info = st.session_state.get("v9_memoria_borda", None)
+            _c_out = v10_bloco_c_aplicar_ajuste_fino_numerico(
+                listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais,
+                n_real=n_real,
+                v8_borda_info=_v8_info,
+                v9_memoria_info=_v9_info,
+            )
+            if _c_out.get("aplicado"):
+                _aj = _c_out.get("listas_ajustadas", [])
+                if isinstance(listas_top10, list) and len(listas_top10) > 0:
+                    listas_top10 = _aj
+                else:
+                    listas_totais = _aj
+                    listas_top10 = listas_totais[:10]
+        except Exception:
+            pass
+
+        # pacote para snapshot: Top10 quando existir
+        pacote = listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais
+        # grava para consistência observacional, mas o CAP Invisível restaura depois
+        st.session_state["pacote_listas_atual"] = pacote
+        st.session_state["pacote_listas_origem"] = "CAP Invisível (V1) — Modo 6 (Top10)" if pacote is listas_top10 else "CAP Invisível (V1) — Modo 6 (Total)"
+        return pacote
+    except Exception:
+        return []
+
+
+def pc_cap_invisivel_v1_processar_um_k(df_full: pd.DataFrame, k_alvo: int) -> bool:
+    """Processa 1 janela k_alvo: recorta, executa pipeline+modo6 e registra snapshot P0."""
+    try:
+        if df_full is None or df_full.empty:
+            return False
+        k_alvo = int(k_alvo)
+        k_alvo = max(10, min(k_alvo, len(df_full)))
+
+        # recorte
+        df_k = df_full.head(k_alvo).copy()
+        st.session_state["historico_df"] = df_k
+        st.session_state["replay_janela_k_active"] = int(k_alvo)
+
+        # limpar dependências e rodar pipeline
+        _pc_replay_limpar_chaves_dependentes_silent()
+        ok_pipe = pc_exec_pipeline_flex_ultra_silent(df_k)
+        if not ok_pipe:
+            return False
+
+        # gerar pacote e registrar snapshot
+        pacote = pc_modo6_gerar_pacote_top10_silent(df_k)
+        if not pacote:
+            return False
+
+        try:
+            umin = int(st.session_state.get("universo_min", 1) or 1)
+            umax = int(st.session_state.get("universo_max", 60) or 60)
+        except Exception:
+            umin, umax = 1, 60
+
+        pc_snapshot_p0_autoregistrar(pacote, k_reg=int(k_alvo), universo_min=umin, universo_max=umax)
+        return True
+    except Exception:
+        return False
 def _m1_classificar_estado(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     """Classifica estado S0–S6 (canônico) com base no snapshot.
     Regra: conservador; se faltar evidência, não avança estado.
@@ -14406,6 +14762,85 @@ elif painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
 
     ks_faltando = [k for k in ks_sugeridos if k not in ks_disponiveis_set]
 
+# ------------------------------------------------------------
+# 🚀 CAP INVISÍVEL (V1) — EXECUÇÃO AUTOMÁTICA COMPLETA (pré-C4)
+# ------------------------------------------------------------
+# Regras:
+# - Um clique inicia; o app continua sozinho (processa 1 k por rerun)
+# - Segurança anti-zumbi: 1 janela por ciclo + limites de tentativa
+# - Ao final, restaura o histórico ativo original
+# ------------------------------------------------------------
+if st.session_state.get("cap_v1_running") is True:
+    try:
+        fila = st.session_state.get("cap_v1_queue") or []
+        feitos = st.session_state.get("cap_v1_done") or []
+        falhas = st.session_state.get("cap_v1_fail") or []
+        total = int(st.session_state.get("cap_v1_total", max(len(fila) + len(feitos), 1)))
+
+        st.markdown("### 🚀 CAP Invisível (V1) — calibrando automaticamente…")
+        st.caption("Pré-C4 · Observacional · Auditável · 1 janela por ciclo (anti‑zumbi).")
+        st.progress(min(1.0, (len(feitos) / max(total, 1))))
+
+        st.write({
+            "pendentes": fila[:12],
+            "concluidos": feitos[-12:],
+            "falhas": falhas[-12:],
+        })
+
+        if not fila:
+            # encerra
+            st.session_state["cap_v1_running"] = False
+            # restaurar histórico ativo original (se existir)
+            try:
+                df_restore = st.session_state.get("cap_v1_restore_df")
+                k_restore = st.session_state.get("cap_v1_restore_k")
+                if df_restore is not None:
+                    st.session_state["historico_df"] = df_restore
+                if k_restore is not None:
+                    st.session_state["replay_janela_k_active"] = int(k_restore)
+            except Exception:
+                pass
+            st.success("✅ CAP Invisível (V1) concluído. Atualize o painel para ver a calibração.")
+            st.stop()
+
+        # processa 1 k por rerun
+        k_next = int(fila[0])
+
+        # proteção de repetição
+        tent_map = st.session_state.get("cap_v1_tentativas") or {}
+        tent = int(tent_map.get(str(k_next), 0))
+        if tent >= 2:
+            # marcou como falha e segue
+            falhas.append(int(k_next))
+            tent_map[str(k_next)] = tent
+            st.session_state["cap_v1_fail"] = falhas
+            st.session_state["cap_v1_tentativas"] = tent_map
+            st.session_state["cap_v1_queue"] = fila[1:]
+            st.experimental_rerun()
+
+        tent_map[str(k_next)] = tent + 1
+        st.session_state["cap_v1_tentativas"] = tent_map
+
+        # executa janela
+        ok = pc_cap_invisivel_v1_processar_um_k(df_full, k_next)
+        if ok:
+            feitos.append(int(k_next))
+            st.session_state["cap_v1_done"] = feitos
+            # remove da fila
+            st.session_state["cap_v1_queue"] = fila[1:]
+        else:
+            # mantém na fila para segunda tentativa automática (até 2)
+            st.session_state["cap_v1_queue"] = fila
+
+        # segue para o próximo ciclo
+        st.experimental_rerun()
+    except Exception:
+        # falha dura: desarma
+        st.session_state["cap_v1_running"] = False
+        st.warning("CAP Invisível (V1) foi desarmado por segurança (erro inesperado).")
+        st.stop()
+
+
     st.markdown("### 📌 Linha do tempo do CAP (k sugeridos)")
     st.write(ks_sugeridos)
 
@@ -14441,6 +14876,32 @@ elif painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
             "Se quiser, depois fechamos a regra do **P1 automático** (pré-C4) usando a Parabólica calibrada."
         )
         st.stop()
+
+
+    # ------------------------------------------------------------
+    # 🚀 CAP INVISÍVEL (V1) — INICIAR (UM CLIQUE)
+    # ------------------------------------------------------------
+    st.markdown("### 🚀 CAP Invisível (V1) — auto-preencher snapshots (pré-C4)")
+    st.caption("Este modo executa automaticamente o fluxo mínimo (janela → pipeline → Modo 6 → snapshot) para cada k faltante, sem você precisar alternar painéis.\n\nEle é **seguro**: 1 janela por ciclo (anti‑zumbi) e com limite de tentativas.")
+
+    if st.button("🚀 Calibrar agora (CAP Invisível V1)", use_container_width=True):
+        # salva estado atual para restaurar ao fim
+        try:
+            st.session_state["cap_v1_restore_df"] = st.session_state.get("historico_df")
+            st.session_state["cap_v1_restore_k"] = st.session_state.get("replay_janela_k_active", len(df_full))
+        except Exception:
+            st.session_state["cap_v1_restore_df"] = None
+            st.session_state["cap_v1_restore_k"] = None
+
+        st.session_state["cap_v1_queue"] = list(map(int, ks_faltando))
+        st.session_state["cap_v1_done"] = []
+        st.session_state["cap_v1_fail"] = []
+        st.session_state["cap_v1_total"] = int(len(ks_faltando))
+        st.session_state["cap_v1_tentativas"] = {}
+        st.session_state["cap_v1_running"] = True
+        st.experimental_rerun()
+
+    st.markdown("---")
 
     # Ainda faltam snapshots
     st.warning("⚠️ CAP: ainda faltam snapshots para calibrar a Parabólica (assistido).")
