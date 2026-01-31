@@ -574,7 +574,7 @@ st.set_page_config(
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_P1_AJUSTE_PACOTE_PRE_C4.py")
+st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_P1_AUTO_COM_DESARME.py")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
@@ -779,6 +779,101 @@ def v16_registrar_universo_session_state(df, n_alvo=6):
             st.session_state.setdefault("universo_str", "N/D")
     except Exception:
         st.session_state.setdefault("universo_str", "N/D")
+
+
+# ============================================================
+# CAP INVISÍVEL (V0) — REGISTRO AUTOMÁTICO DO SNAPSHOT P0
+# ------------------------------------------------------------
+# Objetivo (pré-C4):
+# - Eliminar o clique manual de "Registrar pacote" no Replay Progressivo
+# - Sempre que o operador roda o 🎯 Modo 6, o pacote da janela ativa vira um Snapshot P0 canônico
+# - NÃO decide ataque, NÃO muda geração, NÃO altera Camada 4
+# - Preparação direta para o CAP Invisível completo (auto-preencher ks)
+# ============================================================
+
+def pc_snapshot_p0_autoregistrar(pacote_atual, *, k_reg: int, universo_min: int, universo_max: int):
+    """Registra (ou atualiza) snapshot_p0_canonic[k_reg] automaticamente.
+    Regras:
+    - Pré-C4 (leitura), auditável, não muda listas.
+    - Falha silenciosa: nunca deve derrubar o app.
+    """
+    try:
+        if not isinstance(pacote_atual, list) or len(pacote_atual) == 0:
+            return False
+
+        # garante container
+        if "snapshot_p0_canonic" not in st.session_state or not isinstance(st.session_state.get("snapshot_p0_canonic"), dict):
+            st.session_state["snapshot_p0_canonic"] = {}
+
+        snapshot_p0_reg = st.session_state.get("snapshot_p0_canonic", {})
+
+        # Universo do pacote (união)
+        try:
+            universo_pacote = sorted({int(x) for lst in pacote_atual for x in lst})
+        except Exception:
+            universo_pacote = []
+
+        # V8 (borda) — tenta reaproveitar; se não existir, calcula de forma canônica
+        try:
+            v8_snap = st.session_state.get("v8_borda_qualificada") or {}
+            if not isinstance(v8_snap, dict) or v8_snap.get("meta", {}).get("status") not in ("ok", "presenca_vazia"):
+                v8_snap = v8_classificar_borda_qualificada(
+                    listas=[list(map(int, lst)) for lst in pacote_atual],
+                    base_n=10,
+                    core_presenca_min=0.60,
+                    quase_delta=0.12,
+                    max_borda_interna=6,
+                    universo_min=universo_min,
+                    universo_max=universo_max,
+                    rigidez_info=st.session_state.get("v16_rigidez_info"),
+                )
+        except Exception:
+            v8_snap = {"core": [], "quase_core": [], "borda_interna": [], "borda_externa": [], "meta": {"status": "snap_falhou"}}
+
+        # Frequência de passageiros
+        try:
+            freq_passageiros = {}
+            for lst in pacote_atual:
+                for x in lst:
+                    xi = int(x)
+                    freq_passageiros[xi] = freq_passageiros.get(xi, 0) + 1
+        except Exception:
+            freq_passageiros = {}
+
+        # Assinatura
+        try:
+            sig_raw = json.dumps([list(map(int, lst)) for lst in pacote_atual], ensure_ascii=False, sort_keys=True)
+            sig = hashlib.sha256(sig_raw.encode("utf-8")).hexdigest()[:16]
+        except Exception:
+            sig = "N/D"
+
+        from datetime import datetime
+        snapshot_p0_reg[int(k_reg)] = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "k": int(k_reg),
+            "qtd_listas": int(len(pacote_atual)),
+            "listas": [list(map(int, lst)) for lst in pacote_atual],
+            "universo_pacote": list(map(int, universo_pacote)),
+            "freq_passageiros": {str(int(k)): int(v) for k, v in sorted(freq_passageiros.items(), key=lambda kv: (-kv[1], kv[0]))},
+            "snap_v8": {
+                "core": list(map(int, (v8_snap.get("core") or []))),
+                "quase_core": list(map(int, (v8_snap.get("quase_core") or []))),
+                "borda_interna": list(map(int, (v8_snap.get("borda_interna") or []))),
+                "borda_externa": list(map(int, (v8_snap.get("borda_externa") or []))),
+                "meta": v8_snap.get("meta") or {},
+            },
+            "assinatura": sig,
+            "nota": "Snapshot P0 canônico — AUTO (V0) — pré-C4 · leitura apenas. Não altera Camada 4.",
+        }
+
+        st.session_state["snapshot_p0_canonic"] = snapshot_p0_reg
+
+        # alias legado para compatibilidade com painéis antigos
+        st.session_state["snapshots_p0_map"] = snapshot_p0_reg
+
+        return True
+    except Exception:
+        return False
 
 def _m1_classificar_estado(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     """Classifica estado S0–S6 (canônico) com base no snapshot.
@@ -9350,6 +9445,26 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         _pacote_bt = listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais
         st.session_state["pacote_listas_atual"] = _pacote_bt
         st.session_state["pacote_listas_origem"] = "Modo 6 (Top10)" if _pacote_bt is listas_top10 else "Modo 6 (Total)"
+
+        # ------------------------------------------------------------
+        # 🧊 CAP INVISÍVEL (V0) — AUTO-REGISTRO DO SNAPSHOT P0
+        # ------------------------------------------------------------
+        # Regra: sempre que o Modo 6 gera/congela um pacote, registramos o Snapshot P0 canônico
+        # da janela ativa automaticamente (sem exigir clique no Replay Progressivo).
+        try:
+            _k_reg_auto = int(st.session_state.get("replay_janela_k_active", len(df)))
+        except Exception:
+            _k_reg_auto = int(len(df))
+        try:
+            _umin_auto = int(st.session_state.get("universo_min", 1) or 1)
+            _umax_auto = int(st.session_state.get("universo_max", 60) or 60)
+        except Exception:
+            _umin_auto, _umax_auto = 1, 60
+
+        try:
+            pc_snapshot_p0_autoregistrar(_pacote_bt, k_reg=_k_reg_auto, universo_min=_umin_auto, universo_max=_umax_auto)
+        except Exception:
+            pass
     except Exception:
         # Falha silenciosa: não deve travar a execução do Modo 6.
         pass
