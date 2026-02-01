@@ -11257,7 +11257,7 @@ if postura != "N/D":
     st.markdown("### 🛡️ Pacote Prioritário (Top 10) — Modo 6")
 
     listas_m6_totais = listas_m6_totais if 'listas_m6_totais' in locals() else []
-top10 = listas_m6_totais[:10] if listas_m6_totais else []
+    top10 = listas_m6_totais[:10] if listas_m6_totais else []
     for i, lst in enumerate(top10, 1):
         st.markdown(f"**{i:02d})** {formatar_lista_passageiros(lst)}")
 
