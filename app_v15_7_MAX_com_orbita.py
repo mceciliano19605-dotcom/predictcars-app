@@ -103,11 +103,7 @@ def p2_h2_dist(df_hist, universo, cap, n=6):
 # ============================================================
 
 def _parab_safe_float(x, default=0.0):
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         xf = float(x)
         if np.isnan(xf) or np.isinf(xf):
             return default
@@ -124,11 +120,7 @@ def _parab_state_from_curvature(c: float, eps: float) -> str:
 
 def _parab_auto_eps(dE, C):
     # eps objetivo: escala pelo ruído real observado (dE e curvatura)
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         mdE = float(np.median(np.abs(dE))) if len(dE) else 0.0
         mC = float(np.median(np.abs(C))) if len(C) else 0.0
         # piso mínimo evita “tremedeira” quando valores são pequenos
@@ -144,11 +136,7 @@ def _parab_resolver_pos_k(df: pd.DataFrame, k_val: int):
         return idxs.index(k_val - 1), idxs
     if (k_val + 1) in idxs:
         return idxs.index(k_val + 1), idxs
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if hasattr(df.index, "start") and hasattr(df.index, "stop"):
             if df.index.start <= k_val < df.index.stop:
                 return int(k_val - df.index.start), idxs
@@ -170,11 +158,7 @@ def _parab_series_from_df(df: pd.DataFrame, idx, n: int = 6):
 
 def _parab_erro_snapshot(df: pd.DataFrame, snap: dict, n: int = 6):
     universo = snap.get("universo_pacote") or snap.get("universo") or snap.get("universo_p0") or []
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         universo = [int(x) for x in universo]
     except Exception:
         universo = []
@@ -290,11 +274,7 @@ def parabola_multiescala_vetorial(df_full: pd.DataFrame, snapshots_map: dict, n:
     # persistência objetiva:
     # - exige ao menos 2 curvaturas consecutivas na mesma direção na escala longa (métrica primária)
     pers = {"ok_subindo": False, "ok_descendo": False, "motivo": None}
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         dbg = debug.get("long", {}).get("fora_longe", {})
         C = dbg.get("C", [])
         eps = float(dbg.get("eps", 0.05))
@@ -353,11 +333,7 @@ def _p1__build_ub_from_snapshot(snapshot: dict, umin: int, umax: int) -> dict:
         return {"UB": [], "adds_B": [], "motivo": "snapshot_invalido"}
 
     u0 = snapshot.get("universo_pacote") or []
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         u0 = sorted({int(x) for x in u0 if int(umin) <= int(x) <= int(umax)})
     except Exception:
         u0 = []
@@ -367,11 +343,7 @@ def _p1__build_ub_from_snapshot(snapshot: dict, umin: int, umax: int) -> dict:
     # Top frequentes do pacote (ex-ante, vindo do snapshot)
     freq = snapshot.get("freq_passageiros") or {}
     top = []
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         # freq pode estar como dict[str]->int
         items = []
         for k, v in freq.items():
@@ -416,19 +388,11 @@ def _p1__build_ub_from_snapshot(snapshot: dict, umin: int, umax: int) -> dict:
 def _ambiente_ruim(*, k_star: float, indice_risco: float | None, regime_txt: str | None) -> bool:
     """Heurística conservadora para 'RUIM/TURBULENTO' (pré-C4).
     Não decide ataque; apenas governa se P1 pode ser aplicado defensivamente."""
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         ks = float(k_star or 0.0)
     except Exception:
         ks = 0.0
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         ir = float(indice_risco) if indice_risco is not None else None
     except Exception:
         ir = None
@@ -476,11 +440,7 @@ def _p1_auto_decidir(df_full, snaps_map: dict, k_ref: int) -> dict:
 
     # CAP "mincal": calibração mínima suficiente para liberar P1 defensivo (sem liberar P2).
     Ws = gov.get("Ws") if isinstance(gov, dict) else {}
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         ws_short = int((Ws or {}).get("short") or 0)
         ws_mid = int((Ws or {}).get("mid") or 0)
         ws_long = int((Ws or {}).get("long") or 0)
@@ -501,11 +461,7 @@ def _p1_auto_decidir(df_full, snaps_map: dict, k_ref: int) -> dict:
 
     # Snapshot P0 do k de referência
     snap = None
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         snap = snaps_map.get(int(k_ref))
     except Exception:
         snap = None
@@ -589,11 +545,7 @@ def p2_executar(snapshot, df_full):
 
 def _pc_fmt_num(x, decimals: int = 4, nd: str = "N/D") -> str:
     """Formata número para UX (evita mostrar nan/inf cru)."""
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if x is None:
             return nd
         if isinstance(x, (int, float)):
@@ -737,11 +689,7 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
     painel_atual = g("NAV_V157_CANONICA", "N/D")
 
     # Keys (para auditoria leve)
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         keys = sorted([str(k) for k in ss.keys()])
     except Exception:
         keys = []
@@ -784,11 +732,7 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
 # ============================================================
 
 def v16_detectar_universo_do_historico(df, n_alvo=6):
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if df is None or len(df) == 0:
             return (None, None)
         cols = []
@@ -823,11 +767,7 @@ def v16_detectar_universo_do_historico(df, n_alvo=6):
 
 
 def v16_registrar_universo_session_state(df, n_alvo=6):
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         umin, umax = v16_detectar_universo_do_historico(df, n_alvo=n_alvo)
         if umin is not None and umax is not None:
             st.session_state["universo_min"] = int(umin)
@@ -857,8 +797,7 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, *, k_reg: int, universo_min: int,
     - Pré-C4 (leitura), auditável, não muda listas.
     - Falha silenciosa: nunca deve derrubar o app.
     """
-        try:
-            pass
+    try:
         if not isinstance(pacote_atual, list) or len(pacote_atual) == 0:
             return False
 
@@ -1008,8 +947,7 @@ def _pc_replay_limpar_chaves_dependentes_silent():
 
 def pc_exec_pipeline_flex_ultra_silent(df: pd.DataFrame) -> bool:
     """Executa o Pipeline V14-FLEX ULTRA (silencioso) e grava chaves canônicas em session_state."""
-        try:
-            pass
+    try:
         if df is None or df.empty:
             return False
 
@@ -1076,8 +1014,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
     """
-        try:
-            pass
+    try:
         if df is None or df.empty:
             return []
 
@@ -1262,8 +1199,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
 
 def pc_cap_invisivel_v1_processar_um_k(df_full: pd.DataFrame, k_alvo: int) -> bool:
     """Processa 1 janela k_alvo: recorta, executa pipeline+modo6 e registra snapshot P0."""
-        try:
-            pass
+    try:
         if df_full is None or df_full.empty:
             return False
         k_alvo = int(k_alvo)
@@ -1363,11 +1299,7 @@ def _m1_render_barra_estados(estado: str) -> None:
 
 def _m1_render_mirror_panel() -> None:
     """Painel Mirror canônico (observacional). Nunca derruba o app."""
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         snapshot = _m1_collect_mirror_snapshot()
         meta = _m1_classificar_estado(snapshot)
 
@@ -1522,11 +1454,7 @@ def carregar_historico_universal(linhas):
     # ------------------------------------------------------------
     # SANIDADE DO UNIVERSO — CANÔNICA (MIN e MAX REAIS)
     # ------------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         universo_min = int(min(universo_detectado))
         universo_max = int(max(universo_detectado))
         st.session_state["universo_min"] = universo_min
@@ -1593,11 +1521,7 @@ def v16_calcular_orbita_pacote(listas_topN, universo_min, universo_max):
         "top_passageiros": [],
         "listas_top": [],
     }
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if not listas_topN:
             return info
 
@@ -1676,11 +1600,7 @@ def v16_calcular_gradiente_E1(info_orbita):
     G2: E1 consistente
     G3: E1 comprimido (quase E2)
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if not info_orbita or info_orbita.get("estado") != "E1":
             return {"gradiente": "G0", "score": 0.0}
 
@@ -1723,11 +1643,7 @@ def v16_calcular_N_extra(estado_orbita, gradiente, n_base, eco_forca=None, eco_a
     - Apenas adiciona N_EXTRA quando justificável
     - Sem travar operador (apenas informa + gera listas)
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         n_base = int(n_base or 0)
         if n_base <= 0:
             return 0
@@ -1755,11 +1671,7 @@ def v16_gerar_listas_extra_por_orbita(info_orbita, universo_min, universo_max, n
     """Gera listas extras (N_EXTRA) com viés de interseção/âncoras.
     Sem interceptação automática: é só expansão condicional do pacote.
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         import random
         rnd = random.Random(int(seed or 0) + 991)
         universo = list(range(int(universo_min), int(universo_max)+1))
@@ -1814,11 +1726,7 @@ def v16_calcular_aps_postura(nr_percent=None, orbita_selo=None, eco_acionabilida
     - Observacional: NÃO muda listas, NÃO decide volume.
     - Classifica risco/postura e sugere forma compatível (denso/espalhado/duplo pacote) sem impor.
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         nr = float(nr_percent) if nr_percent is not None else None
     except Exception:
         nr = None
@@ -1842,230 +1750,6 @@ def v16_calcular_aps_postura(nr_percent=None, orbita_selo=None, eco_acionabilida
     return ("⚪", "Postura Neutra", "Sem evidência suficiente para postura ativa. Manter pacote base e acompanhar série a série (detecção/sensibilidade/gradiente).")
 
 
-
-
-# ============================================================
-# POSTURA OPERACIONAL — "RESPIRÁVEL" (V16 PREMIUM)
-# Pré-C4 · Observacional · Auditável
-#
-# Objetivo:
-# - Formalizar o estado intermediário: RUIM, porém operável ("respirável")
-# - Usar apenas sinais já existentes (Pipeline + Sentinelas/NR/Divergência + Classe de risco)
-# - Alterar somente a PRIORIZAÇÃO do P0/MODO 6 (Top 10), sem criar motor, sem tocar Camada 4
-# ============================================================
-
-def v16_calcular_postura_operacional_respiravel(
-    classe_risco=None,
-    k_star=None,
-    nr_percent=None,
-    divergencia_s6_mc=None,
-    pipeline_estrada=None,
-):
-    """Retorna uma postura canônica: 'ESTAVEL', 'RESPIRAVEL' ou 'RUPTURA'.
-
-    Regras:
-    - Determinístico, conservador, pré-C4.
-    - Se tudo estiver N/D, NÃO ativa RESPIRÁVEL (permanece ESTÁVEL neutro).
-    """
-
-    # Normalizações seguras
-        try:
-            pass
-        except Exception:
-            pass
-            pass
-        ks = float(k_star) if k_star is not None else None
-    except Exception:
-        ks = None
-        try:
-            pass
-        except Exception:
-            pass
-            pass
-        nr = float(nr_percent) if nr_percent is not None else None
-    except Exception:
-        nr = None
-        try:
-            pass
-        except Exception:
-            pass
-            pass
-        dv = float(divergencia_s6_mc) if divergencia_s6_mc is not None else None
-    except Exception:
-        dv = None
-
-    cr = (str(classe_risco).strip() if classe_risco is not None else "N/D")
-    pe = (str(pipeline_estrada).strip() if pipeline_estrada is not None else "N/D")
-
-    tem_algum_sinal = any([
-        cr not in ("", "N/D", "—"),
-        ks is not None,
-        nr is not None,
-        dv is not None,
-        pe not in ("", "N/D", "—"),
-    ])
-
-    # -------------------------
-    # RUPTURA (prioridade máxima)
-    # -------------------------
-    if "🔴" in cr:
-        return "RUPTURA"
-
-    if (ks is not None) and (ks >= 0.55):
-        return "RUPTURA"
-    if (nr is not None) and (nr >= 45):
-        return "RUPTURA"
-    if (dv is not None) and (dv >= 6):
-        return "RUPTURA"
-
-    if ("Estrada Quente" in pe) and (
-        ((ks is not None) and (ks >= 0.45)) or
-        ((nr is not None) and (nr >= 40)) or
-        ((dv is not None) and (dv >= 5))
-    ):
-        return "RUPTURA"
-
-    # -------------------------
-    # ESTÁVEL (usa só o que existir)
-    # -------------------------
-    if tem_algum_sinal:
-        sinais_baixos = True
-
-        # Classe: se existe e não é verde, já perde estabilidade
-        if cr not in ("", "N/D", "—") and ("🟢" not in cr):
-            sinais_baixos = False
-
-        if (ks is not None) and (ks > 0.20):
-            sinais_baixos = False
-        if (nr is not None) and (nr > 25):
-            sinais_baixos = False
-        if (dv is not None) and (dv > 2):
-            sinais_baixos = False
-        if "Estrada Quente" in pe:
-            sinais_baixos = False
-
-        if sinais_baixos:
-            return "ESTAVEL"
-
-    # -------------------------
-    # RESPIRÁVEL (meio do caminho)
-    # -------------------------
-    if not tem_algum_sinal:
-        # Sem sinais → não mexe (evita ativar postura sem evidência)
-        return "ESTAVEL"
-    return "RESPIRAVEL"
-
-
-def v16_aplicar_respiravel_no_p0_modo6(listas_totais: list, listas_top10: list, universo_min: int, universo_max: int) -> dict:
-    """Aplica controle de execução do P0 quando postura = RESPIRÁVEL.
-
-    - NÃO cria números.
-    - NÃO chama TURBO.
-    - NÃO altera Camada 4.
-    - Reordena/ajusta PRIORIZAÇÃO do Top 10 para garantir 'folga mínima' (anti-âncora) e reduzir clones.
-    """
-    out = {
-        "top10": listas_top10[:] if isinstance(listas_top10, list) else [],
-        "aplicado": False,
-        "motivo": "N/D",
-        "core": [],
-        "anti_idx": [],
-    }
-
-        try:
-            pass
-        except Exception:
-            pass
-            pass
-        if not listas_totais or not isinstance(listas_totais, list):
-            out["motivo"] = "listas_totais_invalidas"
-            return out
-
-        # Análise observacional já existente
-        analise = v16_analisar_duplo_pacote_base_anti_ancora(
-            listas=listas_totais,
-            base_n=10,
-            max_anti=4,
-            core_presenca_min=0.60,
-        )
-        core = analise.get("core") or []
-        overlaps = analise.get("overlaps") or []
-        anti_idx = analise.get("anti_idx") or []
-
-        out["core"] = core
-        out["anti_idx"] = anti_idx
-
-        # Se não há compressão/CORE, não força folga
-        if not core:
-            out["motivo"] = "sem_core_sem_compressao"
-            return out
-
-        # Ordena candidatos por menor overlap com o CORE (anti-clone leve)
-        idxs = list(range(len(listas_totais)))
-        def _ov(i):
-            try:
-                return float(overlaps[i])
-            except Exception:
-                return 999.0
-
-        idxs_sorted = sorted(idxs, key=lambda i: (_ov(i), i))
-
-        # Monta Top 10 por diversidade (menor overlap primeiro), mantendo apenas listas válidas
-        top = []
-        seen = set()
-        for i in idxs_sorted:
-            lst = listas_totais[i]
-            if not isinstance(lst, list):
-                continue
-            # normaliza: dentro do universo e tamanho >= 6
-            ok = True
-            for v in lst:
-                try:
-                    iv = int(v)
-                except Exception:
-                    ok = False
-                    break
-                if iv < universo_min or iv > universo_max:
-                    ok = False
-                    break
-            if not ok:
-                continue
-            # assinatura por conjunto (anti-permutação)
-            sig = tuple(sorted([int(x) for x in lst if isinstance(x, (int, float, str))]))
-            if sig in seen:
-                continue
-            seen.add(sig)
-            top.append(lst)
-            if len(top) >= 10:
-                break
-
-        if not top:
-            out["motivo"] = "top10_vazio_apos_filtro"
-            return out
-
-        # Força 1 anti-âncora dentro do Top10 (posição 2), se existir
-        if anti_idx:
-            try:
-                idx_anti0 = int(anti_idx[0]) - 1  # anti_idx é 1-based
-                if 0 <= idx_anti0 < len(listas_totais):
-                    lista_anti = listas_totais[idx_anti0]
-                    # Remove se já estiver no top
-                    top = [x for x in top if x != lista_anti]
-                    # Insere na posição 2 (index 1)
-                    pos = 1 if len(top) >= 2 else len(top)
-                    top.insert(pos, lista_anti)
-                    top = top[:10]
-            except Exception:
-                pass
-
-        out["top10"] = top
-        out["aplicado"] = True
-        out["motivo"] = "respiravel_folga_minima_anticlone"
-        return out
-
-    except Exception:
-        out["motivo"] = "erro_aplicacao_respiravel"
-        return out
 # ============================================================
 # V16 — SINCRONIZAÇÃO CANÔNICA (ALIASES) + ANTI-ÂNCORA (OBS)
 # ============================================================
@@ -2125,11 +1809,7 @@ def v16_analisar_duplo_pacote_base_anti_ancora(
     - base_idx: índices (1-based) do pacote base
     - anti_idx: índices (1-based) sugeridos como anti-âncora (existentes)
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if not listas or not isinstance(listas, list):
             return {"core": [], "overlaps": [], "base_idx": [], "anti_idx": [], "nota": "sem_listas"}
 
@@ -2221,11 +1901,7 @@ def v16_diagnostico_rigidez_jeitao(
       - sinais (dict)           # métricas usadas
       - mensagem (str)
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if not listas or not isinstance(listas, list):
             return {"rigido": False, "score": 0.0, "folga_qualitativa": "nenhuma", "sinais": {"motivo": "sem_listas"}, "mensagem": "Sem listas para diagnóstico."}
 
@@ -2367,8 +2043,7 @@ def v8_classificar_borda_qualificada(
       - borda_externa (lista) + motivos
       - meta (base_n, thresholds, rigidez, etc.)
     """
-        try:
-            pass
+    try:
         if not listas or not isinstance(listas, list):
             return {
                 "core": [],
@@ -2611,11 +2286,7 @@ def v16_gerar_listas_interceptacao_orbita(info_orbita: dict,
     """
     import random
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         qtd = int(qtd)
     except Exception:
         qtd = 4
@@ -2950,11 +2621,7 @@ def _pc16_normalizar_series_6(historico_df: pd.DataFrame) -> np.ndarray:
         if c not in historico_df.columns:
             return np.zeros((0, 6), dtype=float)
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         dfp = historico_df[colunas_esperadas].astype(float).dropna()
     except Exception:
         return np.zeros((0, 6), dtype=float)
@@ -3283,11 +2950,7 @@ def v16_mapear_confiabilidade_session_state() -> Dict[str, Any]:
     """
     mapeamento: Dict[str, Any] = {}
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         for chave, valor in st.session_state.items():
             nome_lower = str(chave).lower()
             if any(token in nome_lower for token in ["confiab", "qds", "k_estrela", "k*", "nr%", "ruido"]):
@@ -3580,11 +3243,7 @@ def pc_especial_avaliar_pacote_contem_6(carro, alvo):
     Retorna True se o carro contém TODOS os 6 números do alvo.
     Régua BINÁRIA: 6 ou nada.
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         return set(alvo).issubset(set(carro))
     except Exception:
         return False
@@ -3634,11 +3293,7 @@ def _pc_contar_hits_lista_vs_alvo(lista, alvo_set):
     """
     Retorna quantidade de acertos (interseção) entre uma lista (carro) e o alvo (set).
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         s = set(int(x) for x in lista)
     except Exception:
         return 0
@@ -3667,11 +3322,7 @@ def _pc_extrair_carro_row(row):
     Extrai os 6 passageiros da linha do histórico.
     Espera colunas p1..p6 (padrão do PredictCars).
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         return [int(row[f"p{i}"]) for i in range(1, 7)]
     except Exception:
         return None
@@ -3684,11 +3335,7 @@ def _pc_distancia_carros(carro_a, carro_b):
     """
     if carro_a is None or carro_b is None:
         return None
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         return len(set(carro_a) ^ set(carro_b))
     except Exception:
         return None
@@ -3702,11 +3349,7 @@ def _pc_estado_alvo_proxy(dist):
     if dist is None:
         return "None"
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         d = float(dist)
     except Exception:
         return "None"
@@ -4127,11 +3770,7 @@ def v16_diagnosticar_eco_estado():
     # ESTADO DO ALVO (proxy existente)
     # =========================================================
     estado_proxy = None
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         col_pass = [c for c in historico_df.columns if c.startswith("p")]
         if len(col_pass) >= 6 and len(historico_df) >= 2:
             a = [int(historico_df.iloc[-1][c]) for c in col_pass[:6]]
@@ -4186,11 +3825,7 @@ def v16_diagnosticar_eco_estado():
 # ATIVAÇÃO SILENCIOSA — DIAGNÓSTICO ECO & ESTADO (V16)
 # ============================================================
 if "historico_df" in st.session_state:
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         v16_diagnosticar_eco_estado()
     except Exception:
         pass
@@ -4396,11 +4031,7 @@ from datetime import datetime
 
 def _m2_init_memoria() -> None:
     """Inicializa a memoria em session_state (infraestrutura invisivel)."""
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         ss = st.session_state
         if "m2_memoria_estados" not in ss or not isinstance(ss.get("m2_memoria_estados"), list):
             ss["m2_memoria_estados"] = []
@@ -4415,11 +4046,7 @@ def _m2_init_memoria() -> None:
 
 def _m2_guess_serie_id(snapshot: dict) -> str:
     """Tenta inferir o id da serie atual. Regra: nunca falhar."""
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         ss = st.session_state
         # Preferencias: chaves explicitas (quando existirem)
         for k in ("serie_id", "serie_atual", "serie_corrente", "concurso_atual", "c_atual"):
@@ -4490,11 +4117,7 @@ def _m2_build_registro_estendido(snapshot: dict, meta: dict) -> dict:
 
 def _m2_persistir_linha_jsonl(registro: dict) -> None:
     """Persistencia best-effort em JSONL. Falha silenciosa (Streamlit Cloud pode restringir)."""
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         # arquivo local no diretorio do app (best-effort)
         path = "memoria_estados_v16.jsonl"
         with open(path, "a", encoding="utf-8") as f:
@@ -4505,11 +4128,7 @@ def _m2_persistir_linha_jsonl(registro: dict) -> None:
 
 def _m2_registrar_minimo_se_preciso(snapshot: dict, meta: dict) -> None:
     """Gatilho canonico: registrar no primeiro S3 auditavel (sem duplicar)."""
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         _m2_init_memoria()
         estado = str(meta.get("estado", ""))
         if estado not in ("S3", "S4", "S5", "S6"):
@@ -4534,11 +4153,7 @@ def _m2_registrar_minimo_se_preciso(snapshot: dict, meta: dict) -> None:
 
 def _m2_registrar_fechamento_se_preciso(snapshot: dict, meta: dict) -> None:
     """Gatilho complementar: registrar fechamento (S6 heuristico), sem duplicar."""
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         _m2_init_memoria()
         estado = str(meta.get("estado", ""))
         if estado != "S6":
@@ -4563,11 +4178,7 @@ def _m2_registrar_fechamento_se_preciso(snapshot: dict, meta: dict) -> None:
 
 def _m2_resumo_auditavel() -> dict:
     """Resumo leve para aparecer no Mirror (auditoria controlada)."""
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         _m2_init_memoria()
         mem = st.session_state.get("m2_memoria_estados", [])
         total = len(mem) if isinstance(mem, list) else 0
@@ -4791,11 +4402,7 @@ M5_PAINEL_PULO_GATO_NOME = "🧠 M5 — Pulo do Gato (Coleta Automática de Esta
 
 def _m5_identidade_historico_para_coleta(df_full, n_alvo, universo_min, universo_max):
     """ID estável (best-effort) para limitar coleta por histórico sem depender de hash pesado."""
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         tam = int(len(df_full)) if df_full is not None else -1
     except Exception:
         tam = -1
@@ -4807,11 +4414,7 @@ def _m5_leitura_regime_light(df_cut, universo_min, universo_max):
 
     Objetivo: registrar um *sinal* coerente para M2 (não substituir o pipeline).
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         # janela curta para captar irregularidade recente
         w = min(120, max(30, int(len(df_cut) * 0.05)))
         dfw = df_cut.tail(w)
@@ -5001,11 +4604,7 @@ def _m3_has_s3_risco_minimo() -> bool:
 
 
 def _m3_norm_int(v):
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         return int(float(str(v).strip().replace(",", ".")))
     except Exception:
         return None
@@ -5023,11 +4622,7 @@ def _m3_dx_janela(df_window, cols_pass):
                 pass
     if not vals:
         return None
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         return float(np.mean(vals))
     except Exception:
         return None
@@ -5112,11 +4707,7 @@ def m3_painel_expectativa_historica_contexto():
     if len(dx_list) < 120:
         st.warning("⚠️ Poucas janelas válidas para estimar quantis com estabilidade. (Resultados ainda são informativos.)")
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         q1 = float(np.quantile(dx_list, 0.33))
         q2 = float(np.quantile(dx_list, 0.66))
     except Exception:
@@ -5221,11 +4812,7 @@ def m3_painel_expectativa_historica_contexto():
 
     # --- M3: exporta um resumo mínimo para uso em outros painéis (read-only)
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
 
         st.session_state["m3_ts"] = datetime.utcnow().isoformat() + "Z"
 
@@ -5263,11 +4850,7 @@ def m3_painel_expectativa_historica_contexto():
         )
         st.stop()
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         conteudo = arquivo.getvalue().decode("utf-8")
         linhas = conteudo.strip().split("\n")
 
@@ -5450,8 +5033,7 @@ if painel == "📁 Carregar Histórico (Arquivo)":
         st.info("Envie um arquivo para iniciar o processamento do PredictCars.")
         st.stop()
 
-        try:
-            pass
+    try:
         raw = up.getvalue()
         try:
             txt = raw.decode("utf-8")
@@ -5614,11 +5196,7 @@ elif painel == "🧾 APS — Auditoria de Postura (V16)":
 
     # Registro canônico (observacional)
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
 
         st.session_state["aps_postura_selo"] = selo
 
@@ -5765,11 +5343,7 @@ elif painel == "🧭 RMO/DMO — Retrato do Momento (V16)":
     # (usa NR do Painel de Ruído, quando disponível)
     hist = st.session_state["dmo_hist_sinais"]
     nr_ok = None
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if isinstance(nr_ruido, (int, float)):
             prev_nr = st.session_state.get("dmo_prev_nr_ruido")
             if isinstance(prev_nr, (int, float)):
@@ -6216,11 +5790,7 @@ def _pc_distancia_carros_offline(a, b):
     quantos passageiros mudaram (0..6).
     Observacional, robusto e defensivo.
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         sa = set(int(x) for x in a)
         sb = set(int(x) for x in b)
         inter = len(sa & sb)
@@ -6331,11 +5901,7 @@ def construir_contexto_historico_offline_v16(df):
 # ============================================================
 
 if "historico_df" in st.session_state:
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         construir_contexto_historico_offline_v16(
             st.session_state.get("historico_df")
         )
@@ -6637,11 +6203,7 @@ def _pc_distancia_carros(a, b):
     Distância simples entre dois carros (listas de 6):
     quantos passageiros mudaram (0..6).
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         sa = set([int(x) for x in a])
         sb = set([int(x) for x in b])
         inter = len(sa & sb)
@@ -6998,11 +6560,7 @@ if painel == "🛣️ Pipeline V14-FLEX ULTRA":
     # ============================================================
     # Normalização
     # ============================================================
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         minimo = matriz.min()
         maximo = matriz.max()
         amplitude = maximo - minimo if maximo != minimo else 1.0
@@ -7037,11 +6595,7 @@ if painel == "🛣️ Pipeline V14-FLEX ULTRA":
     # ============================================================
     # Clusterização leve (DX — motor original FLEX ULTRA)
     # ============================================================
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         from sklearn.cluster import KMeans
 
         n_clusters = 3
@@ -7106,11 +6660,7 @@ if painel == "🛣️ Pipeline V14-FLEX ULTRA":
     st.session_state["pipeline_flex_ultra_concluido"] = True
     st.session_state["pipeline_executado"] = True
     st.session_state["m1_selo_pipeline_ok"] = True
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         from datetime import datetime
         st.session_state["m1_ts_pipeline_ok"] = datetime.now().isoformat(timespec="seconds")
     except Exception:
@@ -7155,11 +6705,7 @@ if painel == "🔁 Replay LIGHT":
 
     st.info("Executando Replay LIGHT...")
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         # DX leve = simples proximidade média entre séries vizinhas
         proximidades = []
         for i in range(1, len(matriz_norm)):
@@ -7223,11 +6769,7 @@ if painel == "🔁 Replay ULTRA":
 
     st.info("Executando Replay ULTRA...")
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         # DX Ultra = distância média entre cada série e o centróide global
         centr_global = np.mean(matriz_norm, axis=0)
         distancias = [
@@ -7752,8 +7294,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
     st.dataframe(df_res, use_container_width=True, hide_index=True)
 
     # --- V9 (BLOCO B) — Resumo agregado (ex-post, observacional) ---
-        try:
-            pass
+    try:
         cols1 = ["core_hit_1", "quase_hit_1", "borda_in_hit_1", "borda_ex_hit_1", "miolo_hit_1", "fora_hit_1"]
         cols2 = ["core_hit_2", "quase_hit_2", "borda_in_hit_2", "borda_ex_hit_2", "miolo_hit_2", "fora_hit_2"]
 
@@ -8070,11 +7611,7 @@ if painel == "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo":
 
     snap = snapshots.get(int(k_sel)) or snapshots.get(str(k_sel)) or {}
     st.markdown("### 🧊 Snapshot P0 selecionado (visão rápida)")
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         st.write({
             "k": snap.get("k"),
             "ts": snap.get("ts"),
@@ -8173,11 +7710,7 @@ if painel == "⚙️ Modo TURBO++ HÍBRIDO":
     # ============================================================
     # MOTOR HÍBRIDO — DX Light + S6 Light + Monte Carlo Light
     # ============================================================
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         # DX Light — proximidade final
         vetor_final = matriz_norm[-1]
         distancias = [
@@ -8251,11 +7784,7 @@ from typing import Dict, Any, Optional
 # ------------------------------------------------------------
 
 def _clamp_v16(x: float, lo: float, hi: float) -> float:
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         x = float(x)
     except Exception:
         x = lo
@@ -8267,11 +7796,7 @@ def _clamp_v16(x: float, lo: float, hi: float) -> float:
 
 
 def _safe_float_v16(x: Any, default: float = 0.0) -> float:
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         return float(x)
     except Exception:
         return float(default)
@@ -8313,11 +7838,7 @@ def orquestrar_tentativa_v16(
     # -----------------------------
     # Sanitização básica
     # -----------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         series_count = int(series_count)
     except Exception:
         series_count = 0
@@ -8531,11 +8052,7 @@ def preparar_tentativa_turbo_ultra_v16(
     """
 
     # Defesa básica
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         series_count = int(series_count)
     except Exception:
         series_count = 0
@@ -8893,11 +8410,7 @@ if painel == "📡 Painel de Ruído Condicional":
 # PARTE 5/8 — INÍCIO
 # ============================================================
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if matriz_norm is None or len(matriz_norm) < 2:
             raise ValueError("Base insuficiente para medir ruído (matriz_norm < 2).")
 
@@ -9665,11 +9178,7 @@ def v9_classificar_memoria_borda(*, df_res: Optional[pd.DataFrame], total_hits: 
       - motivo_curto
       - n_alvos_avaliados
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         n_alvos = 0
         if df_res is not None and not df_res.empty:
             # conta alvos existentes (k+1 e k+2) a partir das colunas alvo_*
@@ -9723,11 +9232,7 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(
         return {"listas_ajustadas": listas, "aplicado": False, "trocas": 0, "motivo": "Sem listas para ajustar."}
 
     # Só aplica se n_real for válido
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         n_real = int(n_real)
     except Exception:
         n_real = 6
@@ -9749,11 +9254,7 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(
     # Extrai CORE/quase‑CORE (se disponível)
     core = set()
     quase = set()
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if isinstance(v8_borda_info, dict):
             core = set(v8_borda_info.get("CORE", []) or v8_borda_info.get("core", []) or [])
             quase = set(v8_borda_info.get("quase_CORE", []) or v8_borda_info.get("quase_core", []) or [])
@@ -9929,39 +9430,6 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     ultima_prev = st.session_state.get("ultima_previsao")
 
     # ------------------------------------------------------------
-    # POSTURA OPERACIONAL (V16) — ESTÁVEL / RESPIRÁVEL / RUPTURA
-    # (pré-C4 · observacional)
-    # ------------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
-        classe_risco = st.session_state.get("classe_risco") or st.session_state.get("classe_risco_texto") or "N/D"
-    except Exception:
-        classe_risco = "N/D"
-
-        try:
-            pass
-        except Exception:
-            pass
-            pass
-        pipeline_estrada = st.session_state.get("pipeline_estrada") or st.session_state.get("regime_identificado") or "N/D"
-    except Exception:
-        pipeline_estrada = "N/D"
-
-    postura_operacional = v16_calcular_postura_operacional_respiravel(
-        classe_risco=classe_risco,
-        k_star=k_star,
-        nr_percent=nr_pct,
-        divergencia_s6_mc=divergencia_s6_mc,
-        pipeline_estrada=pipeline_estrada,
-    )
-    st.session_state["postura_operacional_v16"] = postura_operacional
-    st.session_state["postura_respiravel_aplicado_v16"] = False
-    st.session_state["postura_respiravel_motivo_v16"] = "N/D"
-
-    # ------------------------------------------------------------
     # GUARDA — CRITÉRIO MÍNIMO (ORIGINAL PRESERVADO)
     # ------------------------------------------------------------
     pipeline_ok = st.session_state.get("pipeline_flex_ultra_concluido") is True
@@ -10072,11 +9540,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # - Auditável
     # - Não toca Camada 4
     # ------------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         df_full_for_gov = st.session_state.get("df_full") or st.session_state.get("historico_df")
         snaps_map_for_gov = st.session_state.get("snapshot_p0_canonic") or {}
         k_ref = int(st.session_state.get("replay_janela_k_active", len(df)))
@@ -10133,11 +9597,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     pool_mode = "full"
     inv_pos = None
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if isinstance(universo_idx_use, list) and universo_idx_use != universo_idx:
             pool_idx = list(universo_idx_use)  # subset ordenado
             pool_mode = "foco_p1"
@@ -10202,39 +9662,11 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     listas_top10 = listas_totais[:10]
 
-    # ------------------------------------------------------------
-    # RESPIRÁVEL (V16) — altera apenas a PRIORIZAÇÃO do P0/MODO 6
-    # ------------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
-        if st.session_state.get("postura_operacional_v16") == "RESPIRAVEL":
-            res = v16_aplicar_respiravel_no_p0_modo6(
-                listas_totais=listas_totais,
-                listas_top10=listas_top10,
-                universo_min=universo_min,
-                universo_max=universo_max,
-            )
-            if isinstance(res, dict) and res.get("aplicado"):
-                listas_top10 = res.get("top10") or listas_top10
-                st.session_state["postura_respiravel_aplicado_v16"] = True
-                st.session_state["postura_respiravel_motivo_v16"] = res.get("motivo", "respiravel")
-                st.session_state["postura_respiravel_core_v16"] = res.get("core", [])
-                st.session_state["postura_respiravel_anti_idx_v16"] = res.get("anti_idx", [])
-    except Exception:
-        pass
-
     # ============================================================
     # Órbita (E1) + Gradiente + N_EXTRA
     # (sem interceptação automática; não divide pacote)
     # ============================================================
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         info_orbita = v16_calcular_orbita_pacote(listas_top10, universo_min, universo_max)
         ginfo = v16_calcular_gradiente_E1(info_orbita)
         gradiente = ginfo.get("gradiente", "G0")
@@ -10327,11 +9759,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # Observacional, pré‑Camada 4.
     # Usa V8 (borda qualificada) como mapa e V9 (memória) como lastro, se existir.
     # ============================================================
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         _v8_info = st.session_state.get("v8_borda_qualificada_info", None)
         _v9_info = st.session_state.get("v9_memoria_borda", None)
 
@@ -10369,8 +9797,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # Regra: não decide ação e não muda geração.
     # Apenas "congela" qual pacote está ativo para o painel de Backtest.
     # Preferência: Top10 (priorizadas) quando existir; senão, usa o total.
-        try:
-            pass
+    try:
         _pacote_bt = listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais
         st.session_state["pacote_listas_atual"] = _pacote_bt
         st.session_state["pacote_listas_origem"] = "Modo 6 (Top10)" if _pacote_bt is listas_top10 else "Modo 6 (Total)"
@@ -10410,11 +9837,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     # ✅ Snapshot canônico (para Relatório Final / Diagnóstico Espelho)
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         st.session_state["modo6_executado"] = True
         st.session_state["listas_geradas"] = int(len(listas_top10) if isinstance(listas_top10, list) else len(listas_totais))
     except Exception:
@@ -10466,11 +9889,7 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
         st.stop()
 
     # Guarda 2 — n_alvo válido e diferente de 6
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         n_int = int(n_alvo)
     except Exception:
         st.error("Pré-requisito ausente: n_alvo inválido.")
@@ -11310,11 +10729,7 @@ def v16_priorizar_listas_por_contexto(listas):
 
         return score
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         listas_ordenadas = sorted(listas, key=score_lista, reverse=True)
         return listas_ordenadas
     except Exception:
@@ -11365,8 +10780,7 @@ if painel == "📘 Relatório Final":
     # 👁️ CAMADA 3 — Cegueiras ainda possíveis (hipóteses)
     # (Somente no RF: não cria sensores, não decide nada)
     # ------------------------------------------------------------
-        try:
-            pass
+    try:
         m3_reg = st.session_state.get("m3_regime_dx") or st.session_state.get("m3_regime") or "N/D"
         nrp = st.session_state.get("nr_percent")
         divv = st.session_state.get("divergencia_s6_mc")
@@ -11421,11 +10835,7 @@ if painel == "📘 Relatório Final":
 # ------------------------
     # 🧭 BLOCO -1 — SUMÁRIO EXECUTIVO (read-only)
     # ------------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         _snap = _m1_collect_mirror_snapshot() if '_m1_collect_mirror_snapshot' in globals() else {}
         _estado = _m1_classificar_estado(_snap) if '_m1_classificar_estado' in globals() else {'estado':'S0','avisos':[],'snapshot':_snap}
         st.markdown('### 🧭 Sumário Executivo (rodada atual)')
@@ -11567,34 +10977,12 @@ if painel == "📘 Relatório Final":
             "(isso é válido em regime estável)."
         )
 
-
-# ------------------------------------------------------------
-# Postura Operacional (V16) — leitura canônica
-# ------------------------------------------------------------
-postura = st.session_state.get("postura_operacional_v16") or "N/D"
-resp_aplicado = st.session_state.get("postura_respiravel_aplicado_v16") or False
-resp_motivo = st.session_state.get("postura_respiravel_motivo_v16") or "N/D"
-
-if postura != "N/D":
-    if postura == "ESTAVEL":
-        st.success("🟢 Postura: **ESTÁVEL** (execução normal do P0)")
-    elif postura == "RESPIRAVEL":
-        st.warning("🟠 Postura: **RESPIRÁVEL** (P0 com folga mínima / anti-clone)")
-    elif postura == "RUPTURA":
-        st.error("🔴 Postura: **RUPTURA** (defensivo máximo; sem agressividade)")
-    else:
-        st.info(f"Postura: **{postura}**")
-
-    if postura == "RESPIRAVEL":
-        st.caption(f"RESPIRÁVEL aplicado ao Top 10: **{bool(resp_aplicado)}** · motivo: `{resp_motivo}`")
-
     # ------------------------------------------------------------
     # 🛡️ Pacote Prioritário — Top 10 (Modo 6)
     # ------------------------------------------------------------
     st.markdown("### 🛡️ Pacote Prioritário (Top 10) — Modo 6")
 
-    listas_m6_totais = listas_m6_totais if 'listas_m6_totais' in locals() else []
-    top10 = listas_m6_totais[:10] if listas_m6_totais else []
+    top10 = listas_m6_totais[:10]
     for i, lst in enumerate(top10, 1):
         st.markdown(f"**{i:02d})** {formatar_lista_passageiros(lst)}")
 
@@ -11602,11 +10990,7 @@ if postura != "N/D":
     # ------------------------------------------------------------
     # 🧷 Anti-Âncora (OBSERVACIONAL) — rotulagem Base × Anti
     # ------------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         analise_anti = v16_analisar_duplo_pacote_base_anti_ancora(
             listas=listas_m6_totais,
             base_n=10,
@@ -11657,11 +11041,7 @@ if postura != "N/D":
     st.markdown("### 🧩 Jeitão do Pacote — Rigidez × Folga (diagnóstico)")
     st.caption("Alerta diagnóstico: quando o pacote fica rígido demais, ele pode 'acertar o jeitão' mas perder passageiros por rigidez. Isso NÃO é decisão: é só sinal para governança/cobertura.")
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         umin = st.session_state.get("universo_min")
         umax = st.session_state.get("universo_max")
         diag_j = v16_diagnostico_rigidez_jeitao(
@@ -11697,11 +11077,7 @@ if postura != "N/D":
     # ------------------------------------------------------------
     # 📊 EIXO 1 — CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
     # ------------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         listas_pacote_eixo1 = listas_m6_totais[:]
     
         historico_label = (
@@ -11759,10 +11135,7 @@ if postura != "N/D":
     # ============================================================
     # 📌 REGISTRO CANÔNICO DO MOMENTO — DIAGNÓSTICO (COPIÁVEL)
     # ============================================================
-        try:
-            pass
-        except Exception:
-            pass
+    try:
             # ------------------------------------------------------------
             # 
             # (camada experimental removida na âncora estável)
@@ -11803,8 +11176,7 @@ if postura != "N/D":
     # ============================================================
     # 🧨 JANELA LOCAL DE ATAQUE + 📦 PACOTES TÉCNICOS (RF CANÔNICO)
     # ============================================================
-        try:
-            pass
+    try:
         reg_m3 = (
             st.session_state.get("m3_regime_dx")
             or st.session_state.get("m3_regime")
@@ -11959,11 +11331,7 @@ if postura != "N/D":
     # ============================================================
     # 📌 LISTAS DE PREVISÃO ASSOCIADAS AO MOMENTO (COPIÁVEL)
     # ============================================================
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         st.markdown("### 📌 Listas de Previsão Associadas ao Momento")
     
         listas_para_registro = []
@@ -11992,11 +11360,7 @@ if postura != "N/D":
     # 🧠 Painel — Aptidão do Evento (CANÔNICO | SOMENTE LEITURA)
     # Avaliação AUTOMÁTICA de aptidão para Memória Operacional
     # ============================================================
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         st.markdown("## 🧠 Painel de Aptidão do Evento")
     
         # -------------------------------
@@ -12093,16 +11457,11 @@ if postura != "N/D":
     # ------------------------------------------------------------
     pacote_operacional = listas_m6_totais.copy()
 
-    listas_ultra = listas_ultra if 'listas_ultra' in locals() else []
-for lst in listas_ultra:
+    for lst in listas_ultra:
         if lst not in pacote_operacional:
             pacote_operacional.append(lst)
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         pacote_operacional = v16_priorizar_listas_por_contexto(pacote_operacional)
     except Exception:
         pass
@@ -12113,11 +11472,7 @@ for lst in listas_ultra:
     # 🧭 PAINEL CANÔNICO — BALA HUMANO DENSO (MODO ASSISTIDO)
     # (Somente leitura | sem execução | sem recomendação)
     # ------------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         st.markdown("## 🧭 Bala Humano Denso — Modo Assistido (Painel Canônico)")
 
         # Leituras já existentes no sistema (somente leitura)
@@ -12229,11 +11584,7 @@ for lst in listas_ultra:
     # ============================================================
     # 🧠 RF-GOV — GOVERNANÇA INFORMATIVA (AVISOS | SEM EFEITO)
     # ============================================================
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         st.markdown("### 🧠 RF-GOV — Governança Informativa")
 
         fenomeno_id = st.session_state.get("fenomeno_id", "N/D")
@@ -12687,11 +12038,7 @@ if painel == "🧠 Laudo Operacional V16":
     # --------------------------------------------------------
     # Leitura segura (usa Camada D se existir, senão guarda)
     # --------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         estado = v16_registrar_estado_alvo()
     except Exception:
         estado = {
@@ -12700,11 +12047,7 @@ if painel == "🧠 Laudo Operacional V16":
             "comentario": "Estado ainda não disponível.",
         }
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         expectativa = v16_registrar_expectativa()
     except Exception:
         expectativa = {
@@ -12714,11 +12057,7 @@ if painel == "🧠 Laudo Operacional V16":
             "comentario": "Expectativa ainda não disponível.",
         }
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         volume_op = v16_registrar_volume_e_confiabilidade()
     except Exception:
         volume_op = {
@@ -12778,11 +12117,7 @@ if painel == "🧠 Laudo Operacional V16":
     # --------------------------------------------------------
     # 4) Jeitão do Pacote — Rigidez (Camada 2 / observacional)
     # --------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         listas_m6_totais = (
             st.session_state.get("modo6_listas_totais")
             or st.session_state.get("modo6_listas")
@@ -12858,11 +12193,7 @@ def _v16_exato_proxy__normalizar_serie(valor):
     - string ('12', '12.0', ' 12 ')
     Retorna None se inválido.
     """
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if valor is None:
             return None
         if isinstance(valor, str):
@@ -12919,11 +12250,7 @@ def v16_painel_exato_por_regime_proxy():
     # --------------------------------------------------------
     # 0) Obter histórico BASE (FORÇADO)
     # --------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         nome_df, df_base = v16_identificar_df_base()
     except Exception:
         df_base = None
@@ -13034,11 +12361,7 @@ def v16_painel_exato_por_regime_proxy():
     st.markdown("### 🧩 Jeitão do Pacote — Rigidez × Folga (diagnóstico)")
     st.caption("Isso NÃO decide nem altera listas. Serve só para alertar sobre possível rigidez excessiva do pacote e sugerir 'folga' qualitativa como hipótese.")
 
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         listas_m6_totais = (
             st.session_state.get("modo6_listas_totais")
             or st.session_state.get("modo6_listas")
@@ -13142,11 +12465,7 @@ Ele responde:
     # --------------------------------------------------------
     # 0) Histórico base (obrigatório)
     # --------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         nome_df, df_base = v16_identificar_df_base()
     except Exception:
         nome_df, df_base = None, None
@@ -13482,11 +12801,7 @@ Ele responde:
     # --------------------------------------------------------
     # 0) Histórico base (robusto, sem caça)
     # --------------------------------------------------------
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         nome_df, df_base = v16_identificar_df_base()
     except Exception:
         nome_df, df_base = None, None
@@ -13913,11 +13228,7 @@ def _v16_delta_ci_worstcase(p1_ci: Tuple[float, float], p0_ci: Tuple[float, floa
     return (p1_ci[0] - p0_ci[1], p1_ci[1] - p0_ci[0])
 
 def _v16_safe_float(x, default: float = 0.0) -> float:
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         if x is None:
             return default
         v = float(x)
@@ -13996,11 +13307,7 @@ def _v16_extract_car_numbers(row: Any) -> List[int]:
             nums.append(int(cur))
         return nums
     # fallback
-        try:
-            pass
-        except Exception:
-            pass
-            pass
+    try:
         return [int(row)]
     except Exception:
         return []
@@ -15800,3 +15107,5 @@ elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
                 st.json(res)
         except Exception as e:
             st.error(f"Erro no P2: {e}")
+
+
