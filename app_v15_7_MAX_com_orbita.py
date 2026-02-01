@@ -14835,7 +14835,7 @@ Ele é **seguro**: 1 janela por ciclo (anti‑zumbi) e com limite de tentativas.
         st.session_state["cap_v1_total"] = int(len(ks_faltando))
         st.session_state["cap_v1_tentativas"] = {}
         st.session_state["cap_v1_running"] = True
-        st.experimental_rerun()
+        st.rerun()
 
     # ------------------------------------------------------------
     # 🚀 CAP INVISÍVEL (V1.1) — RODANDO (AUTO)
@@ -14886,7 +14886,7 @@ Ele é **seguro**: 1 janela por ciclo (anti‑zumbi) e com limite de tentativas.
                 st.session_state["cap_v1_fail"] = falhas
                 st.session_state["cap_v1_tentativas"] = tent_map
                 st.session_state["cap_v1_queue"] = fila[1:]
-                st.experimental_rerun()
+                st.rerun()
 
             tent_map[str(k_next)] = tent + 1
             st.session_state["cap_v1_tentativas"] = tent_map
@@ -14903,7 +14903,7 @@ Ele é **seguro**: 1 janela por ciclo (anti‑zumbi) e com limite de tentativas.
                 st.session_state["cap_v1_queue"] = fila
 
             # segue para o próximo ciclo
-            st.experimental_rerun()
+            st.rerun()
         except Exception:
             # falha dura: desarma
             st.session_state["cap_v1_running"] = False
