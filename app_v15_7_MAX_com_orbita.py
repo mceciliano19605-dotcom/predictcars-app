@@ -11,6 +11,165 @@ Arquivo único, íntegro e operacional.
 
 
 import streamlit as st
+# ============================================================
+# V16 — POSTURA OPERACIONAL (pré-C4)
+# Estados: ESTÁVEL / RESPIRÁVEL / RUPTURA
+# - Não decide ataque (Camada 4 intocável)
+# - Apenas ajusta a execução do P0/Modo 6 em ambiente "jogável"
+# ============================================================
+
+def _pc_safe_float(x, default=None):
+    try:
+        if x is None:
+            return default
+        if isinstance(x, (int, float)):
+            return float(x)
+        s = str(x).strip().replace(",", ".")
+        if s == "" or s.lower() in ("n/d", "nd", "nan", "none"):
+            return default
+        return float(s)
+    except Exception:
+        return default
+
+def pc_classificar_postura(pipeline_regime: str | None, k_star, nr_percent, div_s6_mc):
+    """Classifica postura operacional canônica.
+    Critérios são conservadores e usam apenas sinais já existentes.
+    """
+    k = _pc_safe_float(k_star, None)
+    nr = _pc_safe_float(nr_percent, None)
+    dv = _pc_safe_float(div_s6_mc, None)
+
+    regime = (pipeline_regime or "").strip()
+
+    # Heurística: estrada quente puxa para RESPIRÁVEL, mas não força RUPTURA sozinha.
+    estrada_quente = ("quente" in regime.lower()) or ("alta volatilidade" in regime.lower())
+
+    # RUPTURA: risco alto/saturação (quando sinais existem)
+    if (k is not None and k >= 0.40) or (nr is not None and nr >= 40.0) or (dv is not None and dv >= 4.5):
+        return "RUPTURA"
+
+    # RESPIRÁVEL: ruim, mas jogável (zona cinzenta)
+    if estrada_quente:
+        return "RESPIRÁVEL"
+    if (k is not None and 0.18 <= k < 0.40) or (nr is not None and 25.0 <= nr < 40.0) or (dv is not None and 2.5 <= dv < 4.5):
+        return "RESPIRÁVEL"
+
+    return "ESTÁVEL"
+
+def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6):
+    """Em RESPIRÁVEL, aplicamos *elasticidade mínima* no pacote (pré-C4):
+    - Anti-clone leve (remove duplicatas)
+    - Anti-core leve (troca 1 passageiro em algumas listas para reduzir compressão)
+    Mantém volume e não inventa motor novo.
+    """
+    try:
+        import random
+        rng = random.Random(int(seed) if seed is not None else 0)
+
+        if not isinstance(listas_totais, list) or len(listas_totais) == 0:
+            return listas_totais, listas_top10, {"aplicado": False, "motivo": "listas_totais vazias"}
+
+        top = listas_top10 if isinstance(listas_top10, list) else []
+        top = [lst for lst in top if isinstance(lst, (list, tuple)) and len(lst) >= n_alvo]
+        if not top:
+            top = [lst for lst in listas_totais if isinstance(lst, (list, tuple)) and len(lst) >= n_alvo][:10]
+
+        # Frequência no Top 10
+        freq = {}
+        for lst in top:
+            for v in lst[:n_alvo]:
+                try:
+                    vv = int(v)
+                except Exception:
+                    continue
+                freq[vv] = freq.get(vv, 0) + 1
+
+        # CORE: presença >= 60% do top
+        core = {v for v, c in freq.items() if c >= max(1, int(0.60 * max(1, len(top))))}
+
+        # Candidatos de baixa frequência (para "respirar")
+        uni = [int(x) for x in universo] if isinstance(universo, (list, tuple)) else []
+        uni = [u for u in uni if u > 0]
+        if not uni:
+            return listas_totais, listas_top10, {"aplicado": False, "motivo": "universo indisponível"}
+
+        low = sorted(uni, key=lambda u: (freq.get(u, 0), u))
+
+        def _norm(lst):
+            out = []
+            for x in lst[:n_alvo]:
+                try:
+                    out.append(int(x))
+                except Exception:
+                    pass
+            out = sorted(set(out))
+            # completa se perdeu algo
+            if len(out) < n_alvo:
+                for u in low:
+                    if u not in out:
+                        out.append(u)
+                    if len(out) >= n_alvo:
+                        break
+            return sorted(out[:n_alvo])
+
+        # Aplica em poucas listas (elasticidade mínima), evitando mexer no pacote inteiro
+        new_top = []
+        trocas = 0
+        for idx, lst in enumerate(top):
+            base = _norm(lst)
+            if idx < 6 and core:  # mexe nas 6 primeiras do top
+                # se lista está muito "colada" no CORE, troca 1 elemento core por um low
+                core_in = [v for v in base if v in core]
+                if len(core_in) >= 2:
+                    drop = rng.choice(core_in)
+                    cand = None
+                    for u in low:
+                        if u not in base:
+                            cand = u
+                            break
+                    if cand is not None:
+                        base2 = [v for v in base if v != drop]
+                        base2.append(cand)
+                        base = sorted(set(base2))[:n_alvo]
+                        # garante tamanho
+                        while len(base) < n_alvo:
+                            for u in low:
+                                if u not in base:
+                                    base.append(u)
+                                if len(base) >= n_alvo:
+                                    break
+                        base = sorted(base)[:n_alvo]
+                        trocas += 1
+            new_top.append(base)
+
+        # Reconstrói listas_totais: substitui prefixo correspondente ao top, preserva o resto
+        listas_totais_norm = [_norm(lst) for lst in listas_totais if isinstance(lst, (list, tuple))]
+
+        # anti-clone global leve
+        seen = set()
+        uniq = []
+        for lst in listas_totais_norm:
+            t = tuple(lst)
+            if t not in seen:
+                seen.add(t)
+                uniq.append(lst)
+
+        # injeta new_top na frente (sem duplicar)
+        uniq2 = []
+        seen2 = set()
+        for lst in new_top + uniq:
+            t = tuple(lst)
+            if t not in seen2:
+                seen2.add(t)
+                uniq2.append(lst)
+
+        new_tot = uniq2
+        new_top10 = new_tot[:10]
+
+        info = {"aplicado": True, "trocas": trocas, "core_sz": len(core), "motivo": "respiravel_diversificacao_minima"}
+        return new_tot, new_top10, info
+    except Exception as e:
+        return listas_totais, listas_top10, {"aplicado": False, "motivo": f"falha_resp: {e}"}
 
 # ============================================================
 # P2 — Hipóteses de Família (pré-C4, automático, observacional)
@@ -9787,6 +9946,40 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         }
     except Exception as _e:
         st.session_state["bloco_c_info"] = {"aplicado": False, "trocas": 0, "motivo": f"Falha no BLOCO C: {_e}"}
+    # ------------------------------------------------------------
+    # 🧭 POSTURA OPERACIONAL (ESTÁVEL / RESPIRÁVEL / RUPTURA)
+    # ------------------------------------------------------------
+    # Usa apenas sinais já existentes (pipeline/k*/NR/div). Pré‑C4.
+    pipeline_regime = st.session_state.get("pipeline_regime") or st.session_state.get("pipeline_regime_detectado") or st.session_state.get("pipeline_regime_label") or ""
+    postura = pc_classificar_postura(
+        pipeline_regime=pipeline_regime,
+        k_star=st.session_state.get("sentinela_kstar"),
+        nr_percent=st.session_state.get("nr_percent"),
+        div_s6_mc=st.session_state.get("div_s6_mc"),
+    )
+    st.session_state["postura_estado"] = postura
+
+    # Em RESPIRÁVEL: aplicar elasticidade mínima no pacote (sem tocar Camada 4)
+    if postura == "RESPIRÁVEL":
+        listas_totais, listas_top10, _resp_info = pc_resp_aplicar_diversificacao(
+            listas_totais=listas_totais,
+            listas_top10=listas_top10,
+            universo=universo,
+            seed=st.session_state.get("serie_base_idx", 0),
+            n_alvo=int(st.session_state.get("n_alvo", 6) or 6),
+        )
+        st.session_state["postura_respiravel_info"] = _resp_info
+    else:
+        st.session_state["postura_respiravel_info"] = {"aplicado": False, "motivo": "postura_nao_respiravel", "postura": postura}
+
+    # Exibição (informativa): não decide ataque, só descreve postura de execução
+    if postura == "RESPIRÁVEL":
+        st.warning("🟠 Postura: RESPIRÁVEL (P0 com elasticidade mínima anti-compressão) — pré-C4")
+    elif postura == "RUPTURA":
+        st.error("🔴 Postura: RUPTURA (P0 conservador; sem agressividade) — pré-C4")
+    else:
+        st.success("🟢 Postura: ESTÁVEL (execução normal do P0)")
+
     st.session_state["modo6_listas_totais"] = listas_totais
     st.session_state["modo6_listas_top10"] = listas_top10
     st.session_state["modo6_listas"] = listas_totais
@@ -15107,5 +15300,4 @@ elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
                 st.json(res)
         except Exception as e:
             st.error(f"Erro no P2: {e}")
-
 
