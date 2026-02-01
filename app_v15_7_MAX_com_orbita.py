@@ -14835,7 +14835,8 @@ Ele é **seguro**: 1 janela por ciclo (anti‑zumbi) e com limite de tentativas.
         st.session_state["cap_v1_total"] = int(len(ks_faltando))
         st.session_state["cap_v1_tentativas"] = {}
         st.session_state["cap_v1_running"] = True
-        st.rerun()
+        # [CAP_V1.3] rerun removido (compatibilidade Streamlit)
+        
 
     # ------------------------------------------------------------
     # 🚀 CAP INVISÍVEL (V1.1) — RODANDO (AUTO)
@@ -14873,38 +14874,76 @@ Ele é **seguro**: 1 janela por ciclo (anti‑zumbi) e com limite de tentativas.
                 st.success("✅ CAP Invisível (V1) concluído. Atualize o painel para ver a calibração.")
                 st.stop()
 
-            # processa 1 k por rerun
-            k_next = int(fila[0])
+            # [CAP_V1.3] processa sem rerun explícito (compatibilidade Streamlit)
+            import time as _cap_time
+            _cap_t0 = _cap_time.time()
 
-            # proteção de repetição
-            tent_map = st.session_state.get("cap_v1_tentativas") or {}
-            tent = int(tent_map.get(str(k_next), 0))
-            if tent >= 2:
-                # marcou como falha e segue
-                falhas.append(int(k_next))
-                tent_map[str(k_next)] = tent
-                st.session_state["cap_v1_fail"] = falhas
+            # orçamento de execução por render (anti‑zumbi)
+            _cap_max_steps = int(st.session_state.get("cap_v13_max_steps", 1))
+            _cap_time_budget = float(st.session_state.get("cap_v13_time_budget_s", 6.0))
+
+            _cap_steps = 0
+            while fila and (_cap_steps < _cap_max_steps) and ((_cap_time.time() - _cap_t0) < _cap_time_budget):
+                k_next = int(fila[0])
+
+                # proteção de repetição
+                tent_map = st.session_state.get("cap_v1_tentativas") or {}
+                tent = int(tent_map.get(str(k_next), 0))
+                if tent >= 2:
+                    # marcou como falha e segue
+                    falhas.append(int(k_next))
+                    tent_map[str(k_next)] = tent
+                    st.session_state["cap_v1_fail"] = falhas
+                    st.session_state["cap_v1_tentativas"] = tent_map
+                    # remove da fila
+                    fila = fila[1:]
+                    st.session_state["cap_v1_queue"] = fila
+                    _cap_steps += 1
+                    continue
+
+                tent_map[str(k_next)] = tent + 1
                 st.session_state["cap_v1_tentativas"] = tent_map
-                st.session_state["cap_v1_queue"] = fila[1:]
-                st.rerun()
 
-            tent_map[str(k_next)] = tent + 1
-            st.session_state["cap_v1_tentativas"] = tent_map
+                # executa janela → pipeline → modo 6 → snapshot (pré‑C4)
+                ok = pc_cap_invisivel_v1_processar_um_k(df_full, k_next)
 
-            # executa janela
-            ok = pc_cap_invisivel_v1_processar_um_k(df_full, k_next)
-            if ok:
-                feitos.append(int(k_next))
-                st.session_state["cap_v1_done"] = feitos
-                # remove da fila
-                st.session_state["cap_v1_queue"] = fila[1:]
-            else:
-                # mantém na fila para segunda tentativa automática (até 2)
-                st.session_state["cap_v1_queue"] = fila
+                if ok:
+                    feitos.append(int(k_next))
+                    st.session_state["cap_v1_done"] = feitos
+                    fila = fila[1:]
+                    st.session_state["cap_v1_queue"] = fila
+                else:
+                    # mantém na fila para segunda tentativa (até 2)
+                    st.session_state["cap_v1_queue"] = fila
 
-            # segue para o próximo ciclo
-            st.rerun()
-        except Exception:
+                _cap_steps += 1
+
+            # Se terminou a fila nesta render, conclui agora (sem depender de rerun)
+            if not fila:
+                st.session_state["cap_v1_running"] = False
+                try:
+                    df_restore = st.session_state.get("cap_v1_restore_df")
+                    k_restore = st.session_state.get("cap_v1_restore_k")
+                    if df_restore is not None:
+                        st.session_state["historico_df"] = df_restore
+                    if k_restore is not None:
+                        st.session_state["replay_janela_k_active"] = int(k_restore)
+                except Exception:
+                    pass
+                st.success("✅ CAP Invisível (V1) concluído. Atualize o painel para ver a calibração.")
+                st.stop()
+
+            # feedback e controle (sem rerun forçado)
+            st.info("CAP Invisível em progresso: clique em **▶️ Continuar CAP Invisível** para avançar mais uma etapa (anti‑zumbi, sem rerun).")
+            col_a, col_b = st.columns([1, 1])
+            with col_a:
+                st.button("▶️ Continuar CAP Invisível", key="cap_v13_continue", use_container_width=True)
+            with col_b:
+                if st.button("⛔ Parar CAP Invisível", key="cap_v13_stop", use_container_width=True):
+                    st.session_state["cap_v1_running"] = False
+                    st.warning("CAP Invisível pausado pelo operador.")
+                    st.stop()
+except Exception:
             # falha dura: desarma
             st.session_state["cap_v1_running"] = False
             st.warning("CAP Invisível (V1) foi desarmado por segurança (erro inesperado).")
