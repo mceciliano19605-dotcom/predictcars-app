@@ -11732,7 +11732,8 @@ if postura != "N/D":
     # ------------------------------------------------------------
     pacote_operacional = listas_m6_totais.copy()
 
-    for lst in listas_ultra:
+    listas_ultra = listas_ultra if 'listas_ultra' in locals() else []
+for lst in listas_ultra:
         if lst not in pacote_operacional:
             pacote_operacional.append(lst)
 
