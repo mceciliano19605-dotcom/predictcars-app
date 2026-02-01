@@ -1750,6 +1750,214 @@ def v16_calcular_aps_postura(nr_percent=None, orbita_selo=None, eco_acionabilida
     return ("⚪", "Postura Neutra", "Sem evidência suficiente para postura ativa. Manter pacote base e acompanhar série a série (detecção/sensibilidade/gradiente).")
 
 
+
+
+# ============================================================
+# POSTURA OPERACIONAL — "RESPIRÁVEL" (V16 PREMIUM)
+# Pré-C4 · Observacional · Auditável
+#
+# Objetivo:
+# - Formalizar o estado intermediário: RUIM, porém operável ("respirável")
+# - Usar apenas sinais já existentes (Pipeline + Sentinelas/NR/Divergência + Classe de risco)
+# - Alterar somente a PRIORIZAÇÃO do P0/MODO 6 (Top 10), sem criar motor, sem tocar Camada 4
+# ============================================================
+
+def v16_calcular_postura_operacional_respiravel(
+    classe_risco=None,
+    k_star=None,
+    nr_percent=None,
+    divergencia_s6_mc=None,
+    pipeline_estrada=None,
+):
+    """Retorna uma postura canônica: 'ESTAVEL', 'RESPIRAVEL' ou 'RUPTURA'.
+
+    Regras:
+    - Determinístico, conservador, pré-C4.
+    - Se tudo estiver N/D, NÃO ativa RESPIRÁVEL (permanece ESTÁVEL neutro).
+    """
+
+    # Normalizações seguras
+    try:
+        ks = float(k_star) if k_star is not None else None
+    except Exception:
+        ks = None
+    try:
+        nr = float(nr_percent) if nr_percent is not None else None
+    except Exception:
+        nr = None
+    try:
+        dv = float(divergencia_s6_mc) if divergencia_s6_mc is not None else None
+    except Exception:
+        dv = None
+
+    cr = (str(classe_risco).strip() if classe_risco is not None else "N/D")
+    pe = (str(pipeline_estrada).strip() if pipeline_estrada is not None else "N/D")
+
+    tem_algum_sinal = any([
+        cr not in ("", "N/D", "—"),
+        ks is not None,
+        nr is not None,
+        dv is not None,
+        pe not in ("", "N/D", "—"),
+    ])
+
+    # -------------------------
+    # RUPTURA (prioridade máxima)
+    # -------------------------
+    if "🔴" in cr:
+        return "RUPTURA"
+
+    if (ks is not None) and (ks >= 0.55):
+        return "RUPTURA"
+    if (nr is not None) and (nr >= 45):
+        return "RUPTURA"
+    if (dv is not None) and (dv >= 6):
+        return "RUPTURA"
+
+    if ("Estrada Quente" in pe) and (
+        ((ks is not None) and (ks >= 0.45)) or
+        ((nr is not None) and (nr >= 40)) or
+        ((dv is not None) and (dv >= 5))
+    ):
+        return "RUPTURA"
+
+    # -------------------------
+    # ESTÁVEL (usa só o que existir)
+    # -------------------------
+    if tem_algum_sinal:
+        sinais_baixos = True
+
+        # Classe: se existe e não é verde, já perde estabilidade
+        if cr not in ("", "N/D", "—") and ("🟢" not in cr):
+            sinais_baixos = False
+
+        if (ks is not None) and (ks > 0.20):
+            sinais_baixos = False
+        if (nr is not None) and (nr > 25):
+            sinais_baixos = False
+        if (dv is not None) and (dv > 2):
+            sinais_baixos = False
+        if "Estrada Quente" in pe:
+            sinais_baixos = False
+
+        if sinais_baixos:
+            return "ESTAVEL"
+
+    # -------------------------
+    # RESPIRÁVEL (meio do caminho)
+    # -------------------------
+    if not tem_algum_sinal:
+        # Sem sinais → não mexe (evita ativar postura sem evidência)
+        return "ESTAVEL"
+    return "RESPIRAVEL"
+
+
+def v16_aplicar_respiravel_no_p0_modo6(listas_totais: list, listas_top10: list, universo_min: int, universo_max: int) -> dict:
+    """Aplica controle de execução do P0 quando postura = RESPIRÁVEL.
+
+    - NÃO cria números.
+    - NÃO chama TURBO.
+    - NÃO altera Camada 4.
+    - Reordena/ajusta PRIORIZAÇÃO do Top 10 para garantir 'folga mínima' (anti-âncora) e reduzir clones.
+    """
+    out = {
+        "top10": listas_top10[:] if isinstance(listas_top10, list) else [],
+        "aplicado": False,
+        "motivo": "N/D",
+        "core": [],
+        "anti_idx": [],
+    }
+
+    try:
+        if not listas_totais or not isinstance(listas_totais, list):
+            out["motivo"] = "listas_totais_invalidas"
+            return out
+
+        # Análise observacional já existente
+        analise = v16_analisar_duplo_pacote_base_anti_ancora(
+            listas=listas_totais,
+            base_n=10,
+            max_anti=4,
+            core_presenca_min=0.60,
+        )
+        core = analise.get("core") or []
+        overlaps = analise.get("overlaps") or []
+        anti_idx = analise.get("anti_idx") or []
+
+        out["core"] = core
+        out["anti_idx"] = anti_idx
+
+        # Se não há compressão/CORE, não força folga
+        if not core:
+            out["motivo"] = "sem_core_sem_compressao"
+            return out
+
+        # Ordena candidatos por menor overlap com o CORE (anti-clone leve)
+        idxs = list(range(len(listas_totais)))
+        def _ov(i):
+            try:
+                return float(overlaps[i])
+            except Exception:
+                return 999.0
+
+        idxs_sorted = sorted(idxs, key=lambda i: (_ov(i), i))
+
+        # Monta Top 10 por diversidade (menor overlap primeiro), mantendo apenas listas válidas
+        top = []
+        seen = set()
+        for i in idxs_sorted:
+            lst = listas_totais[i]
+            if not isinstance(lst, list):
+                continue
+            # normaliza: dentro do universo e tamanho >= 6
+            ok = True
+            for v in lst:
+                try:
+                    iv = int(v)
+                except Exception:
+                    ok = False
+                    break
+                if iv < universo_min or iv > universo_max:
+                    ok = False
+                    break
+            if not ok:
+                continue
+            # assinatura por conjunto (anti-permutação)
+            sig = tuple(sorted([int(x) for x in lst if isinstance(x, (int, float, str))]))
+            if sig in seen:
+                continue
+            seen.add(sig)
+            top.append(lst)
+            if len(top) >= 10:
+                break
+
+        if not top:
+            out["motivo"] = "top10_vazio_apos_filtro"
+            return out
+
+        # Força 1 anti-âncora dentro do Top10 (posição 2), se existir
+        if anti_idx:
+            try:
+                idx_anti0 = int(anti_idx[0]) - 1  # anti_idx é 1-based
+                if 0 <= idx_anti0 < len(listas_totais):
+                    lista_anti = listas_totais[idx_anti0]
+                    # Remove se já estiver no top
+                    top = [x for x in top if x != lista_anti]
+                    # Insere na posição 2 (index 1)
+                    pos = 1 if len(top) >= 2 else len(top)
+                    top.insert(pos, lista_anti)
+                    top = top[:10]
+            except Exception:
+                pass
+
+        out["top10"] = top
+        out["aplicado"] = True
+        out["motivo"] = "respiravel_folga_minima_anticlone"
+        return out
+
+    except Exception:
+        out["motivo"] = "erro_aplicacao_respiravel"
+        return out
 # ============================================================
 # V16 — SINCRONIZAÇÃO CANÔNICA (ALIASES) + ANTI-ÂNCORA (OBS)
 # ============================================================
@@ -9430,6 +9638,31 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     ultima_prev = st.session_state.get("ultima_previsao")
 
     # ------------------------------------------------------------
+    # POSTURA OPERACIONAL (V16) — ESTÁVEL / RESPIRÁVEL / RUPTURA
+    # (pré-C4 · observacional)
+    # ------------------------------------------------------------
+    try:
+        classe_risco = st.session_state.get("classe_risco") or st.session_state.get("classe_risco_texto") or "N/D"
+    except Exception:
+        classe_risco = "N/D"
+
+    try:
+        pipeline_estrada = st.session_state.get("pipeline_estrada") or st.session_state.get("regime_identificado") or "N/D"
+    except Exception:
+        pipeline_estrada = "N/D"
+
+    postura_operacional = v16_calcular_postura_operacional_respiravel(
+        classe_risco=classe_risco,
+        k_star=k_star,
+        nr_percent=nr_pct,
+        divergencia_s6_mc=divergencia_s6_mc,
+        pipeline_estrada=pipeline_estrada,
+    )
+    st.session_state["postura_operacional_v16"] = postura_operacional
+    st.session_state["postura_respiravel_aplicado_v16"] = False
+    st.session_state["postura_respiravel_motivo_v16"] = "N/D"
+
+    # ------------------------------------------------------------
     # GUARDA — CRITÉRIO MÍNIMO (ORIGINAL PRESERVADO)
     # ------------------------------------------------------------
     pipeline_ok = st.session_state.get("pipeline_flex_ultra_concluido") is True
@@ -9661,6 +9894,26 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_totais = sanidade_final_listas(listas_brutas)
 
     listas_top10 = listas_totais[:10]
+
+    # ------------------------------------------------------------
+    # RESPIRÁVEL (V16) — altera apenas a PRIORIZAÇÃO do P0/MODO 6
+    # ------------------------------------------------------------
+    try:
+        if st.session_state.get("postura_operacional_v16") == "RESPIRAVEL":
+            res = v16_aplicar_respiravel_no_p0_modo6(
+                listas_totais=listas_totais,
+                listas_top10=listas_top10,
+                universo_min=universo_min,
+                universo_max=universo_max,
+            )
+            if isinstance(res, dict) and res.get("aplicado"):
+                listas_top10 = res.get("top10") or listas_top10
+                st.session_state["postura_respiravel_aplicado_v16"] = True
+                st.session_state["postura_respiravel_motivo_v16"] = res.get("motivo", "respiravel")
+                st.session_state["postura_respiravel_core_v16"] = res.get("core", [])
+                st.session_state["postura_respiravel_anti_idx_v16"] = res.get("anti_idx", [])
+    except Exception:
+        pass
 
     # ============================================================
     # Órbita (E1) + Gradiente + N_EXTRA
@@ -10976,6 +11229,27 @@ if painel == "📘 Relatório Final":
             "Nenhuma previsão TURBO disponível nesta rodada "
             "(isso é válido em regime estável)."
         )
+
+
+# ------------------------------------------------------------
+# Postura Operacional (V16) — leitura canônica
+# ------------------------------------------------------------
+postura = st.session_state.get("postura_operacional_v16") or "N/D"
+resp_aplicado = st.session_state.get("postura_respiravel_aplicado_v16") or False
+resp_motivo = st.session_state.get("postura_respiravel_motivo_v16") or "N/D"
+
+if postura != "N/D":
+    if postura == "ESTAVEL":
+        st.success("🟢 Postura: **ESTÁVEL** (execução normal do P0)")
+    elif postura == "RESPIRAVEL":
+        st.warning("🟠 Postura: **RESPIRÁVEL** (P0 com folga mínima / anti-clone)")
+    elif postura == "RUPTURA":
+        st.error("🔴 Postura: **RUPTURA** (defensivo máximo; sem agressividade)")
+    else:
+        st.info(f"Postura: **{postura}**")
+
+    if postura == "RESPIRAVEL":
+        st.caption(f"RESPIRÁVEL aplicado ao Top 10: **{bool(resp_aplicado)}** · motivo: `{resp_motivo}`")
 
     # ------------------------------------------------------------
     # 🛡️ Pacote Prioritário — Top 10 (Modo 6)
