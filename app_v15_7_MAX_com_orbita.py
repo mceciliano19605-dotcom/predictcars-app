@@ -105,6 +105,9 @@ def p2_h2_dist(df_hist, universo, cap, n=6):
 def _parab_safe_float(x, default=0.0):
         try:
             pass
+        except Exception:
+            pass
+            pass
         xf = float(x)
         if np.isnan(xf) or np.isinf(xf):
             return default
@@ -123,6 +126,9 @@ def _parab_auto_eps(dE, C):
     # eps objetivo: escala pelo ruído real observado (dE e curvatura)
         try:
             pass
+        except Exception:
+            pass
+            pass
         mdE = float(np.median(np.abs(dE))) if len(dE) else 0.0
         mC = float(np.median(np.abs(C))) if len(C) else 0.0
         # piso mínimo evita “tremedeira” quando valores são pequenos
@@ -139,6 +145,9 @@ def _parab_resolver_pos_k(df: pd.DataFrame, k_val: int):
     if (k_val + 1) in idxs:
         return idxs.index(k_val + 1), idxs
         try:
+            pass
+        except Exception:
+            pass
             pass
         if hasattr(df.index, "start") and hasattr(df.index, "stop"):
             if df.index.start <= k_val < df.index.stop:
@@ -162,6 +171,9 @@ def _parab_series_from_df(df: pd.DataFrame, idx, n: int = 6):
 def _parab_erro_snapshot(df: pd.DataFrame, snap: dict, n: int = 6):
     universo = snap.get("universo_pacote") or snap.get("universo") or snap.get("universo_p0") or []
         try:
+            pass
+        except Exception:
+            pass
             pass
         universo = [int(x) for x in universo]
     except Exception:
@@ -280,6 +292,9 @@ def parabola_multiescala_vetorial(df_full: pd.DataFrame, snapshots_map: dict, n:
     pers = {"ok_subindo": False, "ok_descendo": False, "motivo": None}
         try:
             pass
+        except Exception:
+            pass
+            pass
         dbg = debug.get("long", {}).get("fora_longe", {})
         C = dbg.get("C", [])
         eps = float(dbg.get("eps", 0.05))
@@ -340,6 +355,9 @@ def _p1__build_ub_from_snapshot(snapshot: dict, umin: int, umax: int) -> dict:
     u0 = snapshot.get("universo_pacote") or []
         try:
             pass
+        except Exception:
+            pass
+            pass
         u0 = sorted({int(x) for x in u0 if int(umin) <= int(x) <= int(umax)})
     except Exception:
         u0 = []
@@ -350,6 +368,9 @@ def _p1__build_ub_from_snapshot(snapshot: dict, umin: int, umax: int) -> dict:
     freq = snapshot.get("freq_passageiros") or {}
     top = []
         try:
+            pass
+        except Exception:
+            pass
             pass
         # freq pode estar como dict[str]->int
         items = []
@@ -397,10 +418,16 @@ def _ambiente_ruim(*, k_star: float, indice_risco: float | None, regime_txt: str
     Não decide ataque; apenas governa se P1 pode ser aplicado defensivamente."""
         try:
             pass
+        except Exception:
+            pass
+            pass
         ks = float(k_star or 0.0)
     except Exception:
         ks = 0.0
         try:
+            pass
+        except Exception:
+            pass
             pass
         ir = float(indice_risco) if indice_risco is not None else None
     except Exception:
@@ -451,6 +478,9 @@ def _p1_auto_decidir(df_full, snaps_map: dict, k_ref: int) -> dict:
     Ws = gov.get("Ws") if isinstance(gov, dict) else {}
         try:
             pass
+        except Exception:
+            pass
+            pass
         ws_short = int((Ws or {}).get("short") or 0)
         ws_mid = int((Ws or {}).get("mid") or 0)
         ws_long = int((Ws or {}).get("long") or 0)
@@ -472,6 +502,9 @@ def _p1_auto_decidir(df_full, snaps_map: dict, k_ref: int) -> dict:
     # Snapshot P0 do k de referência
     snap = None
         try:
+            pass
+        except Exception:
+            pass
             pass
         snap = snaps_map.get(int(k_ref))
     except Exception:
@@ -557,6 +590,9 @@ def p2_executar(snapshot, df_full):
 def _pc_fmt_num(x, decimals: int = 4, nd: str = "N/D") -> str:
     """Formata número para UX (evita mostrar nan/inf cru)."""
         try:
+            pass
+        except Exception:
+            pass
             pass
         if x is None:
             return nd
@@ -703,6 +739,9 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
     # Keys (para auditoria leve)
         try:
             pass
+        except Exception:
+            pass
+            pass
         keys = sorted([str(k) for k in ss.keys()])
     except Exception:
         keys = []
@@ -747,6 +786,9 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
 def v16_detectar_universo_do_historico(df, n_alvo=6):
         try:
             pass
+        except Exception:
+            pass
+            pass
         if df is None or len(df) == 0:
             return (None, None)
         cols = []
@@ -782,6 +824,9 @@ def v16_detectar_universo_do_historico(df, n_alvo=6):
 
 def v16_registrar_universo_session_state(df, n_alvo=6):
         try:
+            pass
+        except Exception:
+            pass
             pass
         umin, umax = v16_detectar_universo_do_historico(df, n_alvo=n_alvo)
         if umin is not None and umax is not None:
@@ -1320,6 +1365,9 @@ def _m1_render_mirror_panel() -> None:
     """Painel Mirror canônico (observacional). Nunca derruba o app."""
         try:
             pass
+        except Exception:
+            pass
+            pass
         snapshot = _m1_collect_mirror_snapshot()
         meta = _m1_classificar_estado(snapshot)
 
@@ -1476,6 +1524,9 @@ def carregar_historico_universal(linhas):
     # ------------------------------------------------------------
         try:
             pass
+        except Exception:
+            pass
+            pass
         universo_min = int(min(universo_detectado))
         universo_max = int(max(universo_detectado))
         st.session_state["universo_min"] = universo_min
@@ -1543,6 +1594,9 @@ def v16_calcular_orbita_pacote(listas_topN, universo_min, universo_max):
         "listas_top": [],
     }
         try:
+            pass
+        except Exception:
+            pass
             pass
         if not listas_topN:
             return info
@@ -1624,6 +1678,9 @@ def v16_calcular_gradiente_E1(info_orbita):
     """
         try:
             pass
+        except Exception:
+            pass
+            pass
         if not info_orbita or info_orbita.get("estado") != "E1":
             return {"gradiente": "G0", "score": 0.0}
 
@@ -1668,6 +1725,9 @@ def v16_calcular_N_extra(estado_orbita, gradiente, n_base, eco_forca=None, eco_a
     """
         try:
             pass
+        except Exception:
+            pass
+            pass
         n_base = int(n_base or 0)
         if n_base <= 0:
             return 0
@@ -1696,6 +1756,9 @@ def v16_gerar_listas_extra_por_orbita(info_orbita, universo_min, universo_max, n
     Sem interceptação automática: é só expansão condicional do pacote.
     """
         try:
+            pass
+        except Exception:
+            pass
             pass
         import random
         rnd = random.Random(int(seed or 0) + 991)
@@ -1753,6 +1816,9 @@ def v16_calcular_aps_postura(nr_percent=None, orbita_selo=None, eco_acionabilida
     """
         try:
             pass
+        except Exception:
+            pass
+            pass
         nr = float(nr_percent) if nr_percent is not None else None
     except Exception:
         nr = None
@@ -1805,15 +1871,24 @@ def v16_calcular_postura_operacional_respiravel(
     # Normalizações seguras
         try:
             pass
+        except Exception:
+            pass
+            pass
         ks = float(k_star) if k_star is not None else None
     except Exception:
         ks = None
         try:
             pass
+        except Exception:
+            pass
+            pass
         nr = float(nr_percent) if nr_percent is not None else None
     except Exception:
         nr = None
         try:
+            pass
+        except Exception:
+            pass
             pass
         dv = float(divergencia_s6_mc) if divergencia_s6_mc is not None else None
     except Exception:
@@ -1898,6 +1973,9 @@ def v16_aplicar_respiravel_no_p0_modo6(listas_totais: list, listas_top10: list, 
     }
 
         try:
+            pass
+        except Exception:
+            pass
             pass
         if not listas_totais or not isinstance(listas_totais, list):
             out["motivo"] = "listas_totais_invalidas"
@@ -2049,6 +2127,9 @@ def v16_analisar_duplo_pacote_base_anti_ancora(
     """
         try:
             pass
+        except Exception:
+            pass
+            pass
         if not listas or not isinstance(listas, list):
             return {"core": [], "overlaps": [], "base_idx": [], "anti_idx": [], "nota": "sem_listas"}
 
@@ -2141,6 +2222,9 @@ def v16_diagnostico_rigidez_jeitao(
       - mensagem (str)
     """
         try:
+            pass
+        except Exception:
+            pass
             pass
         if not listas or not isinstance(listas, list):
             return {"rigido": False, "score": 0.0, "folga_qualitativa": "nenhuma", "sinais": {"motivo": "sem_listas"}, "mensagem": "Sem listas para diagnóstico."}
@@ -2529,6 +2613,9 @@ def v16_gerar_listas_interceptacao_orbita(info_orbita: dict,
 
         try:
             pass
+        except Exception:
+            pass
+            pass
         qtd = int(qtd)
     except Exception:
         qtd = 4
@@ -2865,6 +2952,9 @@ def _pc16_normalizar_series_6(historico_df: pd.DataFrame) -> np.ndarray:
 
         try:
             pass
+        except Exception:
+            pass
+            pass
         dfp = historico_df[colunas_esperadas].astype(float).dropna()
     except Exception:
         return np.zeros((0, 6), dtype=float)
@@ -3195,6 +3285,9 @@ def v16_mapear_confiabilidade_session_state() -> Dict[str, Any]:
 
         try:
             pass
+        except Exception:
+            pass
+            pass
         for chave, valor in st.session_state.items():
             nome_lower = str(chave).lower()
             if any(token in nome_lower for token in ["confiab", "qds", "k_estrela", "k*", "nr%", "ruido"]):
@@ -3489,6 +3582,9 @@ def pc_especial_avaliar_pacote_contem_6(carro, alvo):
     """
         try:
             pass
+        except Exception:
+            pass
+            pass
         return set(alvo).issubset(set(carro))
     except Exception:
         return False
@@ -3540,6 +3636,9 @@ def _pc_contar_hits_lista_vs_alvo(lista, alvo_set):
     """
         try:
             pass
+        except Exception:
+            pass
+            pass
         s = set(int(x) for x in lista)
     except Exception:
         return 0
@@ -3570,6 +3669,9 @@ def _pc_extrair_carro_row(row):
     """
         try:
             pass
+        except Exception:
+            pass
+            pass
         return [int(row[f"p{i}"]) for i in range(1, 7)]
     except Exception:
         return None
@@ -3583,6 +3685,9 @@ def _pc_distancia_carros(carro_a, carro_b):
     if carro_a is None or carro_b is None:
         return None
         try:
+            pass
+        except Exception:
+            pass
             pass
         return len(set(carro_a) ^ set(carro_b))
     except Exception:
@@ -3598,6 +3703,9 @@ def _pc_estado_alvo_proxy(dist):
         return "None"
 
         try:
+            pass
+        except Exception:
+            pass
             pass
         d = float(dist)
     except Exception:
@@ -4021,6 +4129,9 @@ def v16_diagnosticar_eco_estado():
     estado_proxy = None
         try:
             pass
+        except Exception:
+            pass
+            pass
         col_pass = [c for c in historico_df.columns if c.startswith("p")]
         if len(col_pass) >= 6 and len(historico_df) >= 2:
             a = [int(historico_df.iloc[-1][c]) for c in col_pass[:6]]
@@ -4076,6 +4187,9 @@ def v16_diagnosticar_eco_estado():
 # ============================================================
 if "historico_df" in st.session_state:
         try:
+            pass
+        except Exception:
+            pass
             pass
         v16_diagnosticar_eco_estado()
     except Exception:
@@ -4284,6 +4398,9 @@ def _m2_init_memoria() -> None:
     """Inicializa a memoria em session_state (infraestrutura invisivel)."""
         try:
             pass
+        except Exception:
+            pass
+            pass
         ss = st.session_state
         if "m2_memoria_estados" not in ss or not isinstance(ss.get("m2_memoria_estados"), list):
             ss["m2_memoria_estados"] = []
@@ -4299,6 +4416,9 @@ def _m2_init_memoria() -> None:
 def _m2_guess_serie_id(snapshot: dict) -> str:
     """Tenta inferir o id da serie atual. Regra: nunca falhar."""
         try:
+            pass
+        except Exception:
+            pass
             pass
         ss = st.session_state
         # Preferencias: chaves explicitas (quando existirem)
@@ -4372,6 +4492,9 @@ def _m2_persistir_linha_jsonl(registro: dict) -> None:
     """Persistencia best-effort em JSONL. Falha silenciosa (Streamlit Cloud pode restringir)."""
         try:
             pass
+        except Exception:
+            pass
+            pass
         # arquivo local no diretorio do app (best-effort)
         path = "memoria_estados_v16.jsonl"
         with open(path, "a", encoding="utf-8") as f:
@@ -4383,6 +4506,9 @@ def _m2_persistir_linha_jsonl(registro: dict) -> None:
 def _m2_registrar_minimo_se_preciso(snapshot: dict, meta: dict) -> None:
     """Gatilho canonico: registrar no primeiro S3 auditavel (sem duplicar)."""
         try:
+            pass
+        except Exception:
+            pass
             pass
         _m2_init_memoria()
         estado = str(meta.get("estado", ""))
@@ -4410,6 +4536,9 @@ def _m2_registrar_fechamento_se_preciso(snapshot: dict, meta: dict) -> None:
     """Gatilho complementar: registrar fechamento (S6 heuristico), sem duplicar."""
         try:
             pass
+        except Exception:
+            pass
+            pass
         _m2_init_memoria()
         estado = str(meta.get("estado", ""))
         if estado != "S6":
@@ -4435,6 +4564,9 @@ def _m2_registrar_fechamento_se_preciso(snapshot: dict, meta: dict) -> None:
 def _m2_resumo_auditavel() -> dict:
     """Resumo leve para aparecer no Mirror (auditoria controlada)."""
         try:
+            pass
+        except Exception:
+            pass
             pass
         _m2_init_memoria()
         mem = st.session_state.get("m2_memoria_estados", [])
@@ -4661,6 +4793,9 @@ def _m5_identidade_historico_para_coleta(df_full, n_alvo, universo_min, universo
     """ID estável (best-effort) para limitar coleta por histórico sem depender de hash pesado."""
         try:
             pass
+        except Exception:
+            pass
+            pass
         tam = int(len(df_full)) if df_full is not None else -1
     except Exception:
         tam = -1
@@ -4673,6 +4808,9 @@ def _m5_leitura_regime_light(df_cut, universo_min, universo_max):
     Objetivo: registrar um *sinal* coerente para M2 (não substituir o pipeline).
     """
         try:
+            pass
+        except Exception:
+            pass
             pass
         # janela curta para captar irregularidade recente
         w = min(120, max(30, int(len(df_cut) * 0.05)))
@@ -4865,6 +5003,9 @@ def _m3_has_s3_risco_minimo() -> bool:
 def _m3_norm_int(v):
         try:
             pass
+        except Exception:
+            pass
+            pass
         return int(float(str(v).strip().replace(",", ".")))
     except Exception:
         return None
@@ -4883,6 +5024,9 @@ def _m3_dx_janela(df_window, cols_pass):
     if not vals:
         return None
         try:
+            pass
+        except Exception:
+            pass
             pass
         return float(np.mean(vals))
     except Exception:
@@ -4969,6 +5113,9 @@ def m3_painel_expectativa_historica_contexto():
         st.warning("⚠️ Poucas janelas válidas para estimar quantis com estabilidade. (Resultados ainda são informativos.)")
 
         try:
+            pass
+        except Exception:
+            pass
             pass
         q1 = float(np.quantile(dx_list, 0.33))
         q2 = float(np.quantile(dx_list, 0.66))
@@ -5076,6 +5223,9 @@ def m3_painel_expectativa_historica_contexto():
 
         try:
             pass
+        except Exception:
+            pass
+            pass
 
         st.session_state["m3_ts"] = datetime.utcnow().isoformat() + "Z"
 
@@ -5114,6 +5264,9 @@ def m3_painel_expectativa_historica_contexto():
         st.stop()
 
         try:
+            pass
+        except Exception:
+            pass
             pass
         conteudo = arquivo.getvalue().decode("utf-8")
         linhas = conteudo.strip().split("\n")
@@ -5463,6 +5616,9 @@ elif painel == "🧾 APS — Auditoria de Postura (V16)":
 
         try:
             pass
+        except Exception:
+            pass
+            pass
 
         st.session_state["aps_postura_selo"] = selo
 
@@ -5610,6 +5766,9 @@ elif painel == "🧭 RMO/DMO — Retrato do Momento (V16)":
     hist = st.session_state["dmo_hist_sinais"]
     nr_ok = None
         try:
+            pass
+        except Exception:
+            pass
             pass
         if isinstance(nr_ruido, (int, float)):
             prev_nr = st.session_state.get("dmo_prev_nr_ruido")
@@ -6059,6 +6218,9 @@ def _pc_distancia_carros_offline(a, b):
     """
         try:
             pass
+        except Exception:
+            pass
+            pass
         sa = set(int(x) for x in a)
         sb = set(int(x) for x in b)
         inter = len(sa & sb)
@@ -6170,6 +6332,9 @@ def construir_contexto_historico_offline_v16(df):
 
 if "historico_df" in st.session_state:
         try:
+            pass
+        except Exception:
+            pass
             pass
         construir_contexto_historico_offline_v16(
             st.session_state.get("historico_df")
@@ -6473,6 +6638,9 @@ def _pc_distancia_carros(a, b):
     quantos passageiros mudaram (0..6).
     """
         try:
+            pass
+        except Exception:
+            pass
             pass
         sa = set([int(x) for x in a])
         sb = set([int(x) for x in b])
@@ -6832,6 +7000,9 @@ if painel == "🛣️ Pipeline V14-FLEX ULTRA":
     # ============================================================
         try:
             pass
+        except Exception:
+            pass
+            pass
         minimo = matriz.min()
         maximo = matriz.max()
         amplitude = maximo - minimo if maximo != minimo else 1.0
@@ -6867,6 +7038,9 @@ if painel == "🛣️ Pipeline V14-FLEX ULTRA":
     # Clusterização leve (DX — motor original FLEX ULTRA)
     # ============================================================
         try:
+            pass
+        except Exception:
+            pass
             pass
         from sklearn.cluster import KMeans
 
@@ -6934,6 +7108,9 @@ if painel == "🛣️ Pipeline V14-FLEX ULTRA":
     st.session_state["m1_selo_pipeline_ok"] = True
         try:
             pass
+        except Exception:
+            pass
+            pass
         from datetime import datetime
         st.session_state["m1_ts_pipeline_ok"] = datetime.now().isoformat(timespec="seconds")
     except Exception:
@@ -6979,6 +7156,9 @@ if painel == "🔁 Replay LIGHT":
     st.info("Executando Replay LIGHT...")
 
         try:
+            pass
+        except Exception:
+            pass
             pass
         # DX leve = simples proximidade média entre séries vizinhas
         proximidades = []
@@ -7044,6 +7224,9 @@ if painel == "🔁 Replay ULTRA":
     st.info("Executando Replay ULTRA...")
 
         try:
+            pass
+        except Exception:
+            pass
             pass
         # DX Ultra = distância média entre cada série e o centróide global
         centr_global = np.mean(matriz_norm, axis=0)
@@ -7889,6 +8072,9 @@ if painel == "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo":
     st.markdown("### 🧊 Snapshot P0 selecionado (visão rápida)")
         try:
             pass
+        except Exception:
+            pass
+            pass
         st.write({
             "k": snap.get("k"),
             "ts": snap.get("ts"),
@@ -7989,6 +8175,9 @@ if painel == "⚙️ Modo TURBO++ HÍBRIDO":
     # ============================================================
         try:
             pass
+        except Exception:
+            pass
+            pass
         # DX Light — proximidade final
         vetor_final = matriz_norm[-1]
         distancias = [
@@ -8064,6 +8253,9 @@ from typing import Dict, Any, Optional
 def _clamp_v16(x: float, lo: float, hi: float) -> float:
         try:
             pass
+        except Exception:
+            pass
+            pass
         x = float(x)
     except Exception:
         x = lo
@@ -8076,6 +8268,9 @@ def _clamp_v16(x: float, lo: float, hi: float) -> float:
 
 def _safe_float_v16(x: Any, default: float = 0.0) -> float:
         try:
+            pass
+        except Exception:
+            pass
             pass
         return float(x)
     except Exception:
@@ -8119,6 +8314,9 @@ def orquestrar_tentativa_v16(
     # Sanitização básica
     # -----------------------------
         try:
+            pass
+        except Exception:
+            pass
             pass
         series_count = int(series_count)
     except Exception:
@@ -8334,6 +8532,9 @@ def preparar_tentativa_turbo_ultra_v16(
 
     # Defesa básica
         try:
+            pass
+        except Exception:
+            pass
             pass
         series_count = int(series_count)
     except Exception:
@@ -8693,6 +8894,9 @@ if painel == "📡 Painel de Ruído Condicional":
 # ============================================================
 
         try:
+            pass
+        except Exception:
+            pass
             pass
         if matriz_norm is None or len(matriz_norm) < 2:
             raise ValueError("Base insuficiente para medir ruído (matriz_norm < 2).")
@@ -9463,6 +9667,9 @@ def v9_classificar_memoria_borda(*, df_res: Optional[pd.DataFrame], total_hits: 
     """
         try:
             pass
+        except Exception:
+            pass
+            pass
         n_alvos = 0
         if df_res is not None and not df_res.empty:
             # conta alvos existentes (k+1 e k+2) a partir das colunas alvo_*
@@ -9518,6 +9725,9 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(
     # Só aplica se n_real for válido
         try:
             pass
+        except Exception:
+            pass
+            pass
         n_real = int(n_real)
     except Exception:
         n_real = 6
@@ -9540,6 +9750,9 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(
     core = set()
     quase = set()
         try:
+            pass
+        except Exception:
+            pass
             pass
         if isinstance(v8_borda_info, dict):
             core = set(v8_borda_info.get("CORE", []) or v8_borda_info.get("core", []) or [])
@@ -9721,11 +9934,17 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ------------------------------------------------------------
         try:
             pass
+        except Exception:
+            pass
+            pass
         classe_risco = st.session_state.get("classe_risco") or st.session_state.get("classe_risco_texto") or "N/D"
     except Exception:
         classe_risco = "N/D"
 
         try:
+            pass
+        except Exception:
+            pass
             pass
         pipeline_estrada = st.session_state.get("pipeline_estrada") or st.session_state.get("regime_identificado") or "N/D"
     except Exception:
@@ -9855,6 +10074,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ------------------------------------------------------------
         try:
             pass
+        except Exception:
+            pass
+            pass
         df_full_for_gov = st.session_state.get("df_full") or st.session_state.get("historico_df")
         snaps_map_for_gov = st.session_state.get("snapshot_p0_canonic") or {}
         k_ref = int(st.session_state.get("replay_janela_k_active", len(df)))
@@ -9912,6 +10134,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     inv_pos = None
 
         try:
+            pass
+        except Exception:
+            pass
             pass
         if isinstance(universo_idx_use, list) and universo_idx_use != universo_idx:
             pool_idx = list(universo_idx_use)  # subset ordenado
@@ -9982,6 +10207,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ------------------------------------------------------------
         try:
             pass
+        except Exception:
+            pass
+            pass
         if st.session_state.get("postura_operacional_v16") == "RESPIRAVEL":
             res = v16_aplicar_respiravel_no_p0_modo6(
                 listas_totais=listas_totais,
@@ -10003,6 +10231,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # (sem interceptação automática; não divide pacote)
     # ============================================================
         try:
+            pass
+        except Exception:
+            pass
             pass
         info_orbita = v16_calcular_orbita_pacote(listas_top10, universo_min, universo_max)
         ginfo = v16_calcular_gradiente_E1(info_orbita)
@@ -10098,6 +10329,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ============================================================
         try:
             pass
+        except Exception:
+            pass
+            pass
         _v8_info = st.session_state.get("v8_borda_qualificada_info", None)
         _v9_info = st.session_state.get("v9_memoria_borda", None)
 
@@ -10178,6 +10412,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ✅ Snapshot canônico (para Relatório Final / Diagnóstico Espelho)
         try:
             pass
+        except Exception:
+            pass
+            pass
         st.session_state["modo6_executado"] = True
         st.session_state["listas_geradas"] = int(len(listas_top10) if isinstance(listas_top10, list) else len(listas_totais))
     except Exception:
@@ -10230,6 +10467,9 @@ elif painel == "🧪 Modo N Experimental (n≠6)":
 
     # Guarda 2 — n_alvo válido e diferente de 6
         try:
+            pass
+        except Exception:
+            pass
             pass
         n_int = int(n_alvo)
     except Exception:
@@ -11072,6 +11312,9 @@ def v16_priorizar_listas_por_contexto(listas):
 
         try:
             pass
+        except Exception:
+            pass
+            pass
         listas_ordenadas = sorted(listas, key=score_lista, reverse=True)
         return listas_ordenadas
     except Exception:
@@ -11179,6 +11422,9 @@ if painel == "📘 Relatório Final":
     # 🧭 BLOCO -1 — SUMÁRIO EXECUTIVO (read-only)
     # ------------------------------------------------------------
         try:
+            pass
+        except Exception:
+            pass
             pass
         _snap = _m1_collect_mirror_snapshot() if '_m1_collect_mirror_snapshot' in globals() else {}
         _estado = _m1_classificar_estado(_snap) if '_m1_classificar_estado' in globals() else {'estado':'S0','avisos':[],'snapshot':_snap}
@@ -11358,6 +11604,9 @@ if postura != "N/D":
     # ------------------------------------------------------------
         try:
             pass
+        except Exception:
+            pass
+            pass
         analise_anti = v16_analisar_duplo_pacote_base_anti_ancora(
             listas=listas_m6_totais,
             base_n=10,
@@ -11410,6 +11659,9 @@ if postura != "N/D":
 
         try:
             pass
+        except Exception:
+            pass
+            pass
         umin = st.session_state.get("universo_min")
         umax = st.session_state.get("universo_max")
         diag_j = v16_diagnostico_rigidez_jeitao(
@@ -11446,6 +11698,9 @@ if postura != "N/D":
     # 📊 EIXO 1 — CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
     # ------------------------------------------------------------
         try:
+            pass
+        except Exception:
+            pass
             pass
         listas_pacote_eixo1 = listas_m6_totais[:]
     
@@ -11505,6 +11760,9 @@ if postura != "N/D":
     # 📌 REGISTRO CANÔNICO DO MOMENTO — DIAGNÓSTICO (COPIÁVEL)
     # ============================================================
         try:
+            pass
+        except Exception:
+            pass
             # ------------------------------------------------------------
             # 
             # (camada experimental removida na âncora estável)
@@ -11703,6 +11961,9 @@ if postura != "N/D":
     # ============================================================
         try:
             pass
+        except Exception:
+            pass
+            pass
         st.markdown("### 📌 Listas de Previsão Associadas ao Momento")
     
         listas_para_registro = []
@@ -11732,6 +11993,9 @@ if postura != "N/D":
     # Avaliação AUTOMÁTICA de aptidão para Memória Operacional
     # ============================================================
         try:
+            pass
+        except Exception:
+            pass
             pass
         st.markdown("## 🧠 Painel de Aptidão do Evento")
     
@@ -11836,6 +12100,9 @@ for lst in listas_ultra:
 
         try:
             pass
+        except Exception:
+            pass
+            pass
         pacote_operacional = v16_priorizar_listas_por_contexto(pacote_operacional)
     except Exception:
         pass
@@ -11847,6 +12114,9 @@ for lst in listas_ultra:
     # (Somente leitura | sem execução | sem recomendação)
     # ------------------------------------------------------------
         try:
+            pass
+        except Exception:
+            pass
             pass
         st.markdown("## 🧭 Bala Humano Denso — Modo Assistido (Painel Canônico)")
 
@@ -11960,6 +12230,9 @@ for lst in listas_ultra:
     # 🧠 RF-GOV — GOVERNANÇA INFORMATIVA (AVISOS | SEM EFEITO)
     # ============================================================
         try:
+            pass
+        except Exception:
+            pass
             pass
         st.markdown("### 🧠 RF-GOV — Governança Informativa")
 
@@ -12416,6 +12689,9 @@ if painel == "🧠 Laudo Operacional V16":
     # --------------------------------------------------------
         try:
             pass
+        except Exception:
+            pass
+            pass
         estado = v16_registrar_estado_alvo()
     except Exception:
         estado = {
@@ -12425,6 +12701,9 @@ if painel == "🧠 Laudo Operacional V16":
         }
 
         try:
+            pass
+        except Exception:
+            pass
             pass
         expectativa = v16_registrar_expectativa()
     except Exception:
@@ -12436,6 +12715,9 @@ if painel == "🧠 Laudo Operacional V16":
         }
 
         try:
+            pass
+        except Exception:
+            pass
             pass
         volume_op = v16_registrar_volume_e_confiabilidade()
     except Exception:
@@ -12497,6 +12779,9 @@ if painel == "🧠 Laudo Operacional V16":
     # 4) Jeitão do Pacote — Rigidez (Camada 2 / observacional)
     # --------------------------------------------------------
         try:
+            pass
+        except Exception:
+            pass
             pass
         listas_m6_totais = (
             st.session_state.get("modo6_listas_totais")
@@ -12575,6 +12860,9 @@ def _v16_exato_proxy__normalizar_serie(valor):
     """
         try:
             pass
+        except Exception:
+            pass
+            pass
         if valor is None:
             return None
         if isinstance(valor, str):
@@ -12632,6 +12920,9 @@ def v16_painel_exato_por_regime_proxy():
     # 0) Obter histórico BASE (FORÇADO)
     # --------------------------------------------------------
         try:
+            pass
+        except Exception:
+            pass
             pass
         nome_df, df_base = v16_identificar_df_base()
     except Exception:
@@ -12745,6 +13036,9 @@ def v16_painel_exato_por_regime_proxy():
 
         try:
             pass
+        except Exception:
+            pass
+            pass
         listas_m6_totais = (
             st.session_state.get("modo6_listas_totais")
             or st.session_state.get("modo6_listas")
@@ -12849,6 +13143,9 @@ Ele responde:
     # 0) Histórico base (obrigatório)
     # --------------------------------------------------------
         try:
+            pass
+        except Exception:
+            pass
             pass
         nome_df, df_base = v16_identificar_df_base()
     except Exception:
@@ -13186,6 +13483,9 @@ Ele responde:
     # 0) Histórico base (robusto, sem caça)
     # --------------------------------------------------------
         try:
+            pass
+        except Exception:
+            pass
             pass
         nome_df, df_base = v16_identificar_df_base()
     except Exception:
@@ -13615,6 +13915,9 @@ def _v16_delta_ci_worstcase(p1_ci: Tuple[float, float], p0_ci: Tuple[float, floa
 def _v16_safe_float(x, default: float = 0.0) -> float:
         try:
             pass
+        except Exception:
+            pass
+            pass
         if x is None:
             return default
         v = float(x)
@@ -13694,6 +13997,9 @@ def _v16_extract_car_numbers(row: Any) -> List[int]:
         return nums
     # fallback
         try:
+            pass
+        except Exception:
+            pass
             pass
         return [int(row)]
     except Exception:
@@ -15494,4 +15800,3 @@ elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
                 st.json(res)
         except Exception as e:
             st.error(f"Erro no P2: {e}")
-
