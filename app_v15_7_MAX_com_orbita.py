@@ -56,7 +56,7 @@ def pc_classificar_postura(pipeline_regime: str | None, k_star, nr_percent, div_
 
     return "ESTÁVEL"
 
-def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6):
+def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65):
     """Em RESPIRÁVEL, aplicamos *elasticidade mínima* no pacote (pré-C4):
     - Anti-clone leve (remove duplicatas)
     - Anti-core leve (troca 1 passageiro em algumas listas para reduzir compressão)
@@ -86,6 +86,22 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
 
         # CORE: presença >= 60% do top
         core = {v for v, c in freq.items() if c >= max(1, int(0.60 * max(1, len(top))))}
+
+        # Memória estrutural (sufocadores) — opcional e auditável
+        sufocadores = set()
+        try:
+            if memoria_sufocadores is not None:
+                for x in memoria_sufocadores:
+                    try:
+                        sufocadores.add(int(x))
+                    except Exception:
+                        pass
+        except Exception:
+            sufocadores = set()
+
+        # Cap de dominância (só atua em sufocadores)
+        cap_pct = float(cap_pct) if cap_pct is not None else 0.65
+        cap_pct = max(0.40, min(0.85, cap_pct))
 
         # Candidatos de baixa frequência (para "respirar")
         uni = [int(x) for x in universo] if isinstance(universo, (list, tuple)) else []
@@ -140,6 +156,34 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                                     break
                         base = sorted(base)[:n_alvo]
                         trocas += 1
+
+            # Enforce cap de dominância para sufocadores (apenas nas primeiras listas do top)
+            try:
+                if sufocadores and idx < 8:
+                    for s in list(sufocadores):
+                        c0 = freq.get(int(s), 0)
+                        # se já está acima do cap, tenta tirar o sufocador desta lista (1 troca)
+                        if len(top) > 0 and (float(c0) / float(len(top))) > cap_pct and int(s) in base:
+                            cand2 = None
+                            for u in low:
+                                if u not in base:
+                                    cand2 = u
+                                    break
+                            if cand2 is not None:
+                                base2 = [v for v in base if v != int(s)]
+                                base2.append(int(cand2))
+                                base = sorted(set(base2))[:n_alvo]
+                                while len(base) < n_alvo:
+                                    for u in low:
+                                        if u not in base:
+                                            base.append(u)
+                                        if len(base) >= n_alvo:
+                                            break
+                                base = sorted(base)[:n_alvo]
+                                trocas += 1
+                                break
+            except Exception:
+                pass
             new_top.append(base)
 
         # Reconstrói listas_totais: substitui prefixo correspondente ao top, preserva o resto
@@ -166,7 +210,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        info = {"aplicado": True, "trocas": trocas, "core_sz": len(core), "motivo": "respiravel_diversificacao_minima"}
+        info = {"aplicado": True, "trocas": trocas, "core_sz": len(core), "sufocadores_sz": len(sufocadores), "cap_pct": float(cap_pct), "motivo": "respiravel_diversificacao_minima"}
         return new_tot, new_top10, info
     except Exception as e:
         return listas_totais, listas_top10, {"aplicado": False, "motivo": f"falha_resp: {e}"}
@@ -176,6 +220,101 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
 # ============================================================
 
 import math
+
+def pc_resp_memoria_estrutural_from_snapshots(snapshot_p0_canonic, lookback: int = 25, top_n: int = 8, min_lists: int = 5):
+    """Memória Estrutural do RESPIRÁVEL (pré-C4, auditável, sem motor novo).
+
+    Fonte: snapshots P0 canônicos já registrados (Replay Progressivo / CAP Invisível).
+    Ideia: identificar passageiros que tendem a *dominar* o pacote (compressão) de forma recorrente.
+
+    Retorna:
+      {
+        "ok": bool,
+        "sufocadores": [int...],   # top_n
+        "stats": {...},            # auditável (média de dominância / top ocorrências)
+        "motivo": str
+      }
+    """
+    try:
+        if not isinstance(snapshot_p0_canonic, dict) or len(snapshot_p0_canonic) == 0:
+            return {"ok": False, "sufocadores": [], "stats": {}, "motivo": "sem_snapshots"}
+
+        # pega os últimos ks (ordem crescente)
+        ks = []
+        for k in snapshot_p0_canonic.keys():
+            try:
+                ks.append(int(k))
+            except Exception:
+                continue
+        ks = sorted(ks)
+        if not ks:
+            return {"ok": False, "sufocadores": [], "stats": {}, "motivo": "ks_invalidos"}
+
+        ks_use = ks[-int(max(1, lookback)):]
+        score = {}        # soma de freq_norm
+        occ = {}          # contagem de aparições
+        dom_vals = []     # dominância do top1 por snapshot
+
+        for k in ks_use:
+            snap = snapshot_p0_canonic.get(k) or {}
+            try:
+                qtd = int(snap.get("qtd_listas", 0))
+            except Exception:
+                qtd = 0
+            if qtd < int(min_lists):
+                continue
+
+            freq = snap.get("freq_passageiros") or {}
+            items = []
+            for pk, pv in freq.items():
+                try:
+                    p = int(pk)
+                    v = int(pv)
+                except Exception:
+                    continue
+                if v <= 0:
+                    continue
+                items.append((p, v))
+            if not items:
+                continue
+
+            items.sort(key=lambda kv: (-kv[1], kv[0]))
+            top1 = items[0][1]
+            dom_vals.append(float(top1) / float(max(1, qtd)))
+
+            for p, v in items:
+                fn = float(v) / float(max(1, qtd))
+                score[p] = score.get(p, 0.0) + fn
+                occ[p] = occ.get(p, 0) + 1
+
+        if not score:
+            return {"ok": False, "sufocadores": [], "stats": {}, "motivo": "score_vazio"}
+
+        # ranking por "dominância média" (score / occ), com desempate por score total
+        rank = []
+        for p, sc in score.items():
+            o = int(occ.get(p, 1))
+            rank.append((p, sc / float(max(1, o)), sc, o))
+        rank.sort(key=lambda t: (-t[1], -t[2], -t[3], t[0]))
+
+        suf = [int(p) for p, _, _, _ in rank[: int(max(1, top_n))]]
+
+        stats = {
+            "snapshots_usados": int(len(ks_use)),
+            "k_min": int(ks_use[0]),
+            "k_max": int(ks_use[-1]),
+            "dominancia_top1_media": float(sum(dom_vals) / max(1, len(dom_vals))) if dom_vals else 0.0,
+            "top_ocorrencias": [
+                {"p": int(p), "occ": int(o), "score_total": float(sc), "score_medio": float(sc / max(1, o))}
+                for p, _, sc, o in rank[: min(12, len(rank))]
+            ],
+        }
+
+        return {"ok": True, "sufocadores": suf, "stats": stats, "motivo": "ok"}
+    except Exception as e:
+        return {"ok": False, "sufocadores": [], "stats": {}, "motivo": f"falha_memoria_resp: {e}"}
+
+
 
 def _p2_series_from_df(df, idx, n=6):
     cols = [c for c in df.columns if isinstance(c, str) and c.startswith("p")]
@@ -473,179 +612,97 @@ def parabola_multiescala_vetorial(df_full: pd.DataFrame, snapshots_map: dict, n:
     out["p2_permitido"] = bool(p2_permitido)
     out["confirmacao"] = {"confirmadores_subindo": bool(conf)}
 
-    
+    return out
 
-# ============================================================
-# V16 — DETECTOR DE RITMO/DANÇA (pré-C4) — EX‑POST, AUTOMÁTICO
-# ------------------------------------------------------------
-# Objetivo canônico:
-# - Identificar "onde havia ar" no histórico (ritmo) para orientar
-#   a Memória Estrutural do RESPIRÁVEL no passo seguinte.
-# - Leitura apenas (pré‑C4). Não decide ataque, não toca Camada 4.
-# - Auditável: mostra sinais e motivos.
-# ============================================================
 
-def pc_detectar_ritmo_danca_from_parabola(gov: dict) -> dict:
-    """Deriva um rótulo de RITMO/DANÇA a partir da Parabólica multi‑escala.
-    Retorna um dict auditável:
-      {
-        "ritmo_global": "SEM_RITMO"|"RITMO_FRACO"|"RITMO_CLARO",
-        "motivos": [...],
-        "sinais": {...},
-        "map_por_k": {k: label, ...}  # baseado na escala long (últimos pontos)
-      }
+def v16_detector_ritmo_danca_expost(gov: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """🕺 Detector de Ritmo/Dança (ex-post, pré-C4)
+    - OBSERVACIONAL: não decide, não altera Camada 4
+    - Usa apenas a saída já existente da Parabólica (gov/estados/persistência)
+    - Objetivo: marcar quando o erro está *abrindo caminho* (fora_longe DESCENDO com persistência)
+      com confirmação mínima em (fora_total/dist_media), para servir de base à Memória Estrutural do RESPIRÁVEL.
     """
-    out = {"ritmo_global": "SEM_RITMO", "motivos": [], "sinais": {}, "map_por_k": {}}
+    out: Dict[str, Any] = {
+        "ritmo_global": "N/D",
+        "motivos": [],
+        "sinais": {},
+        "map_por_k": [],
+        "obs": "Pré-C4. Observacional. Usa Parabólica (multi-escala) como fonte.",
+    }
+
     if not isinstance(gov, dict) or not gov:
-        out["motivos"].append("gov_invalido")
+        out["motivos"].append("gov_indisponivel")
         return out
 
     estados = gov.get("estados") or {}
     persist = gov.get("persistencia") or {}
-    estado_global = str(gov.get("estado_global") or "N/D")
+    debug = gov.get("debug") or {}
 
-    # sinais disponíveis (auditáveis)
-    s_long = (estados.get("long") or {}) if isinstance(estados, dict) else {}
-    s_mid  = (estados.get("mid")  or {}) if isinstance(estados, dict) else {}
-    s_short= (estados.get("short")or {}) if isinstance(estados, dict) else {}
+    st_long = (estados.get("long") or {}).get("fora_longe", "N/D")
+    st_mid = (estados.get("mid") or {}).get("fora_longe", "N/D")
+    st_short = (estados.get("short") or {}).get("fora_longe", "N/D")
 
     ok_desc = bool(persist.get("ok_descendo"))
-    ok_sub  = bool(persist.get("ok_subindo"))
+    ok_sub = bool(persist.get("ok_subindo"))
 
-    # confirmadores (melhora): fora_total e/ou dist_media também DESCENDO em mid/long
-    conf_desc = False
-    for mname in ("fora_total", "dist_media"):
-        if (s_long.get(mname) == "DESCENDO") or (s_mid.get(mname) == "DESCENDO"):
-            conf_desc = True
-            break
+    # confirmadores: queremos ver também DESCENDO (melhora) em pelo menos 1 confirmador
+    conf_desc = 0
+    for m in ("fora_total", "dist_media"):
+        if (estados.get("long", {}) or {}).get(m) == "DESCENDO" or (estados.get("mid", {}) or {}).get(m) == "DESCENDO":
+            conf_desc += 1
 
-    # confirmadores (piora): simétrico
-    conf_sub = False
-    for mname in ("fora_total", "dist_media"):
-        if (s_long.get(mname) == "SUBINDO") or (s_mid.get(mname) == "SUBINDO"):
-            conf_sub = True
-            break
-
-    out["sinais"] = {
-        "estado_global": estado_global,
-        "persist_descendo": ok_desc,
-        "persist_subindo": ok_sub,
-        "confirmadores_descendo": conf_desc,
-        "confirmadores_subindo": conf_sub,
-        "long_fora_longe": s_long.get("fora_longe", "N/D"),
-        "mid_fora_longe": s_mid.get("fora_longe", "N/D"),
-        "short_fora_longe": s_short.get("fora_longe", "N/D"),
-        "long_score_rigidez": s_long.get("score_rigidez", "N/D"),
+    sinais = {
+        "fora_longe_long": st_long,
+        "fora_longe_mid": st_mid,
+        "fora_longe_short": st_short,
+        "persist_ok_descendo": ok_desc,
+        "persist_ok_subindo": ok_sub,
+        "confirmadores_descendo_qtd": conf_desc,
     }
+    out["sinais"] = sinais
 
-    # Heurística canônica (conservadora):
-    # - RITMO_CLARO: estado_global DESCENDO + persistência (ok_desc) + confirmador de melhora
-    # - RITMO_FRACO: sinais locais de melhora (short ou mid DESCENDO em fora_longe) sem fechar todos critérios
-    # - SEM_RITMO: resto (inclui PLANA, SUBINDO, N/D)
-    if estado_global == "DESCENDO" and ok_desc and conf_desc:
+    # Regras canônicas (simples, auditáveis):
+    # - Ritmo CLARO: fora_longe DESCENDO em LONG + persistência + pelo menos 1 confirmador DESCENDO
+    # - Ritmo FRACO: fora_longe DESCENDO em LONG + persistência (sem confirmador) OU LONG DESCENDO e MID/SHORT DESCENDO
+    # - Sem ritmo: demais casos (inclui PLANA/SUBINDO)
+    if st_long == "DESCENDO" and ok_desc and conf_desc >= 1:
         out["ritmo_global"] = "RITMO_CLARO"
-        out["motivos"].append("descendo_persistente_com_confirmador")
-    elif (s_short.get("fora_longe") == "DESCENDO") or (s_mid.get("fora_longe") == "DESCENDO"):
+        out["motivos"].append("fora_longe_descendo_persistente_com_confirmacao")
+    elif st_long == "DESCENDO" and ok_desc and (st_mid == "DESCENDO" or st_short == "DESCENDO"):
         out["ritmo_global"] = "RITMO_FRACO"
-        out["motivos"].append("melhora_local_sem_fecho_global")
+        out["motivos"].append("fora_longe_descendo_persistente_sem_confirmacao_forte")
     else:
         out["ritmo_global"] = "SEM_RITMO"
-        out["motivos"].append("sem_sinais_de_melhora")
+        if st_long in ("SUBINDO", "PLANA", "N/D"):
+            out["motivos"].append(f"fora_longe_long_{st_long}")
+        if ok_sub:
+            out["motivos"].append("persistencia_subindo")
+        if not ok_desc:
+            out["motivos"].append("sem_persistencia_descendo")
 
-    # Mapa por k (baseado na escala long, quando disponível)
-    # Observação: isso NÃO é decisão; é um rótulo ex‑post para orientar memória.
+    # Mapa por k (últimos ks na escala LONG, se disponível)
     try:
-        series = gov.get("series") or {}
-        serie_long = series.get("long") or []
-        # cada item deve ter k, fora_longe, fora_total, dist_media
-        for i in range(2, len(serie_long)):
-            a = serie_long[i-2]
-            b = serie_long[i-1]
-            c = serie_long[i]
-            k = int(c.get("k")) if c.get("k") is not None else None
-            if k is None:
-                continue
-            def _f(x):
-                try:
-                    return float(x)
-                except Exception:
-                    return None
-            fl_a, fl_b, fl_c = _f(a.get("fora_longe")), _f(b.get("fora_longe")), _f(c.get("fora_longe"))
-            ft_a, ft_b, ft_c = _f(a.get("fora_total")), _f(b.get("fora_total")), _f(c.get("fora_total"))
-            dm_a, dm_b, dm_c = _f(a.get("dist_media")), _f(b.get("dist_media")), _f(c.get("dist_media"))
-            # deltas (c vs b, b vs a)
-            if None in (fl_a, fl_b, fl_c, ft_a, ft_b, ft_c, dm_a, dm_b, dm_c):
-                continue
-            d1_fl = fl_b - fl_a
-            d2_fl = fl_c - fl_b
-            d1_ft = ft_b - ft_a
-            d2_ft = ft_c - ft_b
-            d1_dm = dm_b - dm_a
-            d2_dm = dm_c - dm_b
-            # ritmo local: 2 passos consecutivos de melhora em fora_longe + 1 confirmador
-            local_conf = ((d1_ft < 0 and d2_ft < 0) or (d1_dm < 0 and d2_dm < 0))
-            if (d1_fl < 0 and d2_fl < 0 and local_conf):
-                out["map_por_k"][k] = "RITMO"
-            elif (d2_fl < 0 and local_conf):
-                out["map_por_k"][k] = "RITMO_FRACO"
-            else:
-                out["map_por_k"][k] = "SEM_RITMO"
+        ks = gov.get("ks") or []
+        ws = gov.get("Ws") or {}
+        w_long = int(ws.get("long", 0) or 0)
+        if isinstance(ks, list) and w_long > 0:
+            out["map_por_k"] = [int(k) for k in ks[-min(10, w_long):] if str(k).isdigit()]
     except Exception:
-        out["motivos"].append("erro_map_por_k")
+        pass
+
+    # Auditoria extra: curvatura final fora_longe (se houver)
+    try:
+        dbg = (debug.get("long") or {}).get("fora_longe") or {}
+        C = dbg.get("C") or []
+        eps = dbg.get("eps")
+        if isinstance(C, list) and C:
+            out["sinais"]["curvatura_fora_longe_ult"] = float(C[-1])
+        if eps is not None:
+            out["sinais"]["eps"] = float(eps)
+    except Exception:
+        pass
 
     return out
-
-
-def pc_atualizar_ritmo_danca_session(df_full: pd.DataFrame):
-    """Atualiza (pré‑C4) o estado de Ritmo/Dança no session_state, se houver Snapshots P0 suficientes.
-    Não decide nada; só registra leitura auditável.
-    """
-    snaps_list = st.session_state.get("snapshots_p0_canonic") or []
-    if not isinstance(snaps_list, list) or len(snaps_list) < 3:
-        st.session_state["ritmo_danca_info"] = {
-            "ritmo_global": "N/D",
-            "motivos": ["snapshots_insuficientes(<3)"],
-            "sinais": {},
-            "map_por_k": {},
-        }
-        return
-
-    try:
-        snaps_map = {int(s.get("k")): s for s in snaps_list if isinstance(s, dict) and s.get("k") is not None}
-    except Exception:
-        snaps_map = {}
-
-    if len(snaps_map) < 3:
-        st.session_state["ritmo_danca_info"] = {
-            "ritmo_global": "N/D",
-            "motivos": ["snapshots_map_insuficiente(<3)"],
-            "sinais": {},
-            "map_por_k": {},
-        }
-        return
-
-    try:
-        n = int(st.session_state.get("n_alvo") or 6)
-    except Exception:
-        n = 6
-
-    gov = parabola_multiescala_vetorial(df_full, snaps_map, n=n) or {}
-    if not isinstance(gov, dict) or not gov:
-        st.session_state["ritmo_danca_info"] = {
-            "ritmo_global": "N/D",
-            "motivos": ["parabolica_indisponivel"],
-            "sinais": {},
-            "map_por_k": {},
-        }
-        return
-
-    ritmo = pc_detectar_ritmo_danca_from_parabola(gov)
-    st.session_state["ritmo_danca_info"] = ritmo
-    # também guarda referência do gov (para o painel da Parabólica, se quiser)
-    st.session_state["parabola_gov"] = gov
-    st.session_state["parabola_estado_global"] = gov.get("estado_global")
-
-return out
 
 
 
@@ -4039,12 +4096,6 @@ def v16_diagnosticar_eco_estado():
         }
         st.session_state["diagnostico_eco_estado_v16"] = diag
         v16_sync_aliases_canonicos()
-
-    # V16 — Atualiza Ritmo/Dança (ex‑post) automaticamente (pré‑C4)
-    try:
-        pc_atualizar_ritmo_danca_session(df_full)
-    except Exception:
-        pass
         return diag
 
     # =========================================================
@@ -7330,6 +7381,13 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
     snapshot_p0_reg = st.session_state.get("snapshot_p0_canonic", {})
     st.caption(f"Snapshots P0 registrados até agora: **{len(snapshot_p0_reg)}**")
 
+    # 🕺 Ritmo/Dança (ex-post · pré-C4) — leitura automática (quando Parabólica tiver gov)
+    st.markdown("### 🕺 Ritmo/Dança (ex-post · pré-C4)")
+    ritmo_info = st.session_state.get("ritmo_danca_info")
+    if not isinstance(ritmo_info, dict) or not ritmo_info:
+        ritmo_info = {"ritmo_global": "N/D", "motivos": ["sem_dados"], "sinais": {}}
+    st.json(ritmo_info, expanded=False)
+
 
     colR1, colR2 = st.columns([1, 1])
     with colR1:
@@ -7458,21 +7516,6 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         "Para cada janela k registrada, o painel testa o pacote contra os alvos **C(k+1)** e **C(k+2)** "
         "do histórico FULL (quando existirem)."
     )
-
-    # V16 — Ritmo/Dança (ex‑post, automático) — base para Memória Estrutural (pré‑C4)
-    try:
-        pc_atualizar_ritmo_danca_session(df_full)
-    except Exception:
-        pass
-    ritmo_info = st.session_state.get("ritmo_danca_info") or {}
-    ritmo_global = str(ritmo_info.get("ritmo_global") or "N/D")
-    if ritmo_global != "N/D":
-        st.markdown("### 🕺 Ritmo/Dança (ex‑post · pré‑C4)")
-        st.json({
-            "ritmo_global": ritmo_global,
-            "motivos": (ritmo_info.get("motivos") or [])[:8],
-            "sinais": ritmo_info.get("sinais") or {},
-        })
 
     pacotes_reg = st.session_state.get("replay_progressivo_pacotes", {})
     if not pacotes_reg:
@@ -10154,12 +10197,25 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     # Em RESPIRÁVEL: aplicar elasticidade mínima no pacote (sem tocar Camada 4)
     if postura == "RESPIRÁVEL":
+        # Memória Estrutural do RESPIRÁVEL (usa snapshots já registrados; pré-C4; auditável)
+        try:
+            _mem = pc_resp_memoria_estrutural_from_snapshots(
+                st.session_state.get("snapshot_p0_canonic") or {},
+                lookback=25,
+                top_n=8,
+                min_lists=5,
+            )
+        except Exception:
+            _mem = {"ok": False, "sufocadores": [], "stats": {}, "motivo": "falha_memoria"}
+        st.session_state["postura_respiravel_memoria"] = _mem
+
         listas_totais, listas_top10, _resp_info = pc_resp_aplicar_diversificacao(
             listas_totais=listas_totais,
             listas_top10=listas_top10,
             universo=universo,
             seed=st.session_state.get("serie_base_idx", 0),
             n_alvo=int(st.session_state.get("n_alvo", 6) or 6),
+            memoria_sufocadores=(st.session_state.get("postura_respiravel_memoria", {}) or {}).get("sufocadores"),
         )
         st.session_state["postura_respiravel_info"] = _resp_info
     else:
@@ -10172,19 +10228,6 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         st.error("🔴 Postura: RUPTURA (P0 conservador; sem agressividade) — pré-C4")
     else:
         st.success("🟢 Postura: ESTÁVEL (execução normal do P0)")
-
-    # V16 — Ritmo/Dança (ex‑post, automático) — leitura apenas (pré‑C4)
-    ritmo_info = st.session_state.get("ritmo_danca_info") or {}
-    ritmo_global = str(ritmo_info.get("ritmo_global") or "N/D")
-    if ritmo_global != "N/D":
-        if ritmo_global == "RITMO_CLARO":
-            st.success(f"🕺 Ritmo/Dança: {ritmo_global} (histórico com 'ar' — base para Memória Estrutural)")
-        elif ritmo_global == "RITMO_FRACO":
-            st.warning(f"🕺 Ritmo/Dança: {ritmo_global} (sinais locais — ainda sem fecho global)")
-        else:
-            st.info(f"🕺 Ritmo/Dança: {ritmo_global} (sem sinais de melhora sustentada)")
-    else:
-        st.info("🕺 Ritmo/Dança: N/D (precisa de ≥3 Snapshots P0 para calcular)")
 
     st.session_state["modo6_listas_totais"] = listas_totais
     st.session_state["modo6_listas_top10"] = listas_top10
@@ -11170,23 +11213,15 @@ if painel == "📘 Relatório Final":
 
     st.markdown("## 📘 Relatório Final — V15.7 MAX — V16 Premium Profundo")
 
+    # 🕺 Ritmo/Dança (ex-post · pré-C4) — base para Memória Estrutural do RESPIRÁVEL
+    st.markdown("### 🕺 Ritmo/Dança (ex-post · pré-C4)")
+    ritmo_info = st.session_state.get("ritmo_danca_info")
+    if not isinstance(ritmo_info, dict) or not ritmo_info:
+        ritmo_info = {"ritmo_global": "N/D", "motivos": ["sem_dados"], "sinais": {}}
+    st.json(ritmo_info, expanded=False)
+
     # Sincroniza chaves canônicas (ECO/Estado/k*/Divergência) antes de consolidar
     v16_sync_aliases_canonicos()
-
-    # V16 — Ritmo/Dança (ex‑post, automático) — base para Memória Estrutural do RESPIRÁVEL (pré‑C4)
-    try:
-        pc_atualizar_ritmo_danca_session(df_full)
-    except Exception:
-        pass
-    ritmo_info = st.session_state.get("ritmo_danca_info") or {}
-    ritmo_global = str(ritmo_info.get("ritmo_global") or "N/D")
-    st.markdown("### 🕺 Ritmo/Dança (ex‑post · pré‑C4)")
-    st.json({
-        "ritmo_global": ritmo_global,
-        "motivos": (ritmo_info.get("motivos") or [])[:8],
-        "sinais": ritmo_info.get("sinais") or {},
-    })
-
 
     # ------------------------------------
 
@@ -15470,27 +15505,11 @@ elif painel == "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)":
     st.session_state["parabola_debug"] = gov.get("debug", {})
     st.session_state["parabola_estados"] = gov.get("estados", {})
 
-    # V16 — Ritmo/Dança (ex‑post, automático): base para Memória Estrutural do RESPIRÁVEL
-    ritmo_info = pc_detectar_ritmo_danca_from_parabola(gov)
-    st.session_state["ritmo_danca_info"] = ritmo_info
-
-    # --- Ritmo/Dança (ex‑post, automático) ---
-    st.markdown("### 🕺 Ritmo/Dança (ex‑post · pré‑C4)")
-    ritmo_global = (ritmo_info or {}).get("ritmo_global", "N/D")
-    motivos = (ritmo_info or {}).get("motivos", [])
-    sinais = (ritmo_info or {}).get("sinais", {})
-    st.json({
-        "ritmo_global": ritmo_global,
-        "motivos": motivos[:8],
-        "sinais": sinais,
-    })
-    # mapa por k (últimos)
-    mapa = (ritmo_info or {}).get("map_por_k", {}) if isinstance((ritmo_info or {}).get("map_por_k", {}), dict) else {}
-    if mapa:
-        ks_m = sorted([int(k) for k in mapa.keys() if str(k).isdigit()])
-        tail = ks_m[-10:]
-        st.markdown("**Mapa por janela (últimos 10 ks na escala LONG):**")
-        st.json({str(k): mapa.get(int(k)) for k in tail})
+    # 🕺 Ritmo/Dança (ex-post, pré-C4) — base para Memória Estrutural do RESPIRÁVEL
+    try:
+        st.session_state["ritmo_danca_info"] = v16_detector_ritmo_danca_expost(gov)
+    except Exception:
+        st.session_state["ritmo_danca_info"] = {"ritmo_global": "N/D", "motivos": ["erro_detector"], "sinais": {}}
 
     st.markdown("### 🧭 Estado Global (Governança)")
     st.json({
