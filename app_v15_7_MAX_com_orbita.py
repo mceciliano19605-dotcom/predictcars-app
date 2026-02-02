@@ -706,6 +706,134 @@ def v16_detector_ritmo_danca_expost(gov: Optional[Dict[str, Any]]) -> Dict[str, 
 
 
 
+
+# ============================================================
+# 🧱 SÉRIE SUFICIENTE (V16) — Protocolo Operacional (pré‑C4)
+# ============================================================
+# Problema real observado:
+# - O operador percebe variação de listas/quantidade ao mudar k (janela) e/ou ao alternar Postura.
+# - Isso é esperado: o Modo 6 roda sobre o histórico ATIVO (C1..Ck). Mudando k, muda a base.
+# - Em paralelo, sinais de risco podem alternar Postura (ESTÁVEL/RESPIRÁVEL/RUPTURA), o que altera
+#   a elasticidade pré‑C4 (e portanto o volume/jeitão das listas).
+#
+# Objetivo desta camada:
+# - Dar uma régua objetiva de "massa mínima" para comparar rodadas e confiar na leitura ex‑post.
+# - Dizer quantos ks (snapshots válidos) faltam para termos Parabólica/Ritmo/Dança com base real.
+# - NÃO decide nada e NÃO altera Camada 4.
+#
+# Conceito canônico:
+# - "Snapshot registrado" != "snapshot válido para erro": para ser válido, precisa existir C(k+1) e C(k+2) no FULL
+#   (senão o erro ex‑post não pode ser medido, e a Parabólica acusa serie_insuficiente).
+#
+# Níveis (operacionais, simples):
+# - INSUFICIENTE: <5 snapshots válidos (comparação solta)
+# - MÍNIMA:       >=5 snapshots válidos
+# - BOA:          >=9 snapshots válidos
+# - ROBUSTA:      >=12 snapshots válidos
+#
+# Observação:
+# - ks muito próximos do fim do FULL não geram erro (não há k+1/k+2). Logo, não contam como válidos.
+# ============================================================
+
+def v16_serie_suficiente_status(df_full, snapshots_map: dict, pacotes_avaliacao_df=None, n_alvo: int = 6) -> dict:
+    try:
+        if not isinstance(snapshots_map, dict) or not snapshots_map:
+            return {
+                "nivel": "INSUFICIENTE",
+                "snapshots_total": 0,
+                "snapshots_validos": 0,
+                "avaliacoes_total": int(len(pacotes_avaliacao_df)) if pacotes_avaliacao_df is not None else 0,
+                "faltam_para_minima": 5,
+                "faltam_para_boa": 9,
+                "faltam_para_robusta": 12,
+                "k_limite_para_erro": None,
+                "motivo": "sem_snapshots_registrados",
+            }
+
+        ks_all = []
+        for k in snapshots_map.keys():
+            try:
+                ks_all.append(int(k))
+            except Exception:
+                continue
+        ks_all = sorted(set(ks_all))
+
+        # Conta snapshots válidos (conseguimos medir erro usando k+1/k+2)
+        valid_ks = []
+        if df_full is not None and hasattr(df_full, "index"):
+            for k in ks_all:
+                snap = snapshots_map.get(k) or {}
+                try:
+                    if isinstance(snap, dict):
+                        snap = dict(snap)
+                        snap["k"] = int(snap.get("k", k))
+                    e = _parab_erro_snapshot(df_full, snap, n=int(n_alvo))
+                    if e is not None:
+                        valid_ks.append(int(k))
+                except Exception:
+                    continue
+
+        n_total = int(len(ks_all))
+        n_valid = int(len(valid_ks))
+
+        # Limite superior para medir erro (precisa existir k+2 no FULL)
+        k_limite = None
+        try:
+            idxs = list(df_full.index) if df_full is not None else []
+            if idxs:
+                # pega o maior k que ainda tem +2 dentro do FULL
+                # (resolve pelo índice real, porque pode haver índices não-contíguos)
+                k_limite = int(idxs[-3]) if len(idxs) >= 3 else None
+        except Exception:
+            k_limite = None
+
+        # Níveis
+        if n_valid >= 12:
+            nivel = "ROBUSTA"
+        elif n_valid >= 9:
+            nivel = "BOA"
+        elif n_valid >= 5:
+            nivel = "MÍNIMA"
+        else:
+            nivel = "INSUFICIENTE"
+
+        def _faltam(target):
+            return max(0, int(target) - int(n_valid))
+
+        # Avaliações (se existir tabela de avaliação de pacotes)
+        n_eval = 0
+        try:
+            if pacotes_avaliacao_df is not None:
+                n_eval = int(len(pacotes_avaliacao_df))
+        except Exception:
+            n_eval = 0
+
+        return {
+            "nivel": str(nivel),
+            "snapshots_total": n_total,
+            "snapshots_validos": n_valid,
+            "avaliacoes_total": n_eval,
+            "faltam_para_minima": _faltam(5),
+            "faltam_para_boa": _faltam(9),
+            "faltam_para_robusta": _faltam(12),
+            "k_limite_para_erro": k_limite,
+            "valid_ks_tail": valid_ks[-10:] if valid_ks else [],
+            "motivo": "ok",
+        }
+    except Exception as e:
+        return {
+            "nivel": "INSUFICIENTE",
+            "snapshots_total": 0,
+            "snapshots_validos": 0,
+            "avaliacoes_total": 0,
+            "faltam_para_minima": 5,
+            "faltam_para_boa": 9,
+            "faltam_para_robusta": 12,
+            "k_limite_para_erro": None,
+            "motivo": f"falha_serie_suficiente: {e}",
+        }
+
+
 # ============================================================
 # >>> P1 AUTOMÁTICO (pré-C4) — Governado pela Parabólica
 # - Não toca Camada 4
@@ -7380,6 +7508,46 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
 
     snapshot_p0_reg = st.session_state.get("snapshot_p0_canonic", {})
     st.caption(f"Snapshots P0 registrados até agora: **{len(snapshot_p0_reg)}**")
+
+    # 🧱 Série Suficiente — régua operacional (pré‑C4)
+    st.markdown("### 🧱 Série Suficiente — massa mínima (pré‑C4)")
+    try:
+        df_full = st.session_state.get("historico_full")
+        df_av = st.session_state.get("df_avaliacao_pacotes") or st.session_state.get("avaliacao_pacotes_df")
+        ss_info = v16_serie_suficiente_status(df_full, snapshot_p0_reg, pacotes_avaliacao_df=df_av, n_alvo=int(st.session_state.get("n_alvo", 6)))
+        st.json(ss_info)
+        # Texto humano (curto, operacional)
+        nivel = ss_info.get("nivel", "INSUFICIENTE")
+        if nivel == "INSUFICIENTE":
+            st.info(
+                "Série ainda **INSUFICIENTE** para comparar jeitão/quantidade com confiança. "
+                "Registre mais janelas (k) **que tenham C(k+1) e C(k+2) disponíveis** no FULL. "
+                "Meta prática: **BOA (>=9 snapshots válidos)**."
+            )
+        elif nivel == "MÍNIMA":
+            st.warning(
+                "Série **MÍNIMA** atingida (>=5 snapshots válidos). Já dá para leituras ex‑post básicas, "
+                "mas ainda é fácil o jeitão oscilar. Meta: **BOA (>=9)**."
+            )
+        elif nivel == "BOA":
+            st.success(
+                "Série **BOA** atingida (>=9 snapshots válidos). A comparação entre rodadas fica bem mais confiável. "
+                "Meta opcional: **ROBUSTA (>=12)**."
+            )
+        else:
+            st.success(
+                "Série **ROBUSTA** atingida (>=12 snapshots válidos). Base suficiente para governança multi‑escala (pré‑C4)."
+            )
+
+        k_lim = ss_info.get("k_limite_para_erro")
+        if k_lim is not None:
+            st.caption(
+                f"📌 Para contar como 'snapshot válido para erro', use janelas com k **<= {k_lim}** "
+                "(precisa existir C(k+1) e C(k+2) no FULL)."
+            )
+    except Exception as _e:
+        st.caption("Série Suficiente: indisponível nesta sessão (isso não é erro).")
+
 
     # 🕺 Ritmo/Dança (ex-post · pré-C4) — leitura automática (quando Parabólica tiver gov)
     st.markdown("### 🕺 Ritmo/Dança (ex-post · pré-C4)")
