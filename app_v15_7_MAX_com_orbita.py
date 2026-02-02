@@ -10196,18 +10196,35 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     st.session_state["postura_estado"] = postura
 
     # Em RESPIRÁVEL: aplicar elasticidade mínima no pacote (sem tocar Camada 4)
+    # Regra canônica (continuidade): Memória Estrutural só entra quando o cenário está SEM_RITMO.
+    ritmo_info = st.session_state.get("ritmo_danca_info") or {}
+    try:
+        ritmo_global = str((ritmo_info or {}).get("ritmo_global") or "N/D").strip()
+    except Exception:
+        ritmo_global = "N/D"
+    st.session_state["ritmo_global_expost"] = ritmo_global  # auditável (não decide)
+
     if postura == "RESPIRÁVEL":
-        # Memória Estrutural do RESPIRÁVEL (usa snapshots já registrados; pré-C4; auditável)
-        try:
-            _mem = pc_resp_memoria_estrutural_from_snapshots(
-                st.session_state.get("snapshot_p0_canonic") or {},
-                lookback=25,
-                top_n=8,
-                min_lists=5,
-            )
-        except Exception:
-            _mem = {"ok": False, "sufocadores": [], "stats": {}, "motivo": "falha_memoria"}
+        # Memória Estrutural do RESPIRÁVEL (SEM_RITMO) — usa snapshots já registrados; pré-C4; auditável; reversível
+        if ritmo_global == "SEM_RITMO":
+            try:
+                _mem = pc_resp_memoria_estrutural_from_snapshots(
+                    st.session_state.get("snapshot_p0_canonic") or {},
+                    lookback=25,
+                    top_n=8,
+                    min_lists=5,
+                )
+            except Exception:
+                _mem = {"ok": False, "sufocadores": [], "stats": {}, "motivo": "falha_memoria"}
+        else:
+            _mem = {"ok": False, "sufocadores": [], "stats": {}, "motivo": f"memoria_desligada_por_ritmo_{ritmo_global}"}
+
         st.session_state["postura_respiravel_memoria"] = _mem
+
+        # Aplicação da elasticidade mínima:
+        # - Anti-clone/anti-core sempre (RESPIRÁVEL)
+        # - Neutralização leve por sufocadores apenas quando _mem.ok em SEM_RITMO
+        memoria_suf = (_mem or {}).get("sufocadores") if bool((_mem or {}).get("ok")) else None
 
         listas_totais, listas_top10, _resp_info = pc_resp_aplicar_diversificacao(
             listas_totais=listas_totais,
@@ -10215,15 +10232,44 @@ if painel == "🎯 Modo 6 Acertos — Execução":
             universo=universo,
             seed=st.session_state.get("serie_base_idx", 0),
             n_alvo=int(st.session_state.get("n_alvo", 6) or 6),
-            memoria_sufocadores=(st.session_state.get("postura_respiravel_memoria", {}) or {}).get("sufocadores"),
+            memoria_sufocadores=memoria_suf,
         )
         st.session_state["postura_respiravel_info"] = _resp_info
     else:
+        st.session_state["postura_respiravel_memoria"] = {"ok": False, "sufocadores": [], "stats": {}, "motivo": "postura_nao_respiravel"}
         st.session_state["postura_respiravel_info"] = {"aplicado": False, "motivo": "postura_nao_respiravel", "postura": postura}
 
     # Exibição (informativa): não decide ataque, só descreve postura de execução
     if postura == "RESPIRÁVEL":
         st.warning("🟠 Postura: RESPIRÁVEL (P0 com elasticidade mínima anti-compressão) — pré-C4")
+
+        # Ritmo/Dança (ex-post) — informativo (pré-C4)
+        try:
+            st.caption(f"🕺 Ritmo/Dança (ex-post): {ritmo_global}")
+        except Exception:
+            pass
+
+        # 🧠 Memória Estrutural (SEM_RITMO) — auditável (somente quando SEM_RITMO)
+        try:
+            if str(ritmo_global) == "SEM_RITMO":
+                mem = st.session_state.get("postura_respiravel_memoria") or {}
+                with st.expander("🧠 Memória Estrutural (SEM_RITMO) — auditável", expanded=False):
+                    if isinstance(mem, dict) and mem.get("ok"):
+                        suf = mem.get("sufocadores") or []
+                        if suf:
+                            st.markdown("**Sufocadores (top):** " + ", ".join([str(x) for x in suf]))
+                        else:
+                            st.info("Sem sufocadores suficientes ainda (base pequena).")
+                        st.json(mem.get("stats") or {})
+                        st.caption(f"Motivo: {mem.get('motivo')}")
+                    else:
+                        motivo = mem.get("motivo") if isinstance(mem, dict) else "mem_invalida"
+                        st.info(f"Memória estrutural ainda indisponível: {motivo}")
+            else:
+                st.caption("🧠 Memória Estrutural (SEM_RITMO) desligada (ritmo_global != SEM_RITMO).")
+        except Exception:
+            pass
+
     elif postura == "RUPTURA":
         st.error("🔴 Postura: RUPTURA (P0 conservador; sem agressividade) — pré-C4")
     else:
