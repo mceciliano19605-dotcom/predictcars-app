@@ -7523,11 +7523,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         st.stop()
 
     # colunas de passageiros
-    try:
-    _df_full_ok = (('df_full' in globals()) and hasattr(df_full, 'columns'))
-except Exception:
-    _df_full_ok = False
-if _df_full_ok:
+    if ('df_full' in globals()) and hasattr(df_full, 'columns'):
     col_pass_full = [c for c in df_full.columns if isinstance(c, str) and c.lower().startswith('p')]
 else:
     col_pass_full = []
