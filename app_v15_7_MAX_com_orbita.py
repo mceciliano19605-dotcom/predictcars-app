@@ -56,7 +56,7 @@ def pc_classificar_postura(pipeline_regime: str | None, k_star, nr_percent, div_
 
     return "ESTÁVEL"
 
-def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6):
+def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65):
     """Em RESPIRÁVEL, aplicamos *elasticidade mínima* no pacote (pré-C4):
     - Anti-clone leve (remove duplicatas)
     - Anti-core leve (troca 1 passageiro em algumas listas para reduzir compressão)
@@ -86,6 +86,22 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
 
         # CORE: presença >= 60% do top
         core = {v for v, c in freq.items() if c >= max(1, int(0.60 * max(1, len(top))))}
+
+        # Memória estrutural (sufocadores) — opcional e auditável
+        sufocadores = set()
+        try:
+            if memoria_sufocadores is not None:
+                for x in memoria_sufocadores:
+                    try:
+                        sufocadores.add(int(x))
+                    except Exception:
+                        pass
+        except Exception:
+            sufocadores = set()
+
+        # Cap de dominância (só atua em sufocadores)
+        cap_pct = float(cap_pct) if cap_pct is not None else 0.65
+        cap_pct = max(0.40, min(0.85, cap_pct))
 
         # Candidatos de baixa frequência (para "respirar")
         uni = [int(x) for x in universo] if isinstance(universo, (list, tuple)) else []
@@ -140,6 +156,34 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                                     break
                         base = sorted(base)[:n_alvo]
                         trocas += 1
+
+            # Enforce cap de dominância para sufocadores (apenas nas primeiras listas do top)
+            try:
+                if sufocadores and idx < 8:
+                    for s in list(sufocadores):
+                        c0 = freq.get(int(s), 0)
+                        # se já está acima do cap, tenta tirar o sufocador desta lista (1 troca)
+                        if len(top) > 0 and (float(c0) / float(len(top))) > cap_pct and int(s) in base:
+                            cand2 = None
+                            for u in low:
+                                if u not in base:
+                                    cand2 = u
+                                    break
+                            if cand2 is not None:
+                                base2 = [v for v in base if v != int(s)]
+                                base2.append(int(cand2))
+                                base = sorted(set(base2))[:n_alvo]
+                                while len(base) < n_alvo:
+                                    for u in low:
+                                        if u not in base:
+                                            base.append(u)
+                                        if len(base) >= n_alvo:
+                                            break
+                                base = sorted(base)[:n_alvo]
+                                trocas += 1
+                                break
+            except Exception:
+                pass
             new_top.append(base)
 
         # Reconstrói listas_totais: substitui prefixo correspondente ao top, preserva o resto
@@ -166,7 +210,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        info = {"aplicado": True, "trocas": trocas, "core_sz": len(core), "motivo": "respiravel_diversificacao_minima"}
+        info = {"aplicado": True, "trocas": trocas, "core_sz": len(core), "sufocadores_sz": len(sufocadores), "cap_pct": float(cap_pct), "motivo": "respiravel_diversificacao_minima"}
         return new_tot, new_top10, info
     except Exception as e:
         return listas_totais, listas_top10, {"aplicado": False, "motivo": f"falha_resp: {e}"}
@@ -176,6 +220,101 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
 # ============================================================
 
 import math
+
+def pc_resp_memoria_estrutural_from_snapshots(snapshot_p0_canonic, lookback: int = 25, top_n: int = 8, min_lists: int = 5):
+    """Memória Estrutural do RESPIRÁVEL (pré-C4, auditável, sem motor novo).
+
+    Fonte: snapshots P0 canônicos já registrados (Replay Progressivo / CAP Invisível).
+    Ideia: identificar passageiros que tendem a *dominar* o pacote (compressão) de forma recorrente.
+
+    Retorna:
+      {
+        "ok": bool,
+        "sufocadores": [int...],   # top_n
+        "stats": {...},            # auditável (média de dominância / top ocorrências)
+        "motivo": str
+      }
+    """
+    try:
+        if not isinstance(snapshot_p0_canonic, dict) or len(snapshot_p0_canonic) == 0:
+            return {"ok": False, "sufocadores": [], "stats": {}, "motivo": "sem_snapshots"}
+
+        # pega os últimos ks (ordem crescente)
+        ks = []
+        for k in snapshot_p0_canonic.keys():
+            try:
+                ks.append(int(k))
+            except Exception:
+                continue
+        ks = sorted(ks)
+        if not ks:
+            return {"ok": False, "sufocadores": [], "stats": {}, "motivo": "ks_invalidos"}
+
+        ks_use = ks[-int(max(1, lookback)):]
+        score = {}        # soma de freq_norm
+        occ = {}          # contagem de aparições
+        dom_vals = []     # dominância do top1 por snapshot
+
+        for k in ks_use:
+            snap = snapshot_p0_canonic.get(k) or {}
+            try:
+                qtd = int(snap.get("qtd_listas", 0))
+            except Exception:
+                qtd = 0
+            if qtd < int(min_lists):
+                continue
+
+            freq = snap.get("freq_passageiros") or {}
+            items = []
+            for pk, pv in freq.items():
+                try:
+                    p = int(pk)
+                    v = int(pv)
+                except Exception:
+                    continue
+                if v <= 0:
+                    continue
+                items.append((p, v))
+            if not items:
+                continue
+
+            items.sort(key=lambda kv: (-kv[1], kv[0]))
+            top1 = items[0][1]
+            dom_vals.append(float(top1) / float(max(1, qtd)))
+
+            for p, v in items:
+                fn = float(v) / float(max(1, qtd))
+                score[p] = score.get(p, 0.0) + fn
+                occ[p] = occ.get(p, 0) + 1
+
+        if not score:
+            return {"ok": False, "sufocadores": [], "stats": {}, "motivo": "score_vazio"}
+
+        # ranking por "dominância média" (score / occ), com desempate por score total
+        rank = []
+        for p, sc in score.items():
+            o = int(occ.get(p, 1))
+            rank.append((p, sc / float(max(1, o)), sc, o))
+        rank.sort(key=lambda t: (-t[1], -t[2], -t[3], t[0]))
+
+        suf = [int(p) for p, _, _, _ in rank[: int(max(1, top_n))]]
+
+        stats = {
+            "snapshots_usados": int(len(ks_use)),
+            "k_min": int(ks_use[0]),
+            "k_max": int(ks_use[-1]),
+            "dominancia_top1_media": float(sum(dom_vals) / max(1, len(dom_vals))) if dom_vals else 0.0,
+            "top_ocorrencias": [
+                {"p": int(p), "occ": int(o), "score_total": float(sc), "score_medio": float(sc / max(1, o))}
+                for p, _, sc, o in rank[: min(12, len(rank))]
+            ],
+        }
+
+        return {"ok": True, "sufocadores": suf, "stats": stats, "motivo": "ok"}
+    except Exception as e:
+        return {"ok": False, "sufocadores": [], "stats": {}, "motivo": f"falha_memoria_resp: {e}"}
+
+
 
 def _p2_series_from_df(df, idx, n=6):
     cols = [c for c in df.columns if isinstance(c, str) and c.startswith("p")]
@@ -9961,12 +10100,25 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     # Em RESPIRÁVEL: aplicar elasticidade mínima no pacote (sem tocar Camada 4)
     if postura == "RESPIRÁVEL":
+        # Memória Estrutural do RESPIRÁVEL (usa snapshots já registrados; pré-C4; auditável)
+        try:
+            _mem = pc_resp_memoria_estrutural_from_snapshots(
+                st.session_state.get("snapshot_p0_canonic") or {},
+                lookback=25,
+                top_n=8,
+                min_lists=5,
+            )
+        except Exception:
+            _mem = {"ok": False, "sufocadores": [], "stats": {}, "motivo": "falha_memoria"}
+        st.session_state["postura_respiravel_memoria"] = _mem
+
         listas_totais, listas_top10, _resp_info = pc_resp_aplicar_diversificacao(
             listas_totais=listas_totais,
             listas_top10=listas_top10,
             universo=universo,
             seed=st.session_state.get("serie_base_idx", 0),
             n_alvo=int(st.session_state.get("n_alvo", 6) or 6),
+            memoria_sufocadores=(st.session_state.get("postura_respiravel_memoria", {}) or {}).get("sufocadores"),
         )
         st.session_state["postura_respiravel_info"] = _resp_info
     else:
