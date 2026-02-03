@@ -2972,6 +2972,242 @@ def v16_render_bloco_ss(ss_info: dict):
 # -----------------------------
 # REGRA CANÔNICA: LISTAS >= n_real
 # -----------------------------
+
+# ============================================================
+# 🧠 V16 — MEMÓRIA ESTRUTURAL DO RESPIRÁVEL (SEM_RITMO) — pré-C4
+# - Observacional, auditável, reversível
+# - NÃO altera Camada 4
+# - NÃO aprende online (atualiza apenas quando um Snapshot P0 é registrado)
+# - Atua apenas (se habilitada) quando: Postura=RESPIRÁVEL e Ritmo=SEM_RITMO
+# ============================================================
+
+ME_LOOKBACK = 25
+ME_TOP_N = 8
+ME_MIN_JANELAS = 5  # base mínima para produzir ranking útil (auditável)
+
+def v16_me_build_from_snapshots(snapshots_map: Optional[dict], lookback: int = ME_LOOKBACK, top_n: int = ME_TOP_N) -> dict:
+    """Constrói a Memória Estrutural a partir dos Snapshots P0 canônicos.
+    Não usa frequência bruta isolada: usa *efeito estrutural* via proxies já existentes nos snapshots (rigidez/folga e camadas V8).
+    Retorna dict auditável (não decide):
+      {
+        "ok": bool,
+        "base": {"janelas": int, "ks": [...], "obs": str},
+        "sufocadores": [int...],
+        "scores": {p: float},
+        "debug": {...}
+      }
+    """
+    try:
+        if not isinstance(snapshots_map, dict) or not snapshots_map:
+            return {"ok": False, "base": {"janelas": 0, "ks": [], "obs": "sem_snapshots"}, "sufocadores": [], "scores": {}, "debug": {"motivo": "sem_snapshots"}}
+
+        # ordenar ks e pegar lookback
+        ks_all = []
+        for k in snapshots_map.keys():
+            try:
+                ks_all.append(int(k))
+            except Exception:
+                pass
+        ks_all = sorted(set(ks_all))
+        if not ks_all:
+            return {"ok": False, "base": {"janelas": 0, "ks": [], "obs": "ks_invalidos"}, "sufocadores": [], "scores": {}, "debug": {"motivo": "ks_invalidos"}}
+
+        ks_used = ks_all[-int(lookback):] if lookback and len(ks_all) > int(lookback) else ks_all[:]
+        snaps = []
+        for k in ks_used:
+            s = snapshots_map.get(k)
+            if isinstance(s, dict):
+                snaps.append((k, s))
+        if not snaps:
+            return {"ok": False, "base": {"janelas": 0, "ks": ks_used, "obs": "snapshots_vazios"}, "sufocadores": [], "scores": {}, "debug": {"motivo": "snapshots_vazios"}}
+
+        # Proxies de dano estrutural (pré-C4) — auditáveis
+        def _damage_proxy(snap: dict) -> float:
+            try:
+                v8 = (snap.get("snap_v8") or {}) if isinstance(snap, dict) else {}
+                meta = (v8.get("meta") or {}) if isinstance(v8, dict) else {}
+                score_rig = _pc_safe_float(meta.get("score_rigidez"), 0.0) or 0.0
+                rigido = bool(meta.get("rigido"))
+                folga = str(meta.get("folga_qualitativa") or "").strip().lower()
+                # penaliza "nenhuma" folga (tende a compressão) e rigidez marcada
+                dmg = float(score_rig)
+                if rigido:
+                    dmg += 0.20
+                if folga in ("nenhuma", "0", "zero"):
+                    dmg += 0.10
+                # pacote muito pequeno costuma ser mais comprimido (proxy leve)
+                up = _pc_safe_float(snap.get("universo_pacote_len"), None)
+                if up is not None and up <= 12:
+                    dmg += 0.05
+                # clamp
+                if dmg < 0:
+                    dmg = 0.0
+                if dmg > 1.5:
+                    dmg = 1.5
+                return dmg
+            except Exception:
+                return 0.0
+
+        # Dominância por camada V8 (core/quase/bordas)
+        def _dom_weight(layer: str) -> float:
+            if layer == "core":
+                return 1.0
+            if layer == "quase_core":
+                return 0.70
+            if layer == "borda_interna":
+                return 0.40
+            if layer == "borda_externa":
+                return 0.20
+            return 0.0
+
+        # Acúmulos
+        sum_dom = {}
+        sum_w = {}
+        count = {}
+        dmg_list = []
+
+        for k, snap in snaps:
+            dmg = _damage_proxy(snap)
+            dmg_list.append(dmg)
+
+            v8 = snap.get("snap_v8") or {}
+            if not isinstance(v8, dict):
+                continue
+
+            for layer in ("core", "quase_core", "borda_interna", "borda_externa"):
+                arr = v8.get(layer) or []
+                if not isinstance(arr, list):
+                    continue
+                w_dom = _dom_weight(layer)
+                for p in arr:
+                    try:
+                        pi = int(p)
+                    except Exception:
+                        continue
+                    # presença conta sempre; dominância pesa por dano (efeito estrutural)
+                    count[pi] = count.get(pi, 0) + 1
+                    sum_dom[pi] = sum_dom.get(pi, 0.0) + (w_dom * dmg)
+                    sum_w[pi] = sum_w.get(pi, 0.0) + dmg
+
+        janelas = len(snaps)
+        if janelas < 1:
+            return {"ok": False, "base": {"janelas": 0, "ks": ks_used, "obs": "snapshots_invalidos"}, "sufocadores": [], "scores": {}, "debug": {"motivo": "snapshots_invalidos"}}
+
+        # Se dano total é 0 (sem proxies), ainda assim produz ranking por presença em camadas, mas marca obs
+        scores = {}
+        for p, c in count.items():
+            w = sum_w.get(p, 0.0)
+            if w > 0:
+                avg_dom = sum_dom.get(p, 0.0) / max(w, 1e-9)
+            else:
+                # fallback: usa presença relativa como proxy (auditável)
+                avg_dom = float(c) / float(janelas)
+            # índice final (simples, auditável): dominância média * presença relativa
+            pres_rel = float(c) / float(janelas)
+            idx = float(avg_dom) * pres_rel
+            scores[p] = idx
+
+        # top-N sufocadores
+        suf = sorted(scores.keys(), key=lambda p: scores[p], reverse=True)
+        suf = [int(p) for p in suf[: int(top_n)]]
+
+        debug = {
+            "lookback": int(lookback),
+            "top_n": int(top_n),
+            "dmg_min": min(dmg_list) if dmg_list else None,
+            "dmg_max": max(dmg_list) if dmg_list else None,
+            "dmg_media": (sum(dmg_list) / len(dmg_list)) if dmg_list else None,
+            "janelas_total": int(janelas),
+        }
+
+        ok = bool(janelas >= 1 and len(suf) > 0)
+        return {"ok": ok, "base": {"janelas": int(janelas), "ks": ks_used, "obs": "pre-C4 | efeito estrutural (rigidez/folga/camadas V8)"}, "sufocadores": suf, "scores": scores, "debug": debug}
+    except Exception as e:
+        return {"ok": False, "base": {"janelas": 0, "ks": [], "obs": "falha"}, "sufocadores": [], "scores": {}, "debug": {"motivo": f"falha_build: {e}"}}
+
+def v16_me_status(postura: str, ritmo_global: str, me_enabled: bool, ss_info: Optional[dict], me_info: Optional[dict]) -> dict:
+    """Define estado canônico da Memória (não decide; só governa a leitura)."""
+    postura = str(postura or "").strip().upper()
+    ritmo = str(ritmo_global or "").strip().upper()
+    enabled = bool(me_enabled)
+
+    if not enabled:
+        return {"status": "DESLIGADA", "motivo": "me_enabled_false"}
+
+    if postura != "RESPIRÁVEL":
+        return {"status": "INATIVA", "motivo": f"postura_{postura or 'N/D'}"}
+
+    if ritmo != "SEM_RITMO":
+        return {"status": "INATIVA", "motivo": f"ritmo_{ritmo or 'N/D'}"}
+
+    base_j = int(((me_info or {}).get("base") or {}).get("janelas") or 0)
+    if base_j < ME_MIN_JANELAS:
+        return {"status": "INSUFICIENTE", "motivo": f"poucas_janelas ({base_j} < {ME_MIN_JANELAS})"}
+
+    ss_ok = bool((ss_info or {}).get("status"))
+    if not ss_ok:
+        return {"status": "BASE_FRACA", "motivo": "SS_nao_atingida"}
+
+    return {"status": "ATIVA", "motivo": "ok"}
+
+def v16_me_update_auto(df_full: Optional[pd.DataFrame], snapshots_map: Optional[dict], postura: Optional[str] = None, ritmo_global: Optional[str] = None) -> dict:
+    """Atualiza Memória Estrutural (Jogador B) automaticamente quando um snapshot entra.
+    Não dispara execução; só atualiza st.session_state.
+    """
+    # toggle padrão (mantém compatibilidade: ON por padrão, mas operador pode desligar)
+    if "me_enabled" not in st.session_state:
+        st.session_state["me_enabled"] = True
+
+    me_enabled = bool(st.session_state.get("me_enabled", True))
+    me_info = v16_me_build_from_snapshots(snapshots_map=snapshots_map, lookback=ME_LOOKBACK, top_n=ME_TOP_N)
+    st.session_state["me_info"] = me_info
+
+    # usa SS já calculado quando existir; senão calcula rápido
+    ss_info = st.session_state.get("ss_info")
+    if not isinstance(ss_info, dict):
+        try:
+            ss_info = v16_calcular_ss(df_full=df_full, snapshots_map=snapshots_map)
+        except Exception:
+            ss_info = {"status": False, "ks_total": 0, "ks_expost": 0, "motivos": ["ss_indisponivel"]}
+    st.session_state["ss_info"] = ss_info
+    st.session_state["ss_status"] = "ATINGIDA" if ss_info.get("status") else "NAO_ATINGIDA"
+
+    # postura/ritmo — se não vier, pega do session_state
+    pst = postura or st.session_state.get("postura_estado") or ""
+    rg = ritmo_global or st.session_state.get("ritmo_global_expost") or (st.session_state.get("ritmo_danca_info") or {}).get("ritmo_global") or "N/D"
+
+    me_st = v16_me_status(postura=str(pst), ritmo_global=str(rg), me_enabled=me_enabled, ss_info=ss_info, me_info=me_info)
+    st.session_state["me_status"] = me_st.get("status")
+    st.session_state["me_status_info"] = me_st
+    st.session_state["me_last_update"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+    return {"me_info": me_info, "me_status": me_st, "ss_info": ss_info}
+
+def v16_render_bloco_me(me_info: Optional[dict], me_status_info: Optional[dict], ss_info: Optional[dict]):
+    """Render do bloco informativo da Memória Estrutural (SEM_RITMO)."""
+    st.markdown("### 🧠 Memória Estrutural (SEM_RITMO)")
+    st.caption("Pré-C4 · Observacional · Auditável. Não altera Camada 4. Não aprende online (atualiza só ao registrar Snapshot P0).")
+
+    st.checkbox("Ativar Memória Estrutural (SEM_RITMO)", key="me_enabled", value=bool(st.session_state.get("me_enabled", True)))
+
+    stt = (me_status_info or {}).get("status", "N/D")
+    mot = (me_status_info or {}).get("motivo", "")
+    base = (me_info or {}).get("base") or {}
+    j = int(base.get("janelas") or 0)
+
+    ss_ok = bool((ss_info or {}).get("status"))
+    st.markdown(f"**Status:** {stt}  \\n**Motivo:** {mot}  \\n**Base:** {j} janelas | SS: {'ATINGIDA' if ss_ok else 'NÃO ATINGIDA'}")
+
+    suf = list((me_info or {}).get("sufocadores") or [])
+    if suf:
+        st.write("**Top sufocadores (efeito estrutural):** " + ", ".join(map(str, suf)))
+    else:
+        st.info("Ainda não há sufocadores suficientes para exibir (base curta ou dados insuficientes).")
+
+    dbg = (me_info or {}).get("debug") or {}
+    if dbg:
+        st.json({"debug": dbg, "obs": base.get("obs")})
+
 def validar_lista_vs_n_real(lista, n_real):
     return isinstance(lista, (list, tuple)) and len(lista) >= int(n_real)
 
@@ -7568,12 +7804,23 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                 st.session_state["snapshot_p0_canonic"] = snapshot_p0_reg
                 st.session_state["replay_progressivo_pacotes"] = pacotes_reg
                 st.success(f"Pacote registrado para janela C1..C{k_reg}.")
+
+                # 🧠 Atualiza Memória Estrutural automaticamente (Jogador B) ao registrar Snapshot P0
+                try:
+                    _df_full_me = st.session_state.get("df_full") or st.session_state.get("historico_df")
+                    v16_me_update_auto(df_full=_df_full_me, snapshots_map=st.session_state.get("snapshot_p0_canonic") or {})
+                except Exception:
+                    pass
             except Exception as e:
                 st.error(f"Falha ao registrar pacote: {e}")
     with colR2:
         if st.button("🧹 Limpar todos os pacotes registrados", use_container_width=True, disabled=(len(pacotes_reg) == 0)):
             st.session_state["replay_progressivo_pacotes"] = {}
             st.session_state["snapshot_p0_canonic"] = {}
+            # limpa memória estrutural (auditável)
+            st.session_state["me_info"] = {}
+            st.session_state["me_status"] = "DESLIGADA"
+            st.session_state["me_status_info"] = {"status": "DESLIGADA", "motivo": "limpeza_manual"}
             st.success("Pacotes registrados foram limpos.")
 
     
@@ -7613,6 +7860,15 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         st.session_state["ss_info"] = ss_info
         st.session_state["ss_status"] = "ATINGIDA" if ss_info.get("status") else "NAO_ATINGIDA"
         v16_render_bloco_ss(ss_info)
+        # 🧠 Memória Estrutural (SEM_RITMO) — bloco informativo
+        try:
+            if "me_info" not in st.session_state:
+                st.session_state["me_info"] = v16_me_build_from_snapshots(st.session_state.get("snapshot_p0_canonic") or {})
+            if "me_status_info" not in st.session_state:
+                st.session_state["me_status_info"] = {"status": "INATIVA", "motivo": "nao_calculada"}
+            v16_render_bloco_me(st.session_state.get("me_info"), st.session_state.get("me_status_info"), st.session_state.get("ss_info"))
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -10319,17 +10575,36 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     if postura == "RESPIRÁVEL":
         # Memória Estrutural do RESPIRÁVEL (SEM_RITMO) — usa snapshots já registrados; pré-C4; auditável; reversível
         if ritmo_global == "SEM_RITMO":
+            # 🧠 Memória Estrutural (SEM_RITMO) — usa cache em sessão, atualizado ao registrar Snapshot P0
             try:
-                _mem = pc_resp_memoria_estrutural_from_snapshots(
-                    st.session_state.get("snapshot_p0_canonic") or {},
-                    lookback=25,
-                    top_n=8,
-                    min_lists=5,
+                _me_enabled = bool(st.session_state.get("me_enabled", True))
+                _me_info = st.session_state.get("me_info")
+                if not isinstance(_me_info, dict) or not _me_info:
+                    _me_info = v16_me_build_from_snapshots(st.session_state.get("snapshot_p0_canonic") or {})
+                    st.session_state["me_info"] = _me_info
+
+                _ss_info = st.session_state.get("ss_info")
+                _me_status_info = v16_me_status(
+                    postura=postura,
+                    ritmo_global=ritmo_global,
+                    me_enabled=_me_enabled,
+                    ss_info=_ss_info if isinstance(_ss_info, dict) else None,
+                    me_info=_me_info,
                 )
-            except Exception:
-                _mem = {"ok": False, "sufocadores": [], "stats": {}, "motivo": "falha_memoria"}
+                st.session_state["me_status"] = _me_status_info.get("status")
+                st.session_state["me_status_info"] = _me_status_info
+
+                _mem = {
+                    "ok": bool((_me_info or {}).get("ok")),
+                    "sufocadores": list((_me_info or {}).get("sufocadores") or []),
+                    "stats": {"base": (_me_info or {}).get("base"), "debug": (_me_info or {}).get("debug")},
+                    "motivo": _me_status_info.get("motivo", ""),
+                    "status": _me_status_info.get("status", ""),
+                }
+            except Exception as e:
+                _mem = {"ok": False, "sufocadores": [], "stats": {}, "motivo": f"falha_memoria: {e}", "status": "FALHA"}
         else:
-            _mem = {"ok": False, "sufocadores": [], "stats": {}, "motivo": f"memoria_desligada_por_ritmo_{ritmo_global}"}
+            _mem = {"ok": False, "sufocadores": [], "stats": {}, "motivo": f"memoria_desligada_por_ritmo_{ritmo_global}", "status": "INATIVA"}
 
         st.session_state["postura_respiravel_memoria"] = _mem
 
@@ -15445,6 +15720,15 @@ try:
     st.session_state["ss_info"] = ss_info
     st.session_state["ss_status"] = "ATINGIDA" if ss_info.get("status") else "NAO_ATINGIDA"
     v16_render_bloco_ss(ss_info)
+    # 🧠 Memória Estrutural (SEM_RITMO) — bloco informativo
+    try:
+        if "me_info" not in st.session_state:
+            st.session_state["me_info"] = v16_me_build_from_snapshots(st.session_state.get("snapshot_p0_canonic") or {})
+        if "me_status_info" not in st.session_state:
+            st.session_state["me_status_info"] = {"status": "INATIVA", "motivo": "nao_calculada"}
+        v16_render_bloco_me(st.session_state.get("me_info"), st.session_state.get("me_status_info"), st.session_state.get("ss_info"))
+    except Exception:
+        pass
 except Exception:
     pass
 
@@ -15577,6 +15861,12 @@ if st.session_state.get("cap_v2_running") is True:
                     st.session_state["cap_v2_done"] = feitos_v2
                     st.session_state["cap_v2_queue"] = fila_v2[1:]
                     st.success(f"✅ Snapshot P0 registrado automaticamente para k={k_next}.")
+                    # 🧠 Atualiza Memória Estrutural automaticamente ao registrar Snapshot P0
+                    try:
+                        _df_full_me = st.session_state.get("df_full") or st.session_state.get("historico_df")
+                        v16_me_update_auto(df_full=_df_full_me, snapshots_map=st.session_state.get("snapshot_p0_canonic") or {})
+                    except Exception:
+                        pass
                 else:
                     falhas_v2.append(int(k_next))
                     st.session_state["cap_v2_fail"] = falhas_v2
