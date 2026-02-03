@@ -7523,10 +7523,10 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         st.stop()
 
     # colunas de passageiros
-    if ('df_full' in globals()) and hasattr(df_full, 'columns'):
-    col_pass_full = [c for c in df_full.columns if isinstance(c, str) and c.lower().startswith('p')]
-else:
-    col_pass_full = []
+    col_pass_full = (
+    [c for c in df_full.columns if isinstance(c, str) and c.lower().startswith('p')]
+    if ('df_full' in globals()) and hasattr(df_full, 'columns') else []
+)
 
     if not col_pass_full:
         st.error("Não consegui identificar colunas de passageiros no histórico FULL.")
