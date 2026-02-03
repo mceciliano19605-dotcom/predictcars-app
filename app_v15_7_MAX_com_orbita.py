@@ -2867,6 +2867,103 @@ if st.session_state.get("historico_df") is not None:
         st.session_state["historico_df"]
     )
 
+
+# ============================================================
+# 🧪 SÉRIE SUFICIENTE (SS) — V16 PREMIUM (INFORMATIVO)
+# ------------------------------------------------------------
+# Função:
+# - Explicitar ao operador se já há base mínima para confiar em leituras EX-POST
+#   (Ritmo/Dança, V9, Parabólica, Memórias), sem bloquear execução e sem tocar Camada 4.
+# - SS NÃO decide, NÃO prevê, NÃO muda listas e NÃO altera volumes.
+# Fonte de verdade:
+# - snapshots do Replay Progressivo: st.session_state["snapshot_p0_canonic"] (mapa k -> snapshot)
+# Critério (auditável, simples, sem magia):
+# - mínimo de janelas (ks) registradas
+# - mínimo de janelas com EX-POST disponível (k+1 existente no histórico FULL)
+# ============================================================
+
+SS_MIN_KS = 5
+SS_MIN_EXPOST = 5
+
+def v16_calcular_ss(df_full: Optional[pd.DataFrame], snapshots_map: Optional[dict]) -> dict:
+    """Calcula o status de SS (informativo).
+    Retorna dict auditável: {status, ks_total, ks_expost, motivos, Ws}.
+
+    - ks_total: quantidade de snapshots (janelas) registrados
+    - ks_expost: quantos snapshots têm alvo ex-post disponível (k < len(df_full))
+    - Ws: calibração Parabólica (se já calculada), apenas para contextualizar
+    """
+    snaps = snapshots_map if isinstance(snapshots_map, dict) else {}
+    ks = []
+    for k in snaps.keys():
+        try:
+            ks.append(int(k))
+        except Exception:
+            continue
+    ks = sorted(list(set(ks)))
+    ks_total = int(len(ks))
+
+    n_full = int(len(df_full)) if df_full is not None else 0
+    ks_expost = 0
+    if n_full > 0:
+        for k in ks:
+            # Se a janela é C1..Ck, o alvo ex-post mínimo é C(k+1) => existe se k < N
+            if int(k) < int(n_full):
+                ks_expost += 1
+
+    motivos = []
+    if ks_total < int(SS_MIN_KS):
+        motivos.append(f"poucas_janelas_registradas ({ks_total} < {SS_MIN_KS})")
+    if ks_expost < int(SS_MIN_EXPOST):
+        motivos.append(f"poucas_janelas_com_expost ({ks_expost} < {SS_MIN_EXPOST})")
+
+    # Contexto Parabólica (se já existir em sessão)
+    gov = st.session_state.get("parabola_gov")
+    Ws = (gov or {}).get("Ws") if isinstance(gov, dict) else {}
+    try:
+        Ws = {k: int(v) for k, v in (Ws or {}).items()}
+    except Exception:
+        Ws = {}
+
+    status = (ks_total >= int(SS_MIN_KS)) and (ks_expost >= int(SS_MIN_EXPOST))
+
+    return {
+        "status": bool(status),
+        "ks_total": int(ks_total),
+        "ks_expost": int(ks_expost),
+        "motivos": motivos,
+        "Ws": Ws,
+        "ts": datetime.utcnow().isoformat(timespec="seconds"),
+    }
+
+def v16_render_bloco_ss(ss_info: dict):
+    """Renderiza o bloco SS de forma visível e consistente (sem criar painel novo)."""
+    info = ss_info if isinstance(ss_info, dict) else {}
+    ok = bool(info.get("status"))
+    ks_total = int(info.get("ks_total") or 0)
+    ks_expost = int(info.get("ks_expost") or 0)
+    motivos = info.get("motivos") or []
+    Ws = info.get("Ws") or {}
+
+    st.markdown("### 🧪 Série Suficiente (SS)")
+    st.caption("Condição de estabilidade (informativa). Não bloqueia execução. Não altera listas. Não mexe na Camada 4.")
+
+    if ok:
+        st.success(f"✅ SS ATINGIDA — base mínima presente. Janelas: {ks_total} · com EX-POST: {ks_expost}.")
+    else:
+        st.warning(f"⚠️ SS AINDA NÃO ATINGIDA — leituras podem variar. Janelas: {ks_total} · com EX-POST: {ks_expost}.")
+        if motivos:
+            st.write("**Motivos:**")
+            for m in motivos[:6]:
+                st.write(f"- {m}")
+
+    # Contexto Parabólica (se já houver)
+    if isinstance(Ws, dict) and Ws:
+        try:
+            st.caption(f"Contexto Parabólica (calibração Ws): short={Ws.get('short',0)} · mid={Ws.get('mid',0)} · long={Ws.get('long',0)}")
+        except Exception:
+            pass
+
 # ============================================================
 # V16 PREMIUM — INFRAESTRUTURA UNIVERSAL
 # (REGRAS CANÔNICAS + ORÇAMENTO CONDICIONADO)
@@ -7508,6 +7605,17 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
     else:
         st.info("🧊 Snapshot P0 ainda não registrado nesta sessão. (Registre um pacote por janela acima.)")
 
+    # -------------------------------------------------------------
+    # 🧪 Série Suficiente (SS) — bloco visível (informativo)
+    # -------------------------------------------------------------
+    try:
+        ss_info = v16_calcular_ss(df_full=df_full, snapshots_map=snapshot_p0_reg)
+        st.session_state["ss_info"] = ss_info
+        st.session_state["ss_status"] = "ATINGIDA" if ss_info.get("status") else "NAO_ATINGIDA"
+        v16_render_bloco_ss(ss_info)
+    except Exception:
+        pass
+
     st.markdown("---")
 
     # 8) Avaliação automática (contra os 2 alvos seguintes)
@@ -7761,7 +7869,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             st.session_state["v9_memoria_borda"] = {
                 "resumo": _resumo,
                 "classificacao": _classif,
-                "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+                "ts": datetime.utcnow().isoformat(timespec="seconds"),
             }
         except Exception:
             pass
@@ -15326,6 +15434,19 @@ st.caption(
     "Pré-C4 · Observacional · Auditável. "
     "Nesta V2, o CAP invisível roda **1 k por clique** (anti‑zumbi) e não usa `rerun()`."
 )
+
+# -------------------------------------------------------------
+# 🧪 Série Suficiente (SS) — visão rápida (usa snapshots já coletados)
+# -------------------------------------------------------------
+try:
+    _snap_map = st.session_state.get("snapshot_p0_canonic") or {}
+    _df_full_ss = st.session_state.get("historico_df")
+    ss_info = v16_calcular_ss(df_full=_df_full_ss, snapshots_map=_snap_map)
+    st.session_state["ss_info"] = ss_info
+    st.session_state["ss_status"] = "ATINGIDA" if ss_info.get("status") else "NAO_ATINGIDA"
+    v16_render_bloco_ss(ss_info)
+except Exception:
+    pass
 
 # estado V2
 if "cap_v2_running" not in st.session_state:
