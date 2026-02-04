@@ -7892,7 +7892,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                         df_recorte = _df_full_safe.head(int(k_prox)).copy()
                         st.session_state["historico_df"] = df_recorte
                         st.session_state["replay_janela_k_active"] = int(k_prox)
-                        _replay_limpar_chaves_dependentes()
+                        _pc_replay_limpar_chaves_dependentes_silent()
 
                         # universo min/max canônico (rápido)
                         try:
@@ -7995,7 +7995,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
     )
 
     # 5) Função local: limpeza de chaves dependentes (conservadora)
-    def _replay_limpar_chaves_dependentes():
+    def _pc_replay_limpar_chaves_dependentes_silent():
         # Chaves típicas que dependem do histórico/pipeline/pacote
         chaves = [
             "pipeline_col_pass",
@@ -8044,7 +8044,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             df_recorte = _df_full_safe.head(int(k_novo)).copy()
             st.session_state["historico_df"] = df_recorte
             st.session_state["replay_janela_k_active"] = int(k_novo)  # fixa janela ativa (não altera widget)
-            _replay_limpar_chaves_dependentes()
+            _pc_replay_limpar_chaves_dependentes_silent()
 
             # Atualizar universo min/max canônico (derivado do recorte) — versão rápida (sem iterrows)
             try:
