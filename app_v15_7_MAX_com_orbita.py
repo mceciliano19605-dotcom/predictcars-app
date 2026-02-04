@@ -328,18 +328,18 @@ def _p2_avaliar_fora(universo, alvo):
 # =====================
 # FIX P2 — RESOLUÇÃO ROBUSTA DE k NO HISTÓRICO FULL
 # =====================
-def _p2_resolver_posicao_k(df_full, k):
+def _p2_resolver_posicao_k(_df_full_safe, k):
     # 1) Se k for índice explícito
-    if k in df_full.index:
-        return list(df_full.index).index(k)
+    if k in _df_full_safe.index:
+        return list(_df_full_safe.index).index(k)
     # 2) Se houver coluna 'k' ou 'serie'
     for col in ["k", "serie", "serie_id"]:
-        if col in df_full.columns:
-            matches = df_full.index[df_full[col] == k].tolist()
+        if col in _df_full_safe.columns:
+            matches = _df_full_safe.index[_df_full_safe[col] == k].tolist()
             if matches:
-                return list(df_full.index).index(matches[0])
+                return list(_df_full_safe.index).index(matches[0])
     # 3) Fallback 1-based -> 0-based
-    if isinstance(k, int) and 1 <= k <= len(df_full):
+    if isinstance(k, int) and 1 <= k <= len(_df_full_safe):
         return k - 1
     raise ValueError(f"k={k} não encontrado no histórico FULL")
 
@@ -511,7 +511,7 @@ def _parab_compute_curvature(vals):
     curv = float(C[-1]) if len(C) else 0.0
     return E, dE.tolist() if len(dE) else [], C.tolist() if len(C) else [], float(eps), float(curv)
 
-def parabola_multiescala_vetorial(df_full: pd.DataFrame, snapshots_map: dict, n: int = 6):
+def parabola_multiescala_vetorial(_df_full_safe: pd.DataFrame, snapshots_map: dict, n: int = 6):
     # snapshots_map: dict[k]->snapshot(dict)
     ks = sorted([int(k) for k in snapshots_map.keys() if str(k).isdigit()])
     if len(ks) < 3:
@@ -528,7 +528,7 @@ def parabola_multiescala_vetorial(df_full: pd.DataFrame, snapshots_map: dict, n:
         for kk in ks_w:
             s = snapshots_map.get(kk)
             if isinstance(s, dict):
-                e = _parab_erro_snapshot(df_full, s, n=n)
+                e = _parab_erro_snapshot(_df_full_safe, s, n=n)
                 if e is not None:
                     serie.append(e)
         return serie
@@ -795,7 +795,7 @@ def _ambiente_ruim(*, k_star: float, indice_risco: float | None, regime_txt: str
     return False
 
 
-def _p1_auto_decidir(df_full, snaps_map: dict, k_ref: int) -> dict:
+def _p1_auto_decidir(_df_full_safe, snaps_map: dict, k_ref: int) -> dict:
     """Decide (pré-C4) se P1 deve ser aplicado automaticamente.
     Retorna: {eligivel, motivo, estado_global, ub, adds_B} (tudo auditável)."""
     # CAP calibrada?
@@ -808,7 +808,7 @@ def _p1_auto_decidir(df_full, snaps_map: dict, k_ref: int) -> dict:
     if estado_global is None or not isinstance(gov, dict):
         try:
             n = int(st.session_state.get("n_alvo") or 6)
-            gov = parabola_multiescala_vetorial(df_full, snaps_map, n=n) or {}
+            gov = parabola_multiescala_vetorial(_df_full_safe, snaps_map, n=n) or {}
             estado_global = gov.get("estado_global")
             st.session_state["parabola_estado_global"] = estado_global
             st.session_state["parabola_gov"] = gov
@@ -871,17 +871,17 @@ def _p1_auto_decidir(df_full, snaps_map: dict, k_ref: int) -> dict:
         "persistencia": persist,
     }
 
-def p2_executar(snapshot, df_full):
+def p2_executar(snapshot, _df_full_safe):
     k = snapshot.get("k")
     universo = list(snapshot.get("universo_pacote", []))
     score_rigidez = float(snapshot.get("score_rigidez", 0.0) or 0.0)
     n = int(st.session_state.get("n_alvo") or 6)
-    idxs = list(df_full.index)
-    pos = _p2_resolver_posicao_k(df_full, k)
+    idxs = list(_df_full_safe.index)
+    pos = _p2_resolver_posicao_k(_df_full_safe, k)
     alvos = []
     for off in (1, 2):
         if pos + off < len(idxs):
-            alvos.append(_p2_series_from_df(df_full, idxs[pos + off], n=n))
+            alvos.append(_p2_series_from_df(_df_full_safe, idxs[pos + off], n=n))
     fora_total = 0
     fora_longe = 0
     for alvo in alvos:
@@ -908,7 +908,7 @@ def p2_executar(snapshot, df_full):
                 except Exception:
                     snaps_map = {}
         if snaps_map:
-            gov = parabola_multiescala_vetorial(df_full, snaps_map, n=n)
+            gov = parabola_multiescala_vetorial(_df_full_safe, snaps_map, n=n)
             if gov:
                 estado_parabola = gov.get("estado_global")
                 p2_permitido = bool(gov.get("p2_permitido"))
@@ -919,7 +919,7 @@ def p2_executar(snapshot, df_full):
     if not p2_permitido:
         motivo_p2 = f"P2 vetado pela Parabólica (estado_global={estado_parabola}). Mantido cap=0 (P2 dormindo)."
         cap = 0
-    df_hist = df_full.iloc[:pos+1]
+    df_hist = _df_full_safe.iloc[:pos+1]
     adds_h1, U_h1 = p2_h1_freq(df_hist, universo, cap, n=n)
     adds_h2, U_h2 = p2_h2_dist(df_hist, universo, cap, n=n)
     return {
@@ -1276,7 +1276,7 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, *, k_reg: int, universo_min: int,
 # Estratégia:
 # - Fila de ks em st.session_state["cap_v1_queue"]
 # - A cada rerun, processa 1 k:
-#   (1) recorta df_full -> df_k
+#   (1) recorta _df_full_safe -> df_k
 #   (2) executa pipeline (silencioso) para garantir base mínima
 #   (3) gera pacote Top10 do Modo 6 (silencioso) e registra Snapshot P0 automaticamente
 # - Ao final, restaura o histórico ativo original e encerra.
@@ -1599,8 +1599,8 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
 
         # Atualiza Memória Estrutural automaticamente ao registrar snapshot
         try:
-            _df_full_me = st.session_state.get("df_full") or st.session_state.get("historico_df_full") if st.session_state.get("historico_df_full") is not None else st.session_state.get("historico_df")
-            v16_me_update_auto(df_full=_df_full_me, snapshots_map=st.session_state.get("snapshot_p0_canonic") or {})
+            _df_full_me = st.session_state.get("_df_full_safe") or st.session_state.get("historico_df_full") or st.session_state.get("historico_df")
+            v16_me_update_auto(_df_full_safe=_df_full_me, snapshots_map=st.session_state.get("snapshot_p0_canonic") or {})
         except Exception:
             pass
 
@@ -1609,19 +1609,19 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
         return False
 
 
-def pc_semi_auto_processar_um_k(*, df_full: pd.DataFrame, k_exec: int) -> dict:
+def pc_semi_auto_processar_um_k(*, _df_full_safe: pd.DataFrame, k_exec: int) -> dict:
     """Executa a sequência mínima segura por k (sem decisão automática):
     recorta janela → (sentinela/monitor) → pipeline → modo6 → registra snapshot.
     """
     try:
-        if df_full is None or df_full.empty:
+        if _df_full_safe is None or _df_full_safe.empty:
             return {"ok": False, "erro": "df_full_vazio"}
 
         k_exec = int(k_exec)
         k_exec = max(10, min(k_exec, _df_full_len))
 
         # recorte + limpeza
-        df_recorte = df_full.head(k_exec).copy()
+        df_recorte = _df_full_safe.head(k_exec).copy()
         st.session_state["historico_df"] = df_recorte
         st.session_state["replay_janela_k_active"] = int(k_exec)
 
@@ -1743,7 +1743,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
         # decisão P1 automático (pré-C4)
         universo_idx_use = universo_idx
         try:
-            df_full_for_gov = st.session_state.get("df_full") or st.session_state.get("historico_df_full") if st.session_state.get("historico_df_full") is not None else st.session_state.get("historico_df") or df
+            df_full_for_gov = st.session_state.get("_df_full_safe") or st.session_state.get("historico_df_full") or st.session_state.get("historico_df") or df
             snaps_map_for_gov = st.session_state.get("snapshot_p0_canonic") or {}
             k_ref = int(st.session_state.get("replay_janela_k_active", len(df)))
             decisao_p1 = _p1_auto_decidir(df_full_for_gov, snaps_map_for_gov, k_ref) if df_full_for_gov is not None else {"eligivel": False, "motivo": "df_full_ausente"}
@@ -1857,16 +1857,16 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
         return []
 
 
-def pc_cap_invisivel_v1_processar_um_k(df_full: pd.DataFrame, k_alvo: int) -> bool:
+def pc_cap_invisivel_v1_processar_um_k(_df_full_safe: pd.DataFrame, k_alvo: int) -> bool:
     """Processa 1 janela k_alvo: recorta, executa pipeline+modo6 e registra snapshot P0."""
     try:
-        if df_full is None or df_full.empty:
+        if _df_full_safe is None or _df_full_safe.empty:
             return False
         k_alvo = int(k_alvo)
-        k_alvo = max(10, min(k_alvo, len(df_full)))
+        k_alvo = max(10, min(k_alvo, len(_df_full_safe)))
 
         # recorte
-        df_k = df_full.head(k_alvo).copy()
+        df_k = _df_full_safe.head(k_alvo).copy()
         st.session_state["historico_df"] = df_k
         st.session_state["replay_janela_k_active"] = int(k_alvo)
 
@@ -3157,12 +3157,12 @@ if st.session_state.get("historico_df") is not None:
 SS_MIN_KS = 5
 SS_MIN_EXPOST = 5
 
-def v16_calcular_ss(df_full: Optional[pd.DataFrame], snapshots_map: Optional[dict]) -> dict:
+def v16_calcular_ss(_df_full_safe: Optional[pd.DataFrame], snapshots_map: Optional[dict]) -> dict:
     """Calcula o status de SS (informativo).
     Retorna dict auditável: {status, ks_total, ks_expost, motivos, Ws}.
 
     - ks_total: quantidade de snapshots (janelas) registrados
-    - ks_expost: quantos snapshots têm alvo ex-post disponível (k < len(df_full))
+    - ks_expost: quantos snapshots têm alvo ex-post disponível (k < len(_df_full_safe))
     - Ws: calibração Parabólica (se já calculada), apenas para contextualizar
     """
     snaps = snapshots_map if isinstance(snapshots_map, dict) else {}
@@ -3175,7 +3175,7 @@ def v16_calcular_ss(df_full: Optional[pd.DataFrame], snapshots_map: Optional[dic
     ks = sorted(list(set(ks)))
     ks_total = int(len(ks))
 
-    n_full = _df_full_len if df_full is not None else 0
+    n_full = _df_full_len if _df_full_safe is not None else 0
     ks_expost = 0
     if n_full > 0:
         for k in ks:
@@ -3422,7 +3422,7 @@ def v16_me_status(postura: str, ritmo_global: str, me_enabled: bool, ss_info: Op
 
     return {"status": "ATIVA", "motivo": "ok"}
 
-def v16_me_update_auto(df_full: Optional[pd.DataFrame], snapshots_map: Optional[dict], postura: Optional[str] = None, ritmo_global: Optional[str] = None) -> dict:
+def v16_me_update_auto(_df_full_safe: Optional[pd.DataFrame], snapshots_map: Optional[dict], postura: Optional[str] = None, ritmo_global: Optional[str] = None) -> dict:
     """Atualiza Memória Estrutural (Jogador B) automaticamente quando um snapshot entra.
     Não dispara execução; só atualiza st.session_state.
     """
@@ -3438,7 +3438,7 @@ def v16_me_update_auto(df_full: Optional[pd.DataFrame], snapshots_map: Optional[
     ss_info = st.session_state.get("ss_info")
     if not isinstance(ss_info, dict):
         try:
-            ss_info = v16_calcular_ss(df_full=df_full, snapshots_map=snapshots_map)
+            ss_info = v16_calcular_ss(_df_full_safe=_df_full_safe, snapshots_map=snapshots_map)
         except Exception:
             ss_info = {"status": False, "ks_total": 0, "ks_expost": 0, "motivos": ["ss_indisponivel"]}
     st.session_state["ss_info"] = ss_info
@@ -5393,10 +5393,10 @@ M3_PAINEL_EXPECTATIVA_NOME = "📈 Expectativa Histórica — Contexto do Moment
 M5_PAINEL_PULO_GATO_NOME = "🧠 M5 — Pulo do Gato (Coleta Automática de Estados)"
 
 
-def _m5_identidade_historico_para_coleta(df_full, n_alvo, universo_min, universo_max):
+def _m5_identidade_historico_para_coleta(_df_full_safe, n_alvo, universo_min, universo_max):
     """ID estável (best-effort) para limitar coleta por histórico sem depender de hash pesado."""
     try:
-        tam = _df_full_len if df_full is not None else -1
+        tam = _df_full_len if _df_full_safe is not None else -1
     except Exception:
         tam = -1
     return f"H|n={n_alvo}|U={universo_min}-{universo_max}|len={tam}"
@@ -5458,8 +5458,8 @@ def m5_painel_pulo_do_gato_v16():
     st.subheader("🧠 M5 — Pulo do Gato (Coleta Automática de Estados)")
     st.caption("Coleta assistida para preencher Memória de Estados (M2) e habilitar Expectativa Histórica (M3) sem exigir que você rode manualmente dezenas de vezes.")
 
-    df_full = st.session_state.get("historico_df")
-    if df_full is None or len(df_full) < 50:
+    _df_full_safe = st.session_state.get("historico_df")
+    if _df_full_safe is None or len(_df_full_safe) < 50:
         st.warning("Carregue um histórico válido antes de usar o M5.")
         return
 
@@ -5485,7 +5485,7 @@ def m5_painel_pulo_do_gato_v16():
 """)
 
     restante_sessao = max(0, max_sessao - int(st.session_state.get("m5_contador_sessao", 0) or 0))
-    hist_id = _m5_identidade_historico_para_coleta(df_full, n_alvo, universo_min, universo_max)
+    hist_id = _m5_identidade_historico_para_coleta(_df_full_safe, n_alvo, universo_min, universo_max)
     por_hist = st.session_state.get("m5_contador_por_historico", {})
     restante_hist = max(0, max_hist - int(por_hist.get(hist_id, 0) or 0))
 
@@ -5509,7 +5509,7 @@ def m5_painel_pulo_do_gato_v16():
         st.session_state["m2_memoria_estados"] = []
 
     # pontos de corte: fatiamos a janela recente para não varrer o histórico inteiro (anti-zumbi)
-    total = len(df_full)
+    total = len(_df_full_safe)
     base_ini = max(50, total - int(janela_recente))
     pontos = list(range(total, base_ini, -int(passo)))
     pontos = pontos[: int(n_solicitado)]
@@ -5519,7 +5519,7 @@ def m5_painel_pulo_do_gato_v16():
 
     for cut_len in pontos:
         try:
-            df_cut = df_full.iloc[:cut_len].copy()
+            df_cut = _df_full_safe.iloc[:cut_len].copy()
             regime_light, energia_light, vol_light = _m5_leitura_regime_light(df_cut, universo_min, universo_max)
 
             registro = {
@@ -7847,7 +7847,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             st.session_state["semiauto_k_last"] = None
 
 
-        # df_full pode ainda não estar definido neste ponto (ordem do painel).
+        # _df_full_safe pode ainda não estar definido neste ponto (ordem do painel).
         # Usamos uma versão segura apenas para limites de UI.
         _df_full_safe = st.session_state.get("historico_df_full")
         if _df_full_safe is None:
@@ -7889,7 +7889,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                     k_prox = int(fila.pop(0))
                     try:
                         # aplica janela com a mesma lógica do botão oficial
-                        df_recorte = df_full.head(int(k_prox)).copy()
+                        df_recorte = _df_full_safe.head(int(k_prox)).copy()
                         st.session_state["historico_df"] = df_recorte
                         st.session_state["replay_janela_k_active"] = int(k_prox)
                         _replay_limpar_chaves_dependentes()
@@ -7943,7 +7943,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
 
     st.markdown("---")
 
-    df_full = st.session_state.get("historico_df_full")
+    _df_full_safe = st.session_state.get("historico_df_full")
     df_atual = st.session_state.get("historico_df")
 
     if df_atual is None or df_atual.empty:
@@ -7951,12 +7951,12 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         st.stop()
 
     # 1) Guardar histórico completo uma única vez
-    if df_full is None:
+    if _df_full_safe is None:
         st.session_state["historico_df_full"] = df_atual.copy()
-        df_full = st.session_state.get("historico_df_full")
+        _df_full_safe = st.session_state.get("historico_df_full")
         st.info(
             f"📦 Histórico completo foi guardado em memória (histórico_full). "
-            f"Séries disponíveis: **{len(df_full)}**"
+            f"Séries disponíveis: **{len(_df_full_safe)}**"
         )
 
     # 2) Contagem e limites
@@ -8041,7 +8041,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
     # 6) Aplicar janela
     if st.button("✅ Aplicar janela (recortar histórico ativo)", use_container_width=True):
         try:
-            df_recorte = df_full.head(int(k_novo)).copy()
+            df_recorte = _df_full_safe.head(int(k_novo)).copy()
             st.session_state["historico_df"] = df_recorte
             st.session_state["replay_janela_k_active"] = int(k_novo)  # fixa janela ativa (não altera widget)
             _replay_limpar_chaves_dependentes()
@@ -8197,8 +8197,8 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
 
                 # 🧠 Atualiza Memória Estrutural automaticamente (Jogador B) ao registrar Snapshot P0
                 try:
-                    _df_full_me = st.session_state.get("df_full") or st.session_state.get("historico_df")
-                    v16_me_update_auto(df_full=_df_full_me, snapshots_map=st.session_state.get("snapshot_p0_canonic") or {})
+                    _df_full_me = st.session_state.get("_df_full_safe") or st.session_state.get("historico_df")
+                    v16_me_update_auto(_df_full_safe=_df_full_me, snapshots_map=st.session_state.get("snapshot_p0_canonic") or {})
                 except Exception:
                     pass
             except Exception as e:
@@ -8246,7 +8246,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
     # 🧪 Série Suficiente (SS) — bloco visível (informativo)
     # -------------------------------------------------------------
     try:
-        ss_info = v16_calcular_ss(df_full=df_full, snapshots_map=snapshot_p0_reg)
+        ss_info = v16_calcular_ss(_df_full_safe=_df_full_safe, snapshots_map=snapshot_p0_reg)
         st.session_state["ss_info"] = ss_info
         st.session_state["ss_status"] = "ATINGIDA" if ss_info.get("status") else "NAO_ATINGIDA"
         v16_render_bloco_ss(ss_info)
@@ -8278,8 +8278,8 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
 
     # colunas de passageiros
     col_pass_full = (
-    [c for c in df_full.columns if isinstance(c, str) and c.lower().startswith('p')]
-    if ('df_full' in globals()) and hasattr(df_full, 'columns') else []
+    [c for c in _df_full_safe.columns if isinstance(c, str) and c.lower().startswith('p')]
+    if ('_df_full_safe' in globals()) and hasattr(_df_full_safe, 'columns') else []
 )
 
     if not col_pass_full:
@@ -8288,7 +8288,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
 
     def _alvo_da_linha(idx0: int):
         # idx0 é 0-based (linha do DF)
-        row = df_full.iloc[idx0]
+        row = _df_full_safe.iloc[idx0]
         alvo = []
         for c in col_pass_full:
             try:
@@ -8799,8 +8799,8 @@ if painel == "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo":
 
     
     # Preferir FULL para enxergar (k+1, k+2) quando o ATIVO foi recortado no Replay Progressivo
-    df_full = st.session_state.get("historico_df_full")
-    df_eval = df_full if (df_full is not None and not getattr(df_full, "empty", False)) else df
+    _df_full_safe = st.session_state.get("historico_df_full")
+    df_eval = _df_full_safe if (_df_full_safe is not None and not getattr(_df_full_safe, "empty", False)) else df
     st.markdown("### 📊 Avaliação ex-post (2 alvos seguintes): fora_total / fora_perto / fora_longe")
     ev0 = _p1__eval_next2(df_eval, int(k_sel), ab["U0"])
     evA = _p1__eval_next2(df_eval, int(k_sel), ab["UA"])
@@ -10694,7 +10694,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # - Não toca Camada 4
     # ------------------------------------------------------------
     try:
-        df_full_for_gov = st.session_state.get("df_full") or st.session_state.get("historico_df")
+        df_full_for_gov = st.session_state.get("_df_full_safe") or st.session_state.get("historico_df")
         snaps_map_for_gov = st.session_state.get("snapshot_p0_canonic") or {}
         k_ref = int(st.session_state.get("replay_janela_k_active", len(df)))
         decisao_p1 = _p1_auto_decidir(df_full_for_gov, snaps_map_for_gov, k_ref) if df_full_for_gov is not None else {"eligivel": False, "motivo": "df_full_ausente"}
@@ -15970,8 +15970,8 @@ elif painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
         "e acelera o fluxo (auto-seleção de k). A automação total (CAP invisível) é etapa posterior."
     )
 
-    df_full = st.session_state.get("df_full") or st.session_state.get("historico_df")
-    if df_full is None:
+    _df_full_safe = st.session_state.get("_df_full_safe") or st.session_state.get("historico_df")
+    if _df_full_safe is None:
         st.warning("Histórico ausente. Carregue o histórico antes.")
         st.stop()
 
@@ -15981,8 +15981,8 @@ elif painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     snaps = st.session_state.get("snapshot_p0_canonic") or {}
 
     # k atual (janela ativa do Replay Progressivo)
-    k_atual = int(st.session_state.get("replay_janela_k_active") or len(df_full))
-    k_atual = max(1, min(k_atual, len(df_full)))
+    k_atual = int(st.session_state.get("replay_janela_k_active") or len(_df_full_safe))
+    k_atual = max(1, min(k_atual, len(_df_full_safe)))
 
     # Diagnóstico de ruído (usa o que já foi calculado pelos painéis de risco quando disponível)
     nr_pct = st.session_state.get("nr_percent")
@@ -16106,7 +16106,7 @@ st.caption(
 try:
     _snap_map = st.session_state.get("snapshot_p0_canonic") or {}
     _df_full_ss = st.session_state.get("historico_df")
-    ss_info = v16_calcular_ss(df_full=_df_full_ss, snapshots_map=_snap_map)
+    ss_info = v16_calcular_ss(_df_full_safe=_df_full_ss, snapshots_map=_snap_map)
     st.session_state["ss_info"] = ss_info
     st.session_state["ss_status"] = "ATINGIDA" if ss_info.get("status") else "NAO_ATINGIDA"
     v16_render_bloco_ss(ss_info)
@@ -16142,7 +16142,7 @@ with colV2a:
         # salva estado atual para restaurar ao fim
         try:
             st.session_state["cap_v2_restore_df"] = st.session_state.get("historico_df")
-            st.session_state["cap_v2_restore_k"] = st.session_state.get("replay_janela_k_active", len(df_full))
+            st.session_state["cap_v2_restore_k"] = st.session_state.get("replay_janela_k_active", len(_df_full_safe))
         except Exception:
             st.session_state["cap_v2_restore_df"] = None
             st.session_state["cap_v2_restore_k"] = None
@@ -16201,7 +16201,7 @@ if st.session_state.get("cap_v2_running") is True:
             ok = False
             try:
                 # recorte janela
-                df_k = df_full.iloc[:k_next].copy()
+                df_k = _df_full_safe.iloc[:k_next].copy()
 
                 # atualiza histórico ativo
                 st.session_state["historico_df"] = df_k
@@ -16253,8 +16253,8 @@ if st.session_state.get("cap_v2_running") is True:
                     st.success(f"✅ Snapshot P0 registrado automaticamente para k={k_next}.")
                     # 🧠 Atualiza Memória Estrutural automaticamente ao registrar Snapshot P0
                     try:
-                        _df_full_me = st.session_state.get("df_full") or st.session_state.get("historico_df")
-                        v16_me_update_auto(df_full=_df_full_me, snapshots_map=st.session_state.get("snapshot_p0_canonic") or {})
+                        _df_full_me = st.session_state.get("_df_full_safe") or st.session_state.get("historico_df")
+                        v16_me_update_auto(_df_full_safe=_df_full_me, snapshots_map=st.session_state.get("snapshot_p0_canonic") or {})
                     except Exception:
                         pass
                 else:
@@ -16314,13 +16314,13 @@ elif painel == "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)":
     st.markdown("## 📐 Parabólica — Curvatura do Erro (Governança Pré-C4)")
     st.caption("Leitura pré-C4. Usa apenas histórico + Snapshots P0 registrados. Não altera Camada 4.")
 
-    df_full = st.session_state.get("df_full") or st.session_state.get("historico_df")
+    _df_full_safe = st.session_state.get("_df_full_safe") or st.session_state.get("historico_df")
     # Fonte única canônica (Replay Progressivo / CAP)
     snaps_map = st.session_state.get("snapshot_p0_canonic") or {}
     # compat: manter alias antigo atualizado
     st.session_state["snapshots_p0_map"] = snaps_map
 
-    if df_full is None:
+    if _df_full_safe is None:
         st.warning("Histórico ausente. Carregue o histórico antes.")
         st.stop()
 
@@ -16340,7 +16340,7 @@ elif painel == "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)":
         st.stop()
 
     n = int(st.session_state.get("n_alvo") or 6)
-    gov = parabola_multiescala_vetorial(df_full, snaps_map, n=n)
+    gov = parabola_multiescala_vetorial(_df_full_safe, snaps_map, n=n)
     if not gov:
         st.warning("Não foi possível calcular a Parabólica (dados insuficientes).")
         st.stop()
@@ -16396,10 +16396,10 @@ elif painel == "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)":
 
 elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
     st.markdown("## 🧪 P2 — Hipóteses de Família (pré-C4)")
-    df_full = st.session_state.get("historico_df")
+    _df_full_safe = st.session_state.get("historico_df")
     snapshots = st.session_state.get("snapshot_p0_canonic") or st.session_state.get("snapshot_p0") or {}
 
-    if df_full is None or not snapshots:
+    if _df_full_safe is None or not snapshots:
         st.warning("Histórico ou Snapshot P0 ausente.")
     else:
         try:
@@ -16409,7 +16409,7 @@ elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
             if not isinstance(snap, dict) or snap.get("k") is None:
                 st.warning("Snapshot selecionado inválido ou incompleto.")
             else:
-                res = p2_executar(snap, df_full)
+                res = p2_executar(snap, _df_full_safe)
                 st.json(res)
         except Exception as e:
             st.error(f"Erro no P2: {e}")
