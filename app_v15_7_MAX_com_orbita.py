@@ -1618,7 +1618,7 @@ def pc_semi_auto_processar_um_k(*, df_full: pd.DataFrame, k_exec: int) -> dict:
             return {"ok": False, "erro": "df_full_vazio"}
 
         k_exec = int(k_exec)
-        k_exec = max(10, min(k_exec, int(len(df_full))))
+        k_exec = max(10, min(k_exec, _df_full_len))
 
         # recorte + limpeza
         df_recorte = df_full.head(k_exec).copy()
@@ -3175,7 +3175,7 @@ def v16_calcular_ss(df_full: Optional[pd.DataFrame], snapshots_map: Optional[dic
     ks = sorted(list(set(ks)))
     ks_total = int(len(ks))
 
-    n_full = int(len(df_full)) if df_full is not None else 0
+    n_full = _df_full_len if df_full is not None else 0
     ks_expost = 0
     if n_full > 0:
         for k in ks:
@@ -5396,7 +5396,7 @@ M5_PAINEL_PULO_GATO_NOME = "🧠 M5 — Pulo do Gato (Coleta Automática de Esta
 def _m5_identidade_historico_para_coleta(df_full, n_alvo, universo_min, universo_max):
     """ID estável (best-effort) para limitar coleta por histórico sem depender de hash pesado."""
     try:
-        tam = int(len(df_full)) if df_full is not None else -1
+        tam = _df_full_len if df_full is not None else -1
     except Exception:
         tam = -1
     return f"H|n={n_alvo}|U={universo_min}-{universo_max}|len={tam}"
@@ -7846,13 +7846,19 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         if "semiauto_k_last" not in st.session_state:
             st.session_state["semiauto_k_last"] = None
 
+
+        # df_full pode ainda não estar definido neste ponto (ordem do painel).
+        # Usamos uma versão segura apenas para limites de UI.
+        _df_full_safe = st.session_state.get("historico_df_full") or st.session_state.get("historico_df")
+        _df_full_len = int(len(_df_full_safe)) if _df_full_safe is not None else 1
+
         colA, colB = st.columns(2)
         with colA:
             k_inicio = st.number_input(
                 "k inicial (última série INCLUÍDA)",
                 min_value=1,
-                max_value=int(len(df_full)) if df_full is not None else 1,
-                value=int(st.session_state.get("replay_janela_k_active") or (len(df_full) if df_full is not None else 1)),
+                max_value=_df_full_len,
+                value=int(st.session_state.get("replay_janela_k_active") or _df_full_len),
                 step=1,
             )
         with colB:
@@ -7952,7 +7958,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         )
 
     # 2) Contagem e limites
-    total_series = int(len(df_full))
+    total_series = _df_full_len
     if total_series < 10:
         st.warning("Histórico muito curto para replay progressivo.")
         st.stop()
@@ -16405,4 +16411,3 @@ elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
                 st.json(res)
         except Exception as e:
             st.error(f"Erro no P2: {e}")
-
