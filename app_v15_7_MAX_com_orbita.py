@@ -7825,6 +7825,116 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         "Ele só automatiza o recorte do histórico (janela móvel) e organiza o replay progressivo."
     )
 
+    # -----------------------------------------------------
+    # 🤖 Semi-automação segura (por k) — sem decisão automática
+    # Objetivo: reduzir repetição (aplicar janela + organizar fila) sem executar decisões novas.
+    # Regra: não usa rerun(); roda 1 k por clique; o operador segue decidindo o que levar.
+    # -----------------------------------------------------
+    with st.expander("🤖 Semi-automação segura (por k) — sem decisão automática", expanded=False):
+        st.caption(
+            "Isto **não cria motor novo** e **não decide nada**. "
+            "Ele só ajuda a repetir a sequência por k com menos braço: "
+            "**monta uma fila de ks** e aplica a janela ativa **1 por clique**. "
+            "Depois, você roda o Pipeline/Modo 6 como sempre e registra o snapshot."
+        )
+
+        # Estado interno da semi-auto
+        if "semiauto_k_fila" not in st.session_state:
+            st.session_state["semiauto_k_fila"] = []
+        if "semiauto_k_done" not in st.session_state:
+            st.session_state["semiauto_k_done"] = []
+        if "semiauto_k_last" not in st.session_state:
+            st.session_state["semiauto_k_last"] = None
+
+        colA, colB = st.columns(2)
+        with colA:
+            k_inicio = st.number_input(
+                "k inicial (última série INCLUÍDA)",
+                min_value=1,
+                max_value=int(len(df_full)) if df_full is not None else 1,
+                value=int(st.session_state.get("replay_janela_k_active") or (len(df_full) if df_full is not None else 1)),
+                step=1,
+            )
+        with colB:
+            qtd_passos = st.number_input("Quantos ks na fila", min_value=1, max_value=50, value=5, step=1)
+
+        st.caption("Fila padrão: k, k-1, k-2, ... (descendo 1 por vez).")
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            if st.button("📌 Montar/Resetar fila", use_container_width=True):
+                try:
+                    ks = [int(k_inicio) - i for i in range(int(qtd_passos)) if int(k_inicio) - i >= 1]
+                    st.session_state["semiauto_k_fila"] = ks
+                    st.session_state["semiauto_k_done"] = []
+                    st.session_state["semiauto_k_last"] = None
+                    st.success(f"Fila montada com {len(ks)} ks.")
+                except Exception as e:
+                    st.error(f"Falha ao montar fila: {e}")
+
+        with c2:
+            if st.button("✅ Aplicar PRÓXIMO k (somente janela)", use_container_width=True):
+                fila = st.session_state.get("semiauto_k_fila", [])
+                if not fila:
+                    st.warning("Fila vazia. Clique em **Montar/Resetar fila** primeiro.")
+                else:
+                    k_prox = int(fila.pop(0))
+                    try:
+                        # aplica janela com a mesma lógica do botão oficial
+                        df_recorte = df_full.head(int(k_prox)).copy()
+                        st.session_state["historico_df"] = df_recorte
+                        st.session_state["replay_janela_k_active"] = int(k_prox)
+                        _replay_limpar_chaves_dependentes()
+
+                        # universo min/max canônico (rápido)
+                        try:
+                            col_pass = [c for c in df_recorte.columns if str(c).startswith("p")]
+                            vals = pd.to_numeric(df_recorte[col_pass].stack(), errors="coerce").dropna()
+                            if len(vals) > 0:
+                                st.session_state["universo_min"] = int(vals.min())
+                                st.session_state["universo_max"] = int(vals.max())
+                        except Exception:
+                            pass
+
+                        st.session_state["semiauto_k_last"] = int(k_prox)
+                        st.session_state["semiauto_k_done"] = st.session_state.get("semiauto_k_done", []) + [int(k_prox)]
+                        st.session_state["semiauto_k_fila"] = fila
+                        st.success(f"Janela aplicada: C1..C{k_prox}. Agora rode **Sentinelas → Monitor → Pipeline → Modo 6**.")
+                    except Exception as e:
+                        st.error(f"Falha ao aplicar janela do k={k_prox}: {e}")
+
+        with c3:
+            if st.button("🧹 Limpar fila/estado semi-auto", use_container_width=True):
+                st.session_state["semiauto_k_fila"] = []
+                st.session_state["semiauto_k_done"] = []
+                st.session_state["semiauto_k_last"] = None
+                st.info("Fila/estado limpos.")
+
+        fila = st.session_state.get("semiauto_k_fila", [])
+        done = st.session_state.get("semiauto_k_done", [])
+        st.markdown(
+            f"**Último k aplicado:** {st.session_state.get('semiauto_k_last') or '—'}  \n"
+            f"**Pendentes:** {len(fila)} · **Concluídos (janela aplicada):** {len(done)}"
+        )
+
+        # Checklist conceitual (não executa nada)
+        st.markdown("### ✅ Checklist (o que ainda precisa rodar neste k)")
+        ck1 = "sentinela_kstar" in st.session_state
+        ck2 = "monitor_risco_resumo" in st.session_state
+        ck3 = bool(st.session_state.get("pipeline_ok"))
+        ck4 = bool(st.session_state.get("modo6_listas_top10") or st.session_state.get("listas_geradas"))
+        st.write(f"{'✓' if ck1 else '•'} Sentinelas (k*)")
+        st.write(f"{'✓' if ck2 else '•'} Monitor de Risco")
+        st.write(f"{'✓' if ck3 else '•'} Pipeline V14-FLEX ULTRA")
+        st.write(f"{'✓' if ck4 else '•'} Modo 6 (pacote gerado)")
+
+        st.caption(
+            "Quando o pacote estiver gerado, use o bloco **2) Registrar pacote gerado para esta janela** logo abaixo. "
+            "A semi-auto não registra sozinha para não correr risco de registrar pacote errado."
+        )
+
+    st.markdown("---")
+
     df_full = st.session_state.get("historico_df_full")
     df_atual = st.session_state.get("historico_df")
 
