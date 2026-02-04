@@ -1599,7 +1599,7 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
 
         # Atualiza Memória Estrutural automaticamente ao registrar snapshot
         try:
-            _df_full_me = st.session_state.get("df_full") or st.session_state.get("historico_df_full") or st.session_state.get("historico_df")
+            _df_full_me = st.session_state.get("df_full") or st.session_state.get("historico_df_full") if st.session_state.get("historico_df_full") is not None else st.session_state.get("historico_df")
             v16_me_update_auto(df_full=_df_full_me, snapshots_map=st.session_state.get("snapshot_p0_canonic") or {})
         except Exception:
             pass
@@ -1743,7 +1743,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
         # decisão P1 automático (pré-C4)
         universo_idx_use = universo_idx
         try:
-            df_full_for_gov = st.session_state.get("df_full") or st.session_state.get("historico_df_full") or st.session_state.get("historico_df") or df
+            df_full_for_gov = st.session_state.get("df_full") or st.session_state.get("historico_df_full") if st.session_state.get("historico_df_full") is not None else st.session_state.get("historico_df") or df
             snaps_map_for_gov = st.session_state.get("snapshot_p0_canonic") or {}
             k_ref = int(st.session_state.get("replay_janela_k_active", len(df)))
             decisao_p1 = _p1_auto_decidir(df_full_for_gov, snaps_map_for_gov, k_ref) if df_full_for_gov is not None else {"eligivel": False, "motivo": "df_full_ausente"}
@@ -7849,7 +7849,9 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
 
         # df_full pode ainda não estar definido neste ponto (ordem do painel).
         # Usamos uma versão segura apenas para limites de UI.
-        _df_full_safe = st.session_state.get("historico_df_full") or st.session_state.get("historico_df")
+        _df_full_safe = st.session_state.get("historico_df_full")
+        if _df_full_safe is None:
+            _df_full_safe = st.session_state.get("historico_df")
         _df_full_len = int(len(_df_full_safe)) if _df_full_safe is not None else 1
 
         colA, colB = st.columns(2)
