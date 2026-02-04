@@ -1398,6 +1398,278 @@ def pc_exec_pipeline_flex_ultra_silent(df: pd.DataFrame) -> bool:
         return False
 
 
+
+# ============================================================
+# Semi-automação segura (por k) — helpers silenciosos
+# ============================================================
+
+def pc_sentinelas_kstar_silent(df: pd.DataFrame) -> float | None:
+    """Calcula k* (sentinela) de forma silenciosa e grava em session_state.
+    Regra: mesmo espírito do painel Sentinelas, sem UI.
+    """
+    try:
+        if df is None or df.empty or "k" not in df.columns:
+            return None
+
+        k_vals = df["k"].astype(int).values
+
+        def _media_movel(vetor, janela):
+            if len(vetor) < janela:
+                return float(np.mean(vetor))
+            return float(np.mean(vetor[-janela:]))
+
+        janela_curta = 12
+        janela_media = 30
+        janela_longa = 60
+
+        k_curto = _media_movel(k_vals, janela_curta)
+        k_medio = _media_movel(k_vals, janela_media)
+        k_longo = _media_movel(k_vals, janela_longa)
+
+        k_star = (0.50 * k_curto + 0.35 * k_medio + 0.15 * k_longo)
+
+        st.session_state["sentinela_kstar"] = float(k_star)
+        # alias canônico
+        try:
+            st.session_state["k_star"] = float(k_star)
+        except Exception:
+            pass
+        return float(k_star)
+    except Exception:
+        return None
+
+
+def pc_monitor_risco_silent(df: pd.DataFrame) -> dict:
+    """Atualiza o Monitor de Risco (k & k*) de forma silenciosa.
+    Observacional (pré-C4): não altera listas, apenas grava chaves de contexto.
+    """
+    try:
+        metricas = calcular_metricas_basicas_historico(df)
+        qtd_series = metricas.get("qtd_series", 0)
+        min_k = metricas.get("min_k")
+        max_k = metricas.get("max_k")
+        media_k = metricas.get("media_k")
+
+        k_star = st.session_state.get("sentinela_kstar")
+        nr_percent = st.session_state.get("nr_percent")
+        divergencia = st.session_state.get("div_s6_mc")
+
+        # Garantias (defaults neutros, como no painel)
+        if k_star is None:
+            k_star = 0.25
+        if nr_percent is None:
+            nr_percent = 35.0
+        if divergencia is None:
+            divergencia = 4.0
+
+        kstar_norm = min(1.0, float(k_star) / 0.50)
+        nr_norm = min(1.0, float(nr_percent) / 70.0)
+        div_norm = min(1.0, float(divergencia) / 8.0)
+
+        indice_risco = float(0.40 * kstar_norm + 0.35 * nr_norm + 0.25 * div_norm)
+
+        if indice_risco < 0.30:
+            classe_risco = "🟢 Risco Baixo (Janela Favorável)"
+        elif indice_risco < 0.55:
+            classe_risco = "🟡 Risco Moderado"
+        elif indice_risco < 0.80:
+            classe_risco = "🟠 Risco Elevado"
+        else:
+            classe_risco = "🔴 Risco Crítico"
+
+        # grava chaves canônicas
+        st.session_state["k_star"] = float(k_star)
+        st.session_state["nr_percent"] = float(nr_percent)
+        st.session_state["div_s6_mc"] = float(divergencia)
+        st.session_state["divergencia_s6_mc"] = float(divergencia)
+
+        st.session_state["indice_risco"] = float(indice_risco)
+        st.session_state["classe_risco"] = classe_risco
+
+        st.session_state["m1_selo_risco_ok"] = True
+        st.session_state["m1_ts_risco_ok"] = __import__("time").time()
+
+        return {
+            "qtd_series": qtd_series,
+            "min_k": min_k,
+            "max_k": max_k,
+            "media_k": media_k,
+            "k_star": float(k_star),
+            "nr_percent": float(nr_percent),
+            "divergencia": float(divergencia),
+            "indice_risco": float(indice_risco),
+            "classe_risco": classe_risco,
+            "status": "ok",
+        }
+    except Exception as e:
+        return {"status": "erro", "erro": str(e)}
+
+
+def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, universo_min: int, universo_max: int) -> bool:
+    """Registra pacote e Snapshot P0 canônico para a janela k_reg (silencioso).
+    - Mantém mesma estrutura do botão 'Registrar pacote da janela atual'
+    - Atualiza Memória Estrutural automaticamente (quando aplicável)
+    """
+    try:
+        if not isinstance(pacote_atual, list) or len(pacote_atual) == 0:
+            return False
+
+        # containers
+        if "replay_progressivo_pacotes" not in st.session_state or not isinstance(st.session_state.get("replay_progressivo_pacotes"), dict):
+            st.session_state["replay_progressivo_pacotes"] = {}
+        if "snapshot_p0_canonic" not in st.session_state or not isinstance(st.session_state.get("snapshot_p0_canonic"), dict):
+            st.session_state["snapshot_p0_canonic"] = {}
+
+        pacotes_reg = st.session_state.get("replay_progressivo_pacotes", {})
+        snapshot_p0_reg = st.session_state.get("snapshot_p0_canonic", {})
+
+        from datetime import datetime
+        import hashlib, json
+
+        # V8 (borda) — reaproveita/recupera
+        try:
+            v8_snap = st.session_state.get("v8_borda_qualificada") or {}
+            if not isinstance(v8_snap, dict) or v8_snap.get("meta", {}).get("status") not in ("ok", "presenca_vazia"):
+                v8_snap = v8_classificar_borda_qualificada(
+                    listas=[list(map(int, lst)) for lst in pacote_atual],
+                    base_n=10,
+                    core_presenca_min=0.60,
+                    quase_delta=0.12,
+                    max_borda_interna=6,
+                    universo_min=universo_min,
+                    universo_max=universo_max,
+                    rigidez_info=st.session_state.get("v16_rigidez_info"),
+                )
+        except Exception:
+            v8_snap = {"core": [], "quase_core": [], "borda_interna": [], "borda_externa": [], "meta": {"status": "snap_falhou"}}
+
+        # Universo do pacote
+        try:
+            universo_pacote = sorted({int(x) for lst in pacote_atual for x in lst})
+        except Exception:
+            universo_pacote = []
+
+        pacotes_reg[int(k_reg)] = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "qtd": int(len(pacote_atual)),
+            "listas": [list(map(int, lst)) for lst in pacote_atual],
+            "snap_v9": {
+                "core": list(map(int, (v8_snap.get("core") or []))),
+                "quase_core": list(map(int, (v8_snap.get("quase_core") or []))),
+                "borda_interna": list(map(int, (v8_snap.get("borda_interna") or []))),
+                "borda_externa": list(map(int, (v8_snap.get("borda_externa") or []))),
+                "universo_pacote": list(map(int, universo_pacote)),
+                "meta": v8_snap.get("meta") or {},
+            },
+        }
+
+        # Snapshot P0 (canônico)
+        try:
+            freq_passageiros = {}
+            for lst in pacote_atual:
+                for x in lst:
+                    xi = int(x)
+                    freq_passageiros[xi] = freq_passageiros.get(xi, 0) + 1
+
+            sig_raw = json.dumps([list(map(int, lst)) for lst in pacote_atual], ensure_ascii=False, sort_keys=True)
+            sig = hashlib.sha256(sig_raw.encode("utf-8")).hexdigest()[:16]
+        except Exception:
+            freq_passageiros = {}
+            sig = "N/D"
+
+        snapshot_p0_reg[int(k_reg)] = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "k": int(k_reg),
+            "qtd_listas": int(len(pacote_atual)),
+            "listas": [list(map(int, lst)) for lst in pacote_atual],
+            "freq_passageiros": {str(int(k)): int(v) for k, v in sorted(freq_passageiros.items(), key=lambda kv: (-kv[1], kv[0]))},
+            "snap_v8": {
+                "core": list(map(int, (v8_snap.get("core") or []))),
+                "quase_core": list(map(int, (v8_snap.get("quase_core") or []))),
+                "borda_interna": list(map(int, (v8_snap.get("borda_interna") or []))),
+                "borda_externa": list(map(int, (v8_snap.get("borda_externa") or []))),
+                "meta": v8_snap.get("meta") or {},
+            },
+            "assinatura": sig,
+            "nota": "Snapshot P0 canônico — leitura apenas (pré-C4). Não altera Camada 4.",
+        }
+
+        st.session_state["snapshot_p0_canonic"] = snapshot_p0_reg
+        st.session_state["replay_progressivo_pacotes"] = pacotes_reg
+
+        # Atualiza Memória Estrutural automaticamente ao registrar snapshot
+        try:
+            _df_full_me = st.session_state.get("df_full") or st.session_state.get("historico_df_full") or st.session_state.get("historico_df")
+            v16_me_update_auto(df_full=_df_full_me, snapshots_map=st.session_state.get("snapshot_p0_canonic") or {})
+        except Exception:
+            pass
+
+        return True
+    except Exception:
+        return False
+
+
+def pc_semi_auto_processar_um_k(*, df_full: pd.DataFrame, k_exec: int) -> dict:
+    """Executa a sequência mínima segura por k (sem decisão automática):
+    recorta janela → (sentinela/monitor) → pipeline → modo6 → registra snapshot.
+    """
+    try:
+        if df_full is None or df_full.empty:
+            return {"ok": False, "erro": "df_full_vazio"}
+
+        k_exec = int(k_exec)
+        k_exec = max(10, min(k_exec, int(len(df_full))))
+
+        # recorte + limpeza
+        df_recorte = df_full.head(k_exec).copy()
+        st.session_state["historico_df"] = df_recorte
+        st.session_state["replay_janela_k_active"] = int(k_exec)
+
+        try:
+            _pc_replay_limpar_chaves_dependentes_silent()
+        except Exception:
+            pass
+
+        # universo canônico
+        try:
+            uinfo = v16_detectar_universo_do_historico(df_recorte)
+            v16_registrar_universo_session_state(uinfo)
+        except Exception:
+            pass
+
+        # sentinela + monitor (observacionais)
+        try:
+            pc_sentinelas_kstar_silent(df_recorte)
+        except Exception:
+            pass
+        try:
+            pc_monitor_risco_silent(df_recorte)
+        except Exception:
+            pass
+
+        # pipeline
+        ok_pipe = pc_exec_pipeline_flex_ultra_silent(df_recorte)
+        if not ok_pipe:
+            return {"ok": False, "k": int(k_exec), "erro": "pipeline_falhou"}
+
+        # modo 6
+        pacote = pc_modo6_gerar_pacote_top10_silent(df_recorte)
+        if not pacote:
+            return {"ok": False, "k": int(k_exec), "erro": "modo6_sem_pacote"}
+
+        st.session_state["pacote_listas_atual"] = pacote
+
+        umin = int(st.session_state.get("universo_min", 1) or 1)
+        umax = int(st.session_state.get("universo_max", 60) or 60)
+
+        ok_reg = pc_replay_registrar_pacote_silent(k_reg=int(k_exec), pacote_atual=pacote, universo_min=umin, universo_max=umax)
+        if not ok_reg:
+            return {"ok": False, "k": int(k_exec), "erro": "registro_falhou"}
+
+        return {"ok": True, "k": int(k_exec), "qtd_listas": int(len(pacote))}
+    except Exception as e:
+        return {"ok": False, "erro": str(e)}
+
 def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
