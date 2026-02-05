@@ -3446,6 +3446,34 @@ def v16_me_update_auto(_df_full_safe: Optional[pd.DataFrame], snapshots_map: Opt
 
     # postura/ritmo — se não vier, pega do session_state
     pst = postura or st.session_state.get("postura_estado") or ""
+# ------------------------------------------------------------
+
+# V16j — Ritmo/Dança: garantir cálculo ANTES do gate da Memória (Streamlit rerun)
+
+# ------------------------------------------------------------
+
+try:
+
+    _v9 = st.session_state.get("v9_agregado")
+
+    _tr = st.session_state.get("trave_info")
+
+    _ss = st.session_state.get("ss_info")
+
+    if isinstance(_v9, dict) and isinstance(_tr, dict) and isinstance(_ss, dict):
+
+        _r_prev = st.session_state.get("ritmo_danca_info") or {}
+
+        if _r_prev.get("ritmo_global", "N/D") == "N/D":
+
+            st.session_state["ritmo_danca_info"] = v16_calcular_ritmo_expost(_v9, _tr, _ss)
+
+            st.session_state["ritmo_global_expost"] = (st.session_state.get("ritmo_danca_info") or {}).get("ritmo_global", "N/D")
+
+except Exception:
+
+    pass
+
     rg = ritmo_global or st.session_state.get("ritmo_global_expost") or (st.session_state.get("ritmo_danca_info") or {}).get("ritmo_global") or "N/D"
 
     me_st = v16_me_status(postura=str(pst), ritmo_global=str(rg), me_enabled=me_enabled, ss_info=ss_info, me_info=me_info)
