@@ -3448,7 +3448,22 @@ def v16_me_update_auto(_df_full_safe: Optional[pd.DataFrame], snapshots_map: Opt
     pst = postura or st.session_state.get("postura_estado") or ""
     rg = ritmo_global or st.session_state.get("ritmo_global_expost") or (st.session_state.get("ritmo_danca_info") or {}).get("ritmo_global") or "N/D"
 
-    me_st = v16_me_status(postura=str(pst), ritmo_global=str(rg), me_enabled=me_enabled, ss_info=ss_info, me_info=me_info)
+    
+# ------------------------------------------------------------
+# V16L — cálculo definitivo de Ritmo/Dança ANTES do gate da Memória
+# ------------------------------------------------------------
+try:
+    _v9 = st.session_state.get("v9_agregado")
+    _tr = st.session_state.get("trave_info")
+    _ss = st.session_state.get("ss_info")
+    if isinstance(_v9, dict) and isinstance(_tr, dict) and isinstance(_ss, dict):
+        _ritmo = v16_calcular_ritmo_expost(_v9, _tr, _ss)
+        st.session_state["ritmo_danca_info"] = _ritmo
+        st.session_state["ritmo_global_expost"] = _ritmo.get("ritmo_global", "N/D")
+except Exception:
+    pass
+
+me_st = v16_me_status(postura=str(pst), ritmo_global=str(rg), me_enabled=me_enabled, ss_info=ss_info, me_info=me_info)
     st.session_state["me_status"] = me_st.get("status")
     st.session_state["me_status_info"] = me_st
     st.session_state["me_last_update"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
