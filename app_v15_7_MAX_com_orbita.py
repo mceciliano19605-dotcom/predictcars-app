@@ -16473,10 +16473,14 @@ def v16_calcular_ritmo_expost(v9_info: dict, trave_info: dict, ss_info: dict):
 
 
 # ============================================================
-# Integração canônica do Ritmo (após avaliação ex-post)
+# Integração canônica do Ritmo (v16i) — usando session_state real
 # ============================================================
 try:
-    if "v9_info" in globals() and "trave_info" in globals() and "ss_info" in globals():
+    v9_info = st.session_state.get("v9_agregado")
+    trave_info = st.session_state.get("trave_info")
+    ss_info = st.session_state.get("ss_info")
+
+    if isinstance(v9_info, dict) and isinstance(trave_info, dict) and isinstance(ss_info, dict):
         ritmo_info = v16_calcular_ritmo_expost(v9_info, trave_info, ss_info)
         st.session_state["ritmo_danca_info"] = ritmo_info
 except Exception:
