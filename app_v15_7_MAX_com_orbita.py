@@ -10985,7 +10985,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
                 st.session_state["me_status_info"] = _me_status_info
 
                 _mem = {
-                    "ok": bool((_me_info or {}).get("ok")),
+                    "ok": bool(_me_status_info.get("status") == "ATIVA"),
                     "sufocadores": list((_me_info or {}).get("sufocadores") or []),
                     "stats": {"base": (_me_info or {}).get("base"), "debug": (_me_info or {}).get("debug")},
                     "motivo": _me_status_info.get("motivo", ""),
