@@ -16413,3 +16413,71 @@ elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
                 st.json(res)
         except Exception as e:
             st.error(f"Erro no P2: {e}")
+
+
+# ============================================================
+# V16 — Ritmo/Dança (ex-post) — Observacional · Pré-C4
+# ============================================================
+def v16_calcular_ritmo_expost(v9_info: dict, trave_info: dict, ss_info: dict):
+    """
+    Calcula o estado de Ritmo/Dança usando apenas dados ex-post já existentes.
+    NÃO altera listas. NÃO decide nada. Apenas escreve estado observacional.
+    """
+    try:
+        ks_expost = int((ss_info or {}).get("ks_expost") or 0)
+        if ks_expost < 5:
+            return {"ritmo_global": "N/D", "motivos": ["ks_expost_insuficiente"], "sinais": {}}
+
+        fora_total = int((trave_info or {}).get("fora_total") or 0)
+
+        # extrai percentual de fora_perto (formato "12 (57.1%)")
+        fora_perto_pct = 0.0
+        if fora_total:
+            txt = str((trave_info or {}).get("fora_perto", "0"))
+            if "%" in txt:
+                fora_perto_pct = float(txt.split("(")[-1].replace("%)", ""))
+
+        # extrai percentual de CORE (formato "2 (3.7%)")
+        hits_core_pct = 0.0
+        txt_core = str((v9_info or {}).get("CORE", "0"))
+        if "%" in txt_core:
+            hits_core_pct = float(txt_core.split("(")[-1].replace("%)", ""))
+
+        # estabilidade do erro estrutural
+        erro_estavel = hits_core_pct < 10  # CORE muito baixo = erro persistente
+
+        # direcionalidade perto × longe
+        direcional = fora_perto_pct >= 55.0
+
+        if not erro_estavel:
+            return {"ritmo_global": "N/D", "motivos": ["erro_instavel"], "sinais": {}}
+
+        if erro_estavel and not direcional:
+            return {
+                "ritmo_global": "SEM_RITMO",
+                "motivos": ["erro_estavel_sem_direcao"],
+                "sinais": {"fora_perto_pct": fora_perto_pct},
+            }
+
+        if erro_estavel and direcional:
+            return {
+                "ritmo_global": "COM_RITMO",
+                "motivos": ["direcionalidade_borda"],
+                "sinais": {"fora_perto_pct": fora_perto_pct},
+            }
+
+        return {"ritmo_global": "N/D", "motivos": ["fallback"], "sinais": {}}
+
+    except Exception as e:
+        return {"ritmo_global": "N/D", "motivos": [f"erro_calculo: {e}"], "sinais": {}}
+
+
+# ============================================================
+# Integração canônica do Ritmo (após avaliação ex-post)
+# ============================================================
+try:
+    if "v9_info" in globals() and "trave_info" in globals() and "ss_info" in globals():
+        ritmo_info = v16_calcular_ritmo_expost(v9_info, trave_info, ss_info)
+        st.session_state["ritmo_danca_info"] = ritmo_info
+except Exception:
+    pass
