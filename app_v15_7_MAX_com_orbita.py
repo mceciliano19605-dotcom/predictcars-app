@@ -3514,6 +3514,8 @@ def v16_calc_lce_b(
     avg_best = None
     rate_4p = 0.0
     rate_5p = 0.0
+    p3_hits = 0
+    p3_rate = 0.0
     trave_ratio = None
     total_rows = 0
     try:
@@ -3531,6 +3533,8 @@ def v16_calc_lce_b(
                 avg_best = float(sum(bests) / max(1, len(bests)))
                 rate_4p = float(sum(1 for b in bests if b >= 4) / len(bests))
                 rate_5p = float(sum(1 for b in bests if b >= 5) / len(bests))
+                p3_hits = int(sum(1 for b in bests if b >= 3))
+                p3_rate = float(p3_hits / max(1, len(bests)))
 
             # trave/perto/longe (já calculado no replay)
             fp = 0
@@ -3559,13 +3563,30 @@ def v16_calc_lce_b(
     except Exception:
         ste_e1 = False
 
-    # ZEE‑B (Zona de Efeito Estatístico do B) — ainda silenciosa nesta fase
+    # ZEE‑B
+
+    # Pré‑E1 (silencioso): sinal invisível antes do primeiro 4 consistente
+    pre_e1 = False
+    try:
+        if ss_ok and (total_rows >= 10):
+            p3_ok = (p3_rate >= 0.70)
+            trv_ok2 = (trave_ratio is not None and trave_ratio <= 0.55)
+            pre_e1 = bool((not ste_e1) and p3_ok and trv_ok2)
+    except Exception:
+        pre_e1 = False
+
+    # ZEE‑B) (Zona de Efeito Estatístico do B) — ainda silenciosa nesta fase
     # OFF: sem SS ou sem df_eval
     # STE_E1: sinal inicial (não é "ativo", não decide nada)
-    if not ss_ok or total_rows <= 0:
+    if (not ss_ok) or (total_rows <= 0):
         zee_state = "OFF"
     else:
-        zee_state = "STE_E1" if ste_e1 else "OBS"
+        if ste_e1:
+            zee_state = "STE_E1"
+        elif pre_e1:
+            zee_state = "PRE_E1"
+        else:
+            zee_state = "OBS"
 
     # B1 sugerido (Base + Anti‑âncora) — apenas quando já existe anti‑âncora detectada por métricas existentes
     b1 = "Base (Top) apenas"
@@ -3602,6 +3623,9 @@ def v16_calc_lce_b(
             "avg_best": avg_best,
             "rate_4p": rate_4p,
             "rate_5p": rate_5p,
+            "p3_hits": p3_hits,
+            "p3_rate": p3_rate,
+            "pre_e1": bool(pre_e1),
             "trave_ratio": trave_ratio,
             "rows_eval": total_rows,
             "anti_idx_detectados": anti_idx,
