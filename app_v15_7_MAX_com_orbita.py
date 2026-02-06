@@ -7797,6 +7797,171 @@ if painel == "🔁 Replay ULTRA":
 
 
 # ============================================================
+# V16 — LCE-B (Jogador B silencioso) + ZEE-B
+# Governança:
+# - Pré-C4 (não mexe em Camada 4)
+# - Ex-post (só pode nascer DEPOIS de existir avaliação df_res/df_eval)
+# - Silencioso (não decide, não altera listas, não altera volume)
+# - Estritamente derivado: NÃO cria métricas fundamentais novas
+# ============================================================
+def v16_calc_lce_b(
+    ss_info: dict,
+    ritmo_info: dict,
+    df_res,
+    snap_last: dict | None = None,
+    anti_idx_detectados: list[int] | None = None,
+) -> dict:
+    """Calcula o LCE-B de forma **puramente derivada** (Jogador B silencioso).
+
+    Entradas esperadas (todas já existem no sistema):
+      - ss_info: dict com chave 'status' (bool) + ks_total/ks_expost
+      - ritmo_info: dict com 'ritmo_global' (ex.: 'N/D', 'SEM_RITMO', etc.)
+      - df_res: DataFrame do Replay Progressivo (avaliação ex-post nos 2 alvos seguintes)
+          Deve conter colunas: best_acerto_alvo_1 / best_acerto_alvo_2
+          E, quando disponível: fora_hit_1/2 e fora_longe_1/2
+      - snap_last (opcional): último snapshot P0 canônico (somente para debug)
+      - anti_idx_detectados (opcional): lista de índices detectados (anti-âncora) já existente no sistema
+
+    Saída mínima (contrato canônico):
+      {
+        'estado_zee_b': 'E0' | 'OBS' | 'STE-E1' | 'Z1-4/6' | 'Z2-STAB' | 'Z3-5/6' | 'Z4-PRONTO' | 'A6-E',
+        'prontidao_6e': 'NÃO' | 'LIMÍTROFE' | 'SIM',
+        'b1_sugerido': 'N/D' | 'Base apenas' | 'Base + Anti-âncora',
+        'debug': { ... }   # auditável (não vira decisão)
+      }
+    """
+    # --- Sanitização básica
+    ss = ss_info if isinstance(ss_info, dict) else {}
+    ritmo = ritmo_info if isinstance(ritmo_info, dict) else {}
+    anti = anti_idx_detectados if isinstance(anti_idx_detectados, list) else []
+
+    ss_ok = bool(ss.get("status"))
+    ritmo_global = str(ritmo.get("ritmo_global") or "N/D")
+
+    # Se não tem SS, Jogador B não tem base (E0)
+    if not ss_ok:
+        return {
+            "estado_zee_b": "E0",
+            "prontidao_6e": "NÃO",
+            "b1_sugerido": "N/D",
+            "debug": {
+                "motivo": "sem_ss",
+                "ss_info": {"status": bool(ss.get("status")), "ks_total": ss.get("ks_total"), "ks_expost": ss.get("ks_expost")},
+                "ritmo_global": ritmo_global,
+            },
+        }
+
+    # --- Coleta de acertos (flatten nos 2 alvos)
+    best_vals: list[int] = []
+    try:
+        for col in ("best_acerto_alvo_1", "best_acerto_alvo_2"):
+            if hasattr(df_res, "columns") and col in df_res.columns:
+                for v in list(df_res[col].fillna(0).astype(int).values):
+                    if int(v) > 0:
+                        best_vals.append(int(v))
+    except Exception:
+        best_vals = []
+
+    n_targets = int(len(best_vals))
+    if n_targets <= 0:
+        return {
+            "estado_zee_b": "OBS",
+            "prontidao_6e": "NÃO",
+            "b1_sugerido": "N/D",
+            "debug": {
+                "motivo": "sem_df_res_validado",
+                "ritmo_global": ritmo_global,
+                "ss_info": {"status": bool(ss.get("status")), "ks_total": ss.get("ks_total"), "ks_expost": ss.get("ks_expost")},
+            },
+        }
+
+    q4 = int(sum(1 for v in best_vals if int(v) >= 4))
+    q5 = int(sum(1 for v in best_vals if int(v) >= 5))
+    q6 = int(sum(1 for v in best_vals if int(v) >= 6))
+    rate4 = float(q4) / float(max(1, n_targets))
+    rate5 = float(q5) / float(max(1, n_targets))
+
+    # --- Trave/Proximidade: share fora_longe dentro do "fora"
+    share_fora_longe = None
+    try:
+        fora = 0
+        longe = 0
+        for a in ("1", "2"):
+            c_fora = f"fora_hit_{a}"
+            c_longe = f"fora_longe_{a}"
+            if c_fora in df_res.columns:
+                fora += int(df_res[c_fora].fillna(0).sum())
+            if c_longe in df_res.columns:
+                longe += int(df_res[c_longe].fillna(0).sum())
+        if fora > 0:
+            share_fora_longe = float(longe) / float(fora)
+    except Exception:
+        share_fora_longe = None
+
+    # --- Regra de degrau (STE-E1) — silenciosa e conservadora
+    # (Não é decisão; é marcador de que começou a aparecer 4+ com alguma consistência)
+    ste_e1 = False
+    try:
+        # mais conservador com pouca amostra
+        if n_targets >= 8 and rate4 >= 0.25:
+            ste_e1 = True
+        elif 4 <= n_targets < 8 and rate4 >= 0.33:
+            ste_e1 = True
+        elif n_targets >= 12 and rate4 >= 0.20:
+            ste_e1 = True
+    except Exception:
+        ste_e1 = False
+
+    # --- Estados ZEE-B (mínimos; sem pretensão de “verdade absoluta” — só escala observacional)
+    estado = "OBS"
+    if ste_e1:
+        estado = "STE-E1"
+    if rate4 >= 0.40 and n_targets >= 10:
+        estado = "Z1-4/6"
+    if rate4 >= 0.45 and n_targets >= 14:
+        estado = "Z2-STAB"
+    if rate5 >= 0.18 and n_targets >= 14:
+        estado = "Z3-5/6"
+    if (rate5 >= 0.22 and rate4 >= 0.50 and n_targets >= 18) or (q6 >= 1 and rate4 >= 0.45 and n_targets >= 18):
+        estado = "Z4-PRONTO"
+    if q6 >= 1 and n_targets >= 18:
+        # evento experimental (A6-E) só existe como registro ex-post; aqui é apenas marcação
+        estado = "A6-E"
+
+    # --- Prontidão 6E (silenciosa)
+    prontidao = "NÃO"
+    if estado in ("Z4-PRONTO", "A6-E"):
+        prontidao = "SIM"
+    elif (rate5 >= 0.10) or (q6 >= 1):
+        prontidao = "LIMÍTROFE"
+
+    # --- B1 sugerido (sem recomendação; apenas “leitura”)
+    b1 = "N/D"
+    if ste_e1:
+        b1 = "Base + Anti-âncora" if len(anti) > 0 else "Base apenas"
+
+    return {
+        "estado_zee_b": estado,
+        "prontidao_6e": prontidao,
+        "b1_sugerido": b1,
+        "debug": {
+            "n_targets": n_targets,
+            "q4": q4,
+            "q5": q5,
+            "q6": q6,
+            "rate4": round(rate4, 4),
+            "rate5": round(rate5, 4),
+            "share_fora_longe": None if share_fora_longe is None else round(float(share_fora_longe), 4),
+            "ritmo_global": ritmo_global,
+            "ss_ks_total": ss.get("ks_total"),
+            "ss_ks_expost": ss.get("ks_expost"),
+            "anti_idx_detectados_len": int(len(anti)),
+            "snap_last_sig": (snap_last or {}).get("assinatura") if isinstance(snap_last, dict) else None,
+        },
+    }
+
+
+# ============================================================
 # Painel X — 🧭 Replay Progressivo — Janela Móvel (Assistido)
 # OBJETIVO:
 # - Automatizar a "janela móvel" do histórico SEM você ter que ficar
@@ -8445,6 +8610,50 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
 
     df_res = pd.DataFrame(resultados).sort_values(["janela_k"], ascending=True)
     st.dataframe(df_res, use_container_width=True, hide_index=True)
+
+# --- LCE-B (Jogador B silencioso) — nasce somente após df_res existir ---
+try:
+    _ss_info_lce = st.session_state.get("ss_info") or {}
+    _ritmo_info_lce = st.session_state.get("ritmo_danca_info") or {}
+    _anti_idx_lce = st.session_state.get("anti_idx_detectados") or []
+
+    # último snapshot P0 canônico (apenas para debug / rastreabilidade)
+    _snap_last = None
+    try:
+        _snap_map = st.session_state.get("snapshot_p0_canonic") or {}
+        if isinstance(_snap_map, dict) and len(_snap_map) > 0:
+            _ks = []
+            for _k in _snap_map.keys():
+                try:
+                    _ks.append(int(_k))
+                except Exception:
+                    continue
+            _ks = sorted(_ks)
+            if _ks:
+                _snap_last = _snap_map.get(_ks[-1])
+    except Exception:
+        _snap_last = None
+
+    _lce_b = v16_calc_lce_b(
+        ss_info=_ss_info_lce,
+        ritmo_info=_ritmo_info_lce,
+        df_res=df_res,
+        snap_last=_snap_last,
+        anti_idx_detectados=_anti_idx_lce,
+    )
+    st.session_state["lce_b"] = _lce_b
+
+    st.markdown("### 🟦 LCE-B (Jogador B silencioso · ex-post)")
+    st.caption("Leitura derivada (não decide, não altera listas, não mexe na Camada 4).")
+    st.write({
+        "estado_zee_b": _lce_b.get("estado_zee_b"),
+        "prontidao_6e": _lce_b.get("prontidao_6e"),
+        "b1_sugerido": _lce_b.get("b1_sugerido"),
+    })
+    with st.expander("🔎 Debug auditável (LCE-B)"):
+        st.json(_lce_b.get("debug") or {}, expanded=False)
+except Exception:
+    pass
 
     # --- V9 (BLOCO B) — Resumo agregado (ex-post, observacional) ---
     try:
@@ -12042,6 +12251,21 @@ if painel == "📘 Relatório Final":
     if not isinstance(ritmo_info, dict) or not ritmo_info:
         ritmo_info = {"ritmo_global": "N/D", "motivos": ["sem_dados"], "sinais": {}}
     st.json(ritmo_info, expanded=False)
+
+
+# 🟦 LCE-B (Jogador B silencioso · ex-post) — resumo neutro
+try:
+    _lce_b_rf = st.session_state.get("lce_b")
+    if isinstance(_lce_b_rf, dict) and _lce_b_rf:
+        st.markdown("### 🟦 LCE-B (Jogador B silencioso · ex-post)")
+        st.caption("Linha neutra no Relatório Final (não decide, não altera listas).")
+        st.write({
+            "estado_zee_b": _lce_b_rf.get("estado_zee_b"),
+            "prontidao_6e": _lce_b_rf.get("prontidao_6e"),
+            "b1_sugerido": _lce_b_rf.get("b1_sugerido"),
+        })
+except Exception:
+    pass
 
     # Sincroniza chaves canônicas (ECO/Estado/k*/Divergência) antes de consolidar
     v16_sync_aliases_canonicos()
