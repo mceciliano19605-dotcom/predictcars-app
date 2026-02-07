@@ -1635,7 +1635,7 @@ def pc_semi_auto_processar_um_k(*, _df_full_safe: pd.DataFrame, k_exec: int) -> 
             return {"ok": False, "erro": "df_full_vazio"}
 
         k_exec = int(k_exec)
-        k_exec = max(10, min(k_exec, _df_full_len))
+        k_exec = max(10, min(k_exec, int(len(_df_full_safe))))
 
         # recorte + limpeza
         df_recorte = _df_full_safe.head(k_exec).copy()
@@ -8442,6 +8442,110 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
     # -------------------------------------------------------------
     # 🧊 Snapshot P0 (canônico) — visão rápida (leitura)
     # -------------------------------------------------------------
+    
+    # -----------------------------------------------------
+    # 📊 Replay Estatístico Automático Incremental (SAFE)
+    # Objetivo: eliminar cata-milho manual.
+    # - Roda por lotes pequenos (CPU-budget)
+    # - Usa pc_semi_auto_processar_um_k (recorte→sentinela→monitor→pipeline→modo6→registro)
+    # - Não mexe na Camada 4 (apenas registra pacotes/snapshots do Replay)
+    # -----------------------------------------------------
+    with st.expander("📊 Replay Estatístico — Prova Automática (SAFE)", expanded=False):
+        st.caption(
+            "SAFE = **Replay automático incremental**: ele percorre janelas por k em **lotes pequenos** "
+            "e vai **registrando pacotes/snapshots** para permitir prova estatística (PRÉ-E1/MICRO-E1) "
+            "sem cata-milho. **Não gera motor novo** e **não altera Camada 4**."
+        )
+
+        # Base full segura
+        _df_full_safe2 = st.session_state.get("historico_df_full")
+        if _df_full_safe2 is None:
+            _df_full_safe2 = st.session_state.get("historico_df")
+        if _df_full_safe2 is None or getattr(_df_full_safe2, "empty", True):
+            st.warning("Carregue um histórico primeiro.")
+        else:
+            _n_full = int(len(_df_full_safe2))
+
+            # Defaults canônicos: do k atual até (k atual - 60), limitado ao histórico
+            _k_default = int(st.session_state.get("replay_janela_k_active") or _n_full)
+            _k_de = _k_default
+            _k_ate = max(10, _k_default - 60)
+
+            cA, cB, cC = st.columns(3)
+            with cA:
+                k_de = st.number_input("k DE (início)", min_value=10, max_value=_n_full, value=int(st.session_state.get("safe_k_de") or _k_de), step=1)
+            with cB:
+                k_ate = st.number_input("k ATÉ (fim)", min_value=10, max_value=_n_full, value=int(st.session_state.get("safe_k_ate") or _k_ate), step=1)
+            with cC:
+                lote = st.number_input("Lote (ks por clique)", min_value=1, max_value=20, value=int(st.session_state.get("safe_lote") or 3), step=1)
+
+            # Persistir preferências
+            st.session_state["safe_k_de"] = int(k_de)
+            st.session_state["safe_k_ate"] = int(k_ate)
+            st.session_state["safe_lote"] = int(lote)
+
+            # Cursor do SAFE (descendo)
+            if "safe_cursor_k" not in st.session_state or st.session_state.get("safe_cursor_k") is None:
+                st.session_state["safe_cursor_k"] = int(k_de)
+
+            # Se o operador mudar intervalo, resetar cursor
+            if st.button("🔄 Resetar cursor SAFE para k DE", use_container_width=True):
+                st.session_state["safe_cursor_k"] = int(k_de)
+                st.success(f"Cursor SAFE resetado para k={int(k_de)}.")
+
+            cursor = int(st.session_state.get("safe_cursor_k") or int(k_de))
+
+            # Normalizar direção (sempre descendo)
+            _k_hi = int(max(k_de, k_ate))
+            _k_lo = int(min(k_de, k_ate))
+
+            if cursor > _k_hi:
+                cursor = _k_hi
+                st.session_state["safe_cursor_k"] = int(cursor)
+            if cursor < _k_lo:
+                cursor = _k_lo
+                st.session_state["safe_cursor_k"] = int(cursor)
+
+            st.markdown(f"**Intervalo:** k={_k_hi} ↓ ... ↓ k={_k_lo}  \n**Cursor atual:** k={cursor}")
+
+            # Progresso aproximado
+            total = (_k_hi - _k_lo + 1)
+            done = max(0, (_k_hi - cursor))
+            prog = 0.0 if total <= 0 else min(1.0, done / total)
+            st.progress(prog)
+
+            # Executar lote
+            if st.button("▶️ Rodar PRÓXIMO lote SAFE (registrar pacotes)", use_container_width=True):
+                k_atual = int(st.session_state.get("safe_cursor_k") or cursor)
+                if k_atual < _k_lo:
+                    st.info("SAFE já concluiu o intervalo.")
+                else:
+                    to_run = []
+                    for i in range(int(lote)):
+                        kk = int(k_atual) - i
+                        if kk < _k_lo:
+                            break
+                        to_run.append(kk)
+
+                    resultados = []
+                    with st.spinner(f"SAFE rodando lote: {to_run[0]} ↓ ... ↓ {to_run[-1]}"):
+                        for kk in to_run:
+                            res = pc_semi_auto_processar_um_k(_df_full_safe=_df_full_safe2, k_exec=int(kk))
+                            resultados.append(res)
+
+                    # Atualizar cursor (desce)
+                    novo_cursor = int(to_run[-1]) - 1
+                    st.session_state["safe_cursor_k"] = int(novo_cursor)
+
+                    # Resumo do lote
+                    ok_cnt = sum(1 for r in resultados if isinstance(r, dict) and r.get("ok"))
+                    fail = [r for r in resultados if not (isinstance(r, dict) and r.get("ok"))]
+                    st.success(f"Lote concluído: {ok_cnt}/{len(resultados)} ks processados com sucesso. Cursor → k={int(novo_cursor)}.")
+                    if fail:
+                        st.warning("Alguns ks falharam (não trava o app; apenas registra o erro):")
+                        st.json(fail[:5])
+
+                    st.caption("Após alguns lotes, use **Avaliar pacotes registrados** abaixo para atualizar df_eval e a prova (PRÉ‑E1/MICRO‑E1).")
     if len(snapshot_p0_reg) > 0:
         try:
             k_ultimo = max(snapshot_p0_reg.keys())
@@ -16883,4 +16987,3 @@ try:
         st.session_state["ritmo_global_expost"] = _ritmo.get("ritmo_global", "N/D")
 except Exception:
     pass
-
