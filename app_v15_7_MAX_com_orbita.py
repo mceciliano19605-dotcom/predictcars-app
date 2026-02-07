@@ -56,6 +56,23 @@ def pc_classificar_postura(pipeline_regime: str | None, k_star, nr_percent, div_
 
     return "ESTÁVEL"
 
+
+def pc_classificar_postura_motor(pipeline_regime: str | None, nr_percent, div_s6_mc):
+    """
+    Postura do MOTOR (isolada de k/k*).
+    Regra canônica desta fase: k/k* é diagnóstico externo e NÃO pode vazar para decisões
+    que alterem listas, volumes ou composição de pacote.
+
+    Portanto, esta função IGNORA k/k* e usa apenas sinais do próprio ambiente/execução
+    já existentes (NR% e divergência + leitura de estrada).
+    """
+    return pc_classificar_postura(
+        pipeline_regime=pipeline_regime,
+        k_star=None,  # isolamento: k não entra
+        nr_percent=nr_percent,
+        div_s6_mc=div_s6_mc,
+    )
+
 def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65):
     """Em RESPIRÁVEL, aplicamos *elasticidade mínima* no pacote (pré-C4):
     - Anti-clone leve (remove duplicatas)
@@ -3575,6 +3592,53 @@ def v16_calc_lce_b(
     except Exception:
         pre_e1 = False
 
+    # ETAPA 2.3 — MICRO‑E1 (silencioso): primeiro micro‑sinal estatístico antes do 4 consistente
+    # Regra: NÃO cria sensor novo; apenas usa o df_eval (já existente) em janela móvel.
+    micro_e1 = False
+    p3_rate_w = None
+    trave_ratio_w = None
+    zero_hit_rate_w = None
+    w_used = None
+    try:
+        if ss_ok and df_eval is not None and len(df_eval) > 0:
+            W = 12  # janela mínima canônica (evita ruído)
+            w_used = int(min(W, len(df_eval)))
+            dfw = df_eval.tail(w_used).copy()
+
+            # bests na janela (alvos 1 e 2)
+            bests_w = []
+            c1 = "best_acerto_alvo_1"
+            c2 = "best_acerto_alvo_2"
+            if c1 in dfw.columns:
+                bests_w.extend([x for x in dfw[c1].tolist() if isinstance(x, (int, float))])
+            if c2 in dfw.columns:
+                bests_w.extend([x for x in dfw[c2].tolist() if isinstance(x, (int, float))])
+
+            if bests_w:
+                p3_rate_w = float(sum(1 for b in bests_w if b >= 3) / len(bests_w))
+                zero_hit_rate_w = float(sum(1 for b in bests_w if b == 0) / len(bests_w))
+
+            # trave_ratio na janela (fora_perto vs fora_longe)
+            fpw = 0
+            flw = 0
+            for col in ["fora_perto_1", "fora_perto_2"]:
+                if col in dfw.columns:
+                    fpw += int(sum(1 for x in dfw[col].tolist() if x in (1, True)))
+            for col in ["fora_longe_1", "fora_longe_2"]:
+                if col in dfw.columns:
+                    flw += int(sum(1 for x in dfw[col].tolist() if x in (1, True)))
+            denomw = fpw + flw
+            if denomw > 0:
+                trave_ratio_w = float(fpw / denomw)
+
+            # Gatilho micro (canônico, mínimo): 3+ sustentado e trave reduzindo
+            # (não exige 4+ ainda, mas exige sustentação)
+            if (w_used is not None and w_used >= W) and (p3_rate_w is not None) and (trave_ratio_w is not None):
+                T_P3 = 0.25
+                T_TRAVE = 0.45
+                micro_e1 = bool((not ste_e1) and (not pre_e1) and (p3_rate_w >= T_P3) and (trave_ratio_w <= T_TRAVE))
+    except Exception:
+        micro_e1 = False
     # ZEE‑B) (Zona de Efeito Estatístico do B) — ainda silenciosa nesta fase
     # OFF: sem SS ou sem df_eval
     # STE_E1: sinal inicial (não é "ativo", não decide nada)
@@ -3585,6 +3649,8 @@ def v16_calc_lce_b(
             zee_state = "STE_E1"
         elif pre_e1:
             zee_state = "PRE_E1"
+        elif micro_e1:
+            zee_state = "MICRO_E1"
         else:
             zee_state = "OBS"
 
@@ -3626,6 +3692,11 @@ def v16_calc_lce_b(
             "p3_hits": p3_hits,
             "p3_rate": p3_rate,
             "pre_e1": bool(pre_e1),
+            "micro_e1": bool(micro_e1),
+            "p3_rate_w": p3_rate_w,
+            "trave_ratio_w": trave_ratio_w,
+            "zero_hit_rate_w": zero_hit_rate_w,
+            "w_used": w_used,
             "trave_ratio": trave_ratio,
             "rows_eval": total_rows,
             "anti_idx_detectados": anti_idx,
@@ -9579,8 +9650,10 @@ if painel == "⚙️ Modo TURBO++ ULTRA":
 
     # Critério mínimo (canônico): compressão + M3 em ECO/PRÉ-ECO + risco não hostil.
     m3_ok = str(m3_reg).upper() in ["ECO", "PRÉ-ECO", "PRE", "PRE-ECO", "PRE ECO", "PRÉ ECO"]
-    risco_txt = str(classe_risco) if classe_risco is not None else ""
-    risco_ok = ("Baixo" in risco_txt) or ("Moderado" in risco_txt) or ("🟡" in risco_txt) or ("🟢" in risco_txt)
+        # Governança (k-isolation): NÃO usar classe_risco (derivada de k*) para gates operacionais.
+    # Em vez disso, usa a postura do MOTOR (já isolada de k/k*).
+    pst_motor = str(st.session_state.get("postura_estado") or st.session_state.get("postura_motor") or "").strip().upper()
+    risco_ok = (pst_motor != "RUPTURA")
     janela_ativa = bool(compressao_core and m3_ok and risco_ok)
 
     st.session_state["janela_local_ativa"] = janela_ativa
@@ -11122,13 +11195,27 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ------------------------------------------------------------
     # Usa apenas sinais já existentes (pipeline/k*/NR/div). Pré‑C4.
     pipeline_regime = st.session_state.get("pipeline_regime") or st.session_state.get("pipeline_regime_detectado") or st.session_state.get("pipeline_regime_label") or ""
-    postura = pc_classificar_postura(
+    # Postura (DIAGNÓSTICO): pode usar k* (sensor externo) — não decide nada.
+    postura_diag = pc_classificar_postura(
         pipeline_regime=pipeline_regime,
         k_star=st.session_state.get("sentinela_kstar"),
         nr_percent=st.session_state.get("nr_percent"),
         div_s6_mc=st.session_state.get("div_s6_mc"),
     )
-    st.session_state["postura_estado"] = postura
+
+    # Postura (MOTOR): isolada de k/k* — esta é a que pode influenciar execução/listas.
+    postura_motor = pc_classificar_postura_motor(
+        pipeline_regime=pipeline_regime,
+        nr_percent=st.session_state.get("nr_percent"),
+        div_s6_mc=st.session_state.get("div_s6_mc"),
+    )
+
+    # Governança dura: decisões operacionais usam SOMENTE postura_motor.
+    postura = postura_motor
+
+    st.session_state["postura_estado"] = postura_motor
+    st.session_state["postura_diag"] = postura_diag
+    st.session_state["postura_motor"] = postura_motor
 
     # Em RESPIRÁVEL: aplicar elasticidade mínima no pacote (sem tocar Camada 4)
     # Regra canônica (continuidade): Memória Estrutural só entra quando o cenário está SEM_RITMO.
