@@ -8670,6 +8670,122 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
 
     df_res = pd.DataFrame(resultados).sort_values(["janela_k"], ascending=True)
     st.dataframe(df_res, use_container_width=True, hide_index=True)
+
+    # -------------------------------------------------------------
+    # 📊 Replay Estatístico Automático Incremental (SAFE)
+    # OBJETIVO:
+    # - Produzir "prova" de janela (4+) SEM cata-milho e SEM rodar 200 vezes na mão.
+    # - Usa SOMENTE df_res (resultado do Replay Progressivo já registrado).
+    # - Não executa motor, não altera Camada 4, não muda listas.
+    # - Custo: leve (cálculo em tabela já pronta).
+    # -------------------------------------------------------------
+    with st.expander("📊 Replay Estatístico — Prova Automática (SAFE)", expanded=True):
+        st.caption(
+            "Este bloco é **pré-C4 · observacional · auditável**. "
+            "Ele NÃO roda Pipeline, NÃO gera listas e NÃO registra pacotes. "
+            "Ele apenas transforma o df_eval (df_res) em métricas objetivas de 'janela' (4+) e micro-sinais."
+        )
+
+        try:
+            # Transformar em série de alvos avaliados (cada linha possui alvo_1 e alvo_2)
+            best1 = pd.to_numeric(df_res.get("best_hit_1"), errors="coerce")
+            best2 = pd.to_numeric(df_res.get("best_hit_2"), errors="coerce")
+
+            # targets avaliados (conta alvos existentes)
+            n_t1 = int(best1.notna().sum())
+            n_t2 = int(best2.notna().sum())
+            n_targets = n_t1 + n_t2
+
+            # concat cronológico: (janela_k, alvo1) depois (janela_k, alvo2)
+            serie = []
+            if "janela_k" in df_res.columns:
+                df_tmp = df_res.sort_values(["janela_k"], ascending=True).copy()
+            else:
+                df_tmp = df_res.copy()
+
+            for _, rr in df_tmp.iterrows():
+                try:
+                    b1 = _pc_safe_float(rr.get("best_hit_1"), None)
+                    if b1 is not None:
+                        serie.append(int(b1))
+                except Exception:
+                    pass
+                try:
+                    b2 = _pc_safe_float(rr.get("best_hit_2"), None)
+                    if b2 is not None:
+                        serie.append(int(b2))
+                except Exception:
+                    pass
+
+            # métricas globais
+            any_4p = any(v >= 4 for v in serie) if serie else False
+            max_best = max(serie) if serie else None
+            rate_4p = (sum(1 for v in serie if v >= 4) / len(serie)) if serie else 0.0
+            rate_3p = (sum(1 for v in serie if v >= 3) / len(serie)) if serie else 0.0
+            zero_rate = (sum(1 for v in serie if v <= 0) / len(serie)) if serie else 0.0
+
+            # janela móvel (W) — prova local
+            W = 60
+            w_used = min(W, len(serie)) if serie else 0
+            serie_w = serie[-w_used:] if w_used > 0 else []
+            any_4p_w = any(v >= 4 for v in serie_w) if serie_w else False
+            rate_4p_w = (sum(1 for v in serie_w if v >= 4) / len(serie_w)) if serie_w else 0.0
+            rate_3p_w = (sum(1 for v in serie_w if v >= 3) / len(serie_w)) if serie_w else 0.0
+            zero_rate_w = (sum(1 for v in serie_w if v <= 0) / len(serie_w)) if serie_w else 0.0
+
+            # distribuição (auditável)
+            dist = {i: 0 for i in range(0, 7)}
+            for v in serie:
+                if v < 0:
+                    continue
+                if v > 6:
+                    v = 6
+                dist[int(v)] = dist.get(int(v), 0) + 1
+
+            st.markdown("### ✅ Prova objetiva (sem achismo)")
+            st.json({
+                "targets_avaliados": int(n_targets),
+                "any_4p_seen": bool(any_4p),
+                "max_best": int(max_best) if max_best is not None else None,
+                "rate_4p": float(rate_4p),
+                "rate_3p": float(rate_3p),
+                "zero_hit_rate": float(zero_rate),
+            })
+
+            st.markdown("### 🪟 Janela móvel (últimos 60 alvos avaliados)")
+            st.json({
+                "w_used": int(w_used),
+                "any_4p_seen_w": bool(any_4p_w),
+                "rate_4p_w": float(rate_4p_w),
+                "rate_3p_w": float(rate_3p_w),
+                "zero_hit_rate_w": float(zero_rate_w),
+            })
+
+            st.markdown("### 📊 Distribuição de best_hit (0..6)")
+            st.json(dist)
+
+            # guarda para outros painéis (somente leitura)
+            st.session_state["replay_stats_prova_janela"] = {
+                "targets_avaliados": int(n_targets),
+                "any_4p_seen": bool(any_4p),
+                "max_best": int(max_best) if max_best is not None else None,
+                "rate_4p": float(rate_4p),
+                "rate_3p": float(rate_3p),
+                "zero_hit_rate": float(zero_rate),
+                "w_used": int(w_used),
+                "any_4p_seen_w": bool(any_4p_w),
+                "rate_4p_w": float(rate_4p_w),
+                "rate_3p_w": float(rate_3p_w),
+                "zero_hit_rate_w": float(zero_rate_w),
+            }
+
+            st.caption(
+                "Regra canônica: **'janela' só pode ser afirmada quando any_4p_seen=True** "
+                "na base avaliada. Se False, a frase correta é: **'sem evidência de janela na base avaliada'**."
+            )
+        except Exception as e:
+            st.warning(f"Falha ao calcular prova automática: {e}")
+
     # --- LCE‑B (Jogador B) — Painel silencioso (pré‑C4) ---
     try:
         ss_info_local = st.session_state.get("ss_info") or {}
