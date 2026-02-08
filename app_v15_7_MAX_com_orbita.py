@@ -3730,6 +3730,7 @@ def v16_calc_lce_b(
             "rig_flag": rig_flag,
             "core_sz": core_sz,
             "avg_best": avg_best,
+                "avg_best_from_dist": avg_best_from_dist,
             "rate_4p": rate_4p,
             "rate_5p": rate_5p,
             "p3_hits": p3_hits,
@@ -8868,17 +8869,19 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
 
             for _, rr in df_tmp.iterrows():
                 try:
-                    b1 = _pc_safe_float(rr.get("best_hit_1"), None)
+                    b1 = _pc_safe_float(rr.get("best_acerto_alvo_1", rr.get("best_hit_1")), None)
                     if b1 is not None:
                         serie.append(int(b1))
                 except Exception:
                     pass
                 try:
-                    b2 = _pc_safe_float(rr.get("best_hit_2"), None)
+                    b2 = _pc_safe_float(rr.get("best_acerto_alvo_2", rr.get("best_hit_2")), None)
                     if b2 is not None:
                         serie.append(int(b2))
                 except Exception:
                     pass
+
+            n_targets = int(len(serie))
 
             # métricas globais
             any_4p = any(v >= 4 for v in serie) if serie else False
@@ -8895,6 +8898,21 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             rate_4p_w = (sum(1 for v in serie_w if v >= 4) / len(serie_w)) if serie_w else 0.0
             rate_3p_w = (sum(1 for v in serie_w if v >= 3) / len(serie_w)) if serie_w else 0.0
             zero_rate_w = (sum(1 for v in serie_w if v <= 0) / len(serie_w)) if serie_w else 0.0
+            # avg_best (implícito, derivado da série; e conferência via distribuição)
+            avg_best = (float(np.mean(serie)) if len(serie) > 0 else None)
+            avg_best_w = (float(np.mean(serie_w)) if len(serie_w) > 0 else None)
+
+            # erro de fechamento: quão longe, em média, estamos de "fechar" (6/6) numa lista
+            # (não é janela; é uma métrica de fechamento)
+            fechamento_gap = (float(6.0 - avg_best) if avg_best is not None else None)
+            fechamento_gap_w = (float(6.0 - avg_best_w) if avg_best_w is not None else None)
+            fechamento_gap_norm = (float((6.0 - avg_best) / 6.0) if avg_best is not None else None)
+            fechamento_gap_norm_w = (float((6.0 - avg_best_w) / 6.0) if avg_best_w is not None else None)
+
+            # taxa de 5+ (para distinguir "perto" de "fecha forte")
+            rate_5p = (sum(1 for v in serie if v >= 5) / len(serie)) if len(serie) > 0 else 0.0
+            rate_5p_w = (sum(1 for v in serie_w if v >= 5) / len(serie_w)) if len(serie_w) > 0 else 0.0
+
 
             # distribuição (auditável)
             dist = {i: 0 for i in range(0, 7)}
@@ -8905,12 +8923,20 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                     v = 6
                 dist[int(v)] = dist.get(int(v), 0) + 1
 
+            
+            # conferência: avg_best derivado da distribuição (quando aplicável)
+            total_dist = int(sum(dist.values()))
+            avg_best_from_dist = (float(sum(float(i) * float(dist.get(i, 0)) for i in range(0, 7)) / total_dist) if total_dist > 0 else None)
             st.markdown("### ✅ Prova objetiva (sem achismo)")
             st.json({
                 "targets_avaliados": int(n_targets),
                 "any_4p_seen": bool(any_4p),
                 "max_best": int(max_best) if max_best is not None else None,
+                "avg_best": avg_best,
+                "fechamento_gap": fechamento_gap,
+                "fechamento_gap_norm": fechamento_gap_norm,
                 "rate_4p": float(rate_4p),
+                "rate_5p": float(rate_5p),
                 "rate_3p": float(rate_3p),
                 "zero_hit_rate": float(zero_rate),
             })
@@ -8919,6 +8945,10 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             st.json({
                 "w_used": int(w_used),
                 "any_4p_seen_w": bool(any_4p_w),
+                "avg_best_w": avg_best_w,
+                "fechamento_gap_w": fechamento_gap_w,
+                "fechamento_gap_norm_w": fechamento_gap_norm_w,
+                "rate_5p_w": float(rate_5p_w),
                 "rate_4p_w": float(rate_4p_w),
                 "rate_3p_w": float(rate_3p_w),
                 "zero_hit_rate_w": float(zero_rate_w),
