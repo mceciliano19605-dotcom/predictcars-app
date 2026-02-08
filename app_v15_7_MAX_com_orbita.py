@@ -8835,15 +8835,31 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
 
         try:
             # Transformar em série de alvos avaliados (cada linha possui alvo_1 e alvo_2)
-            best1 = pd.to_numeric(df_res.get("best_hit_1"), errors="coerce")
-            best2 = pd.to_numeric(df_res.get("best_hit_2"), errors="coerce")
+            best1_raw = df_res.get("best_hit_1")
+            best2_raw = df_res.get("best_hit_2")
+
+            def _as_series(x):
+                # Garante Series (evita erro tipo numpy.float64 sem .notna)
+                if isinstance(x, pd.Series):
+                    return x
+                if isinstance(x, (list, tuple, np.ndarray)):
+                    return pd.Series(list(x))
+                # DataFrame com 1 coluna
+                if isinstance(x, pd.DataFrame) and x.shape[1] == 1:
+                    return x.iloc[:, 0]
+                # escalar (float/int/None)
+                return pd.Series([x])
+
+            best1 = pd.to_numeric(_as_series(best1_raw), errors="coerce")
+            best2 = pd.to_numeric(_as_series(best2_raw), errors="coerce")
 
             # targets avaliados (conta alvos existentes)
-            n_t1 = int(best1.notna().sum())
-            n_t2 = int(best2.notna().sum())
-            n_targets = n_t1 + n_t2
-
-            # concat cronológico: (janela_k, alvo1) depois (janela_k, alvo2)
+            n_targets = 0
+            if pd.notna(best1).any():
+                n_targets += 1
+            if pd.notna(best2).any():
+                n_targets += 1
+# concat cronológico: (janela_k, alvo1) depois (janela_k, alvo2)
             serie = []
             if "janela_k" in df_res.columns:
                 df_tmp = df_res.sort_values(["janela_k"], ascending=True).copy()
