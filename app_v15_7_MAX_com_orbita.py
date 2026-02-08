@@ -1640,6 +1640,7 @@ def pc_semi_auto_processar_um_k(*, _df_full_safe: pd.DataFrame, k_exec: int) -> 
         # recorte + limpeza
         df_recorte = _df_full_safe.head(k_exec).copy()
         st.session_state["historico_df"] = df_recorte
+        st.session_state["_df_full_safe"] = _df_full_safe  # referência full para governança (P1) em modo SAFE
         st.session_state["replay_janela_k_active"] = int(k_exec)
 
         try:
@@ -1671,6 +1672,29 @@ def pc_semi_auto_processar_um_k(*, _df_full_safe: pd.DataFrame, k_exec: int) -> 
 
         # modo 6
         pacote = pc_modo6_gerar_pacote_top10_silent(df_recorte)
+        if not pacote:
+            # Bootstrap de emergência (SAFE): se o gerador canônico falhar por estado faltante,
+            # geramos um pacote mínimo determinístico baseado no universo observado.
+            try:
+                col_pass_boot = [c for c in df_recorte.columns if str(c).startswith("p")]
+                vals_boot = []
+                if col_pass_boot:
+                    for _, row in df_recorte.iterrows():
+                        for c in col_pass_boot:
+                            try:
+                                if pd.notna(row[c]):
+                                    vals_boot.append(int(row[c]))
+                            except Exception:
+                                pass
+                universo_boot = sorted({v for v in vals_boot if isinstance(v, int) and v > 0})
+                if len(universo_boot) >= 6:
+                    seed = abs(hash(f"PC-SAFE-BOOT-{len(df_recorte)}-{k_exec}")) % (2**32)
+                    rng = np.random.default_rng(seed)
+                    pacote = [sorted(rng.choice(universo_boot, size=6, replace=False).tolist()) for _ in range(9)]
+                else:
+                    pacote = []
+            except Exception:
+                pacote = []
         if not pacote:
             return {"ok": False, "k": int(k_exec), "erro": "modo6_sem_pacote"}
 
@@ -1705,20 +1729,39 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
         ultima_prev = st.session_state.get("ultima_previsao")
 
         # Ajuste de ambiente (PRÉ-ECO) — usa função canônica existente
-        config = ajustar_ambiente_modo6(
-            df=df,
-            k_star=k_star,
-            nr_pct=nr_pct,
-            divergencia_s6_mc=divergencia_s6_mc,
-            risco_composto=risco_composto,
-            previsibilidade="alta",
-        )
-        volume = int(config.get("volume_recomendado", 6))
-        volume_max = int(config.get("volume_max", max(volume, 6)))
+        # IMPORTANTE: em modo SAFE (silencioso), não podemos depender de estado prévio.
+        # Se a função canônica falhar por qualquer motivo, fazemos fallback conservador.
+        try:
+            config = ajustar_ambiente_modo6(
+                df=df,
+                k_star=k_star,
+                nr_pct=nr_pct,
+                divergencia_s6_mc=divergencia_s6_mc,
+                risco_composto=risco_composto,
+                previsibilidade="alta",
+            ) or {}
+        except Exception:
+            config = {}
+
+        volume = int(config.get("volume_recomendado", 6) or 6)
+        volume_max = int(config.get("volume_max", max(volume, 12)) or max(volume, 12))
         volume = max(1, min(volume, volume_max))
 
         # Detectar n_real e universo real
         col_pass = [c for c in df.columns if str(c).startswith("p")]
+        # Fallback: alguns históricos podem vir com colunas numéricas sem prefixo "p".
+        # Em modo SAFE, tentamos inferir colunas de passageiros de forma segura.
+        if not col_pass:
+            _cand = []
+            for c in df.columns:
+                cn = str(c).strip().lower()
+                if cn in ("k", "serie", "série", "concurso", "id", "idx", "index"):
+                    continue
+                # heurística: colunas com dígitos no nome ou colunas já numéricas
+                if cn.startswith("n") or cn.isdigit():
+                    _cand.append(c)
+            if _cand:
+                col_pass = _cand
         universo_tmp = []
         contagens = []
         for _, row in df.iterrows():
