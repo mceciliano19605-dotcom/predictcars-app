@@ -8927,6 +8927,60 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             # conferência: avg_best derivado da distribuição (quando aplicável)
             total_dist = int(sum(dist.values()))
             avg_best_from_dist = (float(sum(float(i) * float(dist.get(i, 0)) for i in range(0, 7)) / total_dist) if total_dist > 0 else None)
+            # MPF — Mapa de Perda de Fechamento (gap x trave/distância)
+            mpf_rows = []
+            for _, r in df_res.iterrows():
+                for suf in ["1", "2"]:
+                    best = r.get(f"best_acerto_alvo_{suf}")
+                    if best is None or (isinstance(best, float) and pd.isna(best)):
+                        continue
+                    d_med = r.get(f"dist_media_fora_alvo_{suf}")
+                    d_max = r.get(f"dist_max_fora_alvo_{suf}")
+                    fora_tot = r.get(f"fora_total_alvo_{suf}")
+                    fora_perto = r.get(f"fora_perto_alvo_{suf}")
+                    mpf_rows.append((
+                        int(best),
+                        (float(d_med) if (d_med is not None and not pd.isna(d_med)) else None),
+                        (float(d_max) if (d_max is not None and not pd.isna(d_max)) else None),
+                        (int(fora_tot) if (fora_tot is not None and not pd.isna(fora_tot)) else 0),
+                        (int(fora_perto) if (fora_perto is not None and not pd.isna(fora_perto)) else 0),
+                    ))
+
+            mpf_map = {}
+            trave_ratio_global = None
+            indice_mpf = None
+            if mpf_rows:
+                from collections import defaultdict
+                agg = defaultdict(lambda: {"n": 0, "sum_d_med": 0.0, "cnt_d_med": 0, "sum_d_max": 0.0, "cnt_d_max": 0, "fora_tot": 0, "fora_perto": 0})
+                for best, dmed, dmax, ft, fp in mpf_rows:
+                    gap = int(6 - int(best))
+                    a = agg[gap]
+                    a["n"] += 1
+                    if dmed is not None:
+                        a["sum_d_med"] += float(dmed)
+                        a["cnt_d_med"] += 1
+                    if dmax is not None:
+                        a["sum_d_max"] += float(dmax)
+                        a["cnt_d_max"] += 1
+                    a["fora_tot"] += int(ft)
+                    a["fora_perto"] += int(fp)
+
+                total = int(len(mpf_rows))
+                for gap, a in sorted(agg.items(), key=lambda x: x[0]):
+                    mpf_map[str(gap)] = {
+                        "targets": int(a["n"]),
+                        "share": float(a["n"] / total) if total > 0 else 0.0,
+                        "avg_dist_media_fora": (float(a["sum_d_med"] / a["cnt_d_med"]) if a["cnt_d_med"] > 0 else None),
+                        "avg_dist_max_fora": (float(a["sum_d_max"] / a["cnt_d_max"]) if a["cnt_d_max"] > 0 else None),
+                        "trave_ratio": (float(a["fora_perto"] / a["fora_tot"]) if a["fora_tot"] > 0 else None),
+                    }
+
+                fora_tot_all = int(sum(a["fora_tot"] for a in agg.values()))
+                fora_perto_all = int(sum(a["fora_perto"] for a in agg.values()))
+                trave_ratio_global = (float(fora_perto_all / fora_tot_all) if fora_tot_all > 0 else None)
+                if trave_ratio_global is not None:
+                    indice_mpf = float(fechamento_gap_norm) * float(1.0 - trave_ratio_global)
+
             st.markdown("### ✅ Prova objetiva (sem achismo)")
             st.json({
                 "targets_avaliados": int(n_targets),
@@ -8935,6 +8989,9 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                 "avg_best": avg_best,
                 "fechamento_gap": fechamento_gap,
                 "fechamento_gap_norm": fechamento_gap_norm,
+                "trave_ratio_global": trave_ratio_global,
+                "indice_mpf": indice_mpf,
+                "mpf_mapa_gap": mpf_map,
                 "rate_4p": float(rate_4p),
                 "rate_5p": float(rate_5p),
                 "rate_3p": float(rate_3p),
