@@ -979,7 +979,7 @@ st.set_page_config(
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_P1_AUTO_COM_DESARME.py")
+st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_BLOCOC_REAL_v16h1.py")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
@@ -1891,6 +1891,8 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
         try:
             _v8_info = st.session_state.get("v8_borda_qualificada_info", None)
             _v9_info = st.session_state.get("v9_memoria_borda", None)
+            # BLOCOC_CALLSITE_CANONICO
+
             _c_out = v10_bloco_c_aplicar_ajuste_fino_numerico(
                 listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais,
                 n_real=n_real,
@@ -10981,6 +10983,9 @@ def v9_classificar_memoria_borda(*, df_res: Optional[pd.DataFrame], total_hits: 
         return {"status": "INEXISTENTE", "motivo_curto": "Falha ao classificar Memória V9.", "n_alvos_avaliados": 0}
 
 
+# === BLOCO C REAL (V10) — AJUSTE FINO NUMÉRICO — CANÔNICO ===
+# Ctrl+F: BLOCOC_CALLSITE_CANONICO | v10_bloco_c_aplicar_ajuste_fino_numerico | bloco_c_real_diag
+
 def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None, v9_memoria_info=None):
     """
     BLOCO C (REAL) — Descompressão Estrutural (canônico, sem opção)
@@ -10996,7 +11001,7 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
     """
     # Guardas
     if not listas or not isinstance(listas, list):
-        return listas
+        return {'aplicado': False, 'motivo': 'listas_invalidas', 'listas_ajustadas': listas, 'diag_key': 'bloco_c_real_diag'}
 
     # --- 1) Coleta do histórico (fonte oficial já carregada no app) ---
     df = st.session_state.get("historico_df_full_safe") or st.session_state.get("historico_df_full")
@@ -11146,7 +11151,12 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
         else:
             listas_out.append(sorted(L_int))
 
-    return listas_out
+    return {
+        'aplicado': True,
+        'motivo': 'ok',
+        'listas_ajustadas': listas_out,
+        'diag_key': 'bloco_c_real_diag',
+    }
 
 def v16_sanidade_universo_listas(listas, historico_df):
     """
