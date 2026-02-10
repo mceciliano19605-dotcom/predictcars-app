@@ -11004,15 +11004,15 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
         return {'aplicado': False, 'motivo': 'listas_invalidas', 'listas_ajustadas': listas, 'diag_key': 'bloco_c_real_diag'}
 
     # --- 1) Coleta do histórico (fonte oficial já carregada no app) ---
-    df = st.session_state.get("historico_df_full_safe") or st.session_state.get("historico_df_full")
+    df = (st.session_state.get("historico_df_full_safe") or st.session_state.get("historico_df_full") or st.session_state.get("historico_df"))
     if df is None or getattr(df, "empty", True):
-        return listas
-
+        st.session_state['bloco_c_real_diag'] = {'aplicado': False, 'motivo': 'sem_historico', 'trocas': 0}
+        return {'aplicado': False, 'motivo': 'sem_historico', 'listas_ajustadas': listas, 'trocas': 0, 'diag_key': 'bloco_c_real_diag'}
     # Detecta colunas dos passageiros no histórico (p1..p6 ou similares)
     pcols = [c for c in df.columns if isinstance(c, str) and c.lower().startswith("p")]
     if not pcols:
-        return listas
-
+        st.session_state['bloco_c_real_diag'] = {'aplicado': False, 'motivo': 'sem_colunas_p', 'trocas': 0}
+        return {'aplicado': False, 'motivo': 'sem_colunas_p', 'listas_ajustadas': listas, 'trocas': 0, 'diag_key': 'bloco_c_real_diag'}
     # Universo (tentativa de ler do app; fallback 60)
     universo_max = st.session_state.get("pc_universo_max")
     if universo_max is None:
@@ -11099,6 +11099,8 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
     # (isso evita "dançar" listas sem ganho claro)
     MIN_GANHO = 0.0008
 
+    trocas = 0
+
     listas_out = []
     for L in listas:
         if not isinstance(L, (list, tuple)) or len(L) != n_real:
@@ -11146,18 +11148,25 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
             # normaliza (sem duplicatas)
             if len(set(L_new)) == len(L_new):
                 listas_out.append(sorted(L_new))
+                trocas += 1
             else:
                 listas_out.append(sorted(L_int))
         else:
             listas_out.append(sorted(L_int))
 
+    st.session_state['bloco_c_real_diag'].update({
+        'aplicado': (trocas > 0),
+        'trocas': trocas,
+        'min_ganho': MIN_GANHO,
+    })
+
     return {
-        'aplicado': True,
-        'motivo': 'ok',
+        'aplicado': (trocas > 0),
+        'motivo': 'ok' if (trocas > 0) else 'sem_trocas',
         'listas_ajustadas': listas_out,
+        'trocas': trocas,
         'diag_key': 'bloco_c_real_diag',
     }
-
 def v16_sanidade_universo_listas(listas, historico_df):
     """
     Remove / ajusta números fora do universo real observado no histórico.
