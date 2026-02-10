@@ -10981,153 +10981,172 @@ def v9_classificar_memoria_borda(*, df_res: Optional[pd.DataFrame], total_hits: 
         return {"status": "INEXISTENTE", "motivo_curto": "Falha ao classificar Memória V9.", "n_alvos_avaliados": 0}
 
 
-def v10_bloco_c_aplicar_ajuste_fino_numerico(
-    listas: List[List[int]],
-    *,
-    n_real: int,
-    v8_borda_info: Optional[Dict[str, Any]] = None,
-    v9_memoria_info: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None, v9_memoria_info=None):
     """
-    BLOCO C (Ajuste fino numérico) — aplicado SOBRE um pacote já gerado.
-    - Não altera quantidade de listas
-    - Não expande o universo (somente troca dentro do conjunto já presente no pacote)
-    - Faz no máximo 1 troca por lista, com governança explícita.
+    BLOCO C (REAL) — Descompressão Estrutural (canônico, sem opção)
 
-    Retorna:
-      { 'listas_ajustadas': [...], 'aplicado': bool, 'trocas': int, 'motivo': str }
+    Objetivo: reduzir "compressão" do pacote trazendo, de forma CONTROLADA e mínima,
+    passageiros com pressão recente (fora do pacote) e retirando elementos com
+    baixa pressão estrutural (dentro do pacote), sem inventar sensores novos.
+
+    Conceitos canônicos usados aqui:
+    - Vetor de Descompressão η (eta): pressão estrutural por passageiro,
+      calculada como desvio (freq_recente - freq_longo).
+    - Operador C₁: aplica 0–1 trocas por lista (mínimo necessário) guiado por η.
     """
-    if not listas:
-        return {"listas_ajustadas": listas, "aplicado": False, "trocas": 0, "motivo": "Sem listas para ajustar."}
+    # Guardas
+    if not listas or not isinstance(listas, list):
+        return listas
 
-    # Só aplica se n_real for válido
-    try:
-        n_real = int(n_real)
-    except Exception:
-        n_real = 6
+    # --- 1) Coleta do histórico (fonte oficial já carregada no app) ---
+    df = st.session_state.get("historico_df_full_safe") or st.session_state.get("historico_df_full")
+    if df is None or getattr(df, "empty", True):
+        return listas
 
-    # Regras de habilitação (conservadoras)
-    v9_status = None
-    if isinstance(v9_memoria_info, dict):
-        v9_status = (v9_memoria_info.get("classificacao", {}) or {}).get("status")
+    # Detecta colunas dos passageiros no histórico (p1..p6 ou similares)
+    pcols = [c for c in df.columns if isinstance(c, str) and c.lower().startswith("p")]
+    if not pcols:
+        return listas
 
-    # Se existir Memória V9 e for insuficiente/excessiva, não aplicar (evita miragem/diluição)
-    if v9_status in ("INSUFICIENTE", "EXCESSIVA"):
-        return {
-            "listas_ajustadas": listas,
-            "aplicado": False,
-            "trocas": 0,
-            "motivo": f"Memória V9 {v9_status}: ajuste fino numérico bloqueado (observacional).",
-        }
-
-    # Extrai CORE/quase‑CORE (se disponível)
-    core = set()
-    quase = set()
-    try:
-        if isinstance(v8_borda_info, dict):
-            core = set(v8_borda_info.get("CORE", []) or v8_borda_info.get("core", []) or [])
-            quase = set(v8_borda_info.get("quase_CORE", []) or v8_borda_info.get("quase_core", []) or [])
-    except Exception:
-        core, quase = set(), set()
-
-    # Universo do pacote (não pode expandir)
-    pacote_vals = []
-    for L in listas:
+    # Universo (tentativa de ler do app; fallback 60)
+    universo_max = st.session_state.get("pc_universo_max")
+    if universo_max is None:
+        # Heurística: tenta inferir do próprio histórico
         try:
-            pacote_vals.extend([int(x) for x in L])
+            universo_max = int(df[pcols].max().max())
         except Exception:
-            pass
-    universo_pacote = sorted(set(pacote_vals))
-    if not universo_pacote:
-        return {"listas_ajustadas": listas, "aplicado": False, "trocas": 0, "motivo": "Universo do pacote vazio."}
+            universo_max = 60
+    try:
+        universo_max = int(universo_max)
+    except Exception:
+        universo_max = 60
+    universo_max = max(6, min(universo_max, 200))
 
-    # Frequências (miolo/coerência)
-    freq = {}
-    for v in pacote_vals:
-        freq[v] = freq.get(v, 0) + 1
+    # --- 2) Derivação de η (eta): pressão estrutural recente vs longa ---
+    # Janela recente: padrão V16 (N=60) — suficiente para captar micro-regime sem virar "curto demais"
+    W = 60
+    try:
+        W = min(W, int(len(df)))
+        W = max(12, W)
+    except Exception:
+        W = 60
 
-    # Candidatos de entrada: quase‑CORE primeiro; se vazio, não aplica (não inventa)
-    candidatos_in = [v for v in sorted(quase) if v in universo_pacote]
-    if not candidatos_in:
-        return {"listas_ajustadas": listas, "aplicado": False, "trocas": 0, "motivo": "Sem quase‑CORE no universo do pacote (nada para qualificar)."}
+    # Frequências (longa e recente)
+    def _freq_counts(frame):
+        vals = frame[pcols].values.ravel()
+        # filtra NaN/None e converte em int quando possível
+        out = {}
+        for v in vals:
+            if v is None:
+                continue
+            try:
+                iv = int(v)
+            except Exception:
+                continue
+            if iv <= 0:
+                continue
+            out[iv] = out.get(iv, 0) + 1
+        return out
+
+    freq_long = _freq_counts(df)
+    df_recent = df.tail(W)
+    freq_recent = _freq_counts(df_recent)
+
+    # Normalizações
+    denom_long = max(1, len(df) * len(pcols))
+    denom_recent = max(1, W * len(pcols))
+
+    # η: (p_recente - p_longo) em escala leve
+    eta = {}
+    for x in range(1, universo_max + 1):
+        pL = freq_long.get(x, 0) / denom_long
+        pR = freq_recent.get(x, 0) / denom_recent
+        eta[x] = (pR - pL)
+
+    # --- 3) Construção do Operador C₁ (troca mínima por lista) ---
+    # Define candidatos: os mais pressionados fora do pacote atual (união das listas)
+    pacote_atual = set()
+    for L in listas:
+        if isinstance(L, (list, tuple)):
+            for v in L:
+                try:
+                    pacote_atual.add(int(v))
+                except Exception:
+                    pass
+
+    # Lista ordenada de "pressão positiva" fora do pacote
+    candidatos_out = [x for x in range(1, universo_max + 1) if x not in pacote_atual]
+    candidatos_out.sort(key=lambda x: eta.get(x, 0.0), reverse=True)
+
+    # Diagnóstico para o RF
+    top_out = [(x, round(eta.get(x, 0.0), 6)) for x in candidatos_out[:12]]
+    top_in = sorted([(x, round(eta.get(x, 0.0), 6)) for x in list(pacote_atual)], key=lambda t: t[1])[:12]
+
+    st.session_state["bloco_c_real_diag"] = {
+        "W": W,
+        "universo_max": universo_max,
+        "top_out_eta": top_out,     # fora do pacote, maior pressão
+        "top_in_eta_baixo": top_in, # dentro do pacote, menor pressão
+        "pacote_atual_tamanho": len(pacote_atual),
+    }
+
+    # Critério de troca: só troca se melhora estruturalmente (diferença mínima)
+    # (isso evita "dançar" listas sem ganho claro)
+    MIN_GANHO = 0.0008
 
     listas_out = []
-    trocas = 0
-
     for L in listas:
-        try:
-            base = [int(x) for x in L]
-        except Exception:
+        if not isinstance(L, (list, tuple)) or len(L) != n_real:
             listas_out.append(L)
             continue
 
-        if len(base) != n_real or len(set(base)) != n_real:
-            listas_out.append(base)
-            continue
-
-        setL = set(base)
-
-        # Escolhe um candidato de entrada que NÃO esteja na lista
-        entra = None
-        for v in candidatos_in:
-            if v not in setL:
-                entra = v
+        L_int = []
+        ok = True
+        for v in L:
+            try:
+                iv = int(v)
+            except Exception:
+                ok = False
                 break
-
-        if entra is None:
-            listas_out.append(base)
+            if iv < 1 or iv > universo_max:
+                ok = False
+                break
+            L_int.append(iv)
+        if not ok:
+            listas_out.append(L)
             continue
 
-        # Escolhe um candidato de saída: menor frequência, evitando CORE e evitando apagar último exemplar (freq==1)
-        saida = None
-        candidatos_saida = sorted(base, key=lambda x: (freq.get(x, 0), x))
-        for v in candidatos_saida:
-            if v in core:
+        # Elemento "mais fraco" dentro da lista (menor η)
+        cand_in = min(L_int, key=lambda x: eta.get(x, 0.0))
+        eta_in = eta.get(cand_in, 0.0)
+
+        # Melhor candidato fora da lista (maior η), respeitando universo e não repetição
+        cand_out = None
+        eta_out = None
+        for x in candidatos_out[:60]:  # busca curta (pressão mais alta)
+            if x in L_int:
                 continue
-            if freq.get(v, 0) <= 1:
-                continue
-            saida = v
+            cand_out = x
+            eta_out = eta.get(x, 0.0)
             break
 
-        if saida is None:
-            # sem saída segura -> não troca
-            listas_out.append(base)
+        # Se não houver candidato, mantém
+        if cand_out is None:
+            listas_out.append(sorted(L_int))
             continue
 
-        # Aplica troca
-        novo = [x for x in base if x != saida]
-        novo.append(entra)
+        # Decide troca (C₁)
+        if (eta_out - eta_in) >= MIN_GANHO:
+            L_new = [cand_out if v == cand_in else v for v in L_int]
+            # normaliza (sem duplicatas)
+            if len(set(L_new)) == len(L_new):
+                listas_out.append(sorted(L_new))
+            else:
+                listas_out.append(sorted(L_int))
+        else:
+            listas_out.append(sorted(L_int))
 
-        # Garante sanidade
-        novo = list(dict.fromkeys(novo))  # preserva ordem e remove dup
-        if len(novo) != n_real:
-            listas_out.append(base)
-            continue
-
-        # Atualiza freq (mantém universo sem expandir; não removemos último exemplar)
-        freq[saida] = max(0, freq.get(saida, 0) - 1)
-        freq[entra] = freq.get(entra, 0) + 1
-
-        listas_out.append(novo)
-        trocas += 1
-
-    if trocas <= 0:
-        return {"listas_ajustadas": listas, "aplicado": False, "trocas": 0, "motivo": "Nenhuma troca segura encontrada."}
-
-    return {
-        "listas_ajustadas": listas_out,
-        "aplicado": True,
-        "trocas": int(trocas),
-        "motivo": "Ajuste fino numérico aplicado (1 troca segura por lista, sem expandir universo).",
-    }
-
-
-# ============================================================
-# B0 — SANIDADE DE UNIVERSO (V16)
-# Observacional + corretivo leve
-# Garante que nenhum passageiro fora do universo real apareça
-# NÃO altera motores | NÃO decide | NÃO bloqueia
-# ============================================================
+    return listas_out
 
 def v16_sanidade_universo_listas(listas, historico_df):
     """
