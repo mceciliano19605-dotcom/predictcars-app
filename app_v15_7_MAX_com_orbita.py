@@ -5,7 +5,7 @@ from __future__ import annotations
 # ============================================================
 """PredictCars V15.7 MAX — V16 Premium
 Âncora Estável (base: app_v15_7_MAX_com_orbita.py)
-P1 — Ajuste de Pacote (pré-C4) · Comparativo (A/B)
+P1 — Ajuste de Pacote (pré-C4) · Backtest A/B BLOCO C (N=60 primeiro)
 Arquivo único, íntegro e operacional.
 """
 
@@ -979,7 +979,7 @@ st.set_page_config(
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_BLOCOC_REAL_v16h1.py")
+st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_BLOCOC_REAL_v16h4.py")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
@@ -1892,6 +1892,14 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
             _v8_info = st.session_state.get("v8_borda_qualificada_info", None)
             _v9_info = st.session_state.get("v9_memoria_borda", None)
             # BLOCOC_CALLSITE_CANONICO
+
+            # Captura do pacote ANTES do BLOCO C (baseline A/B)
+            try:
+                st.session_state["pacote_pre_bloco_c"] = [list(x) for x in (listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais)]
+                st.session_state["pacote_pre_bloco_c_origem"] = "CAP Invisível (V1) — Modo 6 (pré-BLOCO C)"
+            except Exception:
+                pass
+
 
             _c_out = v10_bloco_c_aplicar_ajuste_fino_numerico(
                 listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais,
@@ -4396,6 +4404,7 @@ def construir_navegacao_v157() -> str:
         # BLOCO 7.5 — EIXO 2 | MOMENTO & ANTECIPAÇÃO
         # -----------------------------------------------------
         "📊 V16 Premium — Backtest Rápido do Pacote (N=60)",
+        "📊 P1 — Backtest Comparativo BLOCO C (A/B) — N=60",
         "🧭 V16 Premium — Rodadas Estratificadas (A/B)",
 
         "🧠 M5 — Pulo do Gato (Coleta Automática de Estados)",
@@ -15987,6 +15996,226 @@ if painel == "📊 V16 Premium — Backtest Rápido do Pacote (N=60)":
 
 
 # ============================================================
+
+# ============================================================
+# P1 — BACKTEST COMPARATIVO BLOCO C (A/B) — N = 60 (primeiro)
+# (pré-C4 | auditável | sem motor novo)
+#
+# OBJETIVO:
+# - Comparar o pacote A (pré-BLOCO C) vs pacote B (pós-BLOCO C)
+#   sobre os últimos N alvos do histórico.
+#
+# IMPORTANTE:
+# - Este A/B NÃO regenera listas por alvo. Ele compara DOIS pacotes
+#   obtidos na mesma sessão (antes/depois do BLOCO C).
+# - Serve como evidência inicial de efetividade do operador V10.
+# - Não decide ataque, não altera Camada 4.
+# ============================================================
+if painel == "📊 P1 — Backtest Comparativo BLOCO C (A/B) — N=60":
+
+    st.subheader("📊 P1 — Backtest Comparativo BLOCO C (A/B)")
+    st.caption(
+        "Comparativo inicial (A/B) do BLOCO C sobre os últimos N alvos do histórico. "
+        "A = pacote pré-BLOCO C (capturado). B = pacote pós-BLOCO C (pacote atual). "
+        "Não é previsão. Não decide volume. Não altera Camada 4."
+    )
+
+    # ------------------------------------------------------------
+    # N (primeiro 60, depois 120)
+    # ------------------------------------------------------------
+    N = st.selectbox(
+        "Janela de backtest (N)",
+        options=[60, 120],
+        index=0,
+        help="Primeiro faça N=60 (rápido). Depois repita com N=120 (mais robusto).",
+        key="P1_AB_N",
+    )
+
+    # ------------------------------------------------------------
+    # Histórico
+    # ------------------------------------------------------------
+    historico_df = st.session_state.get("historico_df")
+
+    if historico_df is None or historico_df.empty:
+        st.warning("Histórico não encontrado. Carregue o histórico antes.")
+        st.stop()
+
+    if historico_df.shape[0] < int(N):
+        st.warning(f"Histórico insuficiente para backtest (mínimo: {int(N)} séries).")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Pacotes A e B
+    # ------------------------------------------------------------
+    pacote_A = st.session_state.get("pacote_pre_bloco_c")
+    pacote_B = st.session_state.get("pacote_listas_atual")
+
+    if not pacote_A:
+        st.warning(
+            "Pacote A (pré-BLOCO C) não encontrado nesta sessão.\n\n"
+            "Como gerar: execute o Modo 6 nesta sessão (o CAP Invisível captura o pacote pré-BLOCO C automaticamente)."
+        )
+        st.stop()
+
+    if not pacote_B:
+        st.warning("Pacote B (pós-BLOCO C) não encontrado. Gere listas (Modo 6) antes.")
+        st.stop()
+
+    # Força listas em int
+    def _norm_pacote(p):
+        out = []
+        if not isinstance(p, list):
+            return out
+        for lst in p:
+            if not isinstance(lst, (list, tuple)):
+                continue
+            tmp = []
+            for v in lst:
+                try:
+                    tmp.append(int(v))
+                except Exception:
+                    pass
+            if tmp:
+                out.append(tmp)
+        return out
+
+    pacote_A = _norm_pacote(pacote_A)
+    pacote_B = _norm_pacote(pacote_B)
+
+    if not pacote_A or not pacote_B:
+        st.warning("Pacotes inválidos para backtest (listas vazias ou não numéricas).")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Colunas de passageiros
+    # ------------------------------------------------------------
+    colunas_passageiros = [c for c in historico_df.columns if c.lower().startswith("p")]
+    if not colunas_passageiros:
+        st.error("Não foi possível identificar colunas de passageiros no histórico.")
+        st.stop()
+
+    # ------------------------------------------------------------
+    # Funções de métrica (por alvo)
+    # ------------------------------------------------------------
+    def _avaliar_pacote_em_alvo(pacote, alvo_set):
+        hits = []
+        for lst in pacote:
+            hits.append(len(set(lst) & alvo_set))
+        if not hits:
+            return {"hit_max": 0, "hit_mean": 0.0}
+        return {"hit_max": int(max(hits)), "hit_mean": float(sum(hits) / len(hits))}
+
+    def _agregar(df_metrics):
+        # df_metrics contém hit_max e hit_mean por alvo
+        out = {}
+        out["hit_max_medio"] = float(df_metrics["hit_max"].mean())
+        out["hit_mean_medio"] = float(df_metrics["hit_mean"].mean())
+
+        # taxas
+        for k in [3, 4, 5, 6]:
+            out[f"taxa_{k}plus"] = float((df_metrics["hit_max"] >= k).mean()) * 100.0
+
+        # contagens
+        for k in [3, 4, 5, 6]:
+            out[f"cnt_{k}plus"] = int((df_metrics["hit_max"] >= k).sum())
+        return out
+
+    # ------------------------------------------------------------
+    # Execução do A/B
+    # ------------------------------------------------------------
+    ultimos = historico_df.tail(int(N))
+
+    rows_A = []
+    rows_B = []
+
+    for _, linha in ultimos.iterrows():
+        alvo = set()
+        for c in colunas_passageiros:
+            if pd.notna(linha[c]):
+                try:
+                    alvo.add(int(linha[c]))
+                except Exception:
+                    pass
+
+        if not alvo:
+            continue
+
+        a = _avaliar_pacote_em_alvo(pacote_A, alvo)
+        b = _avaliar_pacote_em_alvo(pacote_B, alvo)
+
+        rows_A.append(a)
+        rows_B.append(b)
+
+    if not rows_A or not rows_B:
+        st.warning("Não foi possível montar alvos válidos na janela escolhida.")
+        st.stop()
+
+    dfA = pd.DataFrame(rows_A)
+    dfB = pd.DataFrame(rows_B)
+
+    aggA = _agregar(dfA)
+    aggB = _agregar(dfB)
+
+    # ------------------------------------------------------------
+    # Exibição resumida
+    # ------------------------------------------------------------
+    st.markdown("### ✅ Resumo A/B (agregado)")
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric("A: hit_max médio", f"{aggA['hit_max_medio']:.3f}")
+    c2.metric("B: hit_max médio", f"{aggB['hit_max_medio']:.3f}")
+    c3.metric("Δ (B−A)", f"{(aggB['hit_max_medio'] - aggA['hit_max_medio']):.3f}")
+    c4.metric("N alvos válidos", f"{len(dfA)}")
+
+    st.markdown("### 🎯 Taxas de ≥k (usando hit_max por alvo)")
+    t1, t2, t3, t4 = st.columns(4)
+    t1.metric("≥3 (A)", f"{aggA['taxa_3plus']:.2f}%")
+    t2.metric("≥3 (B)", f"{aggB['taxa_3plus']:.2f}%")
+    t3.metric("≥4 (A)", f"{aggA['taxa_4plus']:.2f}%")
+    t4.metric("≥4 (B)", f"{aggB['taxa_4plus']:.2f}%")
+
+    t5, t6, t7, t8 = st.columns(4)
+    t5.metric("≥5 (A)", f"{aggA['taxa_5plus']:.2f}%")
+    t6.metric("≥5 (B)", f"{aggB['taxa_5plus']:.2f}%")
+    t7.metric("≥6 (A)", f"{aggA['taxa_6plus']:.2f}%")
+    t8.metric("≥6 (B)", f"{aggB['taxa_6plus']:.2f}%")
+
+    st.info(
+        "📌 Interpretação canônica (P1):\n"
+        "- Se B aumenta ≥4 e ≥5 sem derrubar muito ≥3, há sinal inicial de efetividade do BLOCO C.\n"
+        "- Se B só muda hit_mean, mas não move ≥4/≥5, pode ser só estética/saúde estrutural.\n"
+        "- Este painel não decide nada; ele mede."
+    )
+
+    # ------------------------------------------------------------
+    # Auditoria: guarda no session_state
+    # ------------------------------------------------------------
+    try:
+        st.session_state["p1_ab_config"] = {"N": int(N), "col_pass": list(colunas_passageiros)}
+        st.session_state["p1_ab_resumo"] = {"A": aggA, "B": aggB, "delta": {k: (aggB.get(k, 0) - aggA.get(k, 0)) for k in aggA.keys()}}
+        st.session_state["p1_ab_series"] = {
+            "A": {"hit_max": dfA["hit_max"].tolist(), "hit_mean": dfA["hit_mean"].tolist()},
+            "B": {"hit_max": dfB["hit_max"].tolist(), "hit_mean": dfB["hit_mean"].tolist()},
+        }
+    except Exception:
+        pass
+
+    # ------------------------------------------------------------
+    # Tabela detalhada (opcional)
+    # ------------------------------------------------------------
+    with st.expander("🔍 Detalhe por alvo (hit_max / hit_mean) — A vs B"):
+        df_show = pd.DataFrame({
+            "A_hit_max": dfA["hit_max"].astype(int),
+            "B_hit_max": dfB["hit_max"].astype(int),
+            "Δ_hit_max": (dfB["hit_max"] - dfA["hit_max"]).astype(int),
+            "A_hit_mean": dfA["hit_mean"],
+            "B_hit_mean": dfB["hit_mean"],
+            "Δ_hit_mean": (dfB["hit_mean"] - dfA["hit_mean"]),
+        })
+        st.dataframe(df_show, use_container_width=True, hide_index=True)
+
+
+
 # PAINEL V16 PREMIUM — RODADAS ESTRATIFICADAS (A/B)
 # (Preparação operacional: NÃO ativa motores; NÃO mistura pacotes)
 #
