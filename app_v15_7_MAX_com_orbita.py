@@ -13,7 +13,7 @@ Arquivo único, íntegro e operacional.
 import streamlit as st
 
 # ------------------------------------------------------------
-# V16h5 — BOOT CLEAN (anti-resíduo de sessão)
+# V16h6 — BOOT CLEAN (anti-resíduo de sessão)
 # - Se não há histórico carregado, remove saídas antigas que podem
 #   "vazar" na UI (ex.: pacote final / previsões antigas).
 # ------------------------------------------------------------
@@ -993,7 +993,7 @@ st.set_page_config(
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_BLOCOC_REAL_v16h5.py")
+st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_BLOCOC_REAL_v16h6.py")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
@@ -11248,18 +11248,31 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     df = st.session_state.get("historico_df")
 
+        # ------------------------------------------------------------
+    # MODO 6 — PUREZA DE CONTEXTO (k não depende da ordem de painéis)
     # ------------------------------------------------------------
-    # k* (fallback seguro)
-    # ------------------------------------------------------------
+    # Garante que k*, NR%, divergência e risco estejam definidos na sessão,
+    # mesmo que o operador não tenha aberto Sentinelas/Monitor antes.
+    try:
+        _ = pc_sentinelas_kstar_silent(df)
+        _ = pc_monitor_risco_silent(df)
+    except Exception:
+        pass
+
     _kstar_raw = st.session_state.get("sentinela_kstar")
-    k_star = float(_kstar_raw) if isinstance(_kstar_raw, (int, float)) else 0.0
+    if isinstance(_kstar_raw, (int, float)):
+        k_star = float(_kstar_raw)
+    else:
+        # fallback neutro (compatível com monitor)
+        k_star = 0.25
 
     nr_pct = st.session_state.get("nr_percent")
     divergencia_s6_mc = st.session_state.get("div_s6_mc")
     risco_composto = st.session_state.get("indice_risco")
     ultima_prev = st.session_state.get("ultima_previsao")
 
-    # ------------------------------------------------------------
+
+# ------------------------------------------------------------
     # GUARDA — CRITÉRIO MÍNIMO (ORIGINAL PRESERVADO)
     # ------------------------------------------------------------
     pipeline_ok = st.session_state.get("pipeline_flex_ultra_concluido") is True
