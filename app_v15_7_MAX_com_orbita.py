@@ -11,6 +11,20 @@ Arquivo único, íntegro e operacional.
 
 
 import streamlit as st
+
+# ------------------------------------------------------------
+# V16h5 — BOOT CLEAN (anti-resíduo de sessão)
+# - Se não há histórico carregado, remove saídas antigas que podem
+#   "vazar" na UI (ex.: pacote final / previsões antigas).
+# ------------------------------------------------------------
+try:
+    if "historico_df" not in st.session_state:
+        for _k in ["ultima_previsao", "listas_geradas", "pacote_listas_atual", "pacote_listas_origem", "pacote_pre_bloco_c", "pacote_pre_bloco_c_origem"]:
+            if _k in st.session_state:
+                del st.session_state[_k]
+except Exception:
+    pass
+
 # ============================================================
 # V16 — POSTURA OPERACIONAL (pré-C4)
 # Estados: ESTÁVEL / RESPIRÁVEL / RUPTURA
@@ -979,7 +993,7 @@ st.set_page_config(
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_BLOCOC_REAL_v16h4.py")
+st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_BLOCOC_REAL_v16h5.py")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
@@ -11576,6 +11590,17 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # Usa V8 (borda qualificada) como mapa e V9 (memória) como lastro, se existir.
     # ============================================================
     try:
+        # ------------------------------------------------------------
+        # CAP Invisível (V1) — captura do pacote A (pré-BLOCO C)
+        # Necessário para o P1 A/B. Deve acontecer SEMPRE antes do V10.
+        # ------------------------------------------------------------
+        try:
+            _base_cap = listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais
+            st.session_state["pacote_pre_bloco_c"] = [list(x) for x in _base_cap] if isinstance(_base_cap, list) else []
+            st.session_state["pacote_pre_bloco_c_origem"] = "CAP Invisível (V1) — Modo 6 (pré-BLOCO C)"
+        except Exception:
+            pass
+
         _v8_info = st.session_state.get("v8_borda_qualificada_info", None)
         _v9_info = st.session_state.get("v9_memoria_borda", None)
 
