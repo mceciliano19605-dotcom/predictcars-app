@@ -993,7 +993,7 @@ st.set_page_config(
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_BLOCOC_REAL_v16h6.py")
+st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_BLOCOC_REAL_v16h7_CURV_SUST.py")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
