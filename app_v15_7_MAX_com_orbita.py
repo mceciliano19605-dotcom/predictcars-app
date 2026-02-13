@@ -993,7 +993,7 @@ st.set_page_config(
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita_BLOCOC_REAL_v16h7_CURV_SUST_DOWNLOAD.py")
+st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita.py  |  build: v16h7_CURV_SUST")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
@@ -17104,6 +17104,63 @@ if painel == "🧠 Laudo Operacional V16":
     # Mantemos apenas UM ponto de execução do Laudo para evitar dupla execução/deriva.
     st.stop()
 
+
+def v16_painel_compressao_alvo():
+    """🎯 Compressão do Alvo — Observacional (V16)
+
+    Nota: este painel é *pré-C4 / observacional*. Ele NÃO altera listas nem mexe na Camada 4.
+    Ele só mede se o alvo está "espalhado" (difícil) ou mais "compacto" (melhor).
+
+    Dependência: precisa existir df_eval (gerado ao avaliar pacotes/snapshots via Replay/SAFE).
+    """
+    st.markdown("## 🎯 Compressão do Alvo — Observacional (V16)")
+    st.caption("Métrica observacional do quão 'compacto' o alvo parece estar, olhando os pacotes avaliados (df_eval).")
+
+    df_eval = st.session_state.get("df_eval", None)
+
+    if df_eval is None or len(df_eval) == 0:
+        st.warning("Nenhuma avaliação encontrada (df_eval vazio). Rode o Replay/SAFE e clique em **Avaliar pacotes registrados** para gerar a base.")
+        return
+
+    # Colunas esperadas: dist_media_fora / dist_max_fora (podem ser NaN em bases pequenas)
+    cols = set(df_eval.columns)
+    if ("dist_media_fora" not in cols) or ("dist_max_fora" not in cols):
+        st.warning("Base df_eval não tem distâncias fora-do-pacote (dist_media_fora / dist_max_fora). Rode a avaliação completa do SAFE e tente novamente.")
+        return
+
+    df_aux = df_eval.copy()
+
+    # Segurança: converter para numérico
+    df_aux["dist_media_fora"] = pd.to_numeric(df_aux["dist_media_fora"], errors="coerce")
+    df_aux["dist_max_fora"]   = pd.to_numeric(df_aux["dist_max_fora"], errors="coerce")
+
+    # Base útil: linhas que possuem ao menos alguma distância computada
+    base = df_aux.dropna(subset=["dist_media_fora", "dist_max_fora"], how="all")
+    if len(base) == 0:
+        st.warning("Ainda não há distâncias computadas (tudo NaN). Isso costuma acontecer quando a base avaliada é muito curta.")
+        return
+
+    disp_media = float(np.nanmean(base["dist_media_fora"].values))
+    disp_vol   = float(np.nanstd(base["dist_media_fora"].values))
+
+    # Score simples: quanto menor a dispersão, maior o score (clamp em [0, 1])
+    compress_score = 1.0 - 0.5 * (disp_media + disp_vol)
+    compress_score = float(max(0.0, min(1.0, compress_score)))
+
+    st.markdown("### 📐 Métrica de Compressão do Alvo")
+    st.metric("Score de Compressão", f"{compress_score:.4f}")
+    st.metric("Dispersão média", f"{disp_media:.4f}")
+    st.metric("Volatilidade da dispersão", f"{disp_vol:.4f}")
+
+    # Leitura observacional (mantém exatamente a ideia do painel original)
+    if compress_score >= 0.70:
+        leitura = "🟢 Alvo comprimido (bom sinal) — baixa dispersão e baixa variabilidade estrutural."
+    elif compress_score >= 0.40:
+        leitura = "🟡 Alvo misto — alguma dispersão; não é confirmação de janela, mas pode haver frestas."
+    else:
+        leitura = "🔴 Alvo disperso — alta variabilidade estrutural. Mesmo que k apareça, não indica alvo na mira."
+
+    st.info(f"Leitura Observacional\n\n{leitura}")
 
 if painel == "📊 V16 Premium — Erro por Regime (Retrospectivo)":
     v16_painel_erro_por_regime_retrospectivo()
