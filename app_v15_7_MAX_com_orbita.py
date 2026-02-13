@@ -8866,16 +8866,14 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         v16_render_bloco_ss(ss_info)
         # 🧠 Memória Estrutural (SEM_RITMO) — bloco informativo
         try:
-            if "me_info" not in st.session_state:
-                st.session_state["me_info"] = v16_me_build_from_snapshots(st.session_state.get("snapshot_p0_canonic") or {})
-            if "me_status_info" not in st.session_state:
-                st.session_state["me_status_info"] = {"status": "INATIVA", "motivo": "nao_calculada"}
+            # Recalcula sempre o status/resultado da Memória Estrutural com base no que existe AGORA
+            # (evita ficar "nao_calculada" após os snapshots/SS mudarem)
+            v16_me_update_auto()
             v16_render_bloco_me(st.session_state.get("me_info"), st.session_state.get("me_status_info"), st.session_state.get("ss_info"))
         except Exception:
             pass
     except Exception:
         pass
-
     st.markdown("---")
 
     # 8) Avaliação automática (contra os 2 alvos seguintes)
@@ -17347,17 +17345,13 @@ Se quiser, depois fechamos a regra do **P1 automático** (pré-C4) usando a Para
         v16_render_bloco_ss(ss_info)
         # 🧠 Memória Estrutural (SEM_RITMO) — bloco informativo
         try:
-            if "me_info" not in st.session_state:
-                st.session_state["me_info"] = v16_me_build_from_snapshots(st.session_state.get("snapshot_p0_canonic") or {})
-            if "me_status_info" not in st.session_state:
-                st.session_state["me_status_info"] = {"status": "INATIVA", "motivo": "nao_calculada"}
+            v16_me_update_auto()
             v16_render_bloco_me(st.session_state.get("me_info"), st.session_state.get("me_status_info"), st.session_state.get("ss_info"))
         except Exception:
             pass
     except Exception:
         pass
-
-    # estado V2
+    # Estado V2
     if "cap_v2_running" not in st.session_state:
         st.session_state["cap_v2_running"] = False
     if "cap_v2_queue" not in st.session_state:
