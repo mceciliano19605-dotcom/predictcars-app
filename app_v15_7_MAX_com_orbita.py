@@ -9058,6 +9058,10 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
     df_res = pd.DataFrame(resultados).sort_values(["janela_k"], ascending=True)
     st.dataframe(df_res, use_container_width=True, hide_index=True)
 
+    # ✅ Persistência canônica para painéis retro (ex.: Compressão do Alvo)
+    # df_eval = base de avaliação derivada do Replay/SAFE (pré-C4 · observacional)
+    st.session_state["df_eval"] = df_res.copy()
+
     # -------------------------------------------------------------
     # 📊 Replay Estatístico Automático Incremental (SAFE)
     # OBJETIVO:
