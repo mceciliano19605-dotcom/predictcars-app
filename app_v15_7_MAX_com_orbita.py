@@ -11580,7 +11580,45 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
         pR = freq_recent.get(x, 0) / denom_recent
         eta[x] = (pR - pL)
 
-    # --- 3) Construção do Operador C₁ (troca mínima por lista) ---
+    
+    # --- 2.2) FASE 5 (pré‑C4): reforço de TRAVE (sem depender de nocivos) ---
+    # Ideia: quando a fresta fica instável, a melhor "âncora leve" é trazer para o pacote
+    # os passageiros que aparecem recorrentemente como FORA_PERTO (batendo na trave).
+    # Isso NÃO é decisão automática de cravar; é um viés mínimo para reduzir deslocamento estrutural.
+    try:
+        if df_recent is not None and isinstance(df_recent, pd.DataFrame) and ("fora_perto_nums" in df_recent.columns):
+            freq_trave = {}
+            for _x in df_recent["fora_perto_nums"].dropna().tolist():
+                try:
+                    if isinstance(_x, (list, tuple, set)):
+                        _lst = list(_x)
+                    elif isinstance(_x, str):
+                        _lst = json.loads(_x) if _x.strip().startswith("[") else []
+                    else:
+                        _lst = []
+                except Exception:
+                    _lst = []
+                for n in _lst:
+                    try:
+                        n = int(n)
+                    except Exception:
+                        continue
+                    if universo_min <= n <= universo_max:
+                        freq_trave[n] = freq_trave.get(n, 0) + 1
+
+            if len(freq_trave) > 0:
+                denom = float(sum(freq_trave.values())) if sum(freq_trave.values()) > 0 else 1.0
+                alpha_trave = 0.18  # ganho pequeno (auditável)
+                # soma um bônus na ETA para os passageiros que batem na trave com frequência
+                for n, c in freq_trave.items():
+                    eta[n] = eta.get(n, 0.0) + alpha_trave * (c / denom)
+
+                # guarda um pool auxiliar (para auditoria e uso nas fases seguintes)
+                trave_top = sorted(freq_trave.items(), key=lambda kv: kv[1], reverse=True)[:12]
+                st.session_state["bloco_c_trave_pool"] = [int(k) for k, _v in trave_top]
+    except Exception:
+        pass
+# --- 3) Construção do Operador C₁ (troca mínima por lista) ---
     # Define candidatos: os mais pressionados fora do pacote atual (união das listas)
     pacote_atual = set()
     for L in listas:
