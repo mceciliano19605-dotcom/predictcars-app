@@ -11350,9 +11350,70 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
         return {'aplicado': False, 'motivo': 'ss_nao_atingida', 'listas_ajustadas': listas, 'trocas': 0, 'diag_key': 'bloco_c_real_diag'}
 
     if any_4p_seen:
-        # Se já há evidência de janela, BLOCO C mínimo não aperta mais nesta fase.
-        st.session_state['bloco_c_real_diag'] = {'aplicado': False, 'motivo': 'janela_ja_detectada', 'trocas': 0}
-        return {'aplicado': False, 'motivo': 'janela_ja_detectada', 'listas_ajustadas': listas, 'trocas': 0, 'diag_key': 'bloco_c_real_diag'}
+        # BLOCO C (FASE 2) — Janela nascente (a barreira já foi atravessada, mas ainda não está sustentada)
+        # - Ainda pré-C4, auditável, sem motor novo.
+        # - Atua apenas para aumentar recorrência de 4+ quando ainda é raro.
+        try:
+            rate_4p = _pc_safe_float(stats_janela.get("rate_4p"), None) if isinstance(stats_janela, dict) else None
+            if rate_4p is None and isinstance(stats_janela, dict):
+                rate_4p = _pc_safe_float(stats_janela.get("rate_4p_w"), None)
+        except Exception:
+            rate_4p = None
+        try:
+            gap_norm = _pc_safe_float(stats_janela.get("fechamento_gap_norm"), None) if isinstance(stats_janela, dict) else None
+            if gap_norm is None and isinstance(stats_janela, dict):
+                gap_norm = _pc_safe_float(stats_janela.get("fechamento_gap_norm_w"), None)
+        except Exception:
+            gap_norm = None
+        try:
+            zero_hit_rate = _pc_safe_float(stats_janela.get("zero_hit_rate"), None) if isinstance(stats_janela, dict) else None
+            if zero_hit_rate is None and isinstance(stats_janela, dict):
+                zero_hit_rate = _pc_safe_float(stats_janela.get("zero_hit_rate_w"), None)
+        except Exception:
+            zero_hit_rate = None
+        try:
+            curv_info = st.session_state.get("curvatura_sustentada_info") or {}
+            curv_sust = bool(curv_info.get("curvatura_sustentada_recente")) if isinstance(curv_info, dict) else False
+            dist_desde_ultimo_4 = _pc_safe_float(curv_info.get("dist_desde_ultimo_4"), None) if isinstance(curv_info, dict) else None
+        except Exception:
+            curv_sust = False
+            dist_desde_ultimo_4 = None
+
+        # Critério canônico: só entra na Fase 2 se 4+ já apareceu, mas ainda é raro e não há sustentação de curvatura.
+        RATE4P_LIM = 0.05  # 5%
+        if (rate_4p is not None) and (rate_4p >= RATE4P_LIM):
+            st.session_state['bloco_c_real_diag'] = {'aplicado': False, 'motivo': 'janela_ja_mais_forte', 'trocas': 0, 'fase': 2}
+            return {'aplicado': False, 'motivo': 'janela_ja_mais_forte', 'listas_ajustadas': listas, 'trocas': 0, 'diag_key': 'bloco_c_real_diag'}
+        if curv_sust:
+            st.session_state['bloco_c_real_diag'] = {'aplicado': False, 'motivo': 'curvatura_sustentada', 'trocas': 0, 'fase': 2}
+            return {'aplicado': False, 'motivo': 'curvatura_sustentada', 'listas_ajustadas': listas, 'trocas': 0, 'diag_key': 'bloco_c_real_diag'}
+
+        # Dosagem canônica (sem opção): base 1, sobe para 2 só em condição de "demora geométrica" + gap alto
+        dose = 1
+        motivo_dose = []
+        if (dist_desde_ultimo_4 is not None) and (gap_norm is not None):
+            if (dist_desde_ultimo_4 >= 10) and (gap_norm >= 0.70):
+                dose = 2
+                motivo_dose.append("dose2: dist>=10 & gap_norm>=0.70")
+        # Freio simples: se zero_hit_rate estiver alto, não aumenta dose
+        if (zero_hit_rate is not None) and (zero_hit_rate >= 0.20):
+            if dose != 1:
+                motivo_dose.append("freio: zero_hit>=0.20")
+            dose = 1
+
+        # Marca fase/dose no diag; o restante da função executa trocas (agora com dose > 1 permitido)
+        st.session_state['bloco_c_real_diag'] = {
+            'aplicado': False,
+            'motivo': 'fase2_ativa',
+            'trocas': 0,
+            'fase': 2,
+            'dose': int(dose),
+            'motivo_dose': "; ".join(motivo_dose) if motivo_dose else "dose1",
+        }
+    else:
+        # BLOCO C (FASE 1) — Barreira (ainda sem evidência de janela)
+        st.session_state['bloco_c_real_diag'] = {'aplicado': False, 'motivo': 'fase1_ativa', 'trocas': 0, 'fase': 1, 'dose': 1}
+        dose = 1
 
     # nocivos consistentes (fonte objetiva)
     nocivos = st.session_state.get("anti_exato_nocivos_consistentes") or []
@@ -11496,46 +11557,62 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
             listas_out.append(L)
             continue
 
-        # Elemento a retirar:
-        # - se houver nocivo consistente dentro da lista, ele vira candidato prioritário de remoção (BLOCO C mínimo)
-        # - caso contrário, usa o mais fraco por η (menor pressão estrutural)
-        nocivos_na_lista = [v for v in L_int if v in nocivos_set]
-        if nocivos_na_lista:
-            cand_in = min(nocivos_na_lista, key=lambda x: eta.get(x, 0.0))
-        else:
-            cand_in = min(L_int, key=lambda x: eta.get(x, 0.0))
-        eta_in = eta.get(cand_in, 0.0)
+        # Elemento a retirar / trocar (BLOCO C — Fase 1/2)
+        # - Prioridade: remover NOCIVO CONSISTENTE quando presente.
+        # - Caso contrário: troca mínima guiada por η (menor pressão estrutural) para deslocamento controlado.
+        # - Fase 2: permite até 'dose' trocas por lista (dose canônica 1 ou 2), com freios naturais.
+        L_work = list(L_int)
+        trocou_nesta_lista = 0
 
-        # Melhor candidato fora da lista (maior η), respeitando universo e não repetição
-        cand_out = None
-        eta_out = None
-        for x in candidatos_out[:60]:  # busca curta (pressão mais alta)
-            if x in L_int:
-                continue
-            cand_out = x
-            eta_out = eta.get(x, 0.0)
-            break
+        for _tent in range(int(max(1, dose))):
+            if not L_work or len(L_work) != n_real:
+                break
 
-        # Se não houver candidato, mantém
-        if cand_out is None:
-            listas_out.append(sorted(L_int))
-            continue
-
-        # Decide troca (C₁)
-        # Se estamos removendo um NOCIVO CONSISTENTE, aceitamos ganho mínimo mais baixo (a ação é "limpeza").
-        min_ganho_local = 0.0 if (cand_in in nocivos_set) else MIN_GANHO
-        if (eta_out - eta_in) >= min_ganho_local:
-            L_new = [cand_out if v == cand_in else v for v in L_int]
-            # normaliza (sem duplicatas)
-            if len(set(L_new)) == len(L_new):
-                listas_out.append(sorted(L_new))
-                trocas += 1
-                if cand_in in nocivos_set:
-                    trocas_nocivos += 1
+            nocivos_na_lista = [v for v in L_work if v in nocivos_set]
+            if nocivos_na_lista:
+                cand_in = min(nocivos_na_lista, key=lambda x: eta.get(x, 0.0))
             else:
-                listas_out.append(sorted(L_int))
-        else:
-            listas_out.append(sorted(L_int))
+                cand_in = min(L_work, key=lambda x: eta.get(x, 0.0))
+            eta_in = eta.get(cand_in, 0.0)
+
+            # Melhor candidato fora da lista (maior η), evitando nocivos e evitando repetição
+            cand_out = None
+            eta_out = None
+            for x in candidatos_out[:120]:  # busca curta, mas um pouco maior na Fase 2
+                try:
+                    ix = int(x)
+                except Exception:
+                    continue
+                if ix in L_work:
+                    continue
+                if ix in nocivos_set:
+                    continue
+                cand_out = ix
+                eta_out = eta.get(ix, 0.0)
+                break
+
+            if cand_out is None:
+                break
+
+            # Decide troca (C₁/C₂)
+            # Se estamos removendo um NOCIVO CONSISTENTE, aceitamos ganho mínimo mais baixo (ação é "limpeza").
+            min_ganho_local = 0.0 if (cand_in in nocivos_set) else MIN_GANHO
+            if (eta_out - eta_in) >= min_ganho_local:
+                L_new = [cand_out if v == cand_in else v for v in L_work]
+                if len(set(L_new)) == len(L_new):
+                    L_work = list(L_new)
+                    trocas += 1
+                    trocou_nesta_lista += 1
+                    if cand_in in nocivos_set:
+                        trocas_nocivos += 1
+                    if trocou_nesta_lista >= int(max(1, dose)):
+                        break
+                else:
+                    break
+            else:
+                break
+
+        listas_out.append(sorted(L_work))
 
     st.session_state['bloco_c_real_diag'].update({
         'aplicado': (trocas > 0),
@@ -11552,6 +11629,8 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
         'trocas_nocivos': trocas_nocivos,
         'diag_key': 'bloco_c_real_diag',
     }
+
+
 def v16_sanidade_universo_listas(listas, historico_df):
     """
     Remove / ajusta números fora do universo real observado no histórico.
