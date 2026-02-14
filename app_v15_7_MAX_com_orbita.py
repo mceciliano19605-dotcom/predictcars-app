@@ -11595,6 +11595,64 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
     candidatos_out = [x for x in range(1, universo_max + 1) if (x not in pacote_atual) and (x not in nocivos_set)]
     candidatos_out.sort(key=lambda x: eta.get(x, 0.0), reverse=True)
 
+    # BLOCO C (FASE 4) — Estabilizar janela nascente (sustentar fresta sem depender de nocivos)
+    # Ideia: quando já houve 4+ na base (any_4p_seen=True) e a evidência não é "evento isolado",
+    # fixamos um pequeno "pool de fresta" (números candidatos) por curto período para reduzir volatilidade.
+    fase4_ok = False
+    fresta_pool = []
+    try:
+        rate_4p_w = None
+        try:
+            rate_4p_w = float(stats_janela.get('rate_4p_w', stats_janela.get('rate_4p', 0.0)) or 0.0)
+        except Exception:
+            rate_4p_w = 0.0
+
+        # Critério canônico Fase 4:
+        # - já vimos 4+ em alguma janela na base (any_4p_seen True)
+        # - a janela ainda é frágil (curvatura não sustentada) — já filtrado acima por curv_sust
+        # - e há evidência mínima de 4+ na janela móvel (rate_4p_w > 0)
+        if bool(any_4p_seen) and (rate_4p_w is not None) and (rate_4p_w > 0.0):
+            fase4_ok = True
+
+        if fase4_ok:
+            # Monta pool: prioriza QUASE_ENTRAM (fora-perto recorrente), depois η fora do pacote
+            pool_raw = []
+            if quase_entram:
+                pool_raw.extend([int(x) for x in quase_entram[:24]])
+            pool_raw.extend([int(x) for x in candidatos_out[:24]])
+
+            seen = set()
+            for x in pool_raw:
+                if x in seen:
+                    continue
+                if x in nocivos_set:
+                    continue
+                if x < 1 or x > universo_max:
+                    continue
+                seen.add(x)
+                fresta_pool.append(x)
+                if len(fresta_pool) >= 12:
+                    break
+
+            # Persistência curta do pool (reduz "pêndulo" entre execuções)
+            base_sig = f"{int(universo_max)}|{int(len(df_eval))}|{int(any_4p_seen)}"
+            prev = st.session_state.get('bloco_c_fase4_pool', {})
+            if isinstance(prev, dict) and prev.get('base_sig') == base_sig and prev.get('pool'):
+                fresta_pool = list(prev.get('pool', fresta_pool))
+            else:
+                st.session_state['bloco_c_fase4_pool'] = {'base_sig': base_sig, 'pool': list(fresta_pool)}
+
+            # Fase 4 é conservadora: não aumenta dose; troca máxima por lista continua = dose (1 ou 2),
+            # mas o ganho mínimo é mais permissivo (micro-deslocamento).
+            st.session_state['bloco_c_real_diag'].update({
+                'fase': 4,
+                'motivo': 'fase4_ativa',
+                'fresta_pool_n': int(len(fresta_pool)),
+            })
+    except Exception:
+        fase4_ok = False
+        fresta_pool = []
+
     # Diagnóstico para o RF
     top_out = [(x, round(eta.get(x, 0.0), 6)) for x in candidatos_out[:12]]
     top_in = sorted([(x, round(eta.get(x, 0.0), 6)) for x in list(pacote_atual)], key=lambda t: t[1])[:12]
@@ -11673,6 +11731,9 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
             nocivos_na_lista = [v for v in L_work if v in nocivos_set]
             if nocivos_na_lista:
                 cand_in = min(nocivos_na_lista, key=lambda x: eta.get(x, 0.0))
+            elif fase4_ok and freq_global:
+                # FASE 4: retirar "ancora repetida" (freq alta) com baixa pressão (η) — conservador
+                cand_in = max(L_work, key=lambda x: (freq_global.get(x, 0), -eta.get(x, 0.0)))
             elif fase3_ok and freq_global:
                 cand_in = max(L_work, key=lambda x: (freq_global.get(x, 0), -eta.get(x, 0.0)))
             else:
@@ -11718,7 +11779,7 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
 
             # Decide troca (C₁/C₂)
             # Se estamos removendo um NOCIVO CONSISTENTE, aceitamos ganho mínimo mais baixo (ação é "limpeza").
-            min_ganho_local = 0.0 if (cand_in in nocivos_set) else (MIN_GANHO * 0.5 if fase3_ok else MIN_GANHO)
+            min_ganho_local = 0.0 if (cand_in in nocivos_set) else (MIN_GANHO * 0.25 if fase4_ok else (MIN_GANHO * 0.5 if fase3_ok else MIN_GANHO))
             if (eta_out - eta_in) >= min_ganho_local:
                 L_new = [cand_out if v == cand_in else v for v in L_work]
                 if len(set(L_new)) == len(L_new):
