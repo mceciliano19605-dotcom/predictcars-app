@@ -11358,6 +11358,11 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
         return {'aplicado': False, 'motivo': 'ss_nao_atingida', 'listas_ajustadas': listas, 'trocas': 0, 'diag_key': 'bloco_c_real_diag'}
 
     if any_4p_seen:
+        # marca fresta como 'vista' na sessão (persistente até reset de histórico)
+        try:
+            st.session_state['bloco_c_fresta_ativa'] = True
+        except Exception:
+            pass
         # BLOCO C (FASE 2) — Janela nascente (a barreira já foi atravessada, mas ainda não está sustentada)
         # - Ainda pré-C4, auditável, sem motor novo.
         # - Atua apenas para aumentar recorrência de 4+ quando ainda é raro.
@@ -11483,7 +11488,7 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
 
     try:
         df_eval = st.session_state.get("df_eval")
-        if (fase_atual == 2) and (not nocivos_set) and (df_eval is not None) and (not getattr(df_eval, "empty", True)):
+        if ((fase_atual == 2) or bool(st.session_state.get('bloco_c_fresta_ativa', False))) and (not nocivos_set) and (df_eval is not None) and (not getattr(df_eval, "empty", True)):
             # ratio global de fora_perto usando colunas do df_eval
             fp = 0
             fl = 0
