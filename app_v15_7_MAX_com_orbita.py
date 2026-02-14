@@ -8966,14 +8966,16 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         Observacional. Não altera motor nem Camada 4.
         """
         if not alvo_set:
-            return {"fora_perto": 0, "fora_longe": 0, "dist_media": None, "dist_max": None}
+            return {"fora_perto": 0, "fora_longe": 0, "dist_media": None, "dist_max": None, "fora_perto_nums": [], "fora_longe_nums": []}
         if not uni:
             # sem universo do pacote, não há como medir proximidade
-            return {"fora_perto": 0, "fora_longe": int(len(alvo_set)), "dist_media": None, "dist_max": None}
+            return {"fora_perto": 0, "fora_longe": int(len(alvo_set)), "dist_media": None, "dist_max": None, "fora_perto_nums": [], "fora_longe_nums": [int(x) for x in sorted(list(alvo_set))]}
         uni_list = sorted(list(uni))
         dists = []
         fora_perto = 0
         fora_longe = 0
+        fora_perto_nums = []
+        fora_longe_nums = []
         for n in alvo_set:
             if n in uni:
                 continue
@@ -8982,15 +8984,17 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             dists.append(md)
             if md <= thr:
                 fora_perto += 1
+                fora_perto_nums.append(int(n))
             else:
                 fora_longe += 1
+                fora_longe_nums.append(int(n))
         if dists:
             dist_media = float(sum(dists)) / float(len(dists))
             dist_max = int(max(dists))
         else:
             dist_media = 0.0
             dist_max = 0
-        return {"fora_perto": int(fora_perto), "fora_longe": int(fora_longe), "dist_media": dist_media, "dist_max": dist_max}
+        return {"fora_perto": int(fora_perto), "fora_longe": int(fora_longe), "dist_media": dist_media, "dist_max": dist_max, "fora_perto_nums": sorted(list(set(fora_perto_nums))), "fora_longe_nums": sorted(list(set(fora_longe_nums)))}
 
     resultados = []
     for k_reg, info in sorted(pacotes_reg.items(), key=lambda x: int(x[0])):
@@ -9038,6 +9042,8 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             "fora_longe_1": int(tr1.get("fora_longe")) if tr1 else None,
             "dist_media_fora_1": tr1.get("dist_media") if tr1 else None,
             "dist_max_fora_1": tr1.get("dist_max") if tr1 else None,
+            "fora_perto_nums_1": json.dumps(tr1.get("fora_perto_nums") if tr1 else []) if tr1 else "[]",
+            "fora_longe_nums_1": json.dumps(tr1.get("fora_longe_nums") if tr1 else []) if tr1 else "[]",
             "alvo_2": f"C{k_reg+2}" if alvo2 is not None else "—",
             "best_acerto_alvo_2": int(best2) if alvo2 is not None else None,
             "core_hit_2": int(org2.get("core")) if org2 else None,
@@ -9050,6 +9056,8 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             "fora_longe_2": int(tr2.get("fora_longe")) if tr2 else None,
             "dist_media_fora_2": tr2.get("dist_media") if tr2 else None,
             "dist_max_fora_2": tr2.get("dist_max") if tr2 else None,
+            "fora_perto_nums_2": json.dumps(tr2.get("fora_perto_nums") if tr2 else []) if tr2 else "[]",
+            "fora_longe_nums_2": json.dumps(tr2.get("fora_longe_nums") if tr2 else []) if tr2 else "[]",
             "ts_registro": str(info.get("ts", "")),
         })
 
@@ -11458,6 +11466,74 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
         nocivos_set = set(int(x) for x in (nocivos or []))
     except Exception:
         nocivos_set = set()
+
+    # ------------------------------------------------------------
+    # BLOCO C (FASE 3) — Sustentar fresta sem depender de nocivos
+    # - Ativa quando: fase==2 (any_4p_seen=True), mas NÃO há nocivos consistentes detectáveis
+    # - Fonte objetiva: df_eval (Replay/SAFE) + Trave/Proximidade (fora_perto alto)
+    # - Ação: micro-empurrão geométrico (trocas mínimas) para aumentar recorrência de 4+
+    # ------------------------------------------------------------
+    fase3_ok = False
+    quase_entram = []
+    fora_perto_ratio = None
+    try:
+        fase_atual = int((st.session_state.get('bloco_c_real_diag') or {}).get('fase', 1))
+    except Exception:
+        fase_atual = 1
+
+    try:
+        df_eval = st.session_state.get("df_eval")
+        if (fase_atual == 2) and (not nocivos_set) and (df_eval is not None) and (not getattr(df_eval, "empty", True)):
+            # ratio global de fora_perto usando colunas do df_eval
+            fp = 0
+            fl = 0
+            for cfp, cfl in [("fora_perto_1", "fora_longe_1"), ("fora_perto_2", "fora_longe_2")]:
+                if cfp in df_eval.columns and cfl in df_eval.columns:
+                    try:
+                        fp += int(pd.to_numeric(df_eval[cfp], errors="coerce").fillna(0).sum())
+                        fl += int(pd.to_numeric(df_eval[cfl], errors="coerce").fillna(0).sum())
+                    except Exception:
+                        pass
+            if (fp + fl) > 0:
+                fora_perto_ratio = float(fp) / float(fp + fl)
+
+            # extrai "quase entram" (números fora-perto) se houver colunas detalhadas
+            nums = []
+            cols_nums = [c for c in ["fora_perto_nums_1", "fora_perto_nums_2"] if c in df_eval.columns]
+            if cols_nums:
+                df_tail = df_eval.tail(60).copy()
+                for c in cols_nums:
+                    for s in df_tail[c].dropna().astype(str).tolist():
+                        s = (s or "").strip()
+                        if not s:
+                            continue
+                        arr = []
+                        try:
+                            arr = json.loads(s)
+                        except Exception:
+                            # fallback simples: "[1,2,3]" -> split
+                            ss = s.strip().lstrip("[").rstrip("]")
+                            parts = [p.strip() for p in ss.split(",") if p.strip()]
+                            arr = parts
+                        if isinstance(arr, (list, tuple)):
+                            for v in arr:
+                                try:
+                                    iv = int(v)
+                                    if 1 <= iv <= universo_max:
+                                        nums.append(iv)
+                                except Exception:
+                                    continue
+                if nums:
+                    vc = pd.Series(nums).value_counts()
+                    quase_entram = [int(x) for x in vc.index.tolist()[:60]]
+
+            # critério canônico da Fase 3: trave muito alta (fora-perto dominante) e quase_entram disponível
+            if (fora_perto_ratio is not None) and (fora_perto_ratio >= 0.90) and quase_entram:
+                fase3_ok = True
+    except Exception:
+        fase3_ok = False
+        quase_entram = []
+        fora_perto_ratio = None
 # --- 2) Derivação de η (eta): pressão estrutural recente vs longa ---
     # Janela recente: padrão V16 (N=60) — suficiente para captar micro-regime sem virar "curto demais"
     W = 60
@@ -11526,11 +11602,29 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
         "top_out_eta": top_out,     # fora do pacote, maior pressão
         "top_in_eta_baixo": top_in, # dentro do pacote, menor pressão
         "pacote_atual_tamanho": len(pacote_atual),
+        "fase3_ok": bool(fase3_ok),
+        "fase3_fora_perto_ratio": fora_perto_ratio,
+        "fase3_quase_entram_top": quase_entram[:25] if isinstance(quase_entram, list) else [],
     }
 
     # Critério de troca: só troca se melhora estruturalmente (diferença mínima)
     # (isso evita "dançar" listas sem ganho claro)
     MIN_GANHO = 0.0008
+
+    # Frequência global do pacote (para Fase 3: detectar números repetidos que "seguram" a geometria)
+    freq_global = {}
+    if fase3_ok:
+        try:
+            for L in listas:
+                if isinstance(L, (list, tuple)):
+                    for v in L:
+                        try:
+                            iv = int(v)
+                        except Exception:
+                            continue
+                        freq_global[iv] = freq_global.get(iv, 0) + 1
+        except Exception:
+            freq_global = {}
 
     trocas = 0
     trocas_nocivos = 0
@@ -11568,35 +11662,58 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
             if not L_work or len(L_work) != n_real:
                 break
 
+            # Escolha do elemento a retirar (cand_in)
+            # - Prioridade 1: remover NOCIVO CONSISTENTE quando presente (Fase 1/2)
+            # - Fase 3 (sem nocivos): retirar "repetido" (alta frequência global) com baixa pressão (η) para micro‑deslocamento geométrico
             nocivos_na_lista = [v for v in L_work if v in nocivos_set]
             if nocivos_na_lista:
                 cand_in = min(nocivos_na_lista, key=lambda x: eta.get(x, 0.0))
+            elif fase3_ok and freq_global:
+                cand_in = max(L_work, key=lambda x: (freq_global.get(x, 0), -eta.get(x, 0.0)))
             else:
                 cand_in = min(L_work, key=lambda x: eta.get(x, 0.0))
             eta_in = eta.get(cand_in, 0.0)
 
-            # Melhor candidato fora da lista (maior η), evitando nocivos e evitando repetição
+            # Melhor candidato a entrar (cand_out)
+            # - Fase 3: prioriza QUASE_ENTRAM (fora-perto recorrente) para sustentar fresta
+            # - Fallback: top η fora do pacote (pressão estrutural)
             cand_out = None
             eta_out = None
-            for x in candidatos_out[:120]:  # busca curta, mas um pouco maior na Fase 2
-                try:
-                    ix = int(x)
-                except Exception:
-                    continue
-                if ix in L_work:
-                    continue
-                if ix in nocivos_set:
-                    continue
-                cand_out = ix
-                eta_out = eta.get(ix, 0.0)
-                break
+
+            if fase3_ok and quase_entram:
+                for x in quase_entram[:80]:
+                    try:
+                        ix = int(x)
+                    except Exception:
+                        continue
+                    if ix in L_work:
+                        continue
+                    if ix in nocivos_set:
+                        continue
+                    cand_out = ix
+                    eta_out = eta.get(ix, 0.0)
+                    break
+
+            if cand_out is None:
+                for x in candidatos_out[:120]:  # busca curta, mas um pouco maior na Fase 2
+                    try:
+                        ix = int(x)
+                    except Exception:
+                        continue
+                    if ix in L_work:
+                        continue
+                    if ix in nocivos_set:
+                        continue
+                    cand_out = ix
+                    eta_out = eta.get(ix, 0.0)
+                    break
 
             if cand_out is None:
                 break
 
             # Decide troca (C₁/C₂)
             # Se estamos removendo um NOCIVO CONSISTENTE, aceitamos ganho mínimo mais baixo (ação é "limpeza").
-            min_ganho_local = 0.0 if (cand_in in nocivos_set) else MIN_GANHO
+            min_ganho_local = 0.0 if (cand_in in nocivos_set) else (MIN_GANHO * 0.5 if fase3_ok else MIN_GANHO)
             if (eta_out - eta_in) >= min_ganho_local:
                 L_new = [cand_out if v == cand_in else v for v in L_work]
                 if len(set(L_new)) == len(L_new):
