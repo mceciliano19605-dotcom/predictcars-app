@@ -1119,6 +1119,8 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
         "n_alvo": n_alvo,
         "universo_min": universo_min,
         "universo_max": universo_max,
+        "nocivos_consistentes": sorted(list(nocivos_set))[:30],
+        "nocivos_qtd": int(len(nocivos_set)),
         "pipeline_ok": pipeline_ok,
         "regime": regime,
         "energia_media": energia,
@@ -11253,6 +11255,64 @@ def v9_classificar_memoria_borda(*, df_res: Optional[pd.DataFrame], total_hits: 
 # === BLOCO C REAL (V10) — AJUSTE FINO NUMÉRICO — CANÔNICO ===
 # Ctrl+F: BLOCOC_CALLSITE_CANONICO | v10_bloco_c_aplicar_ajuste_fino_numerico | bloco_c_real_diag
 
+
+def v16_anti_exato_obter_nocivos_consistentes_silent(df_base, col_pass, W=60, ALPHA=1, AMIN=12, BMIN=40):
+    """ANTI-EXATO (silent) — retorna lista de passageiros classificados como NOCIVO CONSISTENTE.
+    Mesma lógica do painel '📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos', sem UI.
+    Não decide nada — apenas fornece fonte objetiva para BLOCO C mínimo (pré-C4).
+    """
+    try:
+        if df_base is None or getattr(df_base, "empty", True):
+            return []
+        if not col_pass or len(col_pass) < 6:
+            return []
+        historico = df_base[col_pass].astype(int).values.tolist()
+        n = len(historico)
+        if n < (W + 2):
+            return []
+
+        def contar_hits(car_a, car_b):
+            return len(set(car_a).intersection(set(car_b)))
+
+        resultados = []
+        for t in range(n - W - 1, n - 1):
+            janela = historico[t - W + 1 : t + 1]
+            alvo = historico[t + 1]
+            for car in janela:
+                hits = contar_hits(car, alvo)
+                resultados.append({
+                    "passageiros": car,
+                    "hit2": 1 if hits >= 2 else 0,
+                    "hit3": 1 if hits >= 3 else 0,
+                })
+
+        if not resultados:
+            return []
+
+        df = pd.DataFrame(resultados)
+        universo = sorted({p for car in df["passageiros"] for p in car})
+        nocivos = []
+        for p in universo:
+            presente = df["passageiros"].apply(lambda x: p in x)
+            A = int(presente.sum())
+            B = int((~presente).sum())
+            if A < AMIN or B < BMIN:
+                continue
+            a3 = float(df.loc[presente, "hit3"].sum())
+            b3 = float(df.loc[~presente, "hit3"].sum())
+            p1 = (a3 + ALPHA) / (A + 2 * ALPHA)
+            p0 = (b3 + ALPHA) / (B + 2 * ALPHA)
+            delta = p1 - p0
+            lift = (p1 / p0) if (p0 > 0) else 1.0
+            if (delta < 0) and (lift <= 0.92):
+                nocivos.append(int(p))
+        # ordena estável
+        nocivos = sorted(list(dict.fromkeys(nocivos)))
+        return nocivos
+    except Exception:
+        return []
+
+
 def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None, v9_memoria_info=None):
     """
     BLOCO C (REAL) — Descompressão Estrutural (canônico, sem opção)
@@ -11269,6 +11329,33 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
     # Guardas
     if not listas or not isinstance(listas, list):
         return {'aplicado': False, 'motivo': 'listas_invalidas', 'listas_ajustadas': listas, 'diag_key': 'bloco_c_real_diag'}
+
+    # ------------------------------------------------------------
+    # BLOCO C MÍNIMO (REAL) — GOVERNANÇA DE APLICAÇÃO (pré-C4)
+    # - Só aplica com SS ATINGIDA (base mínima) e quando ainda NÃO há evidência de janela (any_4p_seen=False)
+    # - Fonte objetiva: ANTI-EXATO | Passageiros Nocivos Consistentes (painel/silent)
+    # ------------------------------------------------------------
+    try:
+        ss_ok = bool((st.session_state.get("ss_info") or {}).get("status")) or (str(st.session_state.get("ss_status") or "").strip().upper() == "ATINGIDA")
+    except Exception:
+        ss_ok = False
+    try:
+        stats_janela = st.session_state.get("replay_stats_prova_janela") or {}
+        any_4p_seen = bool(stats_janela.get("any_4p_seen")) if isinstance(stats_janela, dict) else False
+    except Exception:
+        any_4p_seen = False
+
+    if not ss_ok:
+        st.session_state['bloco_c_real_diag'] = {'aplicado': False, 'motivo': 'ss_nao_atingida', 'trocas': 0}
+        return {'aplicado': False, 'motivo': 'ss_nao_atingida', 'listas_ajustadas': listas, 'trocas': 0, 'diag_key': 'bloco_c_real_diag'}
+
+    if any_4p_seen:
+        # Se já há evidência de janela, BLOCO C mínimo não aperta mais nesta fase.
+        st.session_state['bloco_c_real_diag'] = {'aplicado': False, 'motivo': 'janela_ja_detectada', 'trocas': 0}
+        return {'aplicado': False, 'motivo': 'janela_ja_detectada', 'listas_ajustadas': listas, 'trocas': 0, 'diag_key': 'bloco_c_real_diag'}
+
+    # nocivos consistentes (fonte objetiva)
+    nocivos = st.session_state.get("anti_exato_nocivos_consistentes") or []
 
     # --- 1) Coleta do histórico (fonte oficial já carregada no app) ---
     df = (st.session_state.get("historico_df_full_safe") or st.session_state.get("historico_df_full") or st.session_state.get("historico_df"))
@@ -11294,7 +11381,23 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
         universo_max = 60
     universo_max = max(6, min(universo_max, 200))
 
-    # --- 2) Derivação de η (eta): pressão estrutural recente vs longa ---
+    
+    try:
+        # Se o operador não abriu o painel ANTI-EXATO, calculamos silenciosamente (mesma lógica do painel).
+        if not nocivos:
+            col_pass_anti = st.session_state.get("pipeline_col_pass") or pcols
+            nocivos = v16_anti_exato_obter_nocivos_consistentes_silent(df_base=df, col_pass=col_pass_anti, W=60, ALPHA=1, AMIN=12, BMIN=40)
+            if nocivos:
+                st.session_state["anti_exato_nocivos_consistentes"] = nocivos
+    except Exception:
+        pass
+
+    nocivos_set = set()
+    try:
+        nocivos_set = set(int(x) for x in (nocivos or []))
+    except Exception:
+        nocivos_set = set()
+# --- 2) Derivação de η (eta): pressão estrutural recente vs longa ---
     # Janela recente: padrão V16 (N=60) — suficiente para captar micro-regime sem virar "curto demais"
     W = 60
     try:
@@ -11347,7 +11450,7 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
                     pass
 
     # Lista ordenada de "pressão positiva" fora do pacote
-    candidatos_out = [x for x in range(1, universo_max + 1) if x not in pacote_atual]
+    candidatos_out = [x for x in range(1, universo_max + 1) if (x not in pacote_atual) and (x not in nocivos_set)]
     candidatos_out.sort(key=lambda x: eta.get(x, 0.0), reverse=True)
 
     # Diagnóstico para o RF
@@ -11357,6 +11460,8 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
     st.session_state["bloco_c_real_diag"] = {
         "W": W,
         "universo_max": universo_max,
+        "nocivos_consistentes": sorted(list(nocivos_set))[:30],
+        "nocivos_qtd": int(len(nocivos_set)),
         "top_out_eta": top_out,     # fora do pacote, maior pressão
         "top_in_eta_baixo": top_in, # dentro do pacote, menor pressão
         "pacote_atual_tamanho": len(pacote_atual),
@@ -11367,6 +11472,7 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
     MIN_GANHO = 0.0008
 
     trocas = 0
+    trocas_nocivos = 0
 
     listas_out = []
     for L in listas:
@@ -11390,8 +11496,14 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
             listas_out.append(L)
             continue
 
-        # Elemento "mais fraco" dentro da lista (menor η)
-        cand_in = min(L_int, key=lambda x: eta.get(x, 0.0))
+        # Elemento a retirar:
+        # - se houver nocivo consistente dentro da lista, ele vira candidato prioritário de remoção (BLOCO C mínimo)
+        # - caso contrário, usa o mais fraco por η (menor pressão estrutural)
+        nocivos_na_lista = [v for v in L_int if v in nocivos_set]
+        if nocivos_na_lista:
+            cand_in = min(nocivos_na_lista, key=lambda x: eta.get(x, 0.0))
+        else:
+            cand_in = min(L_int, key=lambda x: eta.get(x, 0.0))
         eta_in = eta.get(cand_in, 0.0)
 
         # Melhor candidato fora da lista (maior η), respeitando universo e não repetição
@@ -11410,12 +11522,16 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
             continue
 
         # Decide troca (C₁)
-        if (eta_out - eta_in) >= MIN_GANHO:
+        # Se estamos removendo um NOCIVO CONSISTENTE, aceitamos ganho mínimo mais baixo (a ação é "limpeza").
+        min_ganho_local = 0.0 if (cand_in in nocivos_set) else MIN_GANHO
+        if (eta_out - eta_in) >= min_ganho_local:
             L_new = [cand_out if v == cand_in else v for v in L_int]
             # normaliza (sem duplicatas)
             if len(set(L_new)) == len(L_new):
                 listas_out.append(sorted(L_new))
                 trocas += 1
+                if cand_in in nocivos_set:
+                    trocas_nocivos += 1
             else:
                 listas_out.append(sorted(L_int))
         else:
@@ -11424,6 +11540,7 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
     st.session_state['bloco_c_real_diag'].update({
         'aplicado': (trocas > 0),
         'trocas': trocas,
+        'trocas_nocivos': trocas_nocivos,
         'min_ganho': MIN_GANHO,
     })
 
@@ -11432,6 +11549,7 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
         'motivo': 'ok' if (trocas > 0) else 'sem_trocas',
         'listas_ajustadas': listas_out,
         'trocas': trocas,
+        'trocas_nocivos': trocas_nocivos,
         'diag_key': 'bloco_c_real_diag',
     }
 def v16_sanidade_universo_listas(listas, historico_df):
@@ -16082,6 +16200,15 @@ if painel == "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos":
         })
 
     df_out = pd.DataFrame(linhas).sort_values("classe")
+
+    # Persistência canônica (para BLOCO C mínimo)
+    try:
+        _noc = df_out[df_out["classe"] == "NOCIVO CONSISTENTE"]["passageiro"].astype(int).tolist() if ("classe" in df_out.columns and "passageiro" in df_out.columns) else []
+        st.session_state["anti_exato_nocivos_consistentes"] = sorted(list(dict.fromkeys(_noc)))
+        st.session_state["anti_exato_df"] = df_out.copy()
+    except Exception:
+        pass
+
 
     st.markdown("### 🧾 Classificação de Passageiros")
     st.dataframe(df_out, use_container_width=True, hide_index=True)
