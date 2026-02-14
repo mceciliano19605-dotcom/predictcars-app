@@ -17125,10 +17125,29 @@ def v16_painel_compressao_alvo():
         return
 
     # Colunas esperadas: dist_media_fora / dist_max_fora (podem ser NaN em bases pequenas)
+    # ⚠️ Compatibilidade (RC): algumas rotas gravam as distâncias com sufixo (_1/_2) por alvo.
+    # Neste caso, sintetizamos colunas canônicas sem sufixo para o painel.
     cols = set(df_eval.columns)
+
     if ("dist_media_fora" not in cols) or ("dist_max_fora" not in cols):
-        st.warning("Base df_eval não tem distâncias fora-do-pacote (dist_media_fora / dist_max_fora). Rode a avaliação completa do SAFE e tente novamente.")
-        return
+        cand_media = [c for c in ["dist_media_fora_1", "dist_media_fora_2"] if c in cols]
+        cand_max   = [c for c in ["dist_max_fora_1", "dist_max_fora_2"] if c in cols]
+
+        if len(cand_media) == 0 and len(cand_max) == 0:
+            st.warning("Base df_eval não tem distâncias fora-do-pacote (dist_media_fora / dist_max_fora). Rode a avaliação completa do SAFE e tente novamente.")
+            return
+
+        df_eval = df_eval.copy()
+
+        # dist_media_fora: média (ignorando NaN) entre os alvos disponíveis (_1/_2)
+        if ("dist_media_fora" not in cols) and (len(cand_media) > 0):
+            df_media = df_eval[cand_media].apply(lambda s: pd.to_numeric(s, errors="coerce"))
+            df_eval["dist_media_fora"] = df_media.mean(axis=1, skipna=True)
+
+        # dist_max_fora: maior distância (ignorando NaN) entre os alvos disponíveis (_1/_2)
+        if ("dist_max_fora" not in cols) and (len(cand_max) > 0):
+            df_max = df_eval[cand_max].apply(lambda s: pd.to_numeric(s, errors="coerce"))
+            df_eval["dist_max_fora"] = df_max.max(axis=1, skipna=True)
 
     df_aux = df_eval.copy()
 
