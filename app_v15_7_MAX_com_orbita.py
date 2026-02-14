@@ -11728,6 +11728,158 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
             freq_global = {}
 
     trocas = 0
+
+    # =========================
+    # BLOCO C — FASE 6 (V16h14): Direcionamento Estrutural do Núcleo (DESN)
+    # =========================
+    # Objetivo: quando houver PROVA mínima (df_eval) e SS OK, estimar um "vetor direcional"
+    # de passageiros que aparecem com mais frequência em alvos com hit>=3 (proxy de EXATO),
+    # e empurrar o pacote para incluir esses passageiros em mais listas — SEM depender de nocivos.
+    #
+    # Importante:
+    # - Observacional/auditável: guarda ranking e diagnóstico em session_state.
+    # - Conservador: só atua com amostra suficiente e sinal não-nulo.
+    # - Não inventa motor novo: só reordena candidatos de entrada/saída já existentes.
+    fase6_ok = False
+    fase6_diag = {"ok": False, "motivo": "N/D", "w_used": 0, "p3_rate": None, "top": []}
+    nucleo_dir_rank = []  # lista de passageiros (ints), do mais "direcionador" para o menos
+
+    try:
+        df_eval_local = st.session_state.get("df_eval", None)
+        pacotes_reg_local = st.session_state.get("replay_progressivo_pacotes", {}) or {}
+
+        # Gate 0: precisa de df_eval com coluna best_acerto_alvo_1 e janela k
+        if isinstance(df_eval_local, pd.DataFrame) and ("best_acerto_alvo_1" in df_eval_local.columns) and ("k_janela" in df_eval_local.columns):
+            # Usar a janela móvel canônica (últimos 60), mas nunca maior que df_eval
+            W_DIR = 60
+            dfw = df_eval_local.tail(W_DIR).copy()
+            w_used = int(len(dfw))
+
+            if w_used >= 12:
+                # Proxy de evento: hit>=3 no alvo 1
+                hits3 = (dfw["best_acerto_alvo_1"].fillna(0).astype(int) >= 3)
+                p3_rate = float(hits3.mean()) if w_used > 0 else 0.0
+
+                # Gate 1: precisa existir pelo menos algum hit>=3 para haver "direção"
+                if p3_rate > 0.0:
+                    # Baseline com Laplace (evita log(0))
+                    alpha = 1.0
+                    p_base = (hits3.sum() + alpha) / (w_used + 2.0 * alpha)
+
+                    # Contar presença do passageiro no UNIVERSO do pacote (união das listas) por janela
+                    # e correlacionar com hits3. (Não usa o alvo em si; usa o pacote que o gerou.)
+                    A = {}  # p em pacote & hit>=3
+                    B = {}  # p em pacote & hit<3
+                    N_in = {}  # ocorrências em que p aparece no universo do pacote (para debug)
+
+                    # Pré-carregar universo do pacote por k para não revarrer demais
+                    for _, r in dfw.iterrows():
+                        k_j = int(r.get("k_janela", -1))
+                        if k_j < 0:
+                            continue
+                        pkg = pacotes_reg_local.get(k_j, None)
+                        if not isinstance(pkg, dict):
+                            continue
+                        # pkg["universo_pacote"] é a união do pacote canônico; se não existir, monta a partir das listas
+                        uni = pkg.get("universo_pacote", None)
+                        if not isinstance(uni, (list, tuple, set)) or len(uni) == 0:
+                            listas_pkg = pkg.get("listas", [])
+                            s_uni = set()
+                            if isinstance(listas_pkg, list):
+                                for Lp in listas_pkg:
+                                    if isinstance(Lp, (list, tuple)):
+                                        for v in Lp:
+                                            try:
+                                                s_uni.add(int(v))
+                                            except Exception:
+                                                pass
+                            uni = s_uni
+                        else:
+                            uni = set([int(v) for v in uni if str(v).isdigit()])
+
+                        if not uni:
+                            continue
+
+                        hit3 = bool(int(r.get("best_acerto_alvo_1", 0)) >= 3)
+                        for pnum in uni:
+                            N_in[pnum] = N_in.get(pnum, 0) + 1
+                            if hit3:
+                                A[pnum] = A.get(pnum, 0) + 1
+                            else:
+                                B[pnum] = B.get(pnum, 0) + 1
+
+                    # Montar scores: uplift log-odds vs baseline
+                    scores = []
+                    for pnum, n_in in N_in.items():
+                        a = A.get(pnum, 0)
+                        b = B.get(pnum, 0)
+                        # P(hit3 | p em pacote) com Laplace
+                        p_hit = (a + alpha) / (a + b + 2.0 * alpha)
+                        # logit uplift (baseline -> condicional)
+                        # (evita extremos; baseline também tem Laplace)
+                        import math
+                        def _logit(x):
+                            x = min(max(float(x), 1e-6), 1 - 1e-6)
+                            return math.log(x / (1.0 - x))
+                        uplift = _logit(p_hit) - _logit(p_base)
+                        scores.append((uplift, pnum, n_in, a, b, p_hit))
+
+                    # Ordenar por uplift desc e exigir sinal mínimo
+                    scores.sort(key=lambda t: t[0], reverse=True)
+
+                    # Selecionar topo direcional (positivo) com presença mínima
+                    PRES_MIN = max(6, int(0.10 * w_used))  # pelo menos 10% das janelas, ou 6
+                    top = []
+                    for uplift, pnum, n_in, a, b, p_hit in scores:
+                        if uplift <= 0.0:
+                            break
+                        if n_in < PRES_MIN:
+                            continue
+                        top.append(pnum)
+                        if len(top) >= 18:  # limite canônico: não vira motor novo
+                            break
+
+                    if len(top) > 0:
+                        nucleo_dir_rank = top
+                        fase6_ok = True
+                        fase6_diag = {
+                            "ok": True,
+                            "motivo": "DESN_OK",
+                            "w_used": w_used,
+                            "p3_rate": p3_rate,
+                            "p_base": p_base,
+                            "pres_min": PRES_MIN,
+                            "top": top[:12],
+                        }
+                    else:
+                        fase6_diag = {"ok": False, "motivo": "SEM_TOP_POSITIVO", "w_used": w_used, "p3_rate": p3_rate, "top": []}
+                else:
+                    fase6_diag = {"ok": False, "motivo": "SEM_HIT3_NA_BASE", "w_used": w_used, "p3_rate": p3_rate, "top": []}
+            else:
+                fase6_diag = {"ok": False, "motivo": "AMOSTRA_INSUFICIENTE", "w_used": w_used, "p3_rate": None, "top": []}
+        else:
+            fase6_diag = {"ok": False, "motivo": "SEM_DF_EVAL_OU_COLUNAS", "w_used": 0, "p3_rate": None, "top": []}
+    except Exception as _e:
+        fase6_ok = False
+        fase6_diag = {"ok": False, "motivo": f"ERRO:{type(_e).__name__}", "w_used": 0, "p3_rate": None, "top": []}
+
+    # Persistência observacional
+    st.session_state["bloco_c_fase6_dir_rank"] = list(nucleo_dir_rank) if isinstance(nucleo_dir_rank, list) else []
+    st.session_state["bloco_c_fase6_dir_diag"] = dict(fase6_diag) if isinstance(fase6_diag, dict) else {}
+
+    # Se Fase 6 estiver OK, ela NÃO cria novos candidatos:
+    # ela só PRIORITIZA a ordem de entrada (candidatos_out) com base no rank direcional.
+    if fase6_ok and isinstance(nucleo_dir_rank, list) and len(nucleo_dir_rank) > 0:
+        try:
+            _set_dir = set([int(v) for v in nucleo_dir_rank])
+            candidatos_out = [x for x in nucleo_dir_rank if x in candidatos_out] + [x for x in candidatos_out if x not in _set_dir]
+            st.session_state["bloco_c_fase6_dir_aplicou_ordem"] = True
+        except Exception:
+            st.session_state["bloco_c_fase6_dir_aplicou_ordem"] = False
+    else:
+        st.session_state["bloco_c_fase6_dir_aplicou_ordem"] = False
+
+
     trocas_nocivos = 0
 
     listas_out = []
