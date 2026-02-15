@@ -993,7 +993,7 @@ st.set_page_config(
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita.py  |  build: BLOCOC_FASE6_v16h14")
+st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita.py  |  build: BLOCOC_FASE6_v16h14_MICRO_ATIVO_SINAL5_SENSOR6  |  fonte: app_v15_7_MAX_com_orbita_BLOCOC_FASE6_v16h14_MICRO_ATIVO_SINAL5_SENSOR6.py")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
@@ -3990,6 +3990,131 @@ def v16_detector_curvatura_sustentada_df_eval(
     }
     return out
 
+
+# ============================================================
+# V16 — GOVERNANÇA CANÔNICA (pré-C4) — MICRO_ATIVO / SINAL_5 / SENSOR_6
+# - NÃO decide
+# - NÃO troca motor
+# - NÃO altera Camada 4
+# - APENAS avisa o operador (auditável)
+# ============================================================
+
+def v16_micro_ativo_compute(ss_ok: bool, prova_obj: dict, janela_w: dict, curv_info: dict) -> dict:
+    """Aviso canônico: 'MICRO_ATIVO' significa que existe base mínima e sinais de 'filme curto' para OBSERVAR e
+    capturar evidência (não para decidir/expor)."""
+    motivos = []
+    micro_ativo = True
+
+    if not ss_ok:
+        micro_ativo = False
+        motivos.append("SS não atingida (base mínima ausente).")
+
+    # Evidência mínima de janela (>=4 observado em base avaliada)
+    if not bool((prova_obj or {}).get("any_4p_seen", False)):
+        micro_ativo = False
+        motivos.append("Sem evidência de janela (any_4p_seen=False).")
+
+    # 'Filme curto' aqui é: janela móvel tem >=4 visto e taxa >=3/>=4 não zerada
+    any_4_w = bool((janela_w or {}).get("any_4p_seen_w", False))
+    rate4_w = float((janela_w or {}).get("rate_4p_w", 0) or 0)
+    rate3_w = float((janela_w or {}).get("rate_3p_w", 0) or 0)
+
+    if not any_4_w:
+        micro_ativo = False
+        motivos.append("Janela móvel sem evidência de >=4 (any_4p_seen_w=False).")
+
+    if rate3_w <= 0:
+        micro_ativo = False
+        motivos.append("rate_3p_w zerado (sem tração mínima no curto).")
+
+    # Curvatura: se o detector diz que NÃO está sustentada, não bloqueia, mas reduz convicção
+    curv_sust = bool((curv_info or {}).get("curvatura_sustentada_recente", False))
+    if not curv_sust:
+        motivos.append("Curvatura sustentada recente = False (alerta: filme curto ainda instável).")
+
+    return {
+        "MICRO_ATIVO": bool(micro_ativo),
+        "motivos": motivos if motivos else ["OK: base mínima + evidência de janela + tração mínima no curto."],
+        "sinais": {
+            "ss_ok": bool(ss_ok),
+            "any_4p_seen": bool((prova_obj or {}).get("any_4p_seen", False)),
+            "any_4p_seen_w": any_4_w,
+            "rate_4p_w": rate4_w,
+            "rate_3p_w": rate3_w,
+            "curvatura_sustentada_recente": curv_sust,
+            "estado_recente": (curv_info or {}).get("estado_recente", None),
+            "dist_desde_ultimo_4": (curv_info or {}).get("dist_desde_ultimo_4", None),
+        },
+        "nota": "Pré-C4 · auditável · não decide · aviso operacional ao operador."
+    }
+
+
+def v16_sinal5_compute(micro_info: dict, janela_w: dict, curv_info: dict) -> dict:
+    """SINAL CANÔNICO DO 5 (aproximação): indica que o curto está com densidade suficiente para COMEÇAR
+    a medir ocorrência de >=5 (não garante >=5)."""
+    motivos = []
+    sinal5 = True
+
+    if not bool((micro_info or {}).get("MICRO_ATIVO", False)):
+        sinal5 = False
+        motivos.append("MICRO_ATIVO=False (não faz sentido falar em aproximação do 5 sem curto 'dirigível').")
+
+    rate4_w = float((janela_w or {}).get("rate_4p_w", 0) or 0)
+    # Limiar conservador: 1.5% no w=60 ~ 1 ocorrência / 60
+    if rate4_w < 0.015:
+        sinal5 = False
+        motivos.append(f"rate_4p_w abaixo do mínimo (rate_4p_w={rate4_w:.4f} < 0.015).")
+
+    dist_ult4 = (curv_info or {}).get("dist_desde_ultimo_4", None)
+    if dist_ult4 is not None and dist_ult4 > 60:
+        sinal5 = False
+        motivos.append(f"Distância desde último >=4 muito alta (dist_desde_ultimo_4={dist_ult4} > 60).")
+
+    curv_sust = bool((curv_info or {}).get("curvatura_sustentada_recente", False))
+    if not curv_sust:
+        motivos.append("Curvatura sustentada recente=False (alerta: aproximação do 5 pode oscilar).")
+
+    return {
+        "SINAL_5": bool(sinal5),
+        "motivos": motivos if motivos else ["OK: curto 'dirigível' + taxa de >=4 no w=60 acima do mínimo."],
+        "sinais": {
+            "rate_4p_w": rate4_w,
+            "dist_desde_ultimo_4": dist_ult4,
+            "curvatura_sustentada_recente": curv_sust,
+            "estado_recente": (curv_info or {}).get("estado_recente", None),
+        },
+        "nota": "Pré-C4 · auditável · não decide · só avisa que estamos em faixa onde >=5 pode começar a aparecer."
+    }
+
+
+def v16_sensor6_compute(micro_info: dict, sinal5_info: dict, janela_w: dict) -> dict:
+    """SENSOR CANÔNICO DO 6 (captura): só acende quando houver evidência objetiva de >=5 no curto.
+    Por definição, ele depende do 5 ter aparecido (rate_5p_w > 0)."""
+    motivos = []
+    sensor6 = True
+
+    if not bool((micro_info or {}).get("MICRO_ATIVO", False)):
+        sensor6 = False
+        motivos.append("MICRO_ATIVO=False.")
+
+    if not bool((sinal5_info or {}).get("SINAL_5", False)):
+        sensor6 = False
+        motivos.append("SINAL_5=False.")
+
+    rate5_w = float((janela_w or {}).get("rate_5p_w", 0) or 0)
+    if rate5_w <= 0:
+        sensor6 = False
+        motivos.append("Sem evidência de >=5 no curto (rate_5p_w=0).")
+
+    return {
+        "SENSOR_6": bool(sensor6),
+        "motivos": motivos if motivos else ["OK: há evidência de >=5 no curto (proxy mínimo para captura do 6)."],
+        "sinais": {
+            "rate_5p_w": rate5_w,
+            "w_used": (janela_w or {}).get("w_used", None),
+        },
+        "nota": "Pré-C4 · auditável · não decide · serve para NÃO deixar a 'banda passar' sem aviso."
+    }
 
 def validar_lista_vs_n_real(lista, n_real):
     return isinstance(lista, (list, tuple)) and len(lista) >= int(n_real)
@@ -11728,250 +11853,159 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
             freq_global = {}
 
     trocas = 0
-    trocas_fase6 = 0
 
     # =========================
-    # BLOCO C — FASE 6 (BLOCOC_FASE6_v16h14): Direcionamento Estrutural do Núcleo (DESN)
+    # BLOCO C — FASE 6 (V16h14): Direcionamento Estrutural do Núcleo (DESN)
     # =========================
-    # Implementação CANÔNICA (pré-C4, auditável, sem motor novo):
-    # - Evento direcional: E = (best_hit >= 4)  [NUNCA >=3]
-    # - Peso estrutural: W(p) = α·L4 + β·T - γ·N - λ·A - μ·FREQ
-    # - Núcleo direcional: Top-m por W(p) (e quase-núcleo)
-    # - Operador Δ: 1 swap controlado por lista (ganho mínimo + freios anti-âncora/anti-rigidez)
+    # Objetivo: quando houver PROVA mínima (df_eval) e SS OK, estimar um "vetor direcional"
+    # de passageiros que aparecem com mais frequência em alvos com hit>=3 (proxy de EXATO),
+    # e empurrar o pacote para incluir esses passageiros em mais listas — SEM depender de nocivos.
     #
-    # Gate de ativação: SS_ok && rows_eval>=60 && any_4p_seen==True
+    # Importante:
+    # - Observacional/auditável: guarda ranking e diagnóstico em session_state.
+    # - Conservador: só atua com amostra suficiente e sinal não-nulo.
+    # - Não inventa motor novo: só reordena candidatos de entrada/saída já existentes.
     fase6_ok = False
-    fase6_params = {"W_DIR": 60, "tau_anc": 0.60, "tau_anc_max": 0.70, "eps": 1.0, "alpha": 1.0, "beta": 0.60, "gamma": 1.0, "lam": 0.40, "mu": 0.30}
-    fase6_diag = {"ok": False, "motivo": "N/D", "w_used": 0, "any_4p_seen": False, "col_hit": None, "top_w": []}
-    w_dir = {}            # dict: passageiro -> W(p)
-    w_rank = []           # lista de passageiros ordenada por W(p) desc
-    nocivos_set = set()
+    fase6_diag = {"ok": False, "motivo": "N/D", "w_used": 0, "p3_rate": None, "top": []}
+    nucleo_dir_rank = []  # lista de passageiros (ints), do mais "direcionador" para o menos
 
     try:
-        # nocivos canônicos do painel ANTI-EXATO (se existir)
-        _noc = st.session_state.get("anti_exato_nocivos_consistentes", []) or []
-        try:
-            nocivos_set = set(int(x) for x in _noc)
-        except Exception:
-            nocivos_set = set()
-
-        ss_info = st.session_state.get("ss_info", {}) or {}
-        ss_ok = bool(ss_info.get("atingida", False) or ss_info.get("ss_ok", False) or ss_info.get("ok", False))
-
         df_eval_local = st.session_state.get("df_eval", None)
         pacotes_reg_local = st.session_state.get("replay_progressivo_pacotes", {}) or {}
 
-        if isinstance(df_eval_local, pd.DataFrame) and not df_eval_local.empty:
-            # coluna de hit canônica (preferência: hit_max -> best_hit -> best_acerto_alvo_1)
-            col_hit = None
-            for c in ("hit_max", "best_hit", "best_acerto_alvo_1"):
-                if c in df_eval_local.columns:
-                    col_hit = c
-                    break
-            fase6_diag["col_hit"] = col_hit
+        # Gate 0: precisa de df_eval com coluna best_acerto_alvo_1 e janela k
+        if isinstance(df_eval_local, pd.DataFrame) and ("best_acerto_alvo_1" in df_eval_local.columns) and ("k_janela" in df_eval_local.columns):
+            # Usar a janela móvel canônica (últimos 60), mas nunca maior que df_eval
+            W_DIR = 60
+            dfw = df_eval_local.tail(W_DIR).copy()
+            w_used = int(len(dfw))
 
-            if col_hit is not None and ("k_janela" in df_eval_local.columns):
-                W_DIR = int(fase6_params["W_DIR"])
-                dfw = df_eval_local.tail(W_DIR).copy()
-                w_used = int(len(dfw))
-                fase6_diag["w_used"] = w_used
+            if w_used >= 12:
+                # Proxy de evento: hit>=3 no alvo 1
+                hits3 = (dfw["best_acerto_alvo_1"].fillna(0).astype(int) >= 3)
+                p3_rate = float(hits3.mean()) if w_used > 0 else 0.0
 
-                if w_used >= W_DIR:
-                    hitv = dfw[col_hit].fillna(0).astype(int)
-                    E = (hitv >= 4)
-                    any4 = bool(E.any())
-                    fase6_diag["any_4p_seen"] = any4
+                # Gate 1: precisa existir pelo menos algum hit>=3 para haver "direção"
+                if p3_rate > 0.0:
+                    # Baseline com Laplace (evita log(0))
+                    alpha = 1.0
+                    p_base = (hits3.sum() + alpha) / (w_used + 2.0 * alpha)
 
-                    # Gate canônico (não inventa): SS_ok + base + evidência de janela
-                    if ss_ok and any4:
-                        # Sinal B: trave por passageiro (fora_perto_nums)
-                        trave_counts = {}
-                        trave_total = 0
-                        # descobrir coluna com fora_perto nums
-                        col_fp = None
-                        for c in ("fora_perto_nums", "fora_perto_list", "fora_perto"):
-                            if c in dfw.columns:
-                                col_fp = c
-                                break
+                    # Contar presença do passageiro no UNIVERSO do pacote (união das listas) por janela
+                    # e correlacionar com hits3. (Não usa o alvo em si; usa o pacote que o gerou.)
+                    A = {}  # p em pacote & hit>=3
+                    B = {}  # p em pacote & hit<3
+                    N_in = {}  # ocorrências em que p aparece no universo do pacote (para debug)
 
-                        for _, r in dfw.iterrows():
-                            fp = None
-                            if col_fp is not None:
-                                fp = r.get(col_fp, None)
-                            if isinstance(fp, (list, tuple)):
-                                nums = []
-                                for x in fp:
-                                    try:
-                                        nums.append(int(x))
-                                    except Exception:
-                                        pass
-                                if nums:
-                                    trave_total += 1
-                                    for p in set(nums):
-                                        trave_counts[p] = trave_counts.get(p, 0) + 1
-
-                        # Sinal A: Lift ≥4 por passageiro (presença no pacote por janela)
-                        total_rows = w_used
-                        total_E = int(E.sum())
-
-                        pres_rows = {}
-                        pres_E = {}
-
-                        # helper para obter pacote por k
-                        def _get_pkg_by_k(k):
-                            try:
-                                if k in pacotes_reg_local:
-                                    return pacotes_reg_local.get(k)
-                                ks = str(int(k))
-                                if ks in pacotes_reg_local:
-                                    return pacotes_reg_local.get(ks)
-                            except Exception:
-                                return None
-                            return None
-
-                        # construir presença por linha (união do pacote daquela janela)
-                        for idx, r in dfw.iterrows():
-                            k = r.get("k_janela", None)
-                            try:
-                                k = int(k)
-                            except Exception:
-                                continue
-                            pkg = _get_pkg_by_k(k)
-                            listas_pkg = None
-                            if isinstance(pkg, dict):
-                                listas_pkg = pkg.get("listas") or pkg.get("pacote") or pkg.get("listas_pacote")
-                            # fallback: se df_eval já tiver universo_pacote, usa como presença (mais fraco, mas válido)
-                            if listas_pkg is None:
-                                listas_pkg = r.get("listas", None) or r.get("universo_pacote", None) or r.get("uni", None)
-
-                            uni = set()
+                    # Pré-carregar universo do pacote por k para não revarrer demais
+                    for _, r in dfw.iterrows():
+                        k_j = int(r.get("k_janela", -1))
+                        if k_j < 0:
+                            continue
+                        pkg = pacotes_reg_local.get(k_j, None)
+                        if not isinstance(pkg, dict):
+                            continue
+                        # pkg["universo_pacote"] é a união do pacote canônico; se não existir, monta a partir das listas
+                        uni = pkg.get("universo_pacote", None)
+                        if not isinstance(uni, (list, tuple, set)) or len(uni) == 0:
+                            listas_pkg = pkg.get("listas", [])
+                            s_uni = set()
                             if isinstance(listas_pkg, list):
                                 for Lp in listas_pkg:
                                     if isinstance(Lp, (list, tuple)):
                                         for v in Lp:
                                             try:
-                                                uni.add(int(v))
+                                                s_uni.add(int(v))
                                             except Exception:
                                                 pass
-                                    else:
-                                        try:
-                                            uni.add(int(Lp))
-                                        except Exception:
-                                            pass
-                            elif isinstance(listas_pkg, (set, tuple)):
-                                for v in listas_pkg:
-                                    try:
-                                        uni.add(int(v))
-                                    except Exception:
-                                        pass
-
-                            if not uni:
-                                continue
-
-                            isE = bool(E.loc[idx]) if idx in E.index else False
-                            for p in uni:
-                                pres_rows[p] = pres_rows.get(p, 0) + 1
-                                if isE:
-                                    pres_E[p] = pres_E.get(p, 0) + 1
-
-                        # construir L4 bruto
-                        eps = float(fase6_params["eps"])
-                        L4 = {}
-                        for p in range(1, int(universo_max) + 1):
-                            n1 = int(pres_rows.get(p, 0))
-                            e1 = int(pres_E.get(p, 0))
-                            n0 = int(total_rows - n1)
-                            e0 = int(total_E - e1)
-                            # Laplace para estabilidade
-                            p1 = (e1 + eps) / (n1 + 2.0 * eps) if (n1 + 2.0 * eps) > 0 else 0.0
-                            p0 = (e0 + eps) / (n0 + 2.0 * eps) if (n0 + 2.0 * eps) > 0 else 0.0
-                            # evita extremos
-                            p1 = min(max(float(p1), 1e-6), 1 - 1e-6)
-                            p0 = min(max(float(p0), 1e-6), 1 - 1e-6)
-                            L4[p] = float(math.log(p1 / p0))
-
-                        # construir T bruto
-                        T = {p: float(trave_counts.get(p, 0)) / float(W_DIR) for p in range(1, int(universo_max) + 1)}
-
-                        # penalidade âncora A e FREQ usando cobertura global do pacote atual (freq_global)
-                        denom_cov = float(max(1, int(n_real) * int(M)))  # M listas, cada uma com n_real
-                        cover = {p: float(freq_global.get(p, 0)) / denom_cov for p in range(1, int(universo_max) + 1)}
-                        tau_anc = float(fase6_params["tau_anc"])
-                        A = {}
-                        FREQ = {}
-                        for p in range(1, int(universo_max) + 1):
-                            cp = float(cover.get(p, 0.0))
-                            FREQ[p] = cp
-                            a = max(0.0, cp - tau_anc)
-                            A[p] = float(a / max(1e-6, (1.0 - tau_anc)))  # normaliza para 0..1
-
-                        # Nocivo (binário)
-                        N = {p: (1.0 if p in nocivos_set else 0.0) for p in range(1, int(universo_max) + 1)}
-
-                        # normalização min-max (robusta)
-                        def _minmax(d):
-                            vals = [float(v) for v in d.values()]
-                            if not vals:
-                                return {k: 0.0 for k in d}
-                            vmin = min(vals)
-                            vmax = max(vals)
-                            if abs(vmax - vmin) < 1e-9:
-                                return {k: 0.0 for k in d}
-                            return {k: (float(v) - vmin) / (vmax - vmin) for k, v in d.items()}
-
-                        L4n = _minmax(L4)
-                        Tn = _minmax(T)
-                        An = _minmax(A)
-                        FREQn = _minmax(FREQ)
-                        # N já é 0/1
-                        alpha = float(fase6_params["alpha"])
-                        beta = float(fase6_params["beta"])
-                        gamma = float(fase6_params["gamma"])
-                        lam = float(fase6_params["lam"])
-                        mu = float(fase6_params["mu"])
-
-                        for p in range(1, int(universo_max) + 1):
-                            w = (alpha * L4n.get(p, 0.0)
-                                 + beta * Tn.get(p, 0.0)
-                                 - gamma * N.get(p, 0.0)
-                                 - lam * An.get(p, 0.0)
-                                 - mu * FREQn.get(p, 0.0))
-                            w_dir[p] = float(w)
-
-                        w_rank = [p for p, _ in sorted(w_dir.items(), key=lambda kv: kv[1], reverse=True)]
-                        fase6_diag["top_w"] = [(int(p), float(w_dir.get(p, 0.0))) for p in w_rank[:15]]
-
-                        fase6_ok = True
-                        fase6_diag["ok"] = True
-                        fase6_diag["motivo"] = "OK"
-                    else:
-                        fase6_diag["ok"] = False
-                        if not ss_ok:
-                            fase6_diag["motivo"] = "SS_NAO_OK"
-                        elif not any4:
-                            fase6_diag["motivo"] = "SEM_EVIDENCIA_4P"
+                            uni = s_uni
                         else:
-                            fase6_diag["motivo"] = "GATE_FALHOU"
-                else:
-                    fase6_diag["motivo"] = "BASE_INSUFICIENTE"
-            else:
-                fase6_diag["motivo"] = "SEM_COLUNAS_CANONICAS"
-        else:
-            fase6_diag["motivo"] = "SEM_DF_EVAL"
-    except Exception:
-        fase6_ok = False
-        fase6_diag["ok"] = False
-        fase6_diag["motivo"] = "ERRO_INTERNO"
+                            uni = set([int(v) for v in uni if str(v).isdigit()])
 
-    # Persistir diagnóstico (auditável)
-    st.session_state["bloco_c_fase6_dir_ok"] = bool(fase6_ok)
-    st.session_state["bloco_c_fase6_dir_params"] = dict(fase6_params)
+                        if not uni:
+                            continue
+
+                        hit3 = bool(int(r.get("best_acerto_alvo_1", 0)) >= 3)
+                        for pnum in uni:
+                            N_in[pnum] = N_in.get(pnum, 0) + 1
+                            if hit3:
+                                A[pnum] = A.get(pnum, 0) + 1
+                            else:
+                                B[pnum] = B.get(pnum, 0) + 1
+
+                    # Montar scores: uplift log-odds vs baseline
+                    scores = []
+                    for pnum, n_in in N_in.items():
+                        a = A.get(pnum, 0)
+                        b = B.get(pnum, 0)
+                        # P(hit3 | p em pacote) com Laplace
+                        p_hit = (a + alpha) / (a + b + 2.0 * alpha)
+                        # logit uplift (baseline -> condicional)
+                        # (evita extremos; baseline também tem Laplace)
+                        import math
+                        def _logit(x):
+                            x = min(max(float(x), 1e-6), 1 - 1e-6)
+                            return math.log(x / (1.0 - x))
+                        uplift = _logit(p_hit) - _logit(p_base)
+                        scores.append((uplift, pnum, n_in, a, b, p_hit))
+
+                    # Ordenar por uplift desc e exigir sinal mínimo
+                    scores.sort(key=lambda t: t[0], reverse=True)
+
+                    # Selecionar topo direcional (positivo) com presença mínima
+                    PRES_MIN = max(6, int(0.10 * w_used))  # pelo menos 10% das janelas, ou 6
+                    top = []
+                    for uplift, pnum, n_in, a, b, p_hit in scores:
+                        if uplift <= 0.0:
+                            break
+                        if n_in < PRES_MIN:
+                            continue
+                        top.append(pnum)
+                        if len(top) >= 18:  # limite canônico: não vira motor novo
+                            break
+
+                    if len(top) > 0:
+                        nucleo_dir_rank = top
+                        fase6_ok = True
+                        fase6_diag = {
+                            "ok": True,
+                            "motivo": "DESN_OK",
+                            "w_used": w_used,
+                            "p3_rate": p3_rate,
+                            "p_base": p_base,
+                            "pres_min": PRES_MIN,
+                            "top": top[:12],
+                        }
+                    else:
+                        fase6_diag = {"ok": False, "motivo": "SEM_TOP_POSITIVO", "w_used": w_used, "p3_rate": p3_rate, "top": []}
+                else:
+                    fase6_diag = {"ok": False, "motivo": "SEM_HIT3_NA_BASE", "w_used": w_used, "p3_rate": p3_rate, "top": []}
+            else:
+                fase6_diag = {"ok": False, "motivo": "AMOSTRA_INSUFICIENTE", "w_used": w_used, "p3_rate": None, "top": []}
+        else:
+            fase6_diag = {"ok": False, "motivo": "SEM_DF_EVAL_OU_COLUNAS", "w_used": 0, "p3_rate": None, "top": []}
+    except Exception as _e:
+        fase6_ok = False
+        fase6_diag = {"ok": False, "motivo": f"ERRO:{type(_e).__name__}", "w_used": 0, "p3_rate": None, "top": []}
+
+    # Persistência observacional
+    st.session_state["bloco_c_fase6_dir_rank"] = list(nucleo_dir_rank) if isinstance(nucleo_dir_rank, list) else []
     st.session_state["bloco_c_fase6_dir_diag"] = dict(fase6_diag) if isinstance(fase6_diag, dict) else {}
-    st.session_state["bloco_c_fase6_w_dir"] = dict(w_dir) if isinstance(w_dir, dict) else {}
-    st.session_state["bloco_c_fase6_w_rank"] = list(w_rank) if isinstance(w_rank, list) else []
+
+    # Se Fase 6 estiver OK, ela NÃO cria novos candidatos:
+    # ela só PRIORITIZA a ordem de entrada (candidatos_out) com base no rank direcional.
+    if fase6_ok and isinstance(nucleo_dir_rank, list) and len(nucleo_dir_rank) > 0:
+        try:
+            _set_dir = set([int(v) for v in nucleo_dir_rank])
+            candidatos_out = [x for x in nucleo_dir_rank if x in candidatos_out] + [x for x in candidatos_out if x not in _set_dir]
+            st.session_state["bloco_c_fase6_dir_aplicou_ordem"] = True
+        except Exception:
+            st.session_state["bloco_c_fase6_dir_aplicou_ordem"] = False
+    else:
+        st.session_state["bloco_c_fase6_dir_aplicou_ordem"] = False
+
 
     trocas_nocivos = 0
-
 
     listas_out = []
     for L in listas:
@@ -12076,63 +12110,12 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
             else:
                 break
 
-
-        # =========================
-        # BLOCO C — FASE 6 (Δ estrutural canônico): 1 swap controlado por lista
-        # =========================
-        if fase6_ok and isinstance(w_dir, dict) and w_dir and isinstance(w_rank, list) and w_rank:
-            try:
-                tau_anc_max = float(fase6_params.get("tau_anc_max", 0.70))
-                denom_cov = float(max(1, int(n_real) * int(M)))
-                cover_rate = {p: float(freq_global.get(p, 0)) / denom_cov for p in range(1, int(universo_max) + 1)}
-
-                # delta mínimo (conservador): percentil 60 do |W|
-                w_abs = sorted([abs(float(v)) for v in w_dir.values()])
-                if w_abs:
-                    idxp = int(0.60 * (len(w_abs) - 1))
-                    delta_min = float(w_abs[idxp])
-                else:
-                    delta_min = 0.0
-
-                # p- (mais fraco na lista)
-                p_minus = min(L_work, key=lambda x: float(w_dir.get(int(x), 0.0)))
-                w_minus = float(w_dir.get(int(p_minus), 0.0))
-
-                p_plus = None
-                w_plus = None
-
-                for cand in w_rank:
-                    if cand in L_work:
-                        continue
-                    if cand in nocivos_set:
-                        continue
-                    if float(cover_rate.get(int(cand), 0.0)) > tau_anc_max:
-                        continue
-                    p_plus = int(cand)
-                    w_plus = float(w_dir.get(int(cand), 0.0))
-                    break
-
-                if p_plus is not None and w_plus is not None:
-                    dS = float(w_plus - w_minus)
-                    if dS >= float(delta_min):
-                        # aplica swap
-                        try:
-                            L_work.remove(int(p_minus))
-                        except Exception:
-                            pass
-                        L_work.append(int(p_plus))
-                        trocas += 1
-                        trocas_fase6 += 1
-            except Exception:
-                pass
-
         listas_out.append(sorted(L_work))
 
     st.session_state['bloco_c_real_diag'].update({
         'aplicado': (trocas > 0),
         'trocas': trocas,
         'trocas_nocivos': trocas_nocivos,
-        'trocas_fase6': trocas_fase6,
         'min_ganho': MIN_GANHO,
     })
 
@@ -12142,7 +12125,6 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
         'listas_ajustadas': listas_out,
         'trocas': trocas,
         'trocas_nocivos': trocas_nocivos,
-        'trocas_fase6': trocas_fase6,
         'diag_key': 'bloco_c_real_diag',
     }
 
@@ -13772,7 +13754,29 @@ if painel == "📘 Relatório Final":
         for ln in linhas:
             st.markdown(f"- {ln}")
 
-        st.caption("Regra canônica: **mapa de hipóteses**, não motor. Mantém pressão evolutiva sem transformar leitura em fé.")
+        # ------------------------------------------------------------
+# V16 — Avisos canônicos (pré-C4) — MICRO_ATIVO / SINAL_5 / SENSOR_6
+# (não decide, não mexe em Camada 4)
+# ------------------------------------------------------------
+try:
+    _ss_ok = bool(ss_ok) if 'ss_ok' in locals() else bool(st.session_state.get("ss_ok", False))
+except Exception:
+    _ss_ok = bool(st.session_state.get("ss_ok", False))
+
+micro_info = v16_micro_ativo_compute(_ss_ok, prova_obj, window_info, curv_info)
+sinal5_info = v16_sinal5_compute(micro_info, window_info, curv_info)
+sensor6_info = v16_sensor6_compute(micro_info, sinal5_info, window_info)
+
+st.markdown("🎬 **MICRO_ATIVO — Aviso Canônico (pré‑C4 · auditável)**")
+st.json(micro_info)
+
+st.markdown("🟠 **SINAL_5 — Aproximação do ≥5 (pré‑C4 · auditável)**")
+st.json(sinal5_info)
+
+st.markdown("🧩 **SENSOR_6 — Captura do ≥6 (pré‑C4 · auditável)**")
+st.json(sensor6_info)
+
+st.caption("Regra canônica: **mapa de hipóteses**, não motor. Mantém pressão evolutiva sem transformar leitura em fé.")
     except Exception:
         # falha silenciosa (não derruba o RF)
         pass
