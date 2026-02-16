@@ -16640,6 +16640,7 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
     st.markdown("\n".join(comentario_regime))
 
     st.success("Painel V16 Premium Profundo executado com sucesso!")
+    st.stop()
 
 # ======================================================================
 # 📊 V16 PREMIUM — PRÉ-ECO | CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
@@ -18423,7 +18424,7 @@ if painel == "🎯 Compressão do Alvo — Observacional (V16)":
     st.stop()
 
 if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
-    v16_painel_premium_profundo()
+    st.info('Painel Premium Profundo já foi executado acima.'); st.stop()
     st.stop()
 
 # ============================================================
