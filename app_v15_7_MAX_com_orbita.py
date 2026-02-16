@@ -11321,6 +11321,122 @@ def v16_anti_exato_obter_nocivos_consistentes_silent(df_base, col_pass, W=60, AL
         return []
 
 
+def v16_anti_exato_calcular_lambda_star_silent(
+    df_base,
+    col_pass="passageiro",
+    col_lista="lista",
+    col_hitmax="hit_max",
+    win=60,
+    alpha=1.0,
+    amin=12,
+    bmin=40,
+    evento_principal="hit3",
+    evento_suporte="hit2",
+):
+    """
+    λ* (lambda_star) — força CANÔNICA da penalidade de nocivos no W(p), calibrada SOMENTE em df_eval/SAFE.
+
+    - Pré-C4, observacional/auditável.
+    - Não decide volume.
+    - Não altera Camada 4 diretamente; só fornece um escalar (0..1) para modular a penalidade.
+
+    Intuição:
+    - Se os passageiros marcados como NOCIVO CONSISTENTE mostram uma queda robusta de probabilidade do evento-alvo,
+      então λ* sobe (penalidade mais aplicada).
+    - Se a evidência é fraca/instável, λ* cai (penalidade atenua, evitando overfit).
+    """
+    try:
+        if df_base is None or len(df_base) == 0:
+            return {
+                "lambda_star": 0.0,
+                "n_nocivos": 0,
+                "sev_mean": 0.0,
+                "nota": "sem base",
+            }
+
+        # recorte canônico: últimos 'win' alvos do SAFE
+        dfw = df_base.copy()
+        if "k_base" in dfw.columns:
+            dfw = dfw.sort_values("k_base")
+        if win and len(dfw) > int(win):
+            dfw = dfw.tail(int(win))
+
+        # reaproveita o classificador canônico para obter a lista de nocivos
+        nocivos, _stats_tbl = v16_anti_exato_obter_nocivos_consistentes_silent(
+            dfw,
+            col_pass=col_pass,
+            col_lista=col_lista,
+            col_hitmax=col_hitmax,
+            alpha=alpha,
+            amin=amin,
+            bmin=bmin,
+            evento_principal=evento_principal,
+            evento_suporte=evento_suporte,
+        )
+        nocivos = list(nocivos) if nocivos else []
+        if len(nocivos) == 0:
+            return {
+                "lambda_star": 0.0,
+                "n_nocivos": 0,
+                "sev_mean": 0.0,
+                "nota": "sem nocivos consistentes",
+            }
+
+        # severidade = queda relativa do evento_principal quando o passageiro está no pacote
+        sevs = []
+        for p in nocivos:
+            s = v16_anti_exato_stats_passageiro_laplace(
+                dfw,
+                p,
+                col_pass=col_pass,
+                col_lista=col_lista,
+                col_hitmax=col_hitmax,
+                alpha=alpha,
+                evento_principal=evento_principal,
+                evento_suporte=evento_suporte,
+            )
+            # p0: P(evento | ausente), p1: P(evento | presente)
+            p0 = float(s.get("p0_h3", 0.0))
+            p1 = float(s.get("p1_h3", 0.0))
+            if p0 <= 1e-12:
+                continue
+            sev = (p0 - p1) / max(p0, 1e-12)
+            if sev > 0:
+                sevs.append(min(1.0, max(0.0, sev)))
+
+        if len(sevs) == 0:
+            return {
+                "lambda_star": 0.0,
+                "n_nocivos": len(nocivos),
+                "sev_mean": 0.0,
+                "nota": "nocivos sem severidade mensurável",
+            }
+
+        sev_mean = float(sum(sevs) / len(sevs))
+
+        # fator de massa: quanto mais perto de 'win' cheio, mais confiável.
+        mass = min(1.0, float(len(dfw)) / float(max(1, int(win))))
+
+        # λ* canônico (0..1)
+        lambda_star = min(1.0, max(0.0, sev_mean * mass))
+
+        return {
+            "lambda_star": float(lambda_star),
+            "n_nocivos": int(len(nocivos)),
+            "sev_mean": float(sev_mean),
+            "mass": float(mass),
+            "nota": "λ* = sev_mean × massa",
+        }
+    except Exception:
+        return {
+            "lambda_star": 0.0,
+            "n_nocivos": 0,
+            "sev_mean": 0.0,
+            "nota": "erro interno (SAFE)",
+        }
+
+
+
 def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None, v9_memoria_info=None):
     """
     BLOCO C (REAL) — Descompressão Estrutural (canônico, sem opção)
@@ -11471,6 +11587,38 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
         nocivos_set = set(int(x) for x in (nocivos or []))
     except Exception:
         nocivos_set = set()
+    # ------------------------------------------------------------
+    # λ* (lambda_star) — força canônica da penalidade de nocivos no W(p)
+    # - calculada SOMENTE com base SAFE (df_eval), pré-C4, auditável
+    # - NÃO decide nada; apenas modula a penalidade (evita overfit em base fraca)
+    # ------------------------------------------------------------
+    lambda_star_info = {"lambda_star": 0.0}
+    try:
+        df_eval_safe = st.session_state.get("df_eval_safe")
+        if df_eval_safe is not None and len(df_eval_safe) > 0:
+            # usa o mesmo col_pass do anti-exato (o do pipeline), quando disponível
+            col_pass_anti = st.session_state.get("pipeline_col_pass") or pcols
+            lambda_star_info = v16_anti_exato_calcular_lambda_star_silent(
+                df_eval_safe,
+                col_pass=col_pass_anti,
+                win=60,
+                alpha=1.0,
+                amin=12,
+                bmin=40,
+                evento_principal="hit3",
+                evento_suporte="hit2",
+            )
+    except Exception:
+        lambda_star_info = {"lambda_star": 0.0}
+
+    lambda_star = 0.0
+    try:
+        lambda_star = float(lambda_star_info.get("lambda_star", 0.0) or 0.0)
+    except Exception:
+        lambda_star = 0.0
+
+    # guarda para governança/relatórios (pré-C4)
+    st.session_state["lambda_star"] = lambda_star
 
     # ------------------------------------------------------------
     # BLOCO C (FASE 3) — Sustentar fresta sem depender de nocivos
@@ -11939,7 +12087,15 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
                             w_dir[p] = float(w)
 
                         # WCALIB — penaliza passageiros nocivos (do ANTI‑EXATO) dentro do W(p), sem decisão (pré‑C4)
-                        WCALIB_PENALTY_NOCIVO = 0.75  # 0..1 (quanto menor, mais punição)
+                        WCALIB_PENALTY_NOCIVO_BASE = 0.75  # 0..1 (quanto menor, mais punição)
+                        # λ* (0..1) modula a aplicação da penalidade (SAFE). λ*=0 → não penaliza; λ*=1 → penalidade plena.
+                        try:
+                            _lam = float(st.session_state.get("lambda_star", 0.0) or 0.0)
+                        except Exception:
+                            _lam = 0.0
+                        _lam = min(1.0, max(0.0, _lam))
+                        WCALIB_PENALTY_NOCIVO = (1.0 - _lam) * 1.0 + _lam * float(WCALIB_PENALTY_NOCIVO_BASE)
+                        WCALIB_PENALTY_NOCIVO = min(1.0, max(0.40, WCALIB_PENALTY_NOCIVO))
                         if nocivos_set:
                             for _p in list(w_dir.keys()):
                                 if _p in nocivos_set:
