@@ -252,6 +252,168 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
 
 import math
 
+def pc_v16_mc_observacional_pacote_pre_c4(
+    *,
+    modo6_listas_totais,
+    modo6_listas_top10,
+    historico_df_full,
+    nocivos_consistentes=None,
+    w_alvos: int = 60,
+    sims: int = 200,
+) -> dict:
+    """MC Observacional do Pacote (pré-C4)
+    Objetivo: medir (sem decisão e sem alterar listas) se rigidez/overlap e nocivos
+    estão estatisticamente derrubando a chance de ≥3/≥4 no filme curto.
+
+    Regras: sem novos botões/controles; parâmetros fixos e auditáveis.
+    """
+    nocivos_consistentes = set(nocivos_consistentes or [])
+    # --- alvos reais (últimos W) ---
+    df = historico_df_full.copy()
+    # tenta detectar colunas com 6 números
+    cols_nums = [c for c in df.columns if isinstance(c, str) and c.lower() in ["n1","n2","n3","n4","n5","n6","a","b","c","d","e","f"]]
+    if len(cols_nums) >= 6:
+        cols_nums = cols_nums[:6]
+        alvos = df[cols_nums].tail(w_alvos).values.tolist()
+    else:
+        # fallback: procurar coluna 'nums'/'lista' com iterável
+        col_cand = None
+        for c in df.columns:
+            if str(c).lower() in ["nums","numeros","lista","sorteio","target","alvo"]:
+                col_cand = c
+                break
+        if col_cand is None:
+            raise ValueError("Histórico não possui colunas de números reconhecíveis para MC.")
+        alvos = []
+        for v in df[col_cand].tail(w_alvos).tolist():
+            if isinstance(v, (list, tuple)) and len(v) >= 6:
+                alvos.append(list(v)[:6])
+            else:
+                s = str(v)
+                nums = [int(x) for x in re.findall(r"\d+", s)]
+                if len(nums) >= 6:
+                    alvos.append(nums[:6])
+        if not alvos:
+            raise ValueError("Não foi possível extrair alvos (últimos W) do histórico para MC.")
+
+    # --- avaliador ---
+    def eval_pacote(pacote_listas):
+        bests = []
+        hit3 = 0
+        hit4 = 0
+        for alvo in alvos:
+            bh = _pc_melhor_hit_do_pacote(alvo, pacote_listas)
+            bests.append(bh)
+            if bh >= 3:
+                hit3 += 1
+            if bh >= 4:
+                hit4 += 1
+        n = max(1, len(alvos))
+        return {
+            "avg_best": float(sum(bests) / n),
+            "rate_3p": float(hit3 / n),
+            "rate_4p": float(hit4 / n),
+            "max_best": int(max(bests) if bests else 0),
+        }
+
+    # --- métricas de rigidez (simples, auditáveis) ---
+    def rigidez(pacote_listas):
+        if not pacote_listas:
+            return {"ov_mean": 0.0, "core_sz": 0, "frac_colados": 0.0}
+        L = len(pacote_listas)
+        ovs = []
+        for i in range(L):
+            si = set(pacote_listas[i])
+            for j in range(i + 1, L):
+                sj = set(pacote_listas[j])
+                ovs.append(len(si & sj))
+        ov_mean = float(sum(ovs) / max(1, len(ovs)))
+        freq = {}
+        for li in pacote_listas:
+            for p in li:
+                freq[p] = freq.get(p, 0) + 1
+        core = [p for p, f in freq.items() if f / L >= 0.6]
+        frac_colados = float(sum(1 for x in ovs if x >= 3) / max(1, len(ovs)))
+        return {"ov_mean": ov_mean, "core_sz": len(core), "frac_colados": frac_colados, "core": sorted(core)}
+
+    def nocivo_share(pacote_listas):
+        if not pacote_listas or not nocivos_consistentes:
+            return 0.0
+        flat = [p for li in pacote_listas for p in li]
+        return float(sum(1 for p in flat if p in nocivos_consistentes) / max(1, len(flat)))
+
+    baseline = list(modo6_listas_top10 or [])
+    baseline_eval = eval_pacote(baseline)
+    baseline_rig = rigidez(baseline)
+    baseline_noc = nocivo_share(baseline)
+
+    def sim_diversificado(cap_pct: float):
+        rates4 = []
+        rates3 = []
+        avgs = []
+        ovm = []
+        noc = []
+        for s in range(sims):
+            random.seed(1337 + s)
+            try:
+                out = pc_resp_aplicar_diversificacao(
+                    listas_totais=modo6_listas_totais,
+                    listas_top10=modo6_listas_top10,
+                    universo=None,
+                    cap_pct=cap_pct,
+                    seed=1337 + s,
+                )
+                pacote = out.get("listas_top10_final") or out.get("top10_final") or out.get("listas_top10") or baseline
+            except Exception:
+                pacote = baseline
+            ev = eval_pacote(pacote)
+            rg = rigidez(pacote)
+            rates4.append(ev["rate_4p"])
+            rates3.append(ev["rate_3p"])
+            avgs.append(ev["avg_best"])
+            ovm.append(rg["ov_mean"])
+            noc.append(nocivo_share(pacote))
+        def q(a, p):
+            a2 = sorted(a)
+            if not a2:
+                return None
+            k = int(round((len(a2) - 1) * p))
+            k = max(0, min(len(a2) - 1, k))
+            return float(a2[k])
+        return {
+            "cap_pct": cap_pct,
+            "rate_4p_mean": float(sum(rates4)/max(1,len(rates4))),
+            "rate_4p_p10": q(rates4, 0.10),
+            "rate_4p_p90": q(rates4, 0.90),
+            "rate_3p_mean": float(sum(rates3)/max(1,len(rates3))),
+            "avg_best_mean": float(sum(avgs)/max(1,len(avgs))),
+            "ov_mean_mean": float(sum(ovm)/max(1,len(ovm))),
+            "nocivo_share_mean": float(sum(noc)/max(1,len(noc))),
+        }
+
+    scen_loose = sim_diversificado(0.60)
+    scen_tight = sim_diversificado(0.85)
+
+    delta_4p_pp = (scen_loose["rate_4p_mean"] - baseline_eval["rate_4p"]) * 100.0
+    rigidez_matando = (
+        (delta_4p_pp >= 0.5)
+        and (scen_loose["ov_mean_mean"] < baseline_rig["ov_mean"])
+        and (scen_loose["nocivo_share_mean"] <= baseline_noc + 1e-9)
+    )
+
+    return {
+        "w_alvos": int(len(alvos)),
+        "sims": int(sims),
+        "baseline": {**baseline_eval, **baseline_rig, "nocivo_share": baseline_noc},
+        "scenario_loose": scen_loose,
+        "scenario_tight": scen_tight,
+        "rigidez_matando": bool(rigidez_matando),
+        "delta_4p_pp_loose_vs_base": float(delta_4p_pp),
+        "nota": "Pré-C4 · Observacional · Não altera listas · Parâmetros fixos (W=60, sims=200).",
+    }
+
+
+
 def pc_resp_memoria_estrutural_from_snapshots(snapshot_p0_canonic, lookback: int = 25, top_n: int = 8, min_lists: int = 5):
     """Memória Estrutural do RESPIRÁVEL (pré-C4, auditável, sem motor novo).
 
@@ -11417,6 +11579,15 @@ def v16_anti_exato_calcular_lambda_star_silent(
         # fator de massa: quanto mais perto de 'win' cheio, mais confiável.
         mass = min(1.0, float(len(dfw)) / float(max(1, int(win))))
 
+
+        faltam = int(max(0, int(win) - int(len(dfw))))
+        # Fase de estabilização do λ*: quanto mais massa (janela preenchida), mais confiável o sinal
+        if mass >= 0.85:
+            fase = "ESTAVEL"
+        elif mass >= 0.50:
+            fase = "ESTABILIZANDO"
+        else:
+            fase = "INICIAL"
         # λ* canônico (0..1)
         lambda_star = min(1.0, max(0.0, sev_mean * mass))
 
@@ -11425,6 +11596,10 @@ def v16_anti_exato_calcular_lambda_star_silent(
             "n_nocivos": int(len(nocivos)),
             "sev_mean": float(sev_mean),
             "mass": float(mass),
+            "fase": str(fase),
+            "faltam": int(faltam),
+            "win": int(win),
+            "dfw_len": int(len(dfw)),
             "nota": "λ* = sev_mean × massa",
         }
     except Exception:
@@ -11611,13 +11786,61 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
     except Exception:
         lambda_star_info = {"lambda_star": 0.0}
 
-    lambda_star = 0.0
+    lambda_star_raw = 0.0
     try:
-        lambda_star = float(lambda_star_info.get("lambda_star", 0.0) or 0.0)
+        lambda_star_raw = float(lambda_star_info.get("lambda_star", 0.0) or 0.0)
     except Exception:
-        lambda_star = 0.0
+        lambda_star_raw = 0.0
+
+    # ------------------------------------------------------------
+    # FASE DE ESTABILIZAÇÃO DO λ (lambda_star) — sem bifurcar
+    # Objetivo: impedir "salto" de penalidade quando a base SAFE ainda é fraca.
+    # - Fase vem do cálculo (massa ex-post da janela).
+    # - Aplicamos:
+    #   (a) fator de rampa por fase (INICIAL/TRANSICAO/ESTAVEL)
+    #   (b) suavização + limite de variação por rodada (clamp)
+    # Tudo pré-C4, auditável, e só modula o peso — não decide nada.
+    # ------------------------------------------------------------
+    fase_estab = (lambda_star_info or {}).get("fase_estabilizacao", "INICIAL")
+    if fase_estab == "ESTAVEL":
+        fator_fase = 1.00
+    elif fase_estab == "TRANSICAO":
+        fator_fase = 0.60
+    else:
+        fator_fase = 0.25
+
+    lambda_star_target = float(max(0.0, lambda_star_raw) * fator_fase)
+
+    # suavização canônica (estado de sessão): evita bagunçar o pacote por um único snapshot
+    prev = st.session_state.get("lambda_star_smooth")
+    try:
+        prev = float(prev) if prev is not None else None
+    except Exception:
+        prev = None
+
+    # limite de variação por rodada (anti-salto)
+    DELTA_MAX = 0.25
+    BETA = 0.50  # 0.5 = meio caminho por rodada (simples e estável)
+
+    if prev is None:
+        lambda_star_smooth = lambda_star_target
+    else:
+        delta = lambda_star_target - prev
+        if delta > DELTA_MAX:
+            delta = DELTA_MAX
+        elif delta < -DELTA_MAX:
+            delta = -DELTA_MAX
+        stepped = prev + delta
+        lambda_star_smooth = (BETA * prev) + ((1.0 - BETA) * stepped)
 
     # guarda para governança/relatórios (pré-C4)
+    st.session_state["lambda_star_raw"] = lambda_star_raw
+    st.session_state["lambda_star_target"] = lambda_star_target
+    st.session_state["lambda_star_smooth"] = lambda_star_smooth
+    st.session_state["lambda_star_fase"] = fase_estab
+
+    # valor efetivo para o BLOCO C (FASE 6 / W(p))
+    lambda_star = float(lambda_star_smooth)
     st.session_state["lambda_star"] = lambda_star
 
     # ------------------------------------------------------------
@@ -13944,6 +14167,19 @@ if painel == "📘 Relatório Final":
             "dist_desde_ultimo_4": curv.get("dist_desde_ultimo_4"),
         },
     }
+    # λ* — fase de estabilização (pré‑C4, informativo)
+    _lambda_info = st.session_state.get("lambda_star_info")
+    if isinstance(_lambda_info, dict) and _lambda_info:
+        micro_payload["lambda_star"] = {
+            "lambda_star_eff": st.session_state.get("lambda_star"),
+            "lambda_star_raw": st.session_state.get("lambda_star_raw"),
+            "lambda_star_target": st.session_state.get("lambda_star_target"),
+            "fase_estabilizacao": _lambda_info.get("fase_estabilizacao", "N/D"),
+            "mass": _lambda_info.get("mass"),
+            "win": _lambda_info.get("win"),
+            "faltam": _lambda_info.get("faltam"),
+        }
+
 
     st.markdown("### 🚥 MICRO_ATIVO · SINAL_5 · SENSOR_6 (pré‑C4 · governança)")
     if sensor6:
@@ -13955,6 +14191,21 @@ if painel == "📘 Relatório Final":
     else:
         st.warning("MICRO_ATIVO: NÃO (sem evidência local suficiente no filme curto).")
     st.json(micro_payload, expanded=False)
+    # ALERTA: λ* em estabilização (não é erro; é maturação de janela)
+    try:
+        _li = st.session_state.get("lambda_star_info") or {}
+        _fase = str(_li.get("fase_estabilizacao", "")) or str(st.session_state.get("lambda_star_fase",""))
+        if _fase in ("INICIAL", "TRANSICAO"):
+            _mass = _li.get("mass", None)
+            _faltam = _li.get("faltam", None)
+            _win = _li.get("win", None)
+            _raw = st.session_state.get("lambda_star_raw")
+            _tgt = st.session_state.get("lambda_star_target")
+            _eff = st.session_state.get("lambda_star")
+            st.info(f"λ* em fase de estabilização: fase={_fase} · massa={_mass} · faltam={_faltam} (meta win={_win}) · raw={_raw} · target={_tgt} · eff={_eff}. Use como indício, não como certeza.")
+    except Exception:
+        pass
+
 
     # guardar para outros painéis (sem acoplar em decisão)
     st.session_state["micro_ativo_info"] = micro_payload
@@ -16930,7 +17181,8 @@ if "painel" in locals() and painel == "📊 V16 Premium — PRÉ-ECO | Contribui
 # ============================================================
 if painel == "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos":
 
-    st.title("📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos Consistentes")
+    st.title("📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos Consistentes",
+    "🧪 MC Observacional do Pacote (pré-C4) — Rigidez × Nocivos × λ*")
     st.caption(
         "Observacional • Retrospectivo • Objetivo\n"
         "Identifica passageiros que REDUZEM a chance de EXATO (≥2 / ≥3).\n"
@@ -18180,6 +18432,95 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 
 
 
+
+
+elif painel == "🧪 MC Observacional do Pacote (pré-C4) — Rigidez × Nocivos × λ*":
+    st.header("🧪 MC Observacional do Pacote (pré‑C4)")
+    st.caption("Auditável • Observacional • Não decide nada • Não altera listas • Sem botões/controles (parâmetros fixos).")
+
+    modo6_listas_totais = st.session_state.get("modo6_listas_totais", [])
+    modo6_listas_top10 = st.session_state.get("modo6_listas_top10", [])
+    historico_df_full = st.session_state.get("historico_df_full")
+    nocivos = st.session_state.get("anti_exato_nocivos_consistentes", [])
+
+    if historico_df_full is None or historico_df_full is False:
+        st.warning("Histórico não está disponível nesta sessão. Rode: 📥 Carregar Histórico → Pipeline/Modo 6 e depois volte aqui.")
+    elif not modo6_listas_top10:
+        st.warning("Ainda não há Top 10 do Modo 6 nesta sessão. Rode o Modo 6 e depois volte aqui.")
+    else:
+        try:
+            mc = pc_v16_mc_observacional_pacote_pre_c4(
+                modo6_listas_totais=modo6_listas_totais,
+                modo6_listas_top10=modo6_listas_top10,
+                historico_df_full=historico_df_full,
+                nocivos_consistentes=nocivos,
+                w_alvos=60,
+                sims=200,
+            )
+
+            st.subheader("📌 Resultado (W=60, sims=200)")
+            st.json({
+                "rigidez_matando": mc.get("rigidez_matando"),
+                "delta_4p_pp_loose_vs_base": round(mc.get("delta_4p_pp_loose_vs_base", 0.0), 3),
+                "nota": mc.get("nota"),
+            })
+
+            base = mc["baseline"]
+            loose = mc["scenario_loose"]
+            tight = mc["scenario_tight"]
+
+            rows = [
+                {
+                    "Cenário": "BASE (Top10 atual)",
+                    "avg_best": round(base["avg_best"], 4),
+                    "rate_3p(%)": round(base["rate_3p"] * 100, 2),
+                    "rate_4p(%)": round(base["rate_4p"] * 100, 2),
+                    "ov_mean": round(base["ov_mean"], 3),
+                    "core_sz": int(base["core_sz"]),
+                    "nocivo_share(%)": round(base["nocivo_share"] * 100, 2),
+                },
+                {
+                    "Cenário": "LOOSE (cap_pct=0.60)",
+                    "avg_best": round(loose["avg_best_mean"], 4),
+                    "rate_3p(%)": round(loose["rate_3p_mean"] * 100, 2),
+                    "rate_4p(%)": round(loose["rate_4p_mean"] * 100, 2),
+                    "ov_mean": round(loose["ov_mean_mean"], 3),
+                    "core_sz": "—",
+                    "nocivo_share(%)": round(loose["nocivo_share_mean"] * 100, 2),
+                },
+                {
+                    "Cenário": "TIGHT (cap_pct=0.85)",
+                    "avg_best": round(tight["avg_best_mean"], 4),
+                    "rate_3p(%)": round(tight["rate_3p_mean"] * 100, 2),
+                    "rate_4p(%)": round(tight["rate_4p_mean"] * 100, 2),
+                    "ov_mean": round(tight["ov_mean_mean"], 3),
+                    "core_sz": "—",
+                    "nocivo_share(%)": round(tight["nocivo_share_mean"] * 100, 2),
+                },
+            ]
+
+            try:
+                import pandas as pd
+                st.dataframe(pd.DataFrame(rows), use_container_width=True)
+            except Exception:
+                st.write(rows)
+
+            st.subheader("🧭 Leitura canônica (sem decisão)")
+            if mc.get("rigidez_matando"):
+                st.success("EVIDÊNCIA: reduzir overlap (rigidez) tende a subir ≥4 no filme curto — rigidez é gargalo real nesta base.")
+                st.write("Linha mestra: isso NÃO muda motor e NÃO cria modo. É governança interna do pacote (diversidade/overlap) + calibração fina do λ* já existente.")
+            else:
+                st.info("SEM evidência forte de que overlap está derrubando ≥4 nesta base (com os parâmetros fixos do MC).")
+                st.write("Linha mestra: seguimos na calibração/estabilização do λ* + monitoramento de nocivos, usando este MC apenas como auditoria.")
+
+            st.subheader("🔁 O que fazer com isso (sem bagunçar)")
+            st.markdown("""
+- **Se `rigidez_matando = true`**: próximo passo dentro da linha mestra é **ajustar a regra interna de diversidade/overlap** do pacote (pré‑C4), mudando **apenas** o teto de overlap da diversificação (sem novo botão, sem novo modo).
+- **Se `rigidez_matando = false`**: manter o teto atual e focar em **λ\*** (nocivos) + checar se o pacote está carregando veneno no Top10.
+- Este painel **não prediz C2974**; ele mede qual trava (rigidez vs veneno) está mais provável impedir o **4º** de entrar.
+""")
+        except Exception as e:
+            st.error(f"Falha ao rodar MC observacional: {e}")
 
 
 elif painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
