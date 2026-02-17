@@ -11417,6 +11417,15 @@ def v16_anti_exato_calcular_lambda_star_silent(
         # fator de massa: quanto mais perto de 'win' cheio, mais confiável.
         mass = min(1.0, float(len(dfw)) / float(max(1, int(win))))
 
+
+        faltam = int(max(0, int(win) - int(len(dfw))))
+        # Fase de estabilização do λ*: quanto mais massa (janela preenchida), mais confiável o sinal
+        if mass >= 0.85:
+            fase = "ESTAVEL"
+        elif mass >= 0.50:
+            fase = "ESTABILIZANDO"
+        else:
+            fase = "INICIAL"
         # λ* canônico (0..1)
         lambda_star = min(1.0, max(0.0, sev_mean * mass))
 
@@ -11425,6 +11434,10 @@ def v16_anti_exato_calcular_lambda_star_silent(
             "n_nocivos": int(len(nocivos)),
             "sev_mean": float(sev_mean),
             "mass": float(mass),
+            "fase": str(fase),
+            "faltam": int(faltam),
+            "win": int(win),
+            "dfw_len": int(len(dfw)),
             "nota": "λ* = sev_mean × massa",
         }
     except Exception:
@@ -11611,13 +11624,61 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
     except Exception:
         lambda_star_info = {"lambda_star": 0.0}
 
-    lambda_star = 0.0
+    lambda_star_raw = 0.0
     try:
-        lambda_star = float(lambda_star_info.get("lambda_star", 0.0) or 0.0)
+        lambda_star_raw = float(lambda_star_info.get("lambda_star", 0.0) or 0.0)
     except Exception:
-        lambda_star = 0.0
+        lambda_star_raw = 0.0
+
+    # ------------------------------------------------------------
+    # FASE DE ESTABILIZAÇÃO DO λ (lambda_star) — sem bifurcar
+    # Objetivo: impedir "salto" de penalidade quando a base SAFE ainda é fraca.
+    # - Fase vem do cálculo (massa ex-post da janela).
+    # - Aplicamos:
+    #   (a) fator de rampa por fase (INICIAL/TRANSICAO/ESTAVEL)
+    #   (b) suavização + limite de variação por rodada (clamp)
+    # Tudo pré-C4, auditável, e só modula o peso — não decide nada.
+    # ------------------------------------------------------------
+    fase_estab = (lambda_star_info or {}).get("fase_estabilizacao", "INICIAL")
+    if fase_estab == "ESTAVEL":
+        fator_fase = 1.00
+    elif fase_estab == "TRANSICAO":
+        fator_fase = 0.60
+    else:
+        fator_fase = 0.25
+
+    lambda_star_target = float(max(0.0, lambda_star_raw) * fator_fase)
+
+    # suavização canônica (estado de sessão): evita bagunçar o pacote por um único snapshot
+    prev = st.session_state.get("lambda_star_smooth")
+    try:
+        prev = float(prev) if prev is not None else None
+    except Exception:
+        prev = None
+
+    # limite de variação por rodada (anti-salto)
+    DELTA_MAX = 0.25
+    BETA = 0.50  # 0.5 = meio caminho por rodada (simples e estável)
+
+    if prev is None:
+        lambda_star_smooth = lambda_star_target
+    else:
+        delta = lambda_star_target - prev
+        if delta > DELTA_MAX:
+            delta = DELTA_MAX
+        elif delta < -DELTA_MAX:
+            delta = -DELTA_MAX
+        stepped = prev + delta
+        lambda_star_smooth = (BETA * prev) + ((1.0 - BETA) * stepped)
 
     # guarda para governança/relatórios (pré-C4)
+    st.session_state["lambda_star_raw"] = lambda_star_raw
+    st.session_state["lambda_star_target"] = lambda_star_target
+    st.session_state["lambda_star_smooth"] = lambda_star_smooth
+    st.session_state["lambda_star_fase"] = fase_estab
+
+    # valor efetivo para o BLOCO C (FASE 6 / W(p))
+    lambda_star = float(lambda_star_smooth)
     st.session_state["lambda_star"] = lambda_star
 
     # ------------------------------------------------------------
@@ -13944,6 +14005,19 @@ if painel == "📘 Relatório Final":
             "dist_desde_ultimo_4": curv.get("dist_desde_ultimo_4"),
         },
     }
+    # λ* — fase de estabilização (pré‑C4, informativo)
+    _lambda_info = st.session_state.get("lambda_star_info")
+    if isinstance(_lambda_info, dict) and _lambda_info:
+        micro_payload["lambda_star"] = {
+            "lambda_star_eff": st.session_state.get("lambda_star"),
+            "lambda_star_raw": st.session_state.get("lambda_star_raw"),
+            "lambda_star_target": st.session_state.get("lambda_star_target"),
+            "fase_estabilizacao": _lambda_info.get("fase_estabilizacao", "N/D"),
+            "mass": _lambda_info.get("mass"),
+            "win": _lambda_info.get("win"),
+            "faltam": _lambda_info.get("faltam"),
+        }
+
 
     st.markdown("### 🚥 MICRO_ATIVO · SINAL_5 · SENSOR_6 (pré‑C4 · governança)")
     if sensor6:
@@ -13955,6 +14029,21 @@ if painel == "📘 Relatório Final":
     else:
         st.warning("MICRO_ATIVO: NÃO (sem evidência local suficiente no filme curto).")
     st.json(micro_payload, expanded=False)
+    # ALERTA: λ* em estabilização (não é erro; é maturação de janela)
+    try:
+        _li = st.session_state.get("lambda_star_info") or {}
+        _fase = str(_li.get("fase_estabilizacao", "")) or str(st.session_state.get("lambda_star_fase",""))
+        if _fase in ("INICIAL", "TRANSICAO"):
+            _mass = _li.get("mass", None)
+            _faltam = _li.get("faltam", None)
+            _win = _li.get("win", None)
+            _raw = st.session_state.get("lambda_star_raw")
+            _tgt = st.session_state.get("lambda_star_target")
+            _eff = st.session_state.get("lambda_star")
+            st.info(f"λ* em fase de estabilização: fase={_fase} · massa={_mass} · faltam={_faltam} (meta win={_win}) · raw={_raw} · target={_tgt} · eff={_eff}. Use como indício, não como certeza.")
+    except Exception:
+        pass
+
 
     # guardar para outros painéis (sem acoplar em decisão)
     st.session_state["micro_ativo_info"] = micro_payload
