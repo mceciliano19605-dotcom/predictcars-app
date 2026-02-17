@@ -4769,6 +4769,7 @@ def construir_navegacao_v157() -> str:
         "🔁 Replay ULTRA",
                 "🧭 Replay Progressivo — Janela Móvel (Assistido)",
         "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo",
+        "🧪 MC Observacional do Pacote (pré-C4)",
         "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)",
         "📡 CAP — Calibração Assistida da Parabólica (pré-C4)",
     "🧪 P2 — Hipóteses de Família (pré-C4)",
@@ -6680,6 +6681,152 @@ def m3_painel_expectativa_historica_contexto():
 # ============================================================
 # Painel 1A — 📁 Carregar Histórico (Arquivo)
 # ============================================================
+
+
+def v16_painel_mc_observacional_pacote_pre_c4():
+    """
+    🧪 MC Observacional do Pacote (pré-C4)
+    Observacional, auditável. NÃO altera Camada 4.
+    Usa df_eval (Replay Progressivo / avaliações) já calculado.
+    """
+    import numpy as np
+    import pandas as pd
+    import random
+    import math
+
+    st.title("🧪 MC Observacional do Pacote (pré-C4)")
+    st.caption("Observacional • auditável • não altera listas • não altera Camada 4.")
+
+    # Fonte canônica: df_eval salvo pelo Replay Progressivo
+    df_eval = st.session_state.get("df_eval", None)
+    if df_eval is None or not hasattr(df_eval, "columns") or len(df_eval) == 0:
+        st.warning("Não encontrei `df_eval` na sessão. Rode primeiro **🧭 Replay Progressivo — Janela Móvel (Assistido)** para gerar a base de avaliação, e depois volte aqui.")
+        return
+
+    cols_needed = ["best_acerto_alvo_1", "best_acerto_alvo_2"]
+    for c in cols_needed:
+        if c not in df_eval.columns:
+            st.warning("O `df_eval` encontrado não tem as colunas esperadas para MC observacional (best_acerto_alvo_1/2). Rode novamente o Replay Progressivo com a versão atual do app.")
+            return
+
+    # 1) Constrói a base de alvos avaliados (flatten dos 2 alvos por snapshot)
+    hits = []
+    for c in cols_needed:
+        vals = df_eval[c].tolist()
+        for v in vals:
+            if v is None:
+                continue
+            try:
+                vv = int(v)
+            except Exception:
+                continue
+            hits.append(vv)
+
+    if len(hits) == 0:
+        st.warning("`df_eval` existe, mas não há alvos válidos avaliados ainda (hits vazios).")
+        return
+
+    # 2) Métricas objetivas
+    def _rates(arr):
+        arr = np.asarray(arr, dtype=float)
+        out = {}
+        out["n"] = int(len(arr))
+        out["avg_best"] = float(np.nanmean(arr))
+        out["max_best"] = int(np.nanmax(arr))
+        out["rate_3p"] = float(np.mean(arr >= 3))
+        out["rate_4p"] = float(np.mean(arr >= 4))
+        out["rate_5p"] = float(np.mean(arr >= 5))
+        out["rate_6p"] = float(np.mean(arr >= 6))
+        out["dist"] = {str(i): int(np.sum(arr == i)) for i in range(0,7)}
+        return out
+
+    base = _rates(hits)
+
+    st.subheader("📌 Base avaliada (flatten dos alvos)")
+    st.json({
+        "targets_avaliados": base["n"],
+        "avg_best": round(base["avg_best"], 4),
+        "max_best": base["max_best"],
+        "rate_3p": round(base["rate_3p"], 6),
+        "rate_4p": round(base["rate_4p"], 6),
+        "rate_5p": round(base["rate_5p"], 6),
+        "rate_6p": round(base["rate_6p"], 6),
+        "dist_best_hit_0_6": base["dist"],
+    })
+
+    # 3) Janela móvel (alvos) — padrão 60 (mesmo espírito do sistema)
+    st.subheader("🪟 Janela móvel (alvos) — MC observacional")
+    w_default = 60
+    w = st.number_input("Tamanho da janela (alvos, não séries)", min_value=20, max_value=240, value=w_default, step=5)
+    hits_w = hits[-int(w):] if len(hits) >= int(w) else hits[:]
+    win = _rates(hits_w)
+    st.json({
+        "w_used": win["n"],
+        "avg_best_w": round(win["avg_best"], 4),
+        "max_best_w": win["max_best"],
+        "rate_3p_w": round(win["rate_3p"], 6),
+        "rate_4p_w": round(win["rate_4p"], 6),
+        "rate_5p_w": round(win["rate_5p"], 6),
+        "rate_6p_w": round(win["rate_6p"], 6),
+        "dist_best_hit_0_6_w": win["dist"],
+    })
+
+    # 4) MC (bootstrap) — "foi sorte?" (incerteza estatística da janela)
+    st.subheader("🎲 MC Bootstrap — Foi sorte ou é sinal?")
+    B = st.number_input("Rodadas MC (bootstrap)", min_value=200, max_value=10000, value=2000, step=200)
+    B = int(B)
+    rng = random.Random(1337)
+
+    arr = np.asarray(hits_w, dtype=float)
+    n = len(arr)
+
+    if n < 20:
+        st.warning("Janela pequena demais para bootstrap informativo. Aumente `w`.")
+        return
+
+    rates4 = np.empty(B, dtype=float)
+    avgs = np.empty(B, dtype=float)
+
+    for i in range(B):
+        # amostra com reposição
+        idxs = [rng.randrange(0, n) for _ in range(n)]
+        sample = arr[idxs]
+        rates4[i] = float(np.mean(sample >= 4))
+        avgs[i] = float(np.mean(sample))
+
+    def _ci(x, lo=0.05, hi=0.95):
+        return float(np.quantile(x, lo)), float(np.quantile(x, hi))
+
+    r4_lo, r4_hi = _ci(rates4, 0.05, 0.95)
+    av_lo, av_hi = _ci(avgs, 0.05, 0.95)
+
+    st.markdown("**Intervalos (90%) na janela** — quanto isso pode oscilar só por variação amostral:")
+    st.json({
+        "rate_4p_w": round(win["rate_4p"], 6),
+        "rate_4p_w_CI90": [round(r4_lo, 6), round(r4_hi, 6)],
+        "avg_best_w": round(win["avg_best"], 4),
+        "avg_best_w_CI90": [round(av_lo, 4), round(av_hi, 4)],
+        "nota": "Bootstrap não muda nada — só mede incerteza da janela atual.",
+    })
+
+    # 5) Leitura didática (sem tecninês)
+    st.subheader("🧭 Interpretação (didática)")
+    # heurística: se CI90 de rate_4 fica quase todo perto de zero, sinal é fraco; se desloca para cima, sinal é mais robusto
+    if win["rate_4p"] == 0 and r4_hi <= 0.02:
+        st.info("Na janela, **4+ ainda não é consistente**: mesmo no melhor cenário (CI90 alto), a taxa continua muito baixa. Isso indica que a melhora (se houver) ainda não 'firmou' na prática.")
+    elif r4_lo >= 0.02:
+        st.success("Há **sinal mais firme de 4+**: até o limite inferior do CI90 já não é tão baixo. Isso sugere que não é só 'sorte' — pode estar virando comportamento recorrente.")
+    else:
+        st.warning("Há **sinal**, mas ainda **instável**: a taxa observada pode subir/descer bastante só pelo filme curto. Aqui entra a fase de estabilização (acumular séries/avaliações).")
+
+    st.markdown("""
+**O que este painel responde (sem mexer no motor):**
+- **Pacote está bom ou foi sorte?** → pelo CI90 do `rate_4p_w` e `avg_best_w`.
+- **Está firmando ou oscilando?** → se o intervalo é largo, está oscilando (fase de estabilização).
+- **Quebrar o 4 recorrente** → só acontece quando `rate_4p_w` sai do zero e o CI90 começa a 'descolar' de zero.
+""")
+
+
 if painel == "📁 Carregar Histórico (Arquivo)":
 
     st.markdown("## 📁 Carregar Histórico — Arquivo (V15.7 MAX)")
@@ -18435,3 +18582,9 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 
 
 
+
+
+# ===========================
+# 🧪 MC Observacional do Pacote (pré-C4) — ROUTER
+if painel == "🧪 MC Observacional do Pacote (pré-C4)":
+    v16_painel_mc_observacional_pacote_pre_c4()
