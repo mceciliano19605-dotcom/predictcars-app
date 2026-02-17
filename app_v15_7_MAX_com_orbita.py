@@ -1374,101 +1374,93 @@ def v16_registrar_universo_session_state(df, n_alvo=6):
 # - Preparação direta para o CAP Invisível completo (auto-preencher ks)
 # ============================================================
 
-def pc_snapshot_p0_autoregistrar(pacote_atual, *, k_reg: int, universo_min: int, universo_max: int):
-    """Registra (ou atualiza) snapshot_p0_canonic[k_reg] automaticamente.
-    Regras:
-    - Pré-C4 (leitura), auditável, não muda listas.
-    - Falha silenciosa: nunca deve derrubar o app.
+def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_max=60):
+    """Registra automaticamente um snapshot P0 canônico (pré-C4) para a janela k_reg.
+
+    Observacional • auditável • não altera listas • não altera Camada 4.
     """
     try:
-        if not isinstance(pacote_atual, list) or len(pacote_atual) == 0:
+        if pacote_atual is None:
             return False
 
-        # garante container
-        if "snapshot_p0_canonic" not in st.session_state or not isinstance(st.session_state.get("snapshot_p0_canonic"), dict):
-            st.session_state["snapshot_p0_canonic"] = {}
+        # Normaliza pacote -> lista de listas[int] (somente listas com 6 passageiros)
+        pacote_norm = []
+        for lst in (pacote_atual or []):
+            try:
+                li = [int(x) for x in lst]
+                if len(li) == 6:
+                    pacote_norm.append(li)
+            except Exception:
+                continue
 
+        if len(pacote_norm) == 0:
+            return False
+
+        pacotes_reg = st.session_state.get("replay_progressivo_pacotes", {})
         snapshot_p0_reg = st.session_state.get("snapshot_p0_canonic", {})
 
-        # Universo do pacote (união)
-        try:
-            universo_pacote = sorted({int(x) for lst in pacote_atual for x in lst})
-        except Exception:
-            universo_pacote = []
+        from datetime import datetime
+        import hashlib, json
 
-        # V8 (borda) — tenta reaproveitar; se não existir, calcula de forma canônica
+        # V8 (borda) — reaproveita/recupera (se não existir ou estiver inválido, reclassifica)
         try:
             v8_snap = st.session_state.get("v8_borda_qualificada") or {}
             if not isinstance(v8_snap, dict) or v8_snap.get("meta", {}).get("status") not in ("ok", "presenca_vazia"):
+                base_n = int(min(10, len(pacote_norm)))
                 v8_snap = v8_classificar_borda_qualificada(
-                    listas=[list(map(int, lst)) for lst in pacote_atual],
-                    base_n=10,
+                    listas=[list(map(int, lst)) for lst in pacote_norm],
+                    base_n=base_n,
                     core_presenca_min=0.60,
                     quase_delta=0.12,
                     max_borda_interna=6,
-                    universo_min=universo_min,
-                    universo_max=universo_max,
+                    universo_min=int(universo_min),
+                    universo_max=int(universo_max),
                     rigidez_info=st.session_state.get("v16_rigidez_info"),
                 )
         except Exception:
-            v8_
+            v8_snap = {"core": [], "quase_core": [], "borda_interna": [], "borda_externa": [], "meta": {"status": "snap_falhou"}}
 
-                # Assinaturas canônicas (auditabilidade): histórico + pacote
-                # Objetivo: permitir comparar arquivos/rodadas e detectar discrepâncias (mesmo histórico → saídas diferentes).
-                try:
-                    import hashlib as _hashlib
-                    _pac_norm = []
-                    for _lst in (pacote_atual or []):
-                        if isinstance(_lst, (list, tuple, set)):
-                            _nums = []
-                            for _x in _lst:
-                                try:
-                                    _nums.append(int(_x))
-                                except Exception:
-                                    pass
-                            _pac_norm.append(tuple(sorted(_nums)))
-                    _pac_bytes = repr(sorted(_pac_norm)).encode("utf-8", "ignore")
-                    sig_pacote = _hashlib.sha1(_pac_bytes).hexdigest()[:16]
-                except Exception:
-                    sig_pacote = None
+        # Universo do pacote
+        try:
+            universo_pacote = sorted({int(x) for lst in pacote_norm for x in lst})
+        except Exception:
+            universo_pacote = []
 
-                try:
-                    _df_sig = st.session_state.get("_df_full_safe") if st.session_state.get("_df_full_safe") is not None else st.session_state.get("historico_df")
-                    if _df_sig is not None and hasattr(_df_sig, "tail"):
-                        _tail = _df_sig.tail(30).to_csv(index=False).encode("utf-8", "ignore")
-                        sig_hist = _hashlib.sha1(_tail).hexdigest()[:16]
-                    else:
-                        sig_hist = None
-                except Exception:
-                    sig_hist = None
-snap = {"core": [], "quase_core": [], "borda_interna": [], "borda_externa": [], "meta": {"status": "snap_falhou"}}
+        # Replay (mapa por janela)
+        pacotes_reg[int(k_reg)] = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "qtd": int(len(pacote_norm)),
+            "listas": [list(map(int, lst)) for lst in pacote_norm],
+            "snap_v9": {
+                "core": list(map(int, (v8_snap.get("core") or []))),
+                "quase_core": list(map(int, (v8_snap.get("quase_core") or []))),
+                "borda_interna": list(map(int, (v8_snap.get("borda_interna") or []))),
+                "borda_externa": list(map(int, (v8_snap.get("borda_externa") or []))),
+                "universo_pacote": list(map(int, universo_pacote)),
+                "meta": v8_snap.get("meta") or {},
+            },
+        }
 
-        # Frequência de passageiros
+        # Snapshot P0 (canônico)
         try:
             freq_passageiros = {}
-            for lst in pacote_atual:
+            for lst in pacote_norm:
                 for x in lst:
                     xi = int(x)
                     freq_passageiros[xi] = freq_passageiros.get(xi, 0) + 1
-        except Exception:
-            freq_passageiros = {}
 
-        # Assinatura
-        try:
-            sig_raw = json.dumps([list(map(int, lst)) for lst in pacote_atual], ensure_ascii=False, sort_keys=True)
+            sig_raw = json.dumps([list(map(int, lst)) for lst in pacote_norm], ensure_ascii=False, sort_keys=True)
             sig = hashlib.sha256(sig_raw.encode("utf-8")).hexdigest()[:16]
         except Exception:
+            freq_passageiros = {}
             sig = "N/D"
 
-        from datetime import datetime
         snapshot_p0_reg[int(k_reg)] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
             "k": int(k_reg),
-            "qtd_listas": int(len(pacote_atual)),
-                    "sig_pacote": sig_pacote,
-                    "sig_hist_tail30": sig_hist,
-            "listas": [list(map(int, lst)) for lst in pacote_atual],
-            "universo_pacote": list(map(int, universo_pacote)),
+            "qtd_listas": int(len(pacote_norm)),
+            "universo_pacote_len": int(len(universo_pacote)),
+            "listas": [list(map(int, lst)) for lst in pacote_norm],
             "freq_passageiros": {str(int(k)): int(v) for k, v in sorted(freq_passageiros.items(), key=lambda kv: (-kv[1], kv[0]))},
             "snap_v8": {
                 "core": list(map(int, (v8_snap.get("core") or []))),
@@ -1478,37 +1470,22 @@ snap = {"core": [], "quase_core": [], "borda_interna": [], "borda_externa": [], 
                 "meta": v8_snap.get("meta") or {},
             },
             "assinatura": sig,
-            "nota": "Snapshot P0 canônico — AUTO (V0) — pré-C4 · leitura apenas. Não altera Camada 4.",
+            "nota": "Snapshot P0 canônico — leitura apenas (pré-C4). Não altera Camada 4.",
         }
 
         st.session_state["snapshot_p0_canonic"] = snapshot_p0_reg
+        st.session_state["replay_progressivo_pacotes"] = pacotes_reg
 
-        # alias legado para compatibilidade com painéis antigos
-        st.session_state["snapshots_p0_map"] = snapshot_p0_reg
+        # Atualiza Memória Estrutural automaticamente ao registrar snapshot
+        try:
+            _df_full_me = st.session_state.get("_df_full_safe") or st.session_state.get("historico_df_full") or st.session_state.get("historico_df")
+            v16_me_update_auto(_df_full_safe=_df_full_me, snapshots_map=st.session_state.get("snapshot_p0_canonic") or {})
+        except Exception:
+            pass
 
         return True
     except Exception:
         return False
-
-
-# ============================================================
-# CAP INVISÍVEL (V1) — AUTO-PREENCHIMENTO COMPLETO (pré-C4)
-# ------------------------------------------------------------
-# Objetivo:
-# - Preencher automaticamente os snapshots faltantes do CAP (linha do tempo k_atual..k_atual-N)
-# - Sem depender do Replay Progressivo
-# - Sem tocar Camada 4 (não decide ataque)
-# - Seguro contra “zumbi”: executa 1 janela por rerun e continua sozinho até concluir (ou bater limite)
-#
-# Estratégia:
-# - Fila de ks em st.session_state["cap_v1_queue"]
-# - A cada rerun, processa 1 k:
-#   (1) recorta _df_full_safe -> df_k
-#   (2) executa pipeline (silencioso) para garantir base mínima
-#   (3) gera pacote Top10 do Modo 6 (silencioso) e registra Snapshot P0 automaticamente
-# - Ao final, restaura o histórico ativo original e encerra.
-# ============================================================
-
 def _pc_replay_limpar_chaves_dependentes_silent():
     """Limpa chaves dependentes do histórico/pipeline/pacote (versão silenciosa)."""
     chaves = [
