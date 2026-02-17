@@ -13014,6 +13014,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     n_real = int(pd.Series(contagens).mode().iloc[0])
     st.session_state["n_alvo"] = n_real
 
+    n_carro = n_real  # alias canônico para compatibilidade (n_por_lista)
     universo = sorted({v for v in universo_tmp if v > 0})
     umin, umax = min(universo), max(universo)   # EX: 1–50 (REAL)
 
