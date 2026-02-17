@@ -5720,6 +5720,147 @@ def pc_stable_seed(tag: str) -> int:
 from datetime import datetime
 
 
+
+
+# ============================================================
+# V16 — Estabilização canônica (sem matar a cauda extrema)
+# Ideia matemática: média posterior de Dirichlet (Laplace) + mistura mínima uniforme.
+# p̂_i = (c_i + α) / (N + αK)   (posterior mean)
+# p̃   = (1-ε)·p̂ + ε·U        (ε pequeno preserva “cauda” e impede colapso)
+# ============================================================
+
+def pc_dirichlet_posterior_probs(counts, alpha: float = 1.0):
+    """Converte contagens/pesos (>=0) em probabilidades estáveis via Dirichlet.
+
+    counts: dict[int,float] ou list/np.array
+    alpha : suavização Laplace/Dirichlet (α=1 é canônico e conservador)
+    """
+    if counts is None:
+        return {}
+    if isinstance(counts, dict):
+        keys = sorted(counts.keys())
+        arr = np.array([max(0.0, float(counts[k])) for k in keys], dtype=float)
+        K = max(1, len(arr))
+        N = float(arr.sum())
+        probs = (arr + float(alpha)) / (N + float(alpha) * K)
+        return {k: float(p) for k, p in zip(keys, probs)}
+    arr = np.array(counts, dtype=float)
+    arr[arr < 0] = 0.0
+    K = max(1, arr.size)
+    N = float(arr.sum())
+    probs = (arr + float(alpha)) / (N + float(alpha) * K)
+    return probs
+
+
+def pc_mix_uniform(probs_dict: dict, universo_min: int, universo_max: int, eps: float = 0.02):
+    """Mistura mínima com uniforme para não colapsar e não “matar cauda”."""
+    if probs_dict is None:
+        return {}
+    U = list(range(int(universo_min), int(universo_max) + 1))
+    K = max(1, len(U))
+    u = 1.0 / K
+    eps = float(max(0.0, min(0.25, eps)))  # trava canônica
+    out = {}
+    for x in U:
+        p = float(probs_dict.get(x, 0.0))
+        out[x] = (1.0 - eps) * p + eps * u
+    s = sum(out.values())
+    if s > 0:
+        for k in list(out.keys()):
+            out[k] = out[k] / s
+    return out
+
+
+def pc_fill_to_n_unique(listas_in, target_n: int, n_por_lista: int,
+                        universo_min: int, universo_max: int, seed: int):
+    """Garante quantidade mínima de listas únicas.
+
+    Sem bifurcar: só evita que compressão/dedup derrube o pacote abaixo do alvo.
+    """
+    target_n = int(target_n)
+    if listas_in is None:
+        listas_in = []
+
+    # normaliza + dedup determinístico
+    uniq = []
+    seen = set()
+    for lst in listas_in:
+        if not isinstance(lst, (list, tuple)) or len(lst) != n_por_lista:
+            continue
+        t = tuple(sorted(map(int, lst)))
+        if t not in seen:
+            seen.add(t)
+            uniq.append(list(t))
+
+    if len(uniq) >= target_n:
+        return uniq[:target_n]
+
+    rng = np.random.default_rng(int(seed) % (2**32 - 1))
+
+    # Frequências do pacote atual (para “cauda”)
+    freq = {i: 0 for i in range(int(universo_min), int(universo_max) + 1)}
+    for lst in uniq:
+        for x in lst:
+            if x in freq:
+                freq[x] += 1
+
+    inv = {k: 1.0 / (1.0 + float(v)) for k, v in freq.items()}
+    p_inv = pc_dirichlet_posterior_probs(inv, alpha=1.0)
+    p_tail = pc_mix_uniform(p_inv, universo_min, universo_max, eps=0.02)
+
+    base_cycle = uniq[:] if uniq else [sorted(rng.choice(np.arange(universo_min, universo_max + 1),
+                                                       size=n_por_lista, replace=False).tolist())]
+
+    guard = 0
+    while len(uniq) < target_n and guard < 240:
+        guard += 1
+        base = list(base_cycle[(len(uniq) + guard) % len(base_cycle)])
+
+        # folga mínima: 1 troca; se ainda faltando, 2 trocas
+        n_swap = 1 if guard <= 90 else 2
+        idxs = list(range(n_por_lista))
+        rng.shuffle(idxs)
+        idxs = idxs[:n_swap]
+
+        new = base[:]
+        base_set = set(base)
+
+        for idx in idxs:
+            old = new[idx]
+            cand = None
+            # amostragem ponderada com seed
+            for _ in range(60):
+                r = rng.random()
+                acc = 0.0
+                for x, px in p_tail.items():
+                    acc += px
+                    if acc >= r:
+                        cand = int(x)
+                        break
+                if cand is None:
+                    cand = int(universo_min + rng.integers(0, universo_max - universo_min + 1))
+                if cand not in base_set or cand == old:
+                    break
+            new[idx] = int(cand)
+            base_set.add(int(cand))
+
+        new = sorted(set(map(int, new)))
+        while len(new) < n_por_lista:
+            x = int(universo_min + rng.integers(0, universo_max - universo_min + 1))
+            if x not in new:
+                new.append(x)
+                new.sort()
+        if len(new) != n_por_lista:
+            continue
+
+        t = tuple(new)
+        if t not in seen:
+            seen.add(t)
+            uniq.append(new)
+
+    return uniq[:target_n]
+
+
 def _m2_init_memoria() -> None:
     """Inicializa a memoria em session_state (infraestrutura invisivel)."""
     try:
@@ -13036,6 +13177,12 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ------------------------------------------------------------
     listas_totais = sanidade_final_listas(listas_brutas)
 
+    # V16 canônico: garantir mínimo de 10 listas únicas (evita variação por compressão/dedup)
+    listas_totais = pc_fill_to_n_unique(
+        listas_totais, target_n=10, n_por_lista=n_carro,
+        universo_min=umin, universo_max=umax,
+        seed=pc_stable_seed('MODO6_FILL', k, umin, umax, n_carro)
+    )
     listas_top10 = listas_totais[:10]
 
     # ============================================================
