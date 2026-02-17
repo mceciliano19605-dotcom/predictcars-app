@@ -252,168 +252,6 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
 
 import math
 
-def pc_v16_mc_observacional_pacote_pre_c4(
-    *,
-    modo6_listas_totais,
-    modo6_listas_top10,
-    historico_df_full,
-    nocivos_consistentes=None,
-    w_alvos: int = 60,
-    sims: int = 200,
-) -> dict:
-    """MC Observacional do Pacote (pré-C4)
-    Objetivo: medir (sem decisão e sem alterar listas) se rigidez/overlap e nocivos
-    estão estatisticamente derrubando a chance de ≥3/≥4 no filme curto.
-
-    Regras: sem novos botões/controles; parâmetros fixos e auditáveis.
-    """
-    nocivos_consistentes = set(nocivos_consistentes or [])
-    # --- alvos reais (últimos W) ---
-    df = historico_df_full.copy()
-    # tenta detectar colunas com 6 números
-    cols_nums = [c for c in df.columns if isinstance(c, str) and c.lower() in ["n1","n2","n3","n4","n5","n6","a","b","c","d","e","f"]]
-    if len(cols_nums) >= 6:
-        cols_nums = cols_nums[:6]
-        alvos = df[cols_nums].tail(w_alvos).values.tolist()
-    else:
-        # fallback: procurar coluna 'nums'/'lista' com iterável
-        col_cand = None
-        for c in df.columns:
-            if str(c).lower() in ["nums","numeros","lista","sorteio","target","alvo"]:
-                col_cand = c
-                break
-        if col_cand is None:
-            raise ValueError("Histórico não possui colunas de números reconhecíveis para MC.")
-        alvos = []
-        for v in df[col_cand].tail(w_alvos).tolist():
-            if isinstance(v, (list, tuple)) and len(v) >= 6:
-                alvos.append(list(v)[:6])
-            else:
-                s = str(v)
-                nums = [int(x) for x in re.findall(r"\d+", s)]
-                if len(nums) >= 6:
-                    alvos.append(nums[:6])
-        if not alvos:
-            raise ValueError("Não foi possível extrair alvos (últimos W) do histórico para MC.")
-
-    # --- avaliador ---
-    def eval_pacote(pacote_listas):
-        bests = []
-        hit3 = 0
-        hit4 = 0
-        for alvo in alvos:
-            bh = _pc_melhor_hit_do_pacote(alvo, pacote_listas)
-            bests.append(bh)
-            if bh >= 3:
-                hit3 += 1
-            if bh >= 4:
-                hit4 += 1
-        n = max(1, len(alvos))
-        return {
-            "avg_best": float(sum(bests) / n),
-            "rate_3p": float(hit3 / n),
-            "rate_4p": float(hit4 / n),
-            "max_best": int(max(bests) if bests else 0),
-        }
-
-    # --- métricas de rigidez (simples, auditáveis) ---
-    def rigidez(pacote_listas):
-        if not pacote_listas:
-            return {"ov_mean": 0.0, "core_sz": 0, "frac_colados": 0.0}
-        L = len(pacote_listas)
-        ovs = []
-        for i in range(L):
-            si = set(pacote_listas[i])
-            for j in range(i + 1, L):
-                sj = set(pacote_listas[j])
-                ovs.append(len(si & sj))
-        ov_mean = float(sum(ovs) / max(1, len(ovs)))
-        freq = {}
-        for li in pacote_listas:
-            for p in li:
-                freq[p] = freq.get(p, 0) + 1
-        core = [p for p, f in freq.items() if f / L >= 0.6]
-        frac_colados = float(sum(1 for x in ovs if x >= 3) / max(1, len(ovs)))
-        return {"ov_mean": ov_mean, "core_sz": len(core), "frac_colados": frac_colados, "core": sorted(core)}
-
-    def nocivo_share(pacote_listas):
-        if not pacote_listas or not nocivos_consistentes:
-            return 0.0
-        flat = [p for li in pacote_listas for p in li]
-        return float(sum(1 for p in flat if p in nocivos_consistentes) / max(1, len(flat)))
-
-    baseline = list(modo6_listas_top10 or [])
-    baseline_eval = eval_pacote(baseline)
-    baseline_rig = rigidez(baseline)
-    baseline_noc = nocivo_share(baseline)
-
-    def sim_diversificado(cap_pct: float):
-        rates4 = []
-        rates3 = []
-        avgs = []
-        ovm = []
-        noc = []
-        for s in range(sims):
-            random.seed(1337 + s)
-            try:
-                out = pc_resp_aplicar_diversificacao(
-                    listas_totais=modo6_listas_totais,
-                    listas_top10=modo6_listas_top10,
-                    universo=None,
-                    cap_pct=cap_pct,
-                    seed=1337 + s,
-                )
-                pacote = out.get("listas_top10_final") or out.get("top10_final") or out.get("listas_top10") or baseline
-            except Exception:
-                pacote = baseline
-            ev = eval_pacote(pacote)
-            rg = rigidez(pacote)
-            rates4.append(ev["rate_4p"])
-            rates3.append(ev["rate_3p"])
-            avgs.append(ev["avg_best"])
-            ovm.append(rg["ov_mean"])
-            noc.append(nocivo_share(pacote))
-        def q(a, p):
-            a2 = sorted(a)
-            if not a2:
-                return None
-            k = int(round((len(a2) - 1) * p))
-            k = max(0, min(len(a2) - 1, k))
-            return float(a2[k])
-        return {
-            "cap_pct": cap_pct,
-            "rate_4p_mean": float(sum(rates4)/max(1,len(rates4))),
-            "rate_4p_p10": q(rates4, 0.10),
-            "rate_4p_p90": q(rates4, 0.90),
-            "rate_3p_mean": float(sum(rates3)/max(1,len(rates3))),
-            "avg_best_mean": float(sum(avgs)/max(1,len(avgs))),
-            "ov_mean_mean": float(sum(ovm)/max(1,len(ovm))),
-            "nocivo_share_mean": float(sum(noc)/max(1,len(noc))),
-        }
-
-    scen_loose = sim_diversificado(0.60)
-    scen_tight = sim_diversificado(0.85)
-
-    delta_4p_pp = (scen_loose["rate_4p_mean"] - baseline_eval["rate_4p"]) * 100.0
-    rigidez_matando = (
-        (delta_4p_pp >= 0.5)
-        and (scen_loose["ov_mean_mean"] < baseline_rig["ov_mean"])
-        and (scen_loose["nocivo_share_mean"] <= baseline_noc + 1e-9)
-    )
-
-    return {
-        "w_alvos": int(len(alvos)),
-        "sims": int(sims),
-        "baseline": {**baseline_eval, **baseline_rig, "nocivo_share": baseline_noc},
-        "scenario_loose": scen_loose,
-        "scenario_tight": scen_tight,
-        "rigidez_matando": bool(rigidez_matando),
-        "delta_4p_pp_loose_vs_base": float(delta_4p_pp),
-        "nota": "Pré-C4 · Observacional · Não altera listas · Parâmetros fixos (W=60, sims=200).",
-    }
-
-
-
 def pc_resp_memoria_estrutural_from_snapshots(snapshot_p0_canonic, lookback: int = 25, top_n: int = 8, min_lists: int = 5):
     """Memória Estrutural do RESPIRÁVEL (pré-C4, auditável, sem motor novo).
 
@@ -4769,7 +4607,6 @@ def construir_navegacao_v157() -> str:
         "🔁 Replay ULTRA",
                 "🧭 Replay Progressivo — Janela Móvel (Assistido)",
         "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo",
-        "🧪 MC Observacional do Pacote (pré-C4)",
         "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)",
         "📡 CAP — Calibração Assistida da Parabólica (pré-C4)",
     "🧪 P2 — Hipóteses de Família (pré-C4)",
@@ -6681,152 +6518,6 @@ def m3_painel_expectativa_historica_contexto():
 # ============================================================
 # Painel 1A — 📁 Carregar Histórico (Arquivo)
 # ============================================================
-
-
-def v16_painel_mc_observacional_pacote_pre_c4():
-    """
-    🧪 MC Observacional do Pacote (pré-C4)
-    Observacional, auditável. NÃO altera Camada 4.
-    Usa df_eval (Replay Progressivo / avaliações) já calculado.
-    """
-    import numpy as np
-    import pandas as pd
-    import random
-    import math
-
-    st.title("🧪 MC Observacional do Pacote (pré-C4)")
-    st.caption("Observacional • auditável • não altera listas • não altera Camada 4.")
-
-    # Fonte canônica: df_eval salvo pelo Replay Progressivo
-    df_eval = st.session_state.get("df_eval", None)
-    if df_eval is None or not hasattr(df_eval, "columns") or len(df_eval) == 0:
-        st.warning("Não encontrei `df_eval` na sessão. Rode primeiro **🧭 Replay Progressivo — Janela Móvel (Assistido)** para gerar a base de avaliação, e depois volte aqui.")
-        return
-
-    cols_needed = ["best_acerto_alvo_1", "best_acerto_alvo_2"]
-    for c in cols_needed:
-        if c not in df_eval.columns:
-            st.warning("O `df_eval` encontrado não tem as colunas esperadas para MC observacional (best_acerto_alvo_1/2). Rode novamente o Replay Progressivo com a versão atual do app.")
-            return
-
-    # 1) Constrói a base de alvos avaliados (flatten dos 2 alvos por snapshot)
-    hits = []
-    for c in cols_needed:
-        vals = df_eval[c].tolist()
-        for v in vals:
-            if v is None:
-                continue
-            try:
-                vv = int(v)
-            except Exception:
-                continue
-            hits.append(vv)
-
-    if len(hits) == 0:
-        st.warning("`df_eval` existe, mas não há alvos válidos avaliados ainda (hits vazios).")
-        return
-
-    # 2) Métricas objetivas
-    def _rates(arr):
-        arr = np.asarray(arr, dtype=float)
-        out = {}
-        out["n"] = int(len(arr))
-        out["avg_best"] = float(np.nanmean(arr))
-        out["max_best"] = int(np.nanmax(arr))
-        out["rate_3p"] = float(np.mean(arr >= 3))
-        out["rate_4p"] = float(np.mean(arr >= 4))
-        out["rate_5p"] = float(np.mean(arr >= 5))
-        out["rate_6p"] = float(np.mean(arr >= 6))
-        out["dist"] = {str(i): int(np.sum(arr == i)) for i in range(0,7)}
-        return out
-
-    base = _rates(hits)
-
-    st.subheader("📌 Base avaliada (flatten dos alvos)")
-    st.json({
-        "targets_avaliados": base["n"],
-        "avg_best": round(base["avg_best"], 4),
-        "max_best": base["max_best"],
-        "rate_3p": round(base["rate_3p"], 6),
-        "rate_4p": round(base["rate_4p"], 6),
-        "rate_5p": round(base["rate_5p"], 6),
-        "rate_6p": round(base["rate_6p"], 6),
-        "dist_best_hit_0_6": base["dist"],
-    })
-
-    # 3) Janela móvel (alvos) — padrão 60 (mesmo espírito do sistema)
-    st.subheader("🪟 Janela móvel (alvos) — MC observacional")
-    w_default = 60
-    w = st.number_input("Tamanho da janela (alvos, não séries)", min_value=20, max_value=240, value=w_default, step=5)
-    hits_w = hits[-int(w):] if len(hits) >= int(w) else hits[:]
-    win = _rates(hits_w)
-    st.json({
-        "w_used": win["n"],
-        "avg_best_w": round(win["avg_best"], 4),
-        "max_best_w": win["max_best"],
-        "rate_3p_w": round(win["rate_3p"], 6),
-        "rate_4p_w": round(win["rate_4p"], 6),
-        "rate_5p_w": round(win["rate_5p"], 6),
-        "rate_6p_w": round(win["rate_6p"], 6),
-        "dist_best_hit_0_6_w": win["dist"],
-    })
-
-    # 4) MC (bootstrap) — "foi sorte?" (incerteza estatística da janela)
-    st.subheader("🎲 MC Bootstrap — Foi sorte ou é sinal?")
-    B = st.number_input("Rodadas MC (bootstrap)", min_value=200, max_value=10000, value=2000, step=200)
-    B = int(B)
-    rng = random.Random(1337)
-
-    arr = np.asarray(hits_w, dtype=float)
-    n = len(arr)
-
-    if n < 20:
-        st.warning("Janela pequena demais para bootstrap informativo. Aumente `w`.")
-        return
-
-    rates4 = np.empty(B, dtype=float)
-    avgs = np.empty(B, dtype=float)
-
-    for i in range(B):
-        # amostra com reposição
-        idxs = [rng.randrange(0, n) for _ in range(n)]
-        sample = arr[idxs]
-        rates4[i] = float(np.mean(sample >= 4))
-        avgs[i] = float(np.mean(sample))
-
-    def _ci(x, lo=0.05, hi=0.95):
-        return float(np.quantile(x, lo)), float(np.quantile(x, hi))
-
-    r4_lo, r4_hi = _ci(rates4, 0.05, 0.95)
-    av_lo, av_hi = _ci(avgs, 0.05, 0.95)
-
-    st.markdown("**Intervalos (90%) na janela** — quanto isso pode oscilar só por variação amostral:")
-    st.json({
-        "rate_4p_w": round(win["rate_4p"], 6),
-        "rate_4p_w_CI90": [round(r4_lo, 6), round(r4_hi, 6)],
-        "avg_best_w": round(win["avg_best"], 4),
-        "avg_best_w_CI90": [round(av_lo, 4), round(av_hi, 4)],
-        "nota": "Bootstrap não muda nada — só mede incerteza da janela atual.",
-    })
-
-    # 5) Leitura didática (sem tecninês)
-    st.subheader("🧭 Interpretação (didática)")
-    # heurística: se CI90 de rate_4 fica quase todo perto de zero, sinal é fraco; se desloca para cima, sinal é mais robusto
-    if win["rate_4p"] == 0 and r4_hi <= 0.02:
-        st.info("Na janela, **4+ ainda não é consistente**: mesmo no melhor cenário (CI90 alto), a taxa continua muito baixa. Isso indica que a melhora (se houver) ainda não 'firmou' na prática.")
-    elif r4_lo >= 0.02:
-        st.success("Há **sinal mais firme de 4+**: até o limite inferior do CI90 já não é tão baixo. Isso sugere que não é só 'sorte' — pode estar virando comportamento recorrente.")
-    else:
-        st.warning("Há **sinal**, mas ainda **instável**: a taxa observada pode subir/descer bastante só pelo filme curto. Aqui entra a fase de estabilização (acumular séries/avaliações).")
-
-    st.markdown("""
-**O que este painel responde (sem mexer no motor):**
-- **Pacote está bom ou foi sorte?** → pelo CI90 do `rate_4p_w` e `avg_best_w`.
-- **Está firmando ou oscilando?** → se o intervalo é largo, está oscilando (fase de estabilização).
-- **Quebrar o 4 recorrente** → só acontece quando `rate_4p_w` sai do zero e o CI90 começa a 'descolar' de zero.
-""")
-
-
 if painel == "📁 Carregar Histórico (Arquivo)":
 
     st.markdown("## 📁 Carregar Histórico — Arquivo (V15.7 MAX)")
@@ -11726,15 +11417,6 @@ def v16_anti_exato_calcular_lambda_star_silent(
         # fator de massa: quanto mais perto de 'win' cheio, mais confiável.
         mass = min(1.0, float(len(dfw)) / float(max(1, int(win))))
 
-
-        faltam = int(max(0, int(win) - int(len(dfw))))
-        # Fase de estabilização do λ*: quanto mais massa (janela preenchida), mais confiável o sinal
-        if mass >= 0.85:
-            fase = "ESTAVEL"
-        elif mass >= 0.50:
-            fase = "ESTABILIZANDO"
-        else:
-            fase = "INICIAL"
         # λ* canônico (0..1)
         lambda_star = min(1.0, max(0.0, sev_mean * mass))
 
@@ -11743,10 +11425,6 @@ def v16_anti_exato_calcular_lambda_star_silent(
             "n_nocivos": int(len(nocivos)),
             "sev_mean": float(sev_mean),
             "mass": float(mass),
-            "fase": str(fase),
-            "faltam": int(faltam),
-            "win": int(win),
-            "dfw_len": int(len(dfw)),
             "nota": "λ* = sev_mean × massa",
         }
     except Exception:
@@ -11933,61 +11611,13 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
     except Exception:
         lambda_star_info = {"lambda_star": 0.0}
 
-    lambda_star_raw = 0.0
+    lambda_star = 0.0
     try:
-        lambda_star_raw = float(lambda_star_info.get("lambda_star", 0.0) or 0.0)
+        lambda_star = float(lambda_star_info.get("lambda_star", 0.0) or 0.0)
     except Exception:
-        lambda_star_raw = 0.0
-
-    # ------------------------------------------------------------
-    # FASE DE ESTABILIZAÇÃO DO λ (lambda_star) — sem bifurcar
-    # Objetivo: impedir "salto" de penalidade quando a base SAFE ainda é fraca.
-    # - Fase vem do cálculo (massa ex-post da janela).
-    # - Aplicamos:
-    #   (a) fator de rampa por fase (INICIAL/TRANSICAO/ESTAVEL)
-    #   (b) suavização + limite de variação por rodada (clamp)
-    # Tudo pré-C4, auditável, e só modula o peso — não decide nada.
-    # ------------------------------------------------------------
-    fase_estab = (lambda_star_info or {}).get("fase_estabilizacao", "INICIAL")
-    if fase_estab == "ESTAVEL":
-        fator_fase = 1.00
-    elif fase_estab == "TRANSICAO":
-        fator_fase = 0.60
-    else:
-        fator_fase = 0.25
-
-    lambda_star_target = float(max(0.0, lambda_star_raw) * fator_fase)
-
-    # suavização canônica (estado de sessão): evita bagunçar o pacote por um único snapshot
-    prev = st.session_state.get("lambda_star_smooth")
-    try:
-        prev = float(prev) if prev is not None else None
-    except Exception:
-        prev = None
-
-    # limite de variação por rodada (anti-salto)
-    DELTA_MAX = 0.25
-    BETA = 0.50  # 0.5 = meio caminho por rodada (simples e estável)
-
-    if prev is None:
-        lambda_star_smooth = lambda_star_target
-    else:
-        delta = lambda_star_target - prev
-        if delta > DELTA_MAX:
-            delta = DELTA_MAX
-        elif delta < -DELTA_MAX:
-            delta = -DELTA_MAX
-        stepped = prev + delta
-        lambda_star_smooth = (BETA * prev) + ((1.0 - BETA) * stepped)
+        lambda_star = 0.0
 
     # guarda para governança/relatórios (pré-C4)
-    st.session_state["lambda_star_raw"] = lambda_star_raw
-    st.session_state["lambda_star_target"] = lambda_star_target
-    st.session_state["lambda_star_smooth"] = lambda_star_smooth
-    st.session_state["lambda_star_fase"] = fase_estab
-
-    # valor efetivo para o BLOCO C (FASE 6 / W(p))
-    lambda_star = float(lambda_star_smooth)
     st.session_state["lambda_star"] = lambda_star
 
     # ------------------------------------------------------------
@@ -14314,19 +13944,6 @@ if painel == "📘 Relatório Final":
             "dist_desde_ultimo_4": curv.get("dist_desde_ultimo_4"),
         },
     }
-    # λ* — fase de estabilização (pré‑C4, informativo)
-    _lambda_info = st.session_state.get("lambda_star_info")
-    if isinstance(_lambda_info, dict) and _lambda_info:
-        micro_payload["lambda_star"] = {
-            "lambda_star_eff": st.session_state.get("lambda_star"),
-            "lambda_star_raw": st.session_state.get("lambda_star_raw"),
-            "lambda_star_target": st.session_state.get("lambda_star_target"),
-            "fase_estabilizacao": _lambda_info.get("fase_estabilizacao", "N/D"),
-            "mass": _lambda_info.get("mass"),
-            "win": _lambda_info.get("win"),
-            "faltam": _lambda_info.get("faltam"),
-        }
-
 
     st.markdown("### 🚥 MICRO_ATIVO · SINAL_5 · SENSOR_6 (pré‑C4 · governança)")
     if sensor6:
@@ -14338,21 +13955,6 @@ if painel == "📘 Relatório Final":
     else:
         st.warning("MICRO_ATIVO: NÃO (sem evidência local suficiente no filme curto).")
     st.json(micro_payload, expanded=False)
-    # ALERTA: λ* em estabilização (não é erro; é maturação de janela)
-    try:
-        _li = st.session_state.get("lambda_star_info") or {}
-        _fase = str(_li.get("fase_estabilizacao", "")) or str(st.session_state.get("lambda_star_fase",""))
-        if _fase in ("INICIAL", "TRANSICAO"):
-            _mass = _li.get("mass", None)
-            _faltam = _li.get("faltam", None)
-            _win = _li.get("win", None)
-            _raw = st.session_state.get("lambda_star_raw")
-            _tgt = st.session_state.get("lambda_star_target")
-            _eff = st.session_state.get("lambda_star")
-            st.info(f"λ* em fase de estabilização: fase={_fase} · massa={_mass} · faltam={_faltam} (meta win={_win}) · raw={_raw} · target={_tgt} · eff={_eff}. Use como indício, não como certeza.")
-    except Exception:
-        pass
-
 
     # guardar para outros painéis (sem acoplar em decisão)
     st.session_state["micro_ativo_info"] = micro_payload
@@ -16787,7 +16389,6 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
     st.markdown("\n".join(comentario_regime))
 
     st.success("Painel V16 Premium Profundo executado com sucesso!")
-    st.stop()
 
 # ======================================================================
 # 📊 V16 PREMIUM — PRÉ-ECO | CONTRIBUIÇÃO DE PASSAGEIROS (OBSERVACIONAL)
@@ -17329,8 +16930,7 @@ if "painel" in locals() and painel == "📊 V16 Premium — PRÉ-ECO | Contribui
 # ============================================================
 if painel == "📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos":
 
-    st.title("📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos Consistentes",
-    "🧪 MC Observacional do Pacote (pré-C4) — Rigidez × Nocivos × λ*")
+    st.title("📊 V16 Premium — ANTI-EXATO | Passageiros Nocivos Consistentes")
     st.caption(
         "Observacional • Retrospectivo • Objetivo\n"
         "Identifica passageiros que REDUZEM a chance de EXATO (≥2 / ≥3).\n"
@@ -18571,7 +18171,7 @@ if painel == "🎯 Compressão do Alvo — Observacional (V16)":
     st.stop()
 
 if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
-    st.info('Painel Premium Profundo já foi executado acima.'); st.stop()
+    v16_painel_premium_profundo()
     st.stop()
 
 # ============================================================
@@ -18582,9 +18182,542 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 
 
 
+elif painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
+
+    st.markdown("## 📡 CAP — Calibração Assistida da Parabólica (pré-C4)")
+    st.caption(
+        "CAP = Calibração Automática (assistida) da Parabólica usando **apenas o histórico**.\n\n"
+        "✔ Pré-C4 · Observacional · Auditável\n\n"
+        "⚠️ Nesta versão ASSISTIDA, o CAP **não executa Modo 6/Pipeline sozinho**: ele\n"
+        "organiza a calibração, define quantos snapshots são necessários, mostra o que falta\n"
+        "e acelera o fluxo (auto-seleção de k). A automação total (CAP invisível) é etapa posterior."
+    )
+
+    _df_full_safe = st.session_state.get("_df_full_safe") or st.session_state.get("historico_df")
+    if _df_full_safe is None:
+        st.warning("Histórico ausente. Carregue o histórico antes.")
+        st.stop()
+
+    # Fonte única canônica
+    if "snapshot_p0_canonic" not in st.session_state:
+        st.session_state["snapshot_p0_canonic"] = {}
+    snaps = st.session_state.get("snapshot_p0_canonic") or {}
+
+    # k atual (janela ativa do Replay Progressivo)
+    k_atual = int(st.session_state.get("replay_janela_k_active") or len(_df_full_safe))
+    k_atual = max(1, min(k_atual, len(_df_full_safe)))
+
+    # Diagnóstico de ruído (usa o que já foi calculado pelos painéis de risco quando disponível)
+    nr_pct = st.session_state.get("nr_percent")
+    diverg = st.session_state.get("divergencia_s6_mc")
+    k_star = st.session_state.get("sentinela_kstar")
+
+    def _cap_definir_snapshots_alvo(nr_pct_val, diverg_val):
+        try:
+            nr = float(nr_pct_val) if nr_pct_val is not None else None
+        except Exception:
+            nr = None
+        try:
+            dv = float(diverg_val) if diverg_val is not None else None
+        except Exception:
+            dv = None
+
+        # Regra objetiva (curta, auditável):
+        # ruído baixo -> 3; médio -> 5; alto -> 7 (teto 7 no CAP assistido)
+        if nr is None:
+            # fallback
+            return 5
+        if nr < 20:
+            return 3
+        if nr < 35:
+            return 5
+        return 7
+
+    snapshots_alvo = _cap_definir_snapshots_alvo(nr_pct, diverg)
+
+    st.markdown("### ✅ Diagnóstico do CAP (objetivo)")
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    col1.metric("k atual", str(k_atual))
+    col2.metric("NR% (se disponível)", "N/D" if nr_pct is None else f"{float(nr_pct):.2f}%")
+    col3.metric("Divergência (se disponível)", "N/D" if diverg is None else f"{float(diverg):.4f}")
+    col4.metric("Snapshots alvo", str(snapshots_alvo))
+
+    st.markdown("---")
+
+    # Sugestão de ks (linha do tempo) — sempre para trás a partir do k atual
+    # Inclui k_atual e anteriores, até preencher alvo
+    ks_sugeridos = []
+    kk = k_atual
+    while kk >= 1 and len(ks_sugeridos) < snapshots_alvo:
+        ks_sugeridos.append(int(kk))
+        kk -= 1
+
+    ks_disponiveis = sorted([int(k) for k in snaps.keys() if str(k).isdigit() or isinstance(k, int)])
+    ks_disponiveis_set = set(ks_disponiveis)
+
+    ks_faltando = [k for k in ks_sugeridos if k not in ks_disponiveis_set]
+
+    # ------------------------------------------------------------
+    # 🚀 CAP INVISÍVEL (V1.1) — EXECUÇÃO AUTOMÁTICA COMPLETA (pré-C4)
+    # ------------------------------------------------------------
+    # Regras:
+    # - Um clique inicia; o app continua sozinho (processa 1 k por rerun)
+    # - Segurança anti-zumbi: 1 janela por ciclo + limites de tentativa
+    # - Ao final, restaura o histórico ativo original
+    # ------------------------------------------------------------
+
+    # Sempre mostrar o status do CAP (linha do tempo / faltando), mesmo sem rodar o modo invisível
+    st.markdown("### 📌 Linha do tempo do CAP (k sugeridos)")
+    st.write(ks_sugeridos)
+
+    st.markdown("### 🧊 Snapshots P0 canônicos disponíveis")
+    st.caption("Fonte única: **snapshot_p0_canonic** (Replay Progressivo / CAP / Modo 6).")
+    st.write({"qtd": len(snaps), "ks": ks_disponiveis[-12:] if len(ks_disponiveis) > 12 else ks_disponiveis})
+
+    st.markdown("---")
+
+    # Se já está calibrado, registra auditoria e encerra
+    if not ks_faltando:
+        st.success("✅ CAP: snapshots suficientes para calibração da Parabólica.")
+        # sincroniza alias antigo por compatibilidade
+        st.session_state["snapshots_p0_map"] = snaps
+        st.session_state["cap_status"] = "CALIBRADA (assistido)"
+        st.session_state["cap_meta"] = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "k_atual": int(k_atual),
+            "snapshots_alvo": int(snapshots_alvo),
+            "snapshots_usados": int(len(ks_sugeridos)),
+            "ks_usados": ks_sugeridos,
+            "nr_pct": nr_pct,
+            "divergencia": diverg,
+            "k_star": k_star,
+            "modo": "CAP_ASSISTIDO",
+            "obs": "Pré-C4. Observacional. Não altera Camada 4.",
+        }
+        st.markdown("### 🧾 Auditoria CAP (resumo)")
+        st.json(st.session_state.get("cap_meta") or {}, expanded=False)
+
+        st.markdown("### ▶️ Próximo passo (operacional)")
+        st.info(
+            """Agora vá em **📐 Parabólica** para ver os estados short/mid/long e a governança.
+
+Se quiser, depois fechamos a regra do **P1 automático** (pré-C4) usando a Parabólica calibrada."""
+        )
+        st.stop()
+
+# ------------------------------------------------------------
+# 🚀 CAP INVISÍVEL (V2) — SEM rerun (session_state)
+# ------------------------------------------------------------
+# Motivo:
+# - Em runtimes recentes, pass  # rerun removido (compat) e/ou pass  # rerun removido (compat) podem falhar.
+# Estratégia V2 (robusta):
+# - Sem rerun explícito.
+# - Um clique = 1 ciclo seguro (1 janela → pipeline → modo6 → snapshot).
+# - O usuário pode clicar "Processar próximo k" até completar.
+# - Mantém tudo pré-C4, auditável, e restaura histórico ao final.
+# ------------------------------------------------------------
+
+    st.markdown("### 🚀 CAP Invisível (V2) — preencher snapshots automaticamente (sem rerun)")
+    st.caption(
+        "Pré-C4 · Observacional · Auditável. "
+        "Nesta V2, o CAP invisível roda **1 k por clique** (anti‑zumbi) e não usa `rerun()`."
+    )
+
+    # -------------------------------------------------------------
+    # 🧪 Série Suficiente (SS) — visão rápida (usa snapshots já coletados)
+    # -------------------------------------------------------------
+    try:
+        _snap_map = st.session_state.get("snapshot_p0_canonic") or {}
+        _df_full_ss = st.session_state.get("historico_df")
+        ss_info = v16_calcular_ss(_df_full_safe=_df_full_ss, snapshots_map=_snap_map)
+        st.session_state["ss_info"] = ss_info
+        st.session_state["ss_status"] = "ATINGIDA" if ss_info.get("status") else "NAO_ATINGIDA"
+        v16_render_bloco_ss(ss_info)
+        # 🧠 Memória Estrutural (SEM_RITMO) — bloco informativo
+        try:
+            v16_me_update_auto()
+            v16_render_bloco_me(st.session_state.get("me_info"), st.session_state.get("me_status_info"), st.session_state.get("ss_info"))
+        except Exception:
+            pass
+    except Exception:
+        pass
+    # Estado V2
+    if "cap_v2_running" not in st.session_state:
+        st.session_state["cap_v2_running"] = False
+    if "cap_v2_queue" not in st.session_state:
+        st.session_state["cap_v2_queue"] = []
+    if "cap_v2_done" not in st.session_state:
+        st.session_state["cap_v2_done"] = []
+    if "cap_v2_fail" not in st.session_state:
+        st.session_state["cap_v2_fail"] = []
+    if "cap_v2_restore_df" not in st.session_state:
+        st.session_state["cap_v2_restore_df"] = None
+    if "cap_v2_restore_k" not in st.session_state:
+        st.session_state["cap_v2_restore_k"] = None
+
+    colV2a, colV2b, colV2c = st.columns([1, 1, 1])
+    with colV2a:
+        if st.button("🟦 Iniciar CAP Invisível (V2)", use_container_width=True, disabled=st.session_state.get("cap_v2_running") is True):
+            # salva estado atual para restaurar ao fim
+            try:
+                st.session_state["cap_v2_restore_df"] = st.session_state.get("historico_df")
+                st.session_state["cap_v2_restore_k"] = st.session_state.get("replay_janela_k_active", len(_df_full_safe))
+            except Exception:
+                st.session_state["cap_v2_restore_df"] = None
+                st.session_state["cap_v2_restore_k"] = None
+
+            st.session_state["cap_v2_queue"] = list(map(int, ks_faltando))
+            st.session_state["cap_v2_done"] = []
+            st.session_state["cap_v2_fail"] = []
+            st.session_state["cap_v2_running"] = True
+
+    with colV2b:
+        if st.button("🟥 Parar / Desarmar (V2)", use_container_width=True, disabled=st.session_state.get("cap_v2_running") is not True):
+            st.session_state["cap_v2_running"] = False
+
+    with colV2c:
+        if st.button("🧹 Limpar estado V2 (não apaga snapshots)", use_container_width=True):
+            st.session_state["cap_v2_running"] = False
+            st.session_state["cap_v2_queue"] = []
+            st.session_state["cap_v2_done"] = []
+            st.session_state["cap_v2_fail"] = []
+            st.session_state["cap_v2_restore_df"] = None
+            st.session_state["cap_v2_restore_k"] = None
+            st.success("Estado do CAP Invisível V2 limpo.")
+
+    fila_v2 = st.session_state.get("cap_v2_queue") or []
+    feitos_v2 = st.session_state.get("cap_v2_done") or []
+    falhas_v2 = st.session_state.get("cap_v2_fail") or []
+
+    st.write({
+        "v2_running": bool(st.session_state.get("cap_v2_running")),
+        "pendentes": fila_v2[:12],
+        "concluidos": feitos_v2[-12:],
+        "falhas": falhas_v2[-12:],
+    })
+
+    # Um ciclo por clique (seguro)
+    if st.session_state.get("cap_v2_running") is True:
+        if not fila_v2:
+            # finaliza e restaura
+            st.session_state["cap_v2_running"] = False
+            try:
+                df_restore = st.session_state.get("cap_v2_restore_df")
+                k_restore = st.session_state.get("cap_v2_restore_k")
+                if df_restore is not None:
+                    st.session_state["historico_df"] = df_restore
+                if k_restore is not None:
+                    st.session_state["replay_janela_k_active"] = int(k_restore)
+            except Exception:
+                pass
+
+            st.success("✅ CAP Invisível (V2) concluído. Volte no 📡 CAP para ver a calibração.")
+        else:
+            k_next = int(fila_v2[0])
+            st.markdown(f"#### ▶️ Próximo k a processar: **{k_next}**")
+
+            if st.button("▶️ Processar próximo k (1 ciclo seguro)", use_container_width=True):
+                ok = False
+                try:
+                    # recorte janela
+                    df_k = _df_full_safe.iloc[:k_next].copy()
+
+                    # atualiza histórico ativo
+                    st.session_state["historico_df"] = df_k
+                    st.session_state["replay_janela_k_active"] = int(k_next)
+
+                    # atualiza universo (1..50 / 1..60 etc) de forma automática
+                    try:
+                        v16_registrar_universo_session_state(df_k, n_alvo=6)
+                    except Exception:
+                        pass
+
+                    # limpa chaves dependentes (silencioso)
+                    try:
+                        _pc_replay_limpar_chaves_dependentes_silent()
+                    except Exception:
+                        pass
+
+                    # pipeline silencioso (base mínima para o modo 6)
+                    ok_pipe = False
+                    try:
+                        ok_pipe = bool(pc_exec_pipeline_flex_ultra_silent(df_k))
+                    except Exception:
+                        ok_pipe = False
+
+                    # modo 6 silencioso (top10) e autoregistro do snapshot
+                    pacote = []
+                    if ok_pipe:
+                        try:
+                            pacote = pc_modo6_gerar_pacote_top10_silent(df_k)
+                        except Exception:
+                            pacote = []
+                    if ok_pipe and pacote:
+                        try:
+                            umin = int(st.session_state.get("universo_min") or 1)
+                            umax = int(st.session_state.get("universo_max") or max(umin, 60))
+                        except Exception:
+                            umin, umax = 1, 60
+
+                        try:
+                            ok = bool(pc_snapshot_p0_autoregistrar(pacote, k_reg=int(k_next), universo_min=int(umin), universo_max=int(umax)))
+                        except Exception:
+                            ok = False
+
+                    # registra estado
+                    if ok:
+                        feitos_v2.append(int(k_next))
+                        st.session_state["cap_v2_done"] = feitos_v2
+                        st.session_state["cap_v2_queue"] = fila_v2[1:]
+                        st.success(f"✅ Snapshot P0 registrado automaticamente para k={k_next}.")
+                        # 🧠 Atualiza Memória Estrutural automaticamente ao registrar Snapshot P0
+                        try:
+                            _df_full_me = st.session_state.get("_df_full_safe") or st.session_state.get("historico_df")
+                            v16_me_update_auto(_df_full_safe=_df_full_me, snapshots_map=st.session_state.get("snapshot_p0_canonic") or {})
+                        except Exception:
+                            pass
+                    else:
+                        falhas_v2.append(int(k_next))
+                        st.session_state["cap_v2_fail"] = falhas_v2
+                        st.session_state["cap_v2_queue"] = fila_v2[1:]
+                        st.warning(f"⚠️ Falha ao registrar k={k_next}. Seguiu para o próximo para não travar.")
+                except Exception:
+                    falhas_v2.append(int(k_next))
+                    st.session_state["cap_v2_fail"] = falhas_v2
+                    st.session_state["cap_v2_queue"] = fila_v2[1:]
+                    st.warning(f"⚠️ Falha inesperada ao processar k={k_next}. Seguiu para o próximo.")
+
+        st.markdown("---")
+
+        # Ainda faltam snapshots
+        st.warning("⚠️ CAP: ainda faltam snapshots para calibrar a Parabólica (assistido).")
+        st.write({"faltando": ks_faltando})
+
+        st.markdown("### 🚀 Acelerar (sem trabalho de adivinhar k)")
+        st.caption(
+            """Clique para **pré-selecionar automaticamente** o próximo k faltante na janela do Replay Progressivo.
+
+    Depois, siga o fluxo normal: gere o pacote no **🎯 Modo 6** e registre no **🧭 Replay Progressivo**."""
+        )
+
+        proximo_k = int(ks_faltando[0])
+        colA, colB = st.columns([1, 1])
+        with colA:
+            if st.button(f"➡️ Ir para o próximo k faltante ({proximo_k})", use_container_width=True):
+                st.session_state["replay_janela_k_active"] = int(proximo_k)
+                st.success(f"k pré-selecionado: {proximo_k}. Vá no Replay Progressivo e aplique a janela.")
+        with colB:
+            if st.button("🧹 Limpar auditoria CAP (não apaga snapshots)", use_container_width=True):
+                st.session_state.pop("cap_meta", None)
+                st.session_state.pop("cap_status", None)
+                st.success("Auditoria CAP limpa.")
+
+        st.markdown("### ✅ Checklist rápido (para cada k faltante)")
+        st.markdown(
+            "- **🧭 Replay Progressivo**: aplique janela em `k` (C1..Ck)\n"
+            "- **🎯 Modo 6**: gere o pacote normal\n"
+            "- **🧭 Replay Progressivo**: clique **Registrar pacote**\n"
+            "- Volte no **📡 CAP** para ver se atingiu o alvo\n"
+        )
+
+        st.info(
+            "📌 Observação: o CAP total (invisível) roda o fluxo mínimo automaticamente, mas permanece **pré‑C4** e **auditável**.\n"
+            "Ele não decide ataque, não altera Camada 4 e não ativa TURBO."
+        )
+
+        st.stop()
 
 
-# ===========================
-# 🧪 MC Observacional do Pacote (pré-C4) — ROUTER
-if painel == "🧪 MC Observacional do Pacote (pré-C4)":
-    v16_painel_mc_observacional_pacote_pre_c4()
+elif painel == "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)":
+
+    st.markdown("## 📐 Parabólica — Curvatura do Erro (Governança Pré-C4)")
+    st.caption("Leitura pré-C4. Usa apenas histórico + Snapshots P0 registrados. Não altera Camada 4.")
+
+    _df_full_safe = st.session_state.get("_df_full_safe") or st.session_state.get("historico_df")
+    # Fonte única canônica (Replay Progressivo / CAP)
+    snaps_map = st.session_state.get("snapshot_p0_canonic") or {}
+    # compat: manter alias antigo atualizado
+    st.session_state["snapshots_p0_map"] = snaps_map
+
+    if _df_full_safe is None:
+        st.warning("Histórico ausente. Carregue o histórico antes.")
+        st.stop()
+
+    # fallback: lista -> map
+    if not snaps_map:
+        snaps_list = st.session_state.get("snapshots_p0", [])
+        if isinstance(snaps_list, list) and snaps_list:
+            try:
+                snaps_map = {int(s.get("k")): s for s in snaps_list if isinstance(s, dict) and s.get("k") is not None}
+                st.session_state["snapshots_p0_map"] = snaps_map
+                st.session_state["snapshot_p0_canonic"] = snaps_map
+            except Exception:
+                snaps_map = {}
+
+    if not snaps_map or len(snaps_map) < 3:
+        st.warning("É necessário ao menos 3 Snapshots P0 registrados para calcular a Parabólica (multi-escala).")
+        st.stop()
+
+    n = int(st.session_state.get("n_alvo") or 6)
+    gov = parabola_multiescala_vetorial(_df_full_safe, snaps_map, n=n)
+    if not gov:
+        st.warning("Não foi possível calcular a Parabólica (dados insuficientes).")
+        st.stop()
+
+    estado_global = gov.get("estado_global")
+    p2_permitido = bool(gov.get("p2_permitido"))
+    Ws = gov.get("Ws", {})
+
+    # Persistimos no estado global para governar P1/P2 em outros painéis
+    st.session_state["parabola_estado_global"] = estado_global
+    st.session_state["parabola_gov"] = gov
+    st.session_state["parabola_p2_permitido"] = p2_permitido
+    st.session_state["parabola_debug"] = gov.get("debug", {})
+    st.session_state["parabola_estados"] = gov.get("estados", {})
+
+    # 🕺 Ritmo/Dança (ex-post, pré-C4) — base para Memória Estrutural do RESPIRÁVEL
+    try:
+        st.session_state["ritmo_danca_info"] = v16_detector_ritmo_danca_expost(gov)
+    except Exception:
+        st.session_state["ritmo_danca_info"] = {"ritmo_global": "N/D", "motivos": ["erro_detector"], "sinais": {}}
+
+    st.markdown("### 🧭 Estado Global (Governança)")
+    st.json({
+        "estado_global": estado_global,
+        "P1": "✅ permitido (leitura)" if estado_global in ("DESCENDO", "PLANA") else "⚠️ perde eficiência (leitura)",
+        "P2": "🟡 pode acordar (leitura)" if p2_permitido else "❌ vetado (deve dormir)",
+        "Ws": Ws,
+        "confirmacao": gov.get("confirmacao"),
+        "persistencia": gov.get("persistencia"),
+    })
+
+    st.markdown("### 🧠 Estados por Escala (Primário + Vetorial)")
+    estados = gov.get("estados", {})
+    df_est = []
+    for escala in ("short", "mid", "long"):
+        row = {"escala": escala, "W": Ws.get(escala)}
+        row.update(estados.get(escala, {}))
+        df_est.append(row)
+    st.dataframe(pd.DataFrame(df_est))
+
+    st.markdown("### 📊 Série (escala longa) — fora_total / fora_perto / fora_longe / dist_media")
+    serie_long = gov.get("series", {}).get("long", [])
+    if serie_long:
+        st.dataframe(pd.DataFrame(serie_long))
+    else:
+        st.info("Série longa insuficiente.")
+
+    with st.expander("🔎 Debug auditável (curvaturas, dE, eps)"):
+        st.json(gov.get("debug", {}))
+
+    st.caption("Regra canônica: Parabólica governa permissões estruturais. Não escolhe números e não toca Camada 4.")
+
+
+elif painel == "🧪 P2 — Hipóteses de Família (pré-C4)":
+    st.markdown("## 🧪 P2 — Hipóteses de Família (pré-C4)")
+    _df_full_safe = st.session_state.get("historico_df")
+    snapshots = st.session_state.get("snapshot_p0_canonic") or st.session_state.get("snapshot_p0") or {}
+
+    if _df_full_safe is None or not snapshots:
+        st.warning("Histórico ou Snapshot P0 ausente.")
+    else:
+        try:
+            ks = sorted([int(k) for k in snapshots.keys()])
+            k_sel = st.selectbox("Escolha a janela registrada (k)", ks, index=len(ks)-1)
+            snap = snapshots.get(int(k_sel)) or snapshots.get(str(k_sel)) or {}
+            if not isinstance(snap, dict) or snap.get("k") is None:
+                st.warning("Snapshot selecionado inválido ou incompleto.")
+            else:
+                res = p2_executar(snap, _df_full_safe)
+                st.json(res)
+        except Exception as e:
+            st.error(f"Erro no P2: {e}")
+
+
+# ============================================================
+# V16 — Ritmo/Dança (ex-post) — Observacional · Pré-C4
+# ============================================================
+def v16_calcular_ritmo_expost(v9_info: dict, trave_info: dict, ss_info: dict):
+    """
+    Calcula o estado de Ritmo/Dança usando apenas dados ex-post já existentes.
+    NÃO altera listas. NÃO decide nada. Apenas escreve estado observacional.
+    """
+    try:
+        ks_expost = int((ss_info or {}).get("ks_expost") or 0)
+        if ks_expost < 5:
+            return {"ritmo_global": "N/D", "motivos": ["ks_expost_insuficiente"], "sinais": {}}
+
+        fora_total = int((trave_info or {}).get("fora_total") or 0)
+
+        # extrai percentual de fora_perto (formato "12 (57.1%)")
+        fora_perto_pct = 0.0
+        if fora_total:
+            txt = str((trave_info or {}).get("fora_perto", "0"))
+            if "%" in txt:
+                fora_perto_pct = float(txt.split("(")[-1].replace("%)", ""))
+
+        # extrai percentual de CORE (formato "2 (3.7%)")
+        hits_core_pct = 0.0
+        txt_core = str((v9_info or {}).get("CORE", "0"))
+        if "%" in txt_core:
+            hits_core_pct = float(txt_core.split("(")[-1].replace("%)", ""))
+
+        # estabilidade do erro estrutural
+        erro_estavel = hits_core_pct < 10  # CORE muito baixo = erro persistente
+
+        # direcionalidade perto × longe
+        direcional = fora_perto_pct >= 55.0
+
+        if not erro_estavel:
+            return {"ritmo_global": "N/D", "motivos": ["erro_instavel"], "sinais": {}}
+
+        if erro_estavel and not direcional:
+            return {
+                "ritmo_global": "SEM_RITMO",
+                "motivos": ["erro_estavel_sem_direcao"],
+                "sinais": {"fora_perto_pct": fora_perto_pct},
+            }
+
+        if erro_estavel and direcional:
+            return {
+                "ritmo_global": "COM_RITMO",
+                "motivos": ["direcionalidade_borda"],
+                "sinais": {"fora_perto_pct": fora_perto_pct},
+            }
+
+        return {"ritmo_global": "N/D", "motivos": ["fallback"], "sinais": {}}
+
+    except Exception as e:
+        return {"ritmo_global": "N/D", "motivos": [f"erro_calculo: {e}"], "sinais": {}}
+
+
+# ============================================================
+# Integração canônica do Ritmo (v16i) — usando session_state real
+# ============================================================
+try:
+    v9_info = st.session_state.get("v9_agregado")
+    trave_info = st.session_state.get("trave_info")
+    ss_info = st.session_state.get("ss_info")
+
+    if isinstance(v9_info, dict) and isinstance(trave_info, dict) and isinstance(ss_info, dict):
+        ritmo_info = v16_calcular_ritmo_expost(v9_info, trave_info, ss_info)
+        st.session_state["ritmo_danca_info"] = ritmo_info
+except Exception:
+    pass
+
+
+# ============================================================
+# V16M — integração segura do Ritmo (fora de blocos sensíveis)
+# Executa após carregamento geral, sem alterar indentação interna
+# ============================================================
+try:
+    _v9 = st.session_state.get("v9_agregado")
+    _tr = st.session_state.get("trave_info")
+    _ss = st.session_state.get("ss_info")
+
+    if isinstance(_v9, dict) and isinstance(_tr, dict) and isinstance(_ss, dict):
+        _ritmo = v16_calcular_ritmo_expost(_v9, _tr, _ss)
+        st.session_state["ritmo_danca_info"] = _ritmo
+        st.session_state["ritmo_global_expost"] = _ritmo.get("ritmo_global", "N/D")
+except Exception:
+    pass
