@@ -1875,7 +1875,7 @@ def pc_semi_auto_processar_um_k(*, _df_full_safe: pd.DataFrame, k_exec: int) -> 
                                 pass
                 universo_boot = sorted({v for v in vals_boot if isinstance(v, int) and v > 0})
                 if len(universo_boot) >= 6:
-                    seed = abs(hash(f"PC-SAFE-BOOT-{len(df_recorte)}-{k_exec}")) % (2**32)
+                    seed = pc_stable_seed(f"PC-SAFE-BOOT-{len(df_recorte)}-{k_exec}")
                     rng = np.random.default_rng(seed)
                     pacote = [sorted(rng.choice(universo_boot, size=6, replace=False).tolist()) for _ in range(9)]
                 else:
@@ -1980,7 +1980,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
         st.session_state["universo_str"] = f"{umin}–{umax}"
 
         # RNG determinístico (canônico)
-        seed = abs(hash(f"PC-M6-{len(df)}-{n_real}-{umin}-{umax}")) % (2**32)
+        seed = pc_stable_seed(f"PC-M6-{len(df)}-{n_real}-{umin}-{umax}")
         rng = np.random.default_rng(seed)
 
         universo_idx = list(range(len(universo)))
@@ -5703,6 +5703,20 @@ def v16_registrar_volume_e_confiabilidade():
 
 import json
 import hashlib
+
+
+# ============================================================
+# 🔒 Determinismo canônico (sem bifurcar): seed estável
+# Motivo: hash() do Python é randomizado por processo, gerando listas diferentes no refresh.
+# Este helper cria um seed reprodutível (32-bit) a partir de um texto.
+# ============================================================
+def pc_stable_seed(tag: str) -> int:
+    try:
+        h = hashlib.sha256(tag.encode("utf-8", errors="ignore")).digest()
+        return int.from_bytes(h[:8], "big", signed=False) % (2**32)
+    except Exception:
+        return 0
+
 from datetime import datetime
 
 
@@ -12866,7 +12880,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ------------------------------------------------------------
     # REPRODUTIBILIDADE (ORIGINAL)
     # ------------------------------------------------------------
-    seed = abs(hash(f"PC-M6-{len(df)}-{n_real}-{umin}-{umax}")) % (2**32)
+    seed = pc_stable_seed(f"PC-M6-{len(df)}-{n_real}-{umin}-{umax}")
     rng = np.random.default_rng(seed)
 
 
