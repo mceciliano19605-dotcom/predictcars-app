@@ -12462,8 +12462,65 @@ def v10_bloco_c_aplicar_ajuste_fino_numerico(listas, n_real, v8_borda_info=None,
                     any4 = bool(E.any())
                     fase6_diag["any_4p_seen"] = any4
 
-                    # Gate canônico (não inventa): SS_ok + base + evidência de janela
-                    if ss_ok and any4:
+                    # Gate PRE-4 (canônico): permite o γ atuar antes do 1º 4,
+                    # usando SOMENTE métricas já existentes (trave / p3) e mantendo dose contida.
+                    pre4_gate = False
+                    pre4_motivo = None
+                    if ss_ok and (not any4):
+                        # p3 na W_DIR (evento menos raro, serve como "sinal fraco" de borda)
+                        try:
+                            p3_rate_dir = float((hitv == 3).mean())
+                        except Exception:
+                            p3_rate_dir = 0.0
+
+                        # Proxy de trave na W_DIR: usa fora_perto / fora_longe se existirem no df_eval
+                        trv_ratio_dir = None
+                        try:
+                            fp_col = None
+                            for c in ("fora_perto_nums", "fora_perto_list", "fora_perto"):
+                                if c in dfw.columns:
+                                    fp_col = c
+                                    break
+                            fl_col = None
+                            for c in ("fora_longe_nums", "fora_longe_list", "fora_longe"):
+                                if c in dfw.columns:
+                                    fl_col = c
+                                    break
+
+                            fp_n = 0
+                            fl_n = 0
+                            if fp_col:
+                                for _fp in dfw[fp_col].tolist():
+                                    if isinstance(_fp, (list, tuple)):
+                                        fp_n += len(_fp)
+                            if fl_col:
+                                for _fl in dfw[fl_col].tolist():
+                                    if isinstance(_fl, (list, tuple)):
+                                        fl_n += len(_fl)
+
+                            if (fp_n + fl_n) > 0:
+                                trv_ratio_dir = float(fp_n) / float(fp_n + fl_n)
+                        except Exception:
+                            trv_ratio_dir = None
+
+                        # Critério conservador (pré-4):
+                        # - trave domina (>=85%), OU
+                        # - existe massa mínima de 3 na W_DIR (>=3%)
+                        if (trv_ratio_dir is not None and trv_ratio_dir >= 0.85) or (p3_rate_dir >= 0.03):
+                            pre4_gate = True
+                            if trv_ratio_dir is not None:
+                                pre4_motivo = f"pre4_trave_ratio_dir={trv_ratio_dir:.3f}"
+                            else:
+                                pre4_motivo = f"pre4_p3_rate_dir={p3_rate_dir:.3f}"
+
+                    fase6_diag["pre4_gate"] = bool(pre4_gate)
+                    if pre4_motivo:
+                        fase6_diag["pre4_motivo"] = pre4_motivo
+
+                    # Gate canônico: SS_ok + base + (janela real OU pré-4 por trave)
+                    if ss_ok and (any4 or pre4_gate):
+                        fase6_diag["motivo"] = "gate_any4" if any4 else "gate_pre4_trave"
+
                         # Sinal B: trave por passageiro (fora_perto_nums)
                         trave_counts = {}
                         trave_total = 0
