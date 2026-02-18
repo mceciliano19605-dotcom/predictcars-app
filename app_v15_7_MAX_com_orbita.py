@@ -19,8 +19,8 @@ from datetime import datetime
 # Regra do Rogério: o Streamlit SEMPRE aponta para app_v15_7_MAX_com_orbita.py,
 # então o build real (origem) precisa aparecer na UI para auditoria.
 # ============================================================
-BUILD_TAG = "v16h17 — GAMMA PRE-4 GATE (AUDITÁVEL HARD)"
-BUILD_ORIG_FILE = "app_v15_7_MAX_com_orbita_GAMMA_PRE4_GATE_v16h15.py"
+BUILD_TAG = "v16h18 — GAMMA PRE-4 GATE + FIX SNAP UNIVERSE (AUDITÁVEL HARD)"
+BUILD_ORIG_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h18.py"
 BUILD_CANONICO = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -1824,6 +1824,8 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
             "ts": datetime.now().isoformat(timespec="seconds"),
             "k": int(k_reg),
             "qtd_listas": int(len(pacote_atual)),
+            "universo_pacote_len": int(len(universo_pacote)),
+            "universo_pacote": [int(x) for x in universo_pacote],
             "listas": [list(map(int, lst)) for lst in pacote_atual],
             "freq_passageiros": {str(int(k)): int(v) for k, v in sorted(freq_passageiros.items(), key=lambda kv: (-kv[1], kv[0]))},
             "snap_v8": {
@@ -9360,7 +9362,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                     "ts": snap.get("ts"),
                     "k": snap.get("k"),
                     "qtd_listas": snap.get("qtd_listas"),
-                    "universo_pacote_len": len(snap.get("universo_pacote") or []),
+                    "universo_pacote_len": int(snap.get("universo_pacote_len") or len(snap.get("universo_pacote") or [])),
                     "snap_v8": snap.get("snap_v8") or {},
                     "nota": snap.get("nota"),
                 }
@@ -10173,7 +10175,7 @@ if painel == "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo":
             "ts": snap.get("ts"),
             "qtd_listas": snap.get("qtd_listas"),
             "assinatura": snap.get("assinatura"),
-            "universo_pacote_len": len(snap.get("universo_pacote") or []),
+            "universo_pacote_len": int(snap.get("universo_pacote_len") or len(snap.get("universo_pacote") or [])),
             "core_sz": len((snap.get("snap_v8") or {}).get("core") or []),
             "quase_sz": len((snap.get("snap_v8") or {}).get("quase_core") or []),
             "borda_interna_sz": len((snap.get("snap_v8") or {}).get("borda_interna") or []),
