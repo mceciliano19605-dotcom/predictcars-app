@@ -12,6 +12,19 @@ Arquivo único, íntegro e operacional.
 
 import streamlit as st
 
+from datetime import datetime
+
+# ============================================================
+# BUILD AUDITÁVEL (hard) — NÃO CONFUNDIR COM NOME DO ARQUIVO NO GITHUB
+# Regra do Rogério: o Streamlit SEMPRE aponta para app_v15_7_MAX_com_orbita.py,
+# então o build real (origem) precisa aparecer na UI para auditoria.
+# ============================================================
+BUILD_TAG = "v16h17 — GAMMA PRE-4 GATE (AUDITÁVEL HARD)"
+BUILD_ORIG_FILE = "app_v15_7_MAX_com_orbita_GAMMA_PRE4_GATE_v16h15.py"
+BUILD_CANONICO = "app_v15_7_MAX_com_orbita.py"
+BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
 # ------------------------------------------------------------
 # V16h6 — BOOT CLEAN (anti-resíduo de sessão)
 # - Se não há histórico carregado, remove saídas antigas que podem
@@ -1150,12 +1163,38 @@ st.set_page_config(
 
 
 
+
+# ================= BANNER AUDITÁVEL (hard) =================
+try:
+    st.markdown(
+        f"""
+        <div style="background-color:#111;
+                    border:2px solid #ff4b4b;
+                    padding:14px;
+                    border-radius:10px;
+                    margin:10px 0 14px 0;">
+            <div style="font-size:20px;color:#ff4b4b;font-weight:800;">
+                EXECUTANDO AGORA (BUILD REAL): {BUILD_ORIG_FILE}
+            </div>
+            <div style="color:white;margin-top:6px;">
+                <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICO}<br>
+                <b>BUILD:</b> {BUILD_TAG}<br>
+                <b>TIMESTAMP:</b> {BUILD_TIME}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+except Exception:
+    pass
+# ============================================================
+
 # ============================================================
 # PredictCars V15.7 MAX — Âncora Estável
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita.py  |  build: BLOCOC_FASE6_v16h14")
+st.sidebar.warning(f"Rodando arquivo: {BUILD_CANONICO}  |  build: {BUILD_TAG}  |  origem: {BUILD_ORIG_FILE}  |  ts: {BUILD_TIME}")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
