@@ -12,6 +12,26 @@ Arquivo único, íntegro e operacional.
 
 import streamlit as st
 
+from datetime import datetime
+
+# ============================================================
+# BUILD AUDITÁVEL (HARD) — NÃO REMOVER
+# - Mostra claramente o build real que você colou no GitHub
+# - Mantém o caminho canônico do Streamlit: app_v15_7_MAX_com_orbita.py
+# ============================================================
+BUILD_TAG = "v16h21 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD)"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h21.py"
+BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
+BUILD_TIME = "2026-02-19 13:42:31"
+
+# IMPORTANTÍSSIMO: set_page_config precisa ser o PRIMEIRO comando Streamlit.
+st.set_page_config(
+    page_title="Predict Cars V15.7 MAX — V16 Premium",
+    page_icon="🚗",
+    layout="wide",
+)
+
+
 # ------------------------------------------------------------
 # V16h6 — BOOT CLEAN (anti-resíduo de sessão)
 # - Se não há histórico carregado, remove saídas antigas que podem
@@ -24,6 +44,28 @@ try:
                 del st.session_state[_k]
 except Exception:
     pass
+
+
+# ================= BANNER GIGANTE (AUDITÁVEL HARD) =================
+st.markdown(
+    f'''
+    <div style="background-color:#111;
+                border:3px solid #ff4b4b;
+                padding:18px;
+                border-radius:10px;
+                margin-bottom:12px;">
+        <h2 style="color:#ff4b4b;margin:0;">
+        EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE}
+        </h2>
+        <p style="color:white;margin:6px 0 0 0;">
+        <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
+        <b>BUILD:</b> {BUILD_TAG}<br>
+        <b>TIMESTAMP:</b> {BUILD_TIME}
+        </p>
+    </div>
+    ''',
+    unsafe_allow_html=True,
+)
 
 # ============================================================
 # V16 — POSTURA OPERACIONAL (pré-C4)
@@ -1142,20 +1184,13 @@ def _pc_fmt_num(x, decimals: int = 4, nd: str = "N/D") -> str:
     except Exception:
         return nd
 
-st.set_page_config(
-    page_title="Predict Cars V15.7 MAX — V16 Premium",
-    page_icon="🚗",
-    layout="wide",
-)
-
-
 
 # ============================================================
 # PredictCars V15.7 MAX — Âncora Estável
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita.py  |  build: BLOCOC_FASE6_v16h14")
+st.sidebar.warning(f"EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE} | BUILD: {BUILD_TAG} | TIMESTAMP: {BUILD_TIME}")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
