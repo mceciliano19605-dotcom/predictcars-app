@@ -12,19 +12,6 @@ Arquivo único, íntegro e operacional.
 
 import streamlit as st
 
-from datetime import datetime
-
-# ============================================================
-# BUILD AUDITÁVEL (hard) — NÃO CONFUNDIR COM NOME DO ARQUIVO NO GITHUB
-# Regra do Rogério: o Streamlit SEMPRE aponta para app_v15_7_MAX_com_orbita.py,
-# então o build real (origem) precisa aparecer na UI para auditoria.
-# ============================================================
-BUILD_TAG = "v16h18 — GAMMA PRE-4 GATE + FIX SNAP UNIVERSE (AUDITÁVEL HARD)"
-BUILD_ORIG_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h18.py"
-BUILD_CANONICO = "app_v15_7_MAX_com_orbita.py"
-BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
 # ------------------------------------------------------------
 # V16h6 — BOOT CLEAN (anti-resíduo de sessão)
 # - Se não há histórico carregado, remove saídas antigas que podem
@@ -1163,38 +1150,12 @@ st.set_page_config(
 
 
 
-
-# ================= BANNER AUDITÁVEL (hard) =================
-try:
-    st.markdown(
-        f"""
-        <div style="background-color:#111;
-                    border:2px solid #ff4b4b;
-                    padding:14px;
-                    border-radius:10px;
-                    margin:10px 0 14px 0;">
-            <div style="font-size:20px;color:#ff4b4b;font-weight:800;">
-                EXECUTANDO AGORA (BUILD REAL): {BUILD_ORIG_FILE}
-            </div>
-            <div style="color:white;margin-top:6px;">
-                <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICO}<br>
-                <b>BUILD:</b> {BUILD_TAG}<br>
-                <b>TIMESTAMP:</b> {BUILD_TIME}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-except Exception:
-    pass
-# ============================================================
-
 # ============================================================
 # PredictCars V15.7 MAX — Âncora Estável
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning(f"Rodando arquivo: {BUILD_CANONICO}  |  build: {BUILD_TAG}  |  origem: {BUILD_ORIG_FILE}  |  ts: {BUILD_TIME}")
+st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita.py  |  build: BLOCOC_FASE6_v16h14")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
@@ -1824,8 +1785,6 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
             "ts": datetime.now().isoformat(timespec="seconds"),
             "k": int(k_reg),
             "qtd_listas": int(len(pacote_atual)),
-            "universo_pacote_len": int(len(universo_pacote)),
-            "universo_pacote": [int(x) for x in universo_pacote],
             "listas": [list(map(int, lst)) for lst in pacote_atual],
             "freq_passageiros": {str(int(k)): int(v) for k, v in sorted(freq_passageiros.items(), key=lambda kv: (-kv[1], kv[0]))},
             "snap_v8": {
@@ -7670,6 +7629,145 @@ def v16_painel_expectativa_historica_contexto():
     return m3_painel_expectativa_historica_contexto()
 
 
+def v16_painel_parabolica_curvatura_erro_pre_c4():
+    """
+    📐 Parabólica — Curvatura do Erro (Governança Pré-C4)
+    Observacional • auditável • não altera listas • não altera Camada 4.
+    Objetivo: mostrar a curvatura multi-escala do erro (fora_longe etc.) usando snapshots P0 do Replay Progressivo.
+    """
+    st.title("📐 Parabólica — Curvatura do Erro (Governança Pré-C4)")
+    st.caption("Governança pré‑C4 • Observacional • Auditável. Não gera listas. Não decide. Não altera Camada 4.")
+
+    df_full = st.session_state.get("historico_df")
+    snaps_map = st.session_state.get("snapshot_p0_canonic") or {}
+    if df_full is None or (hasattr(df_full, "empty") and df_full.empty):
+        st.warning("Não encontrei histórico na sessão. Rode primeiro **📁 Carregar Histórico**.")
+        return
+    if not isinstance(snaps_map, dict) or len(snaps_map) == 0:
+        st.warning("""Ainda não há snapshots P0 registrados.
+
+Roteiro canônico:
+1) Rode **🎯 Modo 6** (gera pacote)
+2) Vá em **🧭 Replay Progressivo — Janela Móvel (Assistido)**
+3) Clique em **Registrar pacote gerado para esta janela**
+4) Rode 1–N lotes SAFE para acumular snapshots (ideal: 60)
+""")
+        return
+
+    try:
+        n = int(st.session_state.get("n_alvo") or 6)
+    except Exception:
+        n = 6
+
+    try:
+        gov = parabola_multiescala_vetorial(df_full, snaps_map, n=n) or {}
+        st.session_state["parabola_gov"] = gov
+        st.session_state["parabola_estado_global"] = gov.get("estado_global")
+    except Exception as e:
+        st.error(f"Falha ao calcular Parabólica: {e}")
+        return
+
+    estado_global = gov.get("estado_global")
+    Ws = (gov.get("Ws") or {}) if isinstance(gov, dict) else {}
+    pers = (gov.get("persistencia") or {}) if isinstance(gov, dict) else {}
+
+    st.success(f"Parabólica calculada. Estado global: **{estado_global}**")
+    try:
+        st.caption(f"Escalas (Ws): short={Ws.get('short')} · mid={Ws.get('mid')} · long={Ws.get('long')}")
+    except Exception:
+        pass
+
+    colA, colB = st.columns(2)
+    with colA:
+        st.subheader("Estados (por escala · métrica)")
+        try:
+            st.json(gov.get("estados") or {})
+        except Exception:
+            st.json({})
+    with colB:
+        st.subheader("Persistência (objetiva)")
+        try:
+            st.json(pers)
+        except Exception:
+            st.json({})
+
+    with st.expander("Debug (curvaturas e séries) — auditável", expanded=False):
+        st.json({
+            "Ws": Ws,
+            "estado_global": estado_global,
+            "p2_permitido": gov.get("p2_permitido"),
+            "confirmacao": gov.get("confirmacao"),
+            "series": gov.get("series"),
+            "debug": gov.get("debug"),
+        })
+
+
+def v16_painel_cap_calibracao_assistida_parabola_pre_c4():
+    """
+    📡 CAP — Calibração Assistida da Parabólica (pré‑C4)
+    Objetivo: gravar uma calibração simples e auditável (cap_status + cap_pct) baseada no estado da Parabólica.
+    Observacional: só escreve sessão quando o operador clicar em calibrar.
+    """
+    st.title("📡 CAP — Calibração Assistida da Parabólica (pré-C4)")
+    st.caption("Governança pré‑C4 • Assistida • Auditável. Não gera listas automaticamente. Não altera Camada 4.")
+
+    gov = st.session_state.get("parabola_gov")
+    estado_global = st.session_state.get("parabola_estado_global")
+
+    if not isinstance(gov, dict) or estado_global is None:
+        st.warning("""CAP depende da Parabólica.
+
+Rode primeiro **📐 Parabólica — Curvatura do Erro** (e tenha snapshots P0 suficientes).
+""")
+        return
+
+    cap_status = str(st.session_state.get("cap_status") or "NÃO CALIBRADA")
+    cap_pct_atual = float(st.session_state.get("cap_pct") or 0.65)
+
+    st.markdown("### Estado atual")
+    st.write(f"- **Parabólica (estado_global):** {estado_global}")
+    st.write(f"- **CAP status:** {cap_status}")
+    st.write(f"- **cap_pct (elasticidade mínima em RESPIRÁVEL):** {cap_pct_atual:.2f}")
+
+    st.markdown("---")
+    st.markdown("### Calibração assistida (1 clique)")
+
+    # Heurística simples (governança):
+    # - SUBINDO (erro abrindo / piorando) -> mais elasticidade (cap_pct maior)
+    # - PLANA (ambíguo) -> neutro
+    # - DESCENDO (erro fechando / melhorando) -> menos elasticidade (cap_pct menor)
+    if estado_global == "SUBINDO":
+        cap_pct_sug = 0.70
+    elif estado_global == "DESCENDO":
+        cap_pct_sug = 0.55
+    else:
+        cap_pct_sug = 0.65
+
+    st.info(f"""Sugestão CAP (auditável):
+- estado_global = **{estado_global}** → cap_pct sugerido = **{cap_pct_sug:.2f}**
+
+Isso só afeta a *diversificação mínima* (pré‑C4) quando você **rodar novamente** o Modo 6.
+Não muda Camada 4.
+""")
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        cap_pct_manual = st.slider("cap_pct manual (se quiser)", min_value=0.40, max_value=0.85, value=float(cap_pct_sug), step=0.01)
+    with c2:
+        st.caption("Recomendação: mantenha o default sugerido a menos que esteja testando hipóteses.")
+
+    if st.button("✅ Calibrar CAP agora (gravar na sessão)", use_container_width=True):
+        st.session_state["cap_pct"] = float(cap_pct_manual)
+        st.session_state["cap_status"] = f"CALIBRADA({estado_global}) cap_pct={float(cap_pct_manual):.2f}"
+        st.success(f"CAP calibrada: {st.session_state['cap_status']}")
+
+    with st.expander("O que isso altera (auditável)", expanded=False):
+        st.write(
+            "- **cap_status**: habilita governança P1 onde o código exige CAP 'CALIBRADA'.\n"
+            "- **cap_pct**: parâmetro usado na diversificação mínima em postura RESPIRÁVEL.\n"
+            "- Não cria motor novo e não altera Camada 4."
+        )
+
+
 def v16_replay_historico_observacional(
     *,
     df,
@@ -9362,7 +9460,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                     "ts": snap.get("ts"),
                     "k": snap.get("k"),
                     "qtd_listas": snap.get("qtd_listas"),
-                    "universo_pacote_len": int(snap.get("universo_pacote_len") or len(snap.get("universo_pacote") or [])),
+                    "universo_pacote_len": len(snap.get("universo_pacote") or []),
                     "snap_v8": snap.get("snap_v8") or {},
                     "nota": snap.get("nota"),
                 }
@@ -10175,7 +10273,7 @@ if painel == "🧪 P1 — Ajuste de Pacote (pré-C4) — Comparativo":
             "ts": snap.get("ts"),
             "qtd_listas": snap.get("qtd_listas"),
             "assinatura": snap.get("assinatura"),
-            "universo_pacote_len": int(snap.get("universo_pacote_len") or len(snap.get("universo_pacote") or [])),
+            "universo_pacote_len": len(snap.get("universo_pacote") or []),
             "core_sz": len((snap.get("snap_v8") or {}).get("core") or []),
             "quase_sz": len((snap.get("snap_v8") or {}).get("quase_core") or []),
             "borda_interna_sz": len((snap.get("snap_v8") or {}).get("borda_interna") or []),
@@ -18871,3 +18969,10 @@ if painel == "🔮 V16 Premium Profundo — Diagnóstico & Calibração":
 # 🧪 MC Observacional do Pacote (pré-C4) — ROUTER
 if painel == "🧪 MC Observacional do Pacote (pré-C4)":
     v16_painel_mc_observacional_pacote_pre_c4()
+
+
+if painel == "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)":
+    v16_painel_parabolica_curvatura_erro_pre_c4()
+
+if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
+    v16_painel_cap_calibracao_assistida_parabola_pre_c4()
