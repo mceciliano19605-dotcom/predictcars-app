@@ -17,8 +17,8 @@ from datetime import datetime
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h25 — BUILD FIX (TAG/FILE) + PARSER 6+k DETERMINÍSTICO + PAGE_CONFIG ÚNICO"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h25_PARSERFIX.py"
+BUILD_TAG = "v16h27 — BANNER FIX + PARSER 6+k DETERMINÍSTICO (skip non-C) + PAGE_CONFIG ÚNICO"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h27_PARSERFIX_DETERMINISTICO_BANNERFIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -2359,17 +2359,30 @@ def _m1_render_mirror_panel() -> None:
 # ============================================================
 
 
+
 def carregar_historico_universal(linhas):
     import pandas as pd
     
     registros = []
     
     for idx, linha in enumerate(linhas, start=1):
+        if linha is None:
+            continue
+        
         linha = linha.strip()
         if not linha:
             continue
         
+        # Governança: só processa linhas que representam séries (ID começando com 'C')
+        # Isso elimina cabeçalhos, comentários e lixo residual sem afrouxar o determinismo 6+k.
+        if not linha.startswith("C"):
+            continue
+        
         partes = linha.split(";")
+        
+        # Se houver ';' no final, pode gerar campo vazio — removemos de forma canônica.
+        if len(partes) > 0 and partes[-1] == "":
+            partes = partes[:-1]
         
         # Esperado: ID + 6 passageiros + k  => total 8 campos
         if len(partes) != 8:
@@ -2398,9 +2411,6 @@ def carregar_historico_universal(linhas):
     
     df = pd.DataFrame(registros)
     return df
-
-
-
 # ============================================================
 # V16 PREMIUM — IMPORTAÇÃO OFICIAL
 # (Não altera nada do V15.7, apenas registra os painéis novos)
