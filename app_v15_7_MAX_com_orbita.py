@@ -2358,68 +2358,47 @@ def _m1_render_mirror_panel() -> None:
 # - Universo é derivado do histórico (SANIDADE)
 # ============================================================
 
+
 def carregar_historico_universal(linhas):
-    """
-    Formato esperado (exemplos válidos):
-    C10;20;32;49;54;62;0
-    C5790;4;5;6;23;35;43;0
-    C15;01;02;03;04;05;06;07;08;09;10;1
-    """
-
+    import pandas as pd
+    
     registros = []
-    universo_detectado = []
-
+    
     for idx, linha in enumerate(linhas, start=1):
         linha = linha.strip()
-
         if not linha:
             continue
-
+        
         partes = linha.split(";")
-
-        if len(partes) < 3:
-            raise ValueError(f"Linha {idx} inválida (campos insuficientes): {linha}")
-
+        
+        # Esperado: ID + 6 passageiros + k  => total 8 campos
+        if len(partes) != 8:
+            raise ValueError(f"Linha {idx} não possui 8 campos (ID + 6 passageiros + k): {linha}")
+        
+        identificador = partes[0]
+        
         try:
-            valores = partes[1:]          # ignora identificador
-            k = int(valores[-1])          # último valor é k
-            passageiros_raw = [int(x) for x in valores[:-1]]
-            if len(passageiros_raw) < 6:
-                raise ValueError(f"Linha {idx} com passageiros insuficientes (<6): {linha}")
-            passageiros = passageiros_raw[:6]  # CANÔNICO: sempre 6 passageiros (k é o último campo)
+            passageiros = [int(x) for x in partes[1:7]]
+            k = int(partes[7])
         except ValueError:
-            raise ValueError(f"Linha {idx} contém valores não numéricos: {linha}")
-
-        if not passageiros:
-            raise ValueError(f"Linha {idx} sem passageiros válidos: {linha}")
-
-        # coleta universo real
-        universo_detectado.extend(passageiros)
-
-        registro = {f"p{i+1}": p for i, p in enumerate(passageiros)}
-        registro["k"] = k
-        registro["serie"] = idx
-
+            raise ValueError(f"Linha {idx} contém valores não numéricos em passageiros/k: {linha}")
+        
+        registro = {
+            "id": identificador,
+            "p1": passageiros[0],
+            "p2": passageiros[1],
+            "p3": passageiros[2],
+            "p4": passageiros[3],
+            "p5": passageiros[4],
+            "p6": passageiros[5],
+            "k": k
+        }
+        
         registros.append(registro)
-
-    if not registros:
-        raise ValueError("Histórico vazio ou inválido.")
-
+    
     df = pd.DataFrame(registros)
-
-    # ------------------------------------------------------------
-    # SANIDADE DO UNIVERSO — CANÔNICA (MIN e MAX REAIS)
-    # ------------------------------------------------------------
-    try:
-        universo_min = int(min(universo_detectado))
-        universo_max = int(max(universo_detectado))
-        st.session_state["universo_min"] = universo_min
-        st.session_state["universo_max"] = universo_max
-    except Exception:
-        st.session_state["universo_min"] = None
-        st.session_state["universo_max"] = None
-
     return df
+
 
 
 # ============================================================
