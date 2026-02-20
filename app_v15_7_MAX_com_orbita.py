@@ -3989,6 +3989,14 @@ def v16_calc_lce_b(
             "ritmo_global": ritmo_global,
             "rig_score": rig_score,
             "rig_flag": rig_flag,
+                "pre4_gate": bool((st.session_state.get("bloco_c_fase6_dir_diag") or {}).get("pre4_gate", False)),
+                "pre4_motivo": (st.session_state.get("bloco_c_fase6_dir_diag") or {}).get("pre4_motivo", "N/A"),
+                "gamma_rank": (st.session_state.get("bloco_c_fase6_dir_diag") or {}).get("gamma_rank", None),
+                "gamma_gap": (st.session_state.get("bloco_c_fase6_dir_diag") or {}).get("gamma_gap", None),
+                "gamma_gap_norm": (st.session_state.get("bloco_c_fase6_dir_diag") or {}).get("gamma_gap_norm", None),
+                "rank_n": (st.session_state.get("bloco_c_fase6_dir_diag") or {}).get("rank_n", None),
+                "thr_min": (st.session_state.get("bloco_c_fase6_dir_diag") or {}).get("thr_min", None),
+
             "core_sz": core_sz,
             "avg_best": avg_best,
                 "avg_best_from_dist": avg_best_from_dist,
@@ -9984,6 +9992,10 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                 "B1_sugerido": lce_b.get("b1_sugerido"),
                 "Prontidao_6E": lce_b.get("prontidao_6e"),
             })
+            _dbg = lce_b.get("_debug") or {}
+            st.markdown(
+                f"**🧩 GAMMA PRE‑4 GATE (debug):** `pre4_gate={_dbg.get('pre4_gate')}` · `motivo={_dbg.get('pre4_motivo')}` · `gamma_norm={_dbg.get('gamma_gap_norm')}`"
+            )
             # Debug fica visível para auditoria (sem virar decisão)
             if isinstance(lce_b.get("_debug"), dict):
                 st.json(lce_b["_debug"])
