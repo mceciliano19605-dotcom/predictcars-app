@@ -12,26 +12,6 @@ Arquivo único, íntegro e operacional.
 
 import streamlit as st
 
-from datetime import datetime
-
-# ============================================================
-# BUILD AUDITÁVEL (HARD) — NÃO REMOVER
-# - Mostra claramente o build real que você colou no GitHub
-# - Mantém o caminho canônico do Streamlit: app_v15_7_MAX_com_orbita.py
-# ============================================================
-BUILD_TAG = "v16h21 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD)"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h21.py"
-BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
-BUILD_TIME = "2026-02-19 13:42:31"
-
-# IMPORTANTÍSSIMO: set_page_config precisa ser o PRIMEIRO comando Streamlit.
-st.set_page_config(
-    page_title="Predict Cars V15.7 MAX — V16 Premium",
-    page_icon="🚗",
-    layout="wide",
-)
-
-
 # ------------------------------------------------------------
 # V16h6 — BOOT CLEAN (anti-resíduo de sessão)
 # - Se não há histórico carregado, remove saídas antigas que podem
@@ -44,28 +24,6 @@ try:
                 del st.session_state[_k]
 except Exception:
     pass
-
-
-# ================= BANNER GIGANTE (AUDITÁVEL HARD) =================
-st.markdown(
-    f'''
-    <div style="background-color:#111;
-                border:3px solid #ff4b4b;
-                padding:18px;
-                border-radius:10px;
-                margin-bottom:12px;">
-        <h2 style="color:#ff4b4b;margin:0;">
-        EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE}
-        </h2>
-        <p style="color:white;margin:6px 0 0 0;">
-        <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> {BUILD_TAG}<br>
-        <b>TIMESTAMP:</b> {BUILD_TIME}
-        </p>
-    </div>
-    ''',
-    unsafe_allow_html=True,
-)
 
 # ============================================================
 # V16 — POSTURA OPERACIONAL (pré-C4)
@@ -1184,13 +1142,20 @@ def _pc_fmt_num(x, decimals: int = 4, nd: str = "N/D") -> str:
     except Exception:
         return nd
 
+st.set_page_config(
+    page_title="Predict Cars V15.7 MAX — V16 Premium",
+    page_icon="🚗",
+    layout="wide",
+)
+
+
 
 # ============================================================
 # PredictCars V15.7 MAX — Âncora Estável
 # (sem governança / sem fases extras / sem 'próximo passo')
 # ============================================================
 
-st.sidebar.warning(f"EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE} | BUILD: {BUILD_TAG} | TIMESTAMP: {BUILD_TIME}")
+st.sidebar.warning("Rodando arquivo: app_v15_7_MAX_com_orbita.py  |  build: BLOCOC_FASE6_v16h14")
 # ============================================================
 # Predict Cars V15.7 MAX — V16 PREMIUM PROFUNDO
 # Núcleo + Coberturas + Interseção Estatística
@@ -14592,6 +14557,12 @@ def v16_priorizar_listas_por_contexto(listas):
     """
     Ordena listas existentes usando ECO + Estado.
     Apenas PRIORIZA — não remove, não cria, não decide.
+
+    v16h22 (γ BORDA FINA):
+    - Se CAP estiver CALIBRADA e Parabólica estiver PLANA
+      e ainda estivermos em "zero-4" (rate_4p_w == 0),
+      aplica um viés controlado de diversificação (γ) + penalidade nocivos.
+    - Não altera Camada 4; apenas mexe na ordem do pacote.
     """
 
     diag = st.session_state.get("diagnostico_eco_estado_v16", {})
@@ -14601,27 +14572,86 @@ def v16_priorizar_listas_por_contexto(listas):
     if not listas or not isinstance(listas, list):
         return listas
 
-    def score_lista(lst):
-        score = 0
+    # ---------------- γ BORDA FINA (pré‑C4, ruptura controlada) ----------------
+    # Condição canônica: só ativa quando:
+    # - CAP calibrada
+    # - Parabólica PLANA (momento neutro / sem curvatura sustentada)
+    # - e o SAFE ainda mostra zero-4 na janela (w=60)
+    cap_status = str(st.session_state.get("cap_status", "")).upper()
+    parab_estado = str(st.session_state.get("parab_estado_global", "")).upper()
+    cap_pct = float(st.session_state.get("cap_pct", 0.65) or 0.65)
 
-        # Preferência leve quando ambiente é favorável
-        if eco_acion == "favorável":
-            score += 2
-        elif eco_acion == "cautela":
-            score += 1
+    prova = st.session_state.get("replay_stats_prova_janela", {}) or {}
+    rate_4p_w = prova.get("rate_4p_w", None)
 
-        # Penalização leve em movimento brusco
-        if estado == "movimento_brusco":
-            score -= 1
+    gamma_ativo = (
+        ("CALIBRADA" in cap_status)
+        and (parab_estado == "PLANA")
+        and (rate_4p_w == 0 or rate_4p_w == 0.0)
+    )
 
-        # Listas mais compactas tendem a ser mais estáveis
+    # Nocivos consistentes (V16 Premium — ANTI-EXATO) — observacional
+    nocivos_consistentes = st.session_state.get("anti_exato_nocivos_consistentes", []) or []
+    nocivos_set = set([int(x) for x in nocivos_consistentes if str(x).isdigit()])
+
+    # Frequência por passageiro (dentro do pacote candidato) — para medir "borda fina"
+    freq = {}
+    if gamma_ativo:
         try:
-            if len(set(lst)) <= len(lst):
-                score += 1
+            for L in listas:
+                for p in L:
+                    freq[p] = freq.get(p, 0) + 1
+        except Exception:
+            freq = {}
+
+    # Guardas para não explodir score com listas vazias
+    def _safe_sum_int(L):
+        try:
+            return int(sum([int(x) for x in L]))
+        except Exception:
+            return 0
+
+    def score_lista(L):
+        # Base score (mantém o jeitão antigo)
+        try:
+            base_score = len(L) + (_safe_sum_int(L) / 1000.0)
+        except Exception:
+            base_score = 0.0
+
+        # Ajuste por contexto ECO/estado (mantido)
+        try:
+            if eco_acion == "acionável":
+                base_score += 1.0
+            if estado in ["ESTAVEL", "RESPIRAVEL", "NEUTRO"]:
+                base_score += 0.5
         except Exception:
             pass
 
-        return score
+        if not gamma_ativo:
+            return base_score
+
+        # γ BORDA FINA: favorece diversidade "real" (passageiros menos repetidos no pacote)
+        # e penaliza presença de nocivos consistentes, sem bloquear.
+        try:
+            # rareza: soma de inverso da frequência (quanto mais raro, maior)
+            rareza = 0.0
+            for p in L:
+                fp = freq.get(p, 1)
+                rareza += 1.0 / float(fp)
+
+            # penalidade nocivos (leve; não zera listas)
+            noc_pen = 0.0
+            for p in L:
+                if p in nocivos_set:
+                    noc_pen += 1.0
+
+            # γ controlado pela CAP (cap_pct) — mantém governança pré‑C4
+            gamma = 0.75 * cap_pct   # 0.4875 quando cap_pct=0.65
+            beta_noc = 0.35          # penalidade por nocivo
+
+            return base_score + (gamma * rareza) - (beta_noc * noc_pen)
+        except Exception:
+            return base_score
 
     try:
         listas_ordenadas = sorted(listas, key=score_lista, reverse=True)
