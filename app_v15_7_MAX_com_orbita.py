@@ -17,13 +17,13 @@ from datetime import datetime
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h23.py"
+BUILD_TAG = "v16h25 — BUILD FIX (TAG/FILE) + PARSER 6+k DETERMINÍSTICO + PAGE_CONFIG ÚNICO"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h25_PARSERFIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h25 — BUILD FIX (TAG/FILE) + PARSER 6+k DETERMINÍSTICO + PAGE_CONFIG ÚNICO", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1183,11 +1183,6 @@ def _pc_fmt_num(x, decimals: int = 4, nd: str = "N/D") -> str:
     except Exception:
         return nd
 
-st.set_page_config(
-    page_title="Predict Cars V15.7 MAX — V16 Premium",
-    page_icon="🚗",
-    layout="wide",
-)
 
 
 
@@ -2388,7 +2383,10 @@ def carregar_historico_universal(linhas):
         try:
             valores = partes[1:]          # ignora identificador
             k = int(valores[-1])          # último valor é k
-            passageiros = [int(x) for x in valores[:-1]]
+            passageiros_raw = [int(x) for x in valores[:-1]]
+            if len(passageiros_raw) < 6:
+                raise ValueError(f"Linha {idx} com passageiros insuficientes (<6): {linha}")
+            passageiros = passageiros_raw[:6]  # CANÔNICO: sempre 6 passageiros (k é o último campo)
         except ValueError:
             raise ValueError(f"Linha {idx} contém valores não numéricos: {linha}")
 
@@ -4505,14 +4503,19 @@ def analisar_historico_flex_ultra(conteudo: str) -> pd.DataFrame:
 
         try:
             serie = partes[0]
-            nums = list(map(int, partes[1:-1]))
+            nums_raw = list(map(int, partes[1:-1]))
+            if len(nums_raw) < 6:
+                continue
+            nums = nums_raw[:6]  # CANÔNICO: sempre 6 passageiros (k é o último campo)
             k_val = int(partes[-1])
             registros.append([serie] + nums + [k_val])
         except:
             continue
 
     colunas = ["serie", "p1", "p2", "p3", "p4", "p5", "p6", "k"]
-    df = pd.DataFrame(registros, columns=colunas[: len(registros[0])])
+    if not registros:
+        return pd.DataFrame(columns=colunas)
+    df = pd.DataFrame(registros, columns=colunas)
 
     return df
 
