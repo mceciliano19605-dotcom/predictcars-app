@@ -17,8 +17,8 @@ from datetime import datetime
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h28 — PARSER 6+k DETERMINÍSTICO + SKIP LINHAS INVÁLIDAS (AUDIT) + BANNER FIX + PAGE_CONFIG ÚNICO"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h28_PARSERFIX_SKIP_INVALID_LINES.py"
+BUILD_TAG = "v16h29 — PARSER AUDIT VISÍVEL (total vs válidas) + 6+k DETERMINÍSTICO + SKIP INVÁLIDAS + BANNER/PAGE_CONFIG"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h29_PARSER_AUDIT_VISIVEL.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -2361,10 +2361,14 @@ def _m1_render_mirror_panel() -> None:
 
 
 
+
 def carregar_historico_universal(linhas):
     import pandas as pd
     
-    # Auditoria (governança): quantas linhas foram descartadas por invalidade estrutural
+    # Auditoria (governança): linhas processadas e descartes por invalidade estrutural
+    total_c_lines = 0
+    parsed_total = 0
+    
     skipped_total = 0
     skipped_len = 0
     skipped_nonnum = 0
@@ -2382,15 +2386,15 @@ def carregar_historico_universal(linhas):
             continue
         
         # Governança: só processa linhas que representam séries (ID começando com 'C')
-        # Isso elimina cabeçalhos, comentários e lixo residual sem afrouxar o determinismo 6+k.
         if not linha.startswith("C"):
             continue
         
+        total_c_lines += 1
+        
         partes = linha.split(";")
         
-        # Se houver ';' no final, pode gerar campo vazio — removemos de forma canônica.
+        # Se houver ';' no final => campo vazio final (k vazio). Linha inválida: descartar, não derrubar app.
         if len(partes) > 0 and partes[-1] == "":
-            # Campo vazio final indica "k vazio" => linha inválida (descarta), não derruba app
             skipped_total += 1
             skipped_empty_k += 1
             if len(skipped_examples) < 3:
@@ -2429,12 +2433,16 @@ def carregar_historico_universal(linhas):
         }
         
         registros.append(registro)
+        parsed_total += 1
     
     df = pd.DataFrame(registros)
     
-    # Registrar auditoria no session_state (sem quebrar caso Streamlit não esteja disponível)
+    # Registrar auditoria no session_state
     try:
         import streamlit as st
+        st.session_state["HIST_PARSER_TOTAL_C_LINES"] = total_c_lines
+        st.session_state["HIST_PARSER_PARSED_TOTAL"] = parsed_total
+        
         st.session_state["HIST_PARSER_SKIPPED_TOTAL"] = skipped_total
         st.session_state["HIST_PARSER_SKIPPED_LEN"] = skipped_len
         st.session_state["HIST_PARSER_SKIPPED_NONNUM"] = skipped_nonnum
@@ -6766,6 +6774,27 @@ def m3_painel_expectativa_historica_contexto():
 
     st.session_state["historico_df"] = df
 
+
+        # 🔎 AUDITORIA DO PARSER (V16) — visível para governança
+        try:
+            total_c = st.session_state.get("HIST_PARSER_TOTAL_C_LINES", None)
+            parsed = st.session_state.get("HIST_PARSER_PARSED_TOTAL", None)
+            sk_total = st.session_state.get("HIST_PARSER_SKIPPED_TOTAL", 0)
+            sk_len = st.session_state.get("HIST_PARSER_SKIPPED_LEN", 0)
+            sk_nonnum = st.session_state.get("HIST_PARSER_SKIPPED_NONNUM", 0)
+            sk_empty = st.session_state.get("HIST_PARSER_SKIPPED_EMPTY_K", 0)
+            sk_ex = st.session_state.get("HIST_PARSER_SKIPPED_EXAMPLES", [])
+            
+            if total_c is not None and parsed is not None:
+                st.info(
+                    f"🧾 Auditoria do Parser — Linhas 'C': {total_c} | Válidas: {parsed} | Descartadas: {sk_total} "
+                    f"(len≠8: {sk_len} · não numérico: {sk_nonnum} · k vazio: {sk_empty})"
+                )
+                if sk_total > 0 and sk_ex:
+                    st.caption(f"Exemplos (até 3): {sk_ex}")
+        except Exception:
+            pass
+
     # 🔎 Universo (1–50 / 1–60) — registro canônico para snapshot/RF
 
     v16_registrar_universo_session_state(st.session_state["historico_df"], n_alvo=st.session_state.get("n_alvo", 6))
@@ -7141,6 +7170,27 @@ if "Carregar Histórico (Colar)" in str(painel):
         df = carregar_historico_universal(linhas)
 
         st.session_state["historico_df"] = df
+
+
+        # 🔎 AUDITORIA DO PARSER (V16) — visível para governança
+        try:
+            total_c = st.session_state.get("HIST_PARSER_TOTAL_C_LINES", None)
+            parsed = st.session_state.get("HIST_PARSER_PARSED_TOTAL", None)
+            sk_total = st.session_state.get("HIST_PARSER_SKIPPED_TOTAL", 0)
+            sk_len = st.session_state.get("HIST_PARSER_SKIPPED_LEN", 0)
+            sk_nonnum = st.session_state.get("HIST_PARSER_SKIPPED_NONNUM", 0)
+            sk_empty = st.session_state.get("HIST_PARSER_SKIPPED_EMPTY_K", 0)
+            sk_ex = st.session_state.get("HIST_PARSER_SKIPPED_EXAMPLES", [])
+            
+            if total_c is not None and parsed is not None:
+                st.info(
+                    f"🧾 Auditoria do Parser — Linhas 'C': {total_c} | Válidas: {parsed} | Descartadas: {sk_total} "
+                    f"(len≠8: {sk_len} · não numérico: {sk_nonnum} · k vazio: {sk_empty})"
+                )
+                if sk_total > 0 and sk_ex:
+                    st.caption(f"Exemplos (até 3): {sk_ex}")
+        except Exception:
+            pass
 
         # 🔎 Universo (1–50 / 1–60) — registro canônico para snapshot/RF
 
