@@ -17,8 +17,8 @@ from datetime import datetime
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h31 — MIRROR RANKING VIEW (Top estrutural) + BANNER OK + v16h30 base"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h31_MIRROR_RANKING_VIEW.py"
+BUILD_TAG = "v16h32 — MIRROR RANKING VIEW FIX (inserção segura) + BANNER OK + v16h30 base"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h32_MIRROR_RANKING_VIEW_FIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -2273,35 +2273,34 @@ def _m1_render_mirror_panel() -> None:
         _m2_registrar_fechamento_se_preciso(snapshot, meta)
 
         st.markdown("## 🔍 Diagnóstico Espelho (Mirror)")
-        st.caption("Painel somente leitura — estado real da execução
+        st.caption("Painel somente leitura — estado real da execução · governança informativa · sem decisão")
+
+        
+
     # ==========================================================
     # 🔢 RANKING ESTRUTURAL (BASE DO PACOTE) — LEITURA PURA
     # ==========================================================
-    import pandas as pd
-
-    if "pipeline_matriz_norm" in st.session_state:
-        try:
-            matriz = st.session_state["pipeline_matriz_norm"]
-            if isinstance(matriz, pd.DataFrame):
-                score_series = matriz.mean(axis=0)
-                ranking_df = (
-                    score_series
-                    .reset_index()
-                    .rename(columns={"index": "passageiro", 0: "score"})
-                    .sort_values("score", ascending=False)
-                    .reset_index(drop=True)
-                )
-                st.markdown("### 🔢 Ranking Estrutural (ordenado por score médio)")
-                st.dataframe(ranking_df.head(20), use_container_width=True)
-            else:
-                st.info("pipeline_matriz_norm não é DataFrame válido.")
-        except Exception as e:
-            st.warning(f"Falha ao montar ranking estrutural: {e}")
-    else:
-        st.info("Pipeline ainda não executado nesta sessão — ranking indisponível.")
- · governança informativa · sem decisão")
-
-        st.markdown("### 🧭 Estado Operacional Atual")
+    try:
+        import pandas as pd
+        matriz = st.session_state.get("pipeline_matriz_norm", None)
+        if matriz is None:
+            st.info("Pipeline ainda não executado nesta sessão — ranking indisponível.")
+        elif isinstance(matriz, pd.DataFrame):
+            score_series = matriz.mean(axis=0)
+            ranking_df = (
+                score_series
+                .reset_index()
+                .rename(columns={"index": "passageiro", 0: "score"})
+                .sort_values("score", ascending=False)
+                .reset_index(drop=True)
+            )
+            st.markdown("### 🔢 Ranking Estrutural (ordenado por score médio)")
+            st.dataframe(ranking_df.head(20), use_container_width=True)
+        else:
+            st.info("pipeline_matriz_norm não é DataFrame válido.")
+    except Exception as e:
+        st.warning(f"Falha ao montar ranking estrutural: {e}")
+st.markdown("### 🧭 Estado Operacional Atual")
         st.markdown(f"**{meta['estado']} — {meta['nome']}**")
         _m1_render_barra_estados(meta["estado"])
 
