@@ -17,8 +17,8 @@ from datetime import datetime
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h28 — PARSER 6+k DETERMINÍSTICO + SKIP LINHAS INVÁLIDAS (AUDIT) + BANNER FIX + PAGE_CONFIG ÚNICO"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h28_PARSERFIX_SKIP_INVALID_LINES.py"
+BUILD_TAG = "v16h30 — MIRROR FIX (nocivos_set) + BUILD/BANNER OK + PARSER 6+k DETERMINÍSTICO (v16h28 base) + PAGE_CONFIG ÚNICO"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h30_MIRRORFIX_NO_NOCIVOS_SET.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -1310,6 +1310,18 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
         keys = sorted([str(k) for k in ss.keys()])
     except Exception:
         keys = []
+
+    # Nocivos (compatível com variações de chave no ss)
+    try:
+        _noc = ss.get("nocivos_consistentes", None)
+        if _noc is None:
+            _noc = ss.get("nocivos_set", None)
+        if _noc is None:
+            _noc = ss.get("nocivos", [])
+        # Garantir set sempre definido
+        nocivos_set = set(list(_noc) if _noc is not None else [])
+    except Exception:
+        nocivos_set = set()
 
     return {
         "historico_ok": historico_ok,
