@@ -2418,7 +2418,8 @@ def _m1_render_mirror_panel() -> None:
             st.dataframe(borda, use_container_width=True, hide_index=True)
 
             st.markdown("**Universo inferido/ativo:**")
-            st.code(f"{umin}–{umax}")st.markdown("### 🧭 Estado Operacional Atual")
+            st.code(f"{umin}–{umax}")
+            st.markdown("### 🧭 Estado Operacional Atual")
         st.markdown(f"**{meta['estado']} — {meta['nome']}**")
         _m1_render_barra_estados(meta["estado"])
 
