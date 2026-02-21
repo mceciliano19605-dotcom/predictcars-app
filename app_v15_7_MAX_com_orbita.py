@@ -17,13 +17,13 @@ from datetime import datetime
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h37 — MIRROR PASSENGER RANKING (1–N real) + PIPELINE MATRIZ PERSISTIDA + MIRROR NO_NOCIVOS_SET + PARSER 6+k DETERMINÍSTICO (SKIP INVÁLIDAS) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h37_MIRROR_PASSENGER_RANKING_1_50_FIX.py"
+BUILD_TAG = "v16h39 — MIRROR PASSENGER RANKING (1–N real) + NAMEERROR FIX + PIPELINE MATRIZ PERSISTIDA + MIRROR NO_NOCIVOS_SET + PARSER 6+k DETERMINÍSTICO (SKIP INVÁLIDAS) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h39_MIRROR_PASSENGER_RANKING_1_50_NAMEERROR_FIX2.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h25 — BUILD FIX (TAG/FILE) + PARSER 6+k DETERMINÍSTICO + PAGE_CONFIG ÚNICO", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h39 — BUILD AUDITÁVEL (Mirror Ranking 1–50)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,7 +40,6 @@ st.markdown(
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
         <b>BUILD:</b> {BUILD_TAG}<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
-        <b>WATERMARK:</b> 2026-02-21_XX_YY (RANKTEST)<br>
         </p>
     </div>
     """,
@@ -51,8 +50,7 @@ st.sidebar.warning(
     f"EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE}\n"
     f"Arquivo canônico no GitHub/Streamlit: {BUILD_CANONICAL_FILE}\n"
     f"BUILD: {BUILD_TAG}\n"
-    f"TIMESTAMP: {BUILD_TIME}\n"
-    f"WATERMARK: 2026-02-21_XX_YY (RANKTEST)"
+    f"TIMESTAMP: {BUILD_TIME}"
 )
 
 # ------------------------------------------------------------
@@ -2410,7 +2408,7 @@ def _m1_render_mirror_panel() -> None:
             w = meta.get("w_recente", 0)
 
             st.markdown("### 🧮 Ranking de Passageiros (1–N real) — somente leitura")
-            st.caption(f"Fonte: histórico (p1..pN). Score = freq_recente − freq_longo. Janela recente = últimos {w} registros.")
+            st.caption(f"Fonte: histórico (p1..pN). Score = freq_recente − freq_longo. Janela recente = últimos {rank_meta.get('w_recente','N/D')} registros.")
 
             st.markdown("**Top 20 (por score):**")
             st.dataframe(df_rank.head(20), use_container_width=True, hide_index=True)
