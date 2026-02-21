@@ -17,8 +17,8 @@ from datetime import datetime
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h33 — MIRROR RANKING VIEW (Top20 + capturar 8–15) + INDENT FIX + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h33_MIRROR_RANKING_VIEW_FIXED_INDENT.py"
+BUILD_TAG = "v16h34 — MIRROR RANKING ADAPTATIVO (detecção automática) + BANNER OK + v16h30 base estável"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h34_MIRROR_RANKING_ADAPTATIVO.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -2276,29 +2276,42 @@ def _m1_render_mirror_panel() -> None:
         st.caption("Painel somente leitura — estado real da execução · governança informativa · sem decisão")
 
         # ==========================================================
-        # 🔢 RANKING ESTRUTURAL (BASE DO PACOTE) — LEITURA PURA
+        # 🔢 RANKING ESTRUTURAL (ADAPTATIVO) — LEITURA PURA
         # ==========================================================
         try:
             import pandas as pd
-            matriz = st.session_state.get('pipeline_matriz_norm', None)
-            if matriz is None:
-                st.info("Pipeline ainda não executado nesta sessão — ranking indisponível.")
-            elif isinstance(matriz, pd.DataFrame):
-                score_series = matriz.mean(axis=0)
+            ranking_df = None
+            raw = st.session_state.get('pipeline_matriz_norm', None)
+            if isinstance(raw, pd.DataFrame):
+                score_series = raw.mean(axis=0)
                 ranking_df = (
-                    score_series
-                    .reset_index()
-                    .rename(columns={'index': 'passageiro', 0: 'score'})
+                    score_series.reset_index()
+                    .rename(columns={'index':'passageiro',0:'score'})
                     .sort_values('score', ascending=False)
                     .reset_index(drop=True)
                 )
-                st.markdown("### 🔢 Ranking Estrutural (ordenado por score médio) — Top 20")
+            elif isinstance(raw, dict):
+                ranking_df = (
+                    pd.Series(raw).reset_index()
+                    .rename(columns={'index':'passageiro',0:'score'})
+                    .sort_values('score', ascending=False)
+                    .reset_index(drop=True)
+                )
+            elif isinstance(raw, (list, tuple)):
+                ranking_df = (
+                    pd.Series(raw).reset_index()
+                    .rename(columns={'index':'passageiro',0:'score'})
+                    .sort_values('score', ascending=False)
+                    .reset_index(drop=True)
+                )
+            if ranking_df is not None:
+                st.markdown('### 🔢 Ranking Estrutural (Top 20)')
                 st.dataframe(ranking_df.head(20), use_container_width=True)
-                st.caption("📌 Para a Geometria da Borda: copie as linhas 8º–15º desta tabela (Top 20).")
+                st.caption('📌 Copiar posições 8º–15º desta tabela para análise da borda.')
             else:
-                st.info("pipeline_matriz_norm não é DataFrame válido.")
+                st.info('Ranking estrutural indisponível nesta sessão.')
         except Exception as e:
-            st.warning("Falha ao montar ranking estrutural: " + str(e))
+            st.warning('Falha ao montar ranking estrutural: ' + str(e))
 
         st.markdown("### 🧭 Estado Operacional Atual")
         st.markdown(f"**{meta['estado']} — {meta['nome']}**")
