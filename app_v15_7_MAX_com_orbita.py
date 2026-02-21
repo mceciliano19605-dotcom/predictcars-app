@@ -17,8 +17,8 @@ from datetime import datetime
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h36 — MIRROR PASSENGER RANKING (1–N real) + PIPELINE MATRIZ PERSISTIDA + MIRROR NO_NOCIVOS_SET + PARSER 6+k DETERMINÍSTICO (SKIP INVÁLIDAS) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h36_MIRROR_PASSENGER_RANKING_1_50.py"
+BUILD_TAG = "v16h37 — MIRROR PASSENGER RANKING (1–N real) + PIPELINE MATRIZ PERSISTIDA + MIRROR NO_NOCIVOS_SET + PARSER 6+k DETERMINÍSTICO (SKIP INVÁLIDAS) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h37_MIRROR_PASSENGER_RANKING_1_50_FIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -2266,45 +2266,73 @@ def _m1_obter_ranking_structural_df():
     • Somente leitura (pré‑C4).
     • Não depende do SAFE.
     • Não altera listas nem Camada 4.
+
+    Observação:
+    - Usa "historico_df" como fonte principal, com fallback para chaves comuns,
+      porque o app mantém múltiplas variações (full/safe) ao longo do fluxo.
     """
     try:
+        st.session_state.pop("mirror_rank_err", None)
+
+        # Fonte principal + fallbacks (não muda fluxo, só leitura)
         df = st.session_state.get("historico_df", None)
-        if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        if df is None or (not isinstance(df, pd.DataFrame)) or df.empty:
+            for k in ["historico_df_full", "historico_df_full_safe", "_df_full_safe"]:
+                cand = st.session_state.get(k, None)
+                if isinstance(cand, pd.DataFrame) and not cand.empty:
+                    df = cand
+                    break
+
+        if df is None or (not isinstance(df, pd.DataFrame)) or df.empty:
+            st.session_state["mirror_rank_err"] = "historico_df ausente/vazio"
             return None
 
         # colunas de passageiros (p1..pN)
-        pcols = [c for c in df.columns if isinstance(c, str) and c.startswith("p")]
+        pcols = [c for c in df.columns if isinstance(c, str) and re.match(r"^p\d+$", c)]
         if not pcols:
+            pcols = [c for c in df.columns if isinstance(c, str) and c.startswith("p")]
+        if not pcols:
+            st.session_state["mirror_rank_err"] = "colunas p* não encontradas"
             return None
 
         # universo (preferir session_state; senão inferir do df)
         umin = st.session_state.get("universo_min", None)
         umax = st.session_state.get("universo_max", None)
-        if umin is None or umax is None:
+
+        def _infer_umax_umin(_df):
             try:
-                umin = int(pd.to_numeric(df[pcols], errors="coerce").min().min())
-                umax = int(pd.to_numeric(df[pcols], errors="coerce").max().max())
+                a = pd.to_numeric(_df[pcols].stack(), errors="coerce").dropna()
+                if a.empty:
+                    return None, None
+                return int(a.min()), int(a.max())
             except Exception:
-                return None
+                return None, None
 
         if umin is None or umax is None:
-            return None
+            umin2, umax2 = _infer_umax_umin(df)
+            umin = umin if umin is not None else umin2
+            umax = umax if umax is not None else umax2
 
         try:
-            umin = int(umin)
-            umax = int(umax)
+            umin = int(umin) if umin is not None else None
+            umax = int(umax) if umax is not None else None
         except Exception:
+            umin, umax = None, None
+
+        if umin is None or umax is None or umax < umin:
+            st.session_state["mirror_rank_err"] = "universo_min/max inválido (ou não inferível)"
             return None
 
-        if umax < umin:
-            return None
-
-        # janela recente (determinística)
+        # janela recente (determinística, ex‑post)
         w = min(120, len(df))
         df_recent = df.tail(w)
 
         long_vals = pd.to_numeric(df[pcols].stack(), errors="coerce").dropna().astype(int)
         recent_vals = pd.to_numeric(df_recent[pcols].stack(), errors="coerce").dropna().astype(int)
+
+        if long_vals.empty or recent_vals.empty:
+            st.session_state["mirror_rank_err"] = "valores vazios após coerção numérica"
+            return None
 
         total_long = max(1, len(long_vals))
         total_recent = max(1, len(recent_vals))
@@ -2318,8 +2346,8 @@ def _m1_obter_ranking_structural_df():
             c_l = int(vc_long.get(x, 0))
             fr = c_r / total_recent
             fl = c_l / total_long
-            eta = fr - fl  # diferença recente vs longo (sinal ex‑post)
-            score = eta    # score canônico (observacional)
+            eta = fr - fl  # recente vs longo
+            score = eta    # score observacional (canônico)
             rows.append({
                 "rank": 0,
                 "passageiro": x,
@@ -2327,14 +2355,29 @@ def _m1_obter_ranking_structural_df():
                 "freq_recente": float(fr),
                 "freq_longo": float(fl),
                 "eta": float(eta),
+                "cnt_recente": int(c_r),
+                "cnt_longo": int(c_l),
             })
 
         out = pd.DataFrame(rows)
-        out = out.sort_values(["score", "freq_recente", "passageiro"], ascending=[False, False, True]).reset_index(drop=True)
+        out = out.sort_values(
+            ["score", "freq_recente", "passageiro"],
+            ascending=[False, False, True]
+        ).reset_index(drop=True)
         out["rank"] = np.arange(1, len(out) + 1)
+
+        # persistir para a sessão (só leitura)
+        st.session_state["mirror_rank_df"] = out.copy()
+        st.session_state["mirror_rank_meta"] = {
+            "w_recente": int(w),
+            "umin": int(umin),
+            "umax": int(umax),
+            "pcols_n": int(len(pcols)),
+        }
         return out
 
-    except Exception:
+    except Exception as e:
+        st.session_state["mirror_rank_err"] = f"exceção: {type(e).__name__}"
         return None
 def _m1_render_mirror_panel() -> None:
     """Painel Mirror canônico (observacional). Nunca derruba o app."""
@@ -2354,21 +2397,28 @@ def _m1_render_mirror_panel() -> None:
         # (apenas leitura; não depende do SAFE; não altera listas)
         # ----------------------------------------------
         df_rank = _m1_obter_ranking_structural_df()
-        if df_rank is None or df_rank.empty:
-            st.warning("Ranking estrutural indisponível nesta sessão.")
+        if df_rank is None or (not isinstance(df_rank, pd.DataFrame)) or df_rank.empty:
+            err = st.session_state.get("mirror_rank_err", "N/D")
+            st.warning(f"Ranking estrutural indisponível nesta sessão. (motivo: {err})")
+            st.caption("Dica: carregue o histórico (Arquivo/Colar) e rode o Pipeline FLEX ULTRA. O Mirror só lê; não cria dados.")
         else:
-            st.markdown("### 🧮 Ranking Estrutural (somente leitura)")
-            st.caption("Fonte: Pipeline FLEX ULTRA (matriz_norm persistida). Não depende do SAFE.")
+            meta = st.session_state.get("mirror_rank_meta", {})
+            umin = meta.get("umin", st.session_state.get("universo_min", None))
+            umax = meta.get("umax", st.session_state.get("universo_max", None))
+            w = meta.get("w_recente", 0)
+
+            st.markdown("### 🧮 Ranking de Passageiros (1–N real) — somente leitura")
+            st.caption(f"Fonte: histórico (p1..pN). Score = freq_recente − freq_longo. Janela recente = últimos {w} registros.")
+
             st.markdown("**Top 20 (por score):**")
             st.dataframe(df_rank.head(20), use_container_width=True, hide_index=True)
 
             st.markdown("**Borda do corte (posições 8–15):**")
-            borda = df_rank[(df_rank["rank"] >= 8) & (df_rank["rank"] <= 15)].copy()
+            borda = df_rank[(df_rank['rank'] >= 8) & (df_rank['rank'] <= 15)].copy()
             st.dataframe(borda, use_container_width=True, hide_index=True)
 
-
-
-        st.markdown("### 🧭 Estado Operacional Atual")
+            st.markdown("**Universo inferido/ativo:**")
+            st.code(f"{umin}–{umax}")st.markdown("### 🧭 Estado Operacional Atual")
         st.markdown(f"**{meta['estado']} — {meta['nome']}**")
         _m1_render_barra_estados(meta["estado"])
 
@@ -2549,7 +2599,7 @@ def carregar_historico_universal(linhas):
         pass
     
     
-    # --- v16h36 (AUDIT): inferir universo real 1..N a partir do histórico (p1..pN)
+    # --- v16h37 (AUDIT): inferir universo real 1..N a partir do histórico (p1..pN)
     try:
         import streamlit as st
         pcols = [c for c in df.columns if isinstance(c, str) and c.startswith("p")]
