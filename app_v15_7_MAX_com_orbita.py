@@ -17,8 +17,8 @@ from datetime import datetime
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h35 — MIRROR RANKING (Top20 + 8–15) + PIPELINE MATRIZ PERSISTIDA + MIRROR NO_NOCIVOS_SET + PARSER 6+k DETERMINÍSTICO (SKIP INVÁLIDAS) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h28_PARSERFIX_SKIP_INVALID_LINES.py"
+BUILD_TAG = "v16h36 — MIRROR PASSENGER RANKING (1–N real) + PIPELINE MATRIZ PERSISTIDA + MIRROR NO_NOCIVOS_SET + PARSER 6+k DETERMINÍSTICO (SKIP INVÁLIDAS) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h36_MIRROR_PASSENGER_RANKING_1_50.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -2260,54 +2260,82 @@ def _m1_render_barra_estados(estado: str) -> None:
 
 
 
-def _m1_obter_ranking_structural_df() -> Optional[pd.DataFrame]:
-    """Obtém ranking estrutural (passageiro -> score) de forma resiliente.
-    Fonte prioritária: pipeline_matriz_norm_base (persistida no Pipeline).
-    Fallback: pipeline_matriz_norm atual.
-    Nunca levanta exceção.
+def _m1_obter_ranking_structural_df():
+    """Ranking REAL de passageiros (universo 1–N) com base no histórico.
+
+    • Somente leitura (pré‑C4).
+    • Não depende do SAFE.
+    • Não altera listas nem Camada 4.
     """
     try:
-        ss = st.session_state
-        col_pass = ss.get("pipeline_col_pass", None)
-        matriz = ss.get("pipeline_matriz_norm_base", None)
-        if matriz is None:
-            matriz = ss.get("pipeline_matriz_norm", None)
-
-        if matriz is None or col_pass is None:
+        df = st.session_state.get("historico_df", None)
+        if df is None or not isinstance(df, pd.DataFrame) or df.empty:
             return None
 
-        # Normalizar tipos
-        if isinstance(matriz, pd.DataFrame):
-            arr = matriz.to_numpy(dtype=float, copy=False)
-        else:
-            arr = np.asarray(matriz, dtype=float)
+        # colunas de passageiros (p1..pN)
+        pcols = [c for c in df.columns if isinstance(c, str) and c.startswith("p")]
+        if not pcols:
+            return None
 
-        if arr.ndim == 1:
-            arr = arr.reshape(-1, 1)
+        # universo (preferir session_state; senão inferir do df)
+        umin = st.session_state.get("universo_min", None)
+        umax = st.session_state.get("universo_max", None)
+        if umin is None or umax is None:
+            try:
+                umin = int(pd.to_numeric(df[pcols], errors="coerce").min().min())
+                umax = int(pd.to_numeric(df[pcols], errors="coerce").max().max())
+            except Exception:
+                return None
 
-        # Score simples (ilustrativo e estável): média das features
-        scores = np.nanmean(arr, axis=1)
+        if umin is None or umax is None:
+            return None
 
-        # Col_pass pode vir como array/lista de ints (valores dos passageiros)
         try:
-            passengers = list(map(int, list(col_pass)))
+            umin = int(umin)
+            umax = int(umax)
         except Exception:
-            passengers = list(col_pass)
+            return None
 
-        if len(passengers) != len(scores):
-            # tentativa de ajuste mínimo: truncar no menor comprimento
-            n = min(len(passengers), len(scores))
-            passengers = passengers[:n]
-            scores = scores[:n]
+        if umax < umin:
+            return None
 
-        df = pd.DataFrame({"passageiro": passengers, "score": scores})
-        df = df.sort_values("score", ascending=False, kind="mergesort").reset_index(drop=True)
-        df["rank"] = np.arange(1, len(df) + 1)
-        return df[["rank", "passageiro", "score"]]
+        # janela recente (determinística)
+        w = min(120, len(df))
+        df_recent = df.tail(w)
+
+        long_vals = pd.to_numeric(df[pcols].stack(), errors="coerce").dropna().astype(int)
+        recent_vals = pd.to_numeric(df_recent[pcols].stack(), errors="coerce").dropna().astype(int)
+
+        total_long = max(1, len(long_vals))
+        total_recent = max(1, len(recent_vals))
+
+        vc_long = long_vals.value_counts()
+        vc_recent = recent_vals.value_counts()
+
+        rows = []
+        for x in range(umin, umax + 1):
+            c_r = int(vc_recent.get(x, 0))
+            c_l = int(vc_long.get(x, 0))
+            fr = c_r / total_recent
+            fl = c_l / total_long
+            eta = fr - fl  # diferença recente vs longo (sinal ex‑post)
+            score = eta    # score canônico (observacional)
+            rows.append({
+                "rank": 0,
+                "passageiro": x,
+                "score": float(score),
+                "freq_recente": float(fr),
+                "freq_longo": float(fl),
+                "eta": float(eta),
+            })
+
+        out = pd.DataFrame(rows)
+        out = out.sort_values(["score", "freq_recente", "passageiro"], ascending=[False, False, True]).reset_index(drop=True)
+        out["rank"] = np.arange(1, len(out) + 1)
+        return out
+
     except Exception:
         return None
-
-
 def _m1_render_mirror_panel() -> None:
     """Painel Mirror canônico (observacional). Nunca derruba o app."""
     try:
@@ -2520,6 +2548,21 @@ def carregar_historico_universal(linhas):
     except Exception:
         pass
     
+    
+    # --- v16h36 (AUDIT): inferir universo real 1..N a partir do histórico (p1..pN)
+    try:
+        import streamlit as st
+        pcols = [c for c in df.columns if isinstance(c, str) and c.startswith("p")]
+        if pcols:
+            _vals = pd.to_numeric(df[pcols], errors="coerce")
+            _umin = int(_vals.min().min())
+            _umax = int(_vals.max().max())
+            st.session_state["universo_min"] = _umin
+            st.session_state["universo_max"] = _umax
+            st.session_state["universo_str"] = f"{_umin}–{_umax}"
+    except Exception:
+        pass
+
     return df
 # ============================================================
 # V16 PREMIUM — IMPORTAÇÃO OFICIAL
