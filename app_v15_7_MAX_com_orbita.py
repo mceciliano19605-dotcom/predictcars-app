@@ -40,6 +40,7 @@ st.markdown(
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
         <b>BUILD:</b> {BUILD_TAG}<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
+        <b>WATERMARK:</b> 2026-02-21_XX_YY (RANKTEST)<br>
         </p>
     </div>
     """,
@@ -50,7 +51,8 @@ st.sidebar.warning(
     f"EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE}\n"
     f"Arquivo canônico no GitHub/Streamlit: {BUILD_CANONICAL_FILE}\n"
     f"BUILD: {BUILD_TAG}\n"
-    f"TIMESTAMP: {BUILD_TIME}"
+    f"TIMESTAMP: {BUILD_TIME}\n"
+    f"WATERMARK: 2026-02-21_XX_YY (RANKTEST)"
 )
 
 # ------------------------------------------------------------
