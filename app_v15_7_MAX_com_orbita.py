@@ -17,8 +17,8 @@ from datetime import datetime
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h34 — MIRROR RANKING ADAPTATIVO (detecção automática) + BANNER OK + v16h30 base estável"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h34_MIRROR_RANKING_ADAPTATIVO.py"
+BUILD_TAG = "v16h35 — MIRROR RANKING (Top20 + 8–15) + PIPELINE MATRIZ PERSISTIDA + MIRROR NO_NOCIVOS_SET + PARSER 6+k DETERMINÍSTICO (SKIP INVÁLIDAS) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h28_PARSERFIX_SKIP_INVALID_LINES.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -1233,6 +1233,12 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
 
     ss = st.session_state
 
+    # V16 — guarda anti-NameError (nocivos_set)
+    try:
+        nocivos_set = set(ss.get('nocivos_set', []) or [])
+    except Exception:
+        nocivos_set = set()
+
     # ------------------------------------------------------------------
     # UNIVERSO (auto-derivação) — especialmente para "Carregar Histórico (Colar)"
     # ------------------------------------------------------------------
@@ -1310,18 +1316,6 @@ def _m1_collect_mirror_snapshot() -> Dict[str, Any]:
         keys = sorted([str(k) for k in ss.keys()])
     except Exception:
         keys = []
-
-    # Nocivos (compatível com variações de chave no ss)
-    try:
-        _noc = ss.get("nocivos_consistentes", None)
-        if _noc is None:
-            _noc = ss.get("nocivos_set", None)
-        if _noc is None:
-            _noc = ss.get("nocivos", [])
-        # Garantir set sempre definido
-        nocivos_set = set(list(_noc) if _noc is not None else [])
-    except Exception:
-        nocivos_set = set()
 
     return {
         "historico_ok": historico_ok,
@@ -1629,6 +1623,9 @@ def pc_exec_pipeline_flex_ultra_silent(df: pd.DataFrame) -> bool:
         st.session_state["pipeline_clusters"] = clusters
         st.session_state["pipeline_centroides"] = centroides
         st.session_state["pipeline_matriz_norm"] = matriz_norm
+        # V16h35 — Persistência canônica (não depende de SAFE)
+        st.session_state["pipeline_matriz_norm_base"] = matriz_norm
+
         st.session_state["pipeline_estrada"] = estrada
 
         st.session_state["regime_identificado"] = estrada
@@ -2262,6 +2259,55 @@ def _m1_render_barra_estados(estado: str) -> None:
     st.write(" ".join([f" {m} " for m in marcadores]))
 
 
+
+def _m1_obter_ranking_structural_df() -> Optional[pd.DataFrame]:
+    """Obtém ranking estrutural (passageiro -> score) de forma resiliente.
+    Fonte prioritária: pipeline_matriz_norm_base (persistida no Pipeline).
+    Fallback: pipeline_matriz_norm atual.
+    Nunca levanta exceção.
+    """
+    try:
+        ss = st.session_state
+        col_pass = ss.get("pipeline_col_pass", None)
+        matriz = ss.get("pipeline_matriz_norm_base", None)
+        if matriz is None:
+            matriz = ss.get("pipeline_matriz_norm", None)
+
+        if matriz is None or col_pass is None:
+            return None
+
+        # Normalizar tipos
+        if isinstance(matriz, pd.DataFrame):
+            arr = matriz.to_numpy(dtype=float, copy=False)
+        else:
+            arr = np.asarray(matriz, dtype=float)
+
+        if arr.ndim == 1:
+            arr = arr.reshape(-1, 1)
+
+        # Score simples (ilustrativo e estável): média das features
+        scores = np.nanmean(arr, axis=1)
+
+        # Col_pass pode vir como array/lista de ints (valores dos passageiros)
+        try:
+            passengers = list(map(int, list(col_pass)))
+        except Exception:
+            passengers = list(col_pass)
+
+        if len(passengers) != len(scores):
+            # tentativa de ajuste mínimo: truncar no menor comprimento
+            n = min(len(passengers), len(scores))
+            passengers = passengers[:n]
+            scores = scores[:n]
+
+        df = pd.DataFrame({"passageiro": passengers, "score": scores})
+        df = df.sort_values("score", ascending=False, kind="mergesort").reset_index(drop=True)
+        df["rank"] = np.arange(1, len(df) + 1)
+        return df[["rank", "passageiro", "score"]]
+    except Exception:
+        return None
+
+
 def _m1_render_mirror_panel() -> None:
     """Painel Mirror canônico (observacional). Nunca derruba o app."""
     try:
@@ -2275,43 +2321,24 @@ def _m1_render_mirror_panel() -> None:
         st.markdown("## 🔍 Diagnóstico Espelho (Mirror)")
         st.caption("Painel somente leitura — estado real da execução · governança informativa · sem decisão")
 
-        # ==========================================================
-        # 🔢 RANKING ESTRUTURAL (ADAPTATIVO) — LEITURA PURA
-        # ==========================================================
-        try:
-            import pandas as pd
-            ranking_df = None
-            raw = st.session_state.get('pipeline_matriz_norm', None)
-            if isinstance(raw, pd.DataFrame):
-                score_series = raw.mean(axis=0)
-                ranking_df = (
-                    score_series.reset_index()
-                    .rename(columns={'index':'passageiro',0:'score'})
-                    .sort_values('score', ascending=False)
-                    .reset_index(drop=True)
-                )
-            elif isinstance(raw, dict):
-                ranking_df = (
-                    pd.Series(raw).reset_index()
-                    .rename(columns={'index':'passageiro',0:'score'})
-                    .sort_values('score', ascending=False)
-                    .reset_index(drop=True)
-                )
-            elif isinstance(raw, (list, tuple)):
-                ranking_df = (
-                    pd.Series(raw).reset_index()
-                    .rename(columns={'index':'passageiro',0:'score'})
-                    .sort_values('score', ascending=False)
-                    .reset_index(drop=True)
-                )
-            if ranking_df is not None:
-                st.markdown('### 🔢 Ranking Estrutural (Top 20)')
-                st.dataframe(ranking_df.head(20), use_container_width=True)
-                st.caption('📌 Copiar posições 8º–15º desta tabela para análise da borda.')
-            else:
-                st.info('Ranking estrutural indisponível nesta sessão.')
-        except Exception as e:
-            st.warning('Falha ao montar ranking estrutural: ' + str(e))
+        # ----------------------------------------------
+        # V16h35 — MIRROR: Ranking estrutural (Top20) + Captura 8–15
+        # (apenas leitura; não depende do SAFE; não altera listas)
+        # ----------------------------------------------
+        df_rank = _m1_obter_ranking_structural_df()
+        if df_rank is None or df_rank.empty:
+            st.warning("Ranking estrutural indisponível nesta sessão.")
+        else:
+            st.markdown("### 🧮 Ranking Estrutural (somente leitura)")
+            st.caption("Fonte: Pipeline FLEX ULTRA (matriz_norm persistida). Não depende do SAFE.")
+            st.markdown("**Top 20 (por score):**")
+            st.dataframe(df_rank.head(20), use_container_width=True, hide_index=True)
+
+            st.markdown("**Borda do corte (posições 8–15):**")
+            borda = df_rank[(df_rank["rank"] >= 8) & (df_rank["rank"] <= 15)].copy()
+            st.dataframe(borda, use_container_width=True, hide_index=True)
+
+
 
         st.markdown("### 🧭 Estado Operacional Atual")
         st.markdown(f"**{meta['estado']} — {meta['nome']}**")
