@@ -17,8 +17,8 @@ from datetime import datetime
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h27 — BANNER FIX + PARSER 6+k DETERMINÍSTICO (skip non-C) + PAGE_CONFIG ÚNICO"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h27_PARSERFIX_DETERMINISTICO_BANNERFIX.py"
+BUILD_TAG = "v16h28 — PARSER 6+k DETERMINÍSTICO + SKIP LINHAS INVÁLIDAS (AUDIT) + BANNER FIX + PAGE_CONFIG ÚNICO"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h28_PARSERFIX_SKIP_INVALID_LINES.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -2360,8 +2360,16 @@ def _m1_render_mirror_panel() -> None:
 
 
 
+
 def carregar_historico_universal(linhas):
     import pandas as pd
+    
+    # Auditoria (governança): quantas linhas foram descartadas por invalidade estrutural
+    skipped_total = 0
+    skipped_len = 0
+    skipped_nonnum = 0
+    skipped_empty_k = 0
+    skipped_examples = []
     
     registros = []
     
@@ -2382,11 +2390,20 @@ def carregar_historico_universal(linhas):
         
         # Se houver ';' no final, pode gerar campo vazio — removemos de forma canônica.
         if len(partes) > 0 and partes[-1] == "":
-            partes = partes[:-1]
+            # Campo vazio final indica "k vazio" => linha inválida (descarta), não derruba app
+            skipped_total += 1
+            skipped_empty_k += 1
+            if len(skipped_examples) < 3:
+                skipped_examples.append((idx, "k_vazio", linha))
+            continue
         
         # Esperado: ID + 6 passageiros + k  => total 8 campos
         if len(partes) != 8:
-            raise ValueError(f"Linha {idx} não possui 8 campos (ID + 6 passageiros + k): {linha}")
+            skipped_total += 1
+            skipped_len += 1
+            if len(skipped_examples) < 3:
+                skipped_examples.append((idx, f"len={len(partes)}", linha))
+            continue
         
         identificador = partes[0]
         
@@ -2394,7 +2411,11 @@ def carregar_historico_universal(linhas):
             passageiros = [int(x) for x in partes[1:7]]
             k = int(partes[7])
         except ValueError:
-            raise ValueError(f"Linha {idx} contém valores não numéricos em passageiros/k: {linha}")
+            skipped_total += 1
+            skipped_nonnum += 1
+            if len(skipped_examples) < 3:
+                skipped_examples.append((idx, "nao_numerico", linha))
+            continue
         
         registro = {
             "id": identificador,
@@ -2410,6 +2431,18 @@ def carregar_historico_universal(linhas):
         registros.append(registro)
     
     df = pd.DataFrame(registros)
+    
+    # Registrar auditoria no session_state (sem quebrar caso Streamlit não esteja disponível)
+    try:
+        import streamlit as st
+        st.session_state["HIST_PARSER_SKIPPED_TOTAL"] = skipped_total
+        st.session_state["HIST_PARSER_SKIPPED_LEN"] = skipped_len
+        st.session_state["HIST_PARSER_SKIPPED_NONNUM"] = skipped_nonnum
+        st.session_state["HIST_PARSER_SKIPPED_EMPTY_K"] = skipped_empty_k
+        st.session_state["HIST_PARSER_SKIPPED_EXAMPLES"] = skipped_examples
+    except Exception:
+        pass
+    
     return df
 # ============================================================
 # V16 PREMIUM — IMPORTAÇÃO OFICIAL
