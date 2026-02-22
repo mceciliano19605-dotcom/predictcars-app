@@ -12,18 +12,20 @@ Arquivo único, íntegro e operacional.
 
 import streamlit as st
 from datetime import datetime
+import re
 
 # ============================================================
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h40 — MIRROR PASSENGER RANKING (1–N real) + NAMEERROR FIX FINAL + PIPELINE MATRIZ PERSISTIDA + MIRROR NO_NOCIVOS_SET + PARSER 6+k DETERMINÍSTICO (SKIP INVÁLIDAS) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h40_MIRROR_PASSENGER_RANKING_1_50_FINAL_BANNER_OK.py"
+BUILD_TAG = "v16h41 — MIRROR PASSENGER RANKING (1–N real) + FIX re import (NameError) + PIPELINE MATRIZ PERSISTIDA + MIRROR NO_NOCIVOS_SET + PARSER 6+k DETERMINÍSTICO (SKIP INVÁLIDAS) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h41_MIRROR_PASSENGER_RANKING_1_50_RE_IMPORT_FIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+WATERMARK = "2026-02-22_01_XX (RANKTEST)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h39 — BUILD AUDITÁVEL (Mirror Ranking 1–50)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h41 — BUILD AUDITÁVEL (Mirror Ranking 1–50)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -50,7 +52,8 @@ st.sidebar.warning(
     f"EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE}\n"
     f"Arquivo canônico no GitHub/Streamlit: {BUILD_CANONICAL_FILE}\n"
     f"BUILD: {BUILD_TAG}\n"
-    f"TIMESTAMP: {BUILD_TIME}"
+    f"TIMESTAMP: {BUILD_TIME}\n"
+    f"WATERMARK: {WATERMARK}"
 )
 
 # ------------------------------------------------------------
