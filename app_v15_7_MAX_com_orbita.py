@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h44 — MIRROR PASSENGER RANKING (1–N real) + TOP50 + snapshot universo sync + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h44_MIRROR_PASSENGER_RANKING_TOP50_SNAPSHOT_SYNC.py"
+BUILD_TAG = "v16h45 — MIRROR PASSENGER RANKING (1–N real) + TOP50 + snapshot universo sync FIX + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h45_MIRROR_PASSENGER_RANKING_TOP50_SNAPSHOT_SYNC_FIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-02-22_01_XX (RANKTEST)"
+WATERMARK = "2026-02-22_06_YY (RANKTEST)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h43 — BUILD AUDITÁVEL (Mirror Ranking 1–50)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h45 — BUILD AUDITÁVEL (Mirror Ranking 1–50)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2413,16 +2413,22 @@ def _m1_render_mirror_panel() -> None:
             umin = rank_meta.get("umin", st.session_state.get("universo_min", None))
             umax = rank_meta.get("umax", st.session_state.get("universo_max", None))
             w = rank_meta.get("w_recente", 0)
-
-            # --- v16h44: sincroniza universo no snapshot (evita None–None quando o mirror inferiu 1–50)
+            # --- v16h45: sincroniza universo (session_state + snapshot já montado)
+            # Motivo: o snapshot é calculado antes do bloco do ranking; então, se o Mirror inferir 1–50 aqui,
+            # precisamos refletir isso também no dict snapshot que será impresso logo abaixo.
             try:
                 if isinstance(umin, int) and isinstance(umax, int):
                     st.session_state["universo_min"] = umin
                     st.session_state["universo_max"] = umax
                     st.session_state["universo_str"] = f"{umin}–{umax}"
+                    # snapshot local (já criado acima) — atualiza para não ficar None–None
+                    try:
+                        snapshot["universo_min"] = umin
+                        snapshot["universo_max"] = umax
+                    except Exception:
+                        pass
             except Exception:
                 pass
-
             st.markdown("### 🧮 Ranking de Passageiros (1–N real) — somente leitura")
             st.caption(f"Fonte: histórico (p1..pN). Score = freq_recente − freq_longo. Janela recente = últimos {('N/D' if (w is None or w==0) else w)} registros.")
 
