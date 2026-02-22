@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h41 — MIRROR PASSENGER RANKING (1–N real) + FIX re import (NameError) + PIPELINE MATRIZ PERSISTIDA + MIRROR NO_NOCIVOS_SET + PARSER 6+k DETERMINÍSTICO (SKIP INVÁLIDAS) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h41_MIRROR_PASSENGER_RANKING_1_50_RE_IMPORT_FIX.py"
+BUILD_TAG = "v16h42 — MIRROR PASSENGER RANKING (1–N real) + FIX NameError (imports locais + erro detalhado) + FIX label rádio sidebar + PIPELINE MATRIZ PERSISTIDA + MIRROR NO_NOCIVOS_SET + PARSER 6+k"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h42_MIRROR_PASSENGER_RANKING_1_50_NAMEERROR_DIAG_FIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-02-22_01_XX (RANKTEST)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h41 — BUILD AUDITÁVEL (Mirror Ranking 1–50)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h42 — BUILD AUDITÁVEL (Mirror Ranking 1–50)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2274,24 +2274,28 @@ def _m1_obter_ranking_structural_df():
     - Usa "historico_df" como fonte principal, com fallback para chaves comuns,
       porque o app mantém múltiplas variações (full/safe) ao longo do fluxo.
     """
+    # (v16h42) Imports locais defensivos: evita NameError se algo sobrescrever nomes globais
+    import re as _re
+    import numpy as _np
+    import pandas as _pd
     try:
         st.session_state.pop("mirror_rank_err", None)
 
         # Fonte principal + fallbacks (não muda fluxo, só leitura)
         df = st.session_state.get("historico_df", None)
-        if df is None or (not isinstance(df, pd.DataFrame)) or df.empty:
+        if df is None or (not isinstance(df, _pd.DataFrame)) or df.empty:
             for k in ["historico_df_full", "historico_df_full_safe", "_df_full_safe"]:
                 cand = st.session_state.get(k, None)
-                if isinstance(cand, pd.DataFrame) and not cand.empty:
+                if isinstance(cand, _pd.DataFrame) and not cand.empty:
                     df = cand
                     break
 
-        if df is None or (not isinstance(df, pd.DataFrame)) or df.empty:
+        if df is None or (not isinstance(df, _pd.DataFrame)) or df.empty:
             st.session_state["mirror_rank_err"] = "historico_df ausente/vazio"
             return None
 
         # colunas de passageiros (p1..pN)
-        pcols = [c for c in df.columns if isinstance(c, str) and re.match(r"^p\d+$", c)]
+        pcols = [c for c in df.columns if isinstance(c, str) and _re.match(r"^p\d+$", c)]
         if not pcols:
             pcols = [c for c in df.columns if isinstance(c, str) and c.startswith("p")]
         if not pcols:
@@ -2304,7 +2308,7 @@ def _m1_obter_ranking_structural_df():
 
         def _infer_umax_umin(_df):
             try:
-                a = pd.to_numeric(_df[pcols].stack(), errors="coerce").dropna()
+                a = _pd.to_numeric(_df[pcols].stack(), errors="coerce").dropna()
                 if a.empty:
                     return None, None
                 return int(a.min()), int(a.max())
@@ -2330,8 +2334,8 @@ def _m1_obter_ranking_structural_df():
         w = min(120, len(df))
         df_recent = df.tail(w)
 
-        long_vals = pd.to_numeric(df[pcols].stack(), errors="coerce").dropna().astype(int)
-        recent_vals = pd.to_numeric(df_recent[pcols].stack(), errors="coerce").dropna().astype(int)
+        long_vals = _pd.to_numeric(df[pcols].stack(), errors="coerce").dropna().astype(int)
+        recent_vals = _pd.to_numeric(df_recent[pcols].stack(), errors="coerce").dropna().astype(int)
 
         if long_vals.empty or recent_vals.empty:
             st.session_state["mirror_rank_err"] = "valores vazios após coerção numérica"
@@ -2362,12 +2366,12 @@ def _m1_obter_ranking_structural_df():
                 "cnt_longo": int(c_l),
             })
 
-        out = pd.DataFrame(rows)
+        out = _pd.DataFrame(rows)
         out = out.sort_values(
             ["score", "freq_recente", "passageiro"],
             ascending=[False, False, True]
         ).reset_index(drop=True)
-        out["rank"] = np.arange(1, len(out) + 1)
+        out["rank"] = _np.arange(1, len(out) + 1)
 
         # persistir para a sessão (só leitura)
         st.session_state["mirror_rank_df"] = out.copy()
@@ -2380,7 +2384,7 @@ def _m1_obter_ranking_structural_df():
         return out
 
     except Exception as e:
-        st.session_state["mirror_rank_err"] = f"exceção: {type(e).__name__}"
+        st.session_state["mirror_rank_err"] = f"exceção: {type(e).__name__}: {e}"
         return None
 def _m1_render_mirror_panel() -> None:
     """Painel Mirror canônico (observacional). Nunca derruba o app."""
@@ -2405,7 +2409,7 @@ def _m1_render_mirror_panel() -> None:
             st.warning(f"Ranking estrutural indisponível nesta sessão. (motivo: {err})")
             st.caption("Dica: carregue o histórico (Arquivo/Colar) e rode o Pipeline FLEX ULTRA. O Mirror só lê; não cria dados.")
         else:
-            meta = st.session_state.get("mirror_rank_meta", {})
+            rank_meta = st.session_state.get("mirror_rank_meta", {})
             umin = meta.get("umin", st.session_state.get("universo_min", None))
             umax = meta.get("umax", st.session_state.get("universo_max", None))
             w = meta.get("w_recente", 0)
@@ -5115,7 +5119,7 @@ def construir_navegacao_v157() -> str:
     if (_prev is None) or (_prev not in opcoes):
         _prev = opcoes[0] if opcoes else "Carregar Histórico (Colar)"
         st.session_state[_nav_key] = _prev
-    painel = st.sidebar.radio("", opcoes, index=opcoes.index(_prev) if _prev in opcoes else 0, key=_nav_key)
+    painel = st.sidebar.radio("📌 Selecione o painel:", opcoes, index=opcoes.index(_prev) if _prev in opcoes else 0, key=_nav_key, label_visibility="collapsed")
     return painel
 
 
