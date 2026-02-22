@@ -2408,7 +2408,7 @@ def _m1_render_mirror_panel() -> None:
             w = meta.get("w_recente", 0)
 
             st.markdown("### 🧮 Ranking de Passageiros (1–N real) — somente leitura")
-            st.caption(f"Fonte: histórico (p1..pN). Score = freq_recente − freq_longo. Janela recente = últimos {rank_meta.get('w_recente','N/D')} registros.")
+            st.caption(f"Fonte: histórico (p1..pN). Score = freq_recente − freq_longo. Janela recente = últimos {meta.get('w_recente','N/D')} registros.")
 
             st.markdown("**Top 20 (por score):**")
             st.dataframe(df_rank.head(20), use_container_width=True, hide_index=True)
