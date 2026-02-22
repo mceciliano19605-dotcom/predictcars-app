@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h42 — MIRROR PASSENGER RANKING (1–N real) + FIX NameError (imports locais + erro detalhado) + FIX label rádio sidebar + PIPELINE MATRIZ PERSISTIDA + MIRROR NO_NOCIVOS_SET + PARSER 6+k"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h42_MIRROR_PASSENGER_RANKING_1_50_NAMEERROR_DIAG_FIX.py"
+BUILD_TAG = "v16h43 — MIRROR PASSENGER RANKING (1–N real) + TOP50 (tabela/expander) + meta correta + janela recente exibida + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h43_MIRROR_PASSENGER_RANKING_TOP50_FULL.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-02-22_01_XX (RANKTEST)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h42 — BUILD AUDITÁVEL (Mirror Ranking 1–50)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h43 — BUILD AUDITÁVEL (Mirror Ranking 1–50)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2274,7 +2274,7 @@ def _m1_obter_ranking_structural_df():
     - Usa "historico_df" como fonte principal, com fallback para chaves comuns,
       porque o app mantém múltiplas variações (full/safe) ao longo do fluxo.
     """
-    # (v16h42) Imports locais defensivos: evita NameError se algo sobrescrever nomes globais
+    # (v16h43) Imports locais defensivos: evita NameError se algo sobrescrever nomes globais
     import re as _re
     import numpy as _np
     import pandas as _pd
@@ -2331,7 +2331,7 @@ def _m1_obter_ranking_structural_df():
             return None
 
         # janela recente (determinística, ex‑post)
-        w = min(120, len(df))
+        w = min(180, len(df))
         df_recent = df.tail(w)
 
         long_vals = _pd.to_numeric(df[pcols].stack(), errors="coerce").dropna().astype(int)
@@ -2410,15 +2410,18 @@ def _m1_render_mirror_panel() -> None:
             st.caption("Dica: carregue o histórico (Arquivo/Colar) e rode o Pipeline FLEX ULTRA. O Mirror só lê; não cria dados.")
         else:
             rank_meta = st.session_state.get("mirror_rank_meta", {})
-            umin = meta.get("umin", st.session_state.get("universo_min", None))
-            umax = meta.get("umax", st.session_state.get("universo_max", None))
-            w = meta.get("w_recente", 0)
+            umin = rank_meta.get("umin", st.session_state.get("universo_min", None))
+            umax = rank_meta.get("umax", st.session_state.get("universo_max", None))
+            w = rank_meta.get("w_recente", 0)
 
             st.markdown("### 🧮 Ranking de Passageiros (1–N real) — somente leitura")
-            st.caption(f"Fonte: histórico (p1..pN). Score = freq_recente − freq_longo. Janela recente = últimos {meta.get('w_recente','N/D')} registros.")
+            st.caption(f"Fonte: histórico (p1..pN). Score = freq_recente − freq_longo. Janela recente = últimos {('N/D' if (w is None or w==0) else w)} registros.")
 
             st.markdown("**Top 20 (por score):**")
             st.dataframe(df_rank.head(20), use_container_width=True, hide_index=True)
+
+            with st.expander("📌 Ver Top 50 completo (auditoria)", expanded=False):
+                st.dataframe(df_rank.head(50), use_container_width=True, hide_index=True)
 
             st.markdown("**Borda do corte (posições 8–15):**")
             borda = df_rank[(df_rank['rank'] >= 8) & (df_rank['rank'] <= 15)].copy()
