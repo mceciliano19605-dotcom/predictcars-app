@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h47 — MIRROR robustez (Wr múltiplas) + UNI 1–50/1–60 + métricas concentração + TOP50 + snapshot sync + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h47_MIRROR_ROBUSTEZ_WR_UNI_50_60_CONC_METRICS.py"
+BUILD_TAG = "v16h48 — MIRROR robust WR table (160/180/200/220) + UNI 1–50/1–60 + métricas concentração + TOP50 + snapshot sync + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h48_MIRROR_ROBUST_TABLE_WR_UNI_50_60_CONC_METRICS.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-02-22_07 (UNI50_60_CONC)"
@@ -2446,7 +2446,86 @@ def _m1_obter_ranking_structural_df():
         except Exception:
             Stab = 0.0
 
-        # persistir para a sessão (só leitura)
+        
+        # -----------------------------
+        # V16h48 — Robustez por múltiplas janelas (Wr fixo: 160/180/200/220) — somente leitura
+        # Nota: isto NÃO altera listas, NÃO altera motor e NÃO decide nada.
+        # -----------------------------
+        try:
+            base_w = int(w)
+            w_list = [160, 180, 200, 220]
+            # clamp para o tamanho do histórico
+            w_list = [int(max(10, min(len(df), ww))) for ww in w_list]
+            # manter ordem e remover duplicatas (caso len(df) < 220, por exemplo)
+            _seen = set()
+            _wuniq = []
+            for ww in w_list:
+                if ww not in _seen:
+                    _wuniq.append(ww)
+                    _seen.add(ww)
+            w_list = _wuniq
+
+            # Top6 base (Wr=180, se existir; senão usa o w atual)
+            base_ref = 180 if 180 in w_list else base_w
+            base_out = out if base_ref == base_w else _rank_for_window(base_ref)
+            base_top6 = set(int(x) for x in base_out.head(6)["passageiro"].tolist())
+
+            robust_rows = []
+            for ww in w_list:
+                outw = _rank_for_window(int(ww))
+                if outw is None or outw.empty:
+                    continue
+
+                scores_all_w = [float(x) for x in outw["score"].tolist()] if "score" in outw.columns else []
+                mu_w = _safe_mean(scores_all_w)
+                sd_w = float(_np.std(_np.array(scores_all_w), ddof=0)) if scores_all_w else 0.0
+                eps = 1e-12
+
+                if sd_w > 0:
+                    outw["_z"] = (outw["score"].astype(float) - float(mu_w)) / (float(sd_w) + eps)
+                else:
+                    outw["_z"] = 0.0
+
+                top6w = outw.head(6).copy()
+                bordaw = outw[(outw["rank"] >= 8) & (outw["rank"] <= 15)].copy()
+
+                # C_top e Slope em Z
+                C_top_w = float(top6w["_z"].mean()) if (not top6w.empty) else None
+                Slope_w = float(top6w["_z"].mean() - bordaw["_z"].mean()) if ((not top6w.empty) and (not bordaw.empty)) else None
+
+                # Gap em score bruto (rank6 - rank15), como no meta principal
+                try:
+                    s6w = float(outw.loc[outw["rank"] == 6, "score"].iloc[0])
+                except Exception:
+                    s6w = None
+                try:
+                    s15w = float(outw.loc[outw["rank"] == 15, "score"].iloc[0])
+                except Exception:
+                    s15w = None
+                Gap_w = float(s6w - s15w) if (s6w is not None and s15w is not None) else None
+
+                # Stab vs referência (Wr=180 quando possível)
+                try:
+                    tw = set(int(x) for x in top6w["passageiro"].tolist())
+                    stab_vs = float(len(tw & base_top6) / 6.0) if base_top6 else None
+                except Exception:
+                    stab_vs = None
+
+                robust_rows.append(
+                    {
+                        "Wr": int(ww),
+                        "C_top(z)": (None if C_top_w is None else float(C_top_w)),
+                        "Slope": (None if Slope_w is None else float(Slope_w)),
+                        "Gap(6−15)": (None if Gap_w is None else float(Gap_w)),
+                        "Stab vs 180": (None if stab_vs is None else float(stab_vs)),
+                    }
+                )
+
+            st.session_state["mirror_robust_df"] = _pd.DataFrame(robust_rows) if robust_rows else _pd.DataFrame([])
+        except Exception:
+            st.session_state["mirror_robust_df"] = None
+
+# persistir para a sessão (só leitura)
         st.session_state["mirror_rank_df"] = out.copy()
         st.session_state["mirror_rank_meta"] = {
             "w_recente": int(w),
@@ -2502,6 +2581,20 @@ def _m1_render_mirror_panel() -> None:
                 st.session_state["mirror_universe_mode"] = sel
                 st.caption("Obs.: isto NÃO altera listas, não altera motor e não decide nada — é apenas leitura/diagnóstico.")
             except Exception:
+
+
+                # --- V16h48: Robustez por múltiplas janelas (Wr) — somente leitura
+                try:
+                    robust_df = st.session_state.get("mirror_robust_df", None)
+                    if isinstance(robust_df, pd.DataFrame) and (not robust_df.empty):
+                        with st.expander("📊 Robustez por múltiplas janelas (Wr: 160/180/200/220) — somente leitura", expanded=False):
+                            st.dataframe(robust_df, use_container_width=True, hide_index=True)
+                    else:
+                        # se não houver dados, não poluir o painel
+                        pass
+                except Exception:
+                    pass
+
                 pass
 
         df_rank = _m1_obter_ranking_structural_df()
