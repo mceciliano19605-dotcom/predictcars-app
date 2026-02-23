@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h46 — MIRROR (1–50/1–60) + MÉTRICA CONCENTRAÇÃO (C_top/Slope/Gap/Stab) + TOP50 + snapshot sync + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h46_MIRROR_UNI_50_60_CONCENTRACAO_METRICS.py"
+BUILD_TAG = "v16h47 — MIRROR robustez (Wr múltiplas) + UNI 1–50/1–60 + métricas concentração + TOP50 + snapshot sync + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h47_MIRROR_ROBUSTEZ_WR_UNI_50_60_CONC_METRICS.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-02-22_07 (UNI50_60_CONC)"
