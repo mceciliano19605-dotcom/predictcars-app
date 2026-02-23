@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h45 — MIRROR PASSENGER RANKING (1–N real) + TOP50 + snapshot universo sync FIX + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h45_MIRROR_PASSENGER_RANKING_TOP50_SNAPSHOT_SYNC_FIX.py"
+BUILD_TAG = "v16h46 — MIRROR (1–50/1–60) + MÉTRICA CONCENTRAÇÃO (C_top/Slope/Gap/Stab) + TOP50 + snapshot sync + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h46_MIRROR_UNI_50_60_CONCENTRACAO_METRICS.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-02-22_06_YY (RANKTEST)"
+WATERMARK = "2026-02-22_07 (UNI50_60_CONC)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h45 — BUILD AUDITÁVEL (Mirror Ranking 1–50)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h46 — BUILD AUDITÁVEL (Mirror Ranking 1–50/1–60 + Concentração)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2273,11 +2273,20 @@ def _m1_obter_ranking_structural_df():
     Observação:
     - Usa "historico_df" como fonte principal, com fallback para chaves comuns,
       porque o app mantém múltiplas variações (full/safe) ao longo do fluxo.
+
+    V16h46 — Instrumentação de Concentração (pré‑calibração)
+    - Suporta operação intencional em 1–50 OU 1–60 (override auditável) sem quebrar o AUTO.
+    - Calcula métricas numéricas (somente leitura):
+        C_top  : z-score do topo (média Top6 vs distribuição global)
+        Slope  : média Top6 − média Borda(8–15)
+        Gap    : score(rank6) − score(rank15)
+        Stab   : estabilidade do Top6 ao variar a janela (w−20 / w+20)
     """
-    # (v16h43) Imports locais defensivos: evita NameError se algo sobrescrever nomes globais
+    # (v16h43+) Imports locais defensivos: evita NameError se algo sobrescrever nomes globais
     import re as _re
     import numpy as _np
     import pandas as _pd
+
     try:
         st.session_state.pop("mirror_rank_err", None)
 
@@ -2302,6 +2311,18 @@ def _m1_obter_ranking_structural_df():
             st.session_state["mirror_rank_err"] = "colunas p* não encontradas"
             return None
 
+        # -----------------------------
+        # Universo (AUTO vs override 1–50 / 1–60)
+        # -----------------------------
+        mode = str(st.session_state.get("mirror_universe_mode", "AUTO")).strip().upper()
+        override_umax = None
+        if mode in ("1–50", "1-50", "50"):
+            override_umax = 50
+        elif mode in ("1–60", "1-60", "60"):
+            override_umax = 60
+        else:
+            override_umax = None  # AUTO
+
         # universo (preferir session_state; senão inferir do df)
         umin = st.session_state.get("universo_min", None)
         umax = st.session_state.get("universo_max", None)
@@ -2311,67 +2332,119 @@ def _m1_obter_ranking_structural_df():
                 a = _pd.to_numeric(_df[pcols].stack(), errors="coerce").dropna()
                 if a.empty:
                     return None, None
+                # remove zeros/negativos
+                a = a[a > 0]
+                if a.empty:
+                    return None, None
                 return int(a.min()), int(a.max())
             except Exception:
                 return None, None
 
         if umin is None or umax is None:
-            umin2, umax2 = _infer_umax_umin(df)
-            umin = umin if umin is not None else umin2
-            umax = umax if umax is not None else umax2
+            iu, ia = _infer_umax_umin(df)
+            if umin is None:
+                umin = iu
+            if umax is None:
+                umax = ia
+
+        # fallback conservador
+        if umin is None:
+            umin = 1
+        if umax is None:
+            umax = 60
+
+        # aplica override (se solicitado)
+        if override_umax is not None:
+            umin = 1
+            umax = int(override_umax)
+
+        # -----------------------------
+        # Janela recente (fixa e auditável nesta fase)
+        # -----------------------------
+        w = int(min(180, len(df)))
+        w = max(30, w)  # piso mínimo para evitar instabilidade extrema em histórico muito curto
+
+        # -----------------------------
+        # Computa ranking (helper) para estabilidade
+        # -----------------------------
+        def _rank_for_window(_w: int):
+            _w = int(max(10, min(len(df), _w)))
+            dfr = df.tail(_w)[pcols].copy()
+            dfl = df[pcols].copy()
+
+            # flat
+            a_r = _pd.to_numeric(dfr.stack(), errors="coerce").dropna()
+            a_l = _pd.to_numeric(dfl.stack(), errors="coerce").dropna()
+
+            # filtra universo atual
+            a_r = a_r[(a_r >= int(umin)) & (a_r <= int(umax))]
+            a_l = a_l[(a_l >= int(umin)) & (a_l <= int(umax))]
+
+            # frequência normalizada (proporção)
+            fr = a_r.value_counts(normalize=True).to_dict()
+            fl = a_l.value_counts(normalize=True).to_dict()
+
+            rows = []
+            for p in range(int(umin), int(umax) + 1):
+                rr = float(fr.get(p, 0.0))
+                ll = float(fl.get(p, 0.0))
+                eta = rr - ll
+                rows.append({"passageiro": int(p), "freq_recente": rr, "freq_longo": ll, "score": float(eta)})
+            out_ = _pd.DataFrame(rows)
+            out_ = out_.sort_values(["score", "passageiro"], ascending=[False, True]).reset_index(drop=True)
+            out_["rank"] = _np.arange(1, len(out_) + 1)
+            return out_
+
+        out = _rank_for_window(w)
+
+        # -----------------------------
+        # Métricas de Concentração (pré‑calibração)
+        # -----------------------------
+        def _safe_mean(vals):
+            try:
+                vals = [float(v) for v in vals if v is not None]
+                return float(sum(vals) / max(1, len(vals)))
+            except Exception:
+                return 0.0
+
+        scores_all = [float(x) for x in out["score"].tolist()] if "score" in out.columns else []
+        mu = _safe_mean(scores_all)
+        sd = float(_np.std(_np.array(scores_all), ddof=0)) if scores_all else 0.0
+
+        top6 = out.head(6)
+        borda = out[(out["rank"] >= 8) & (out["rank"] <= 15)]
+        top6_mean = _safe_mean(top6["score"].tolist() if not top6.empty else [])
+        borda_mean = _safe_mean(borda["score"].tolist() if not borda.empty else [])
+
+        C_top = float((top6_mean - mu) / sd) if sd > 1e-12 else 0.0
+        Slope = float(top6_mean - borda_mean)
 
         try:
-            umin = int(umin) if umin is not None else None
-            umax = int(umax) if umax is not None else None
+            s6 = float(out.loc[out["rank"] == 6, "score"].iloc[0])
         except Exception:
-            umin, umax = None, None
+            s6 = None
+        try:
+            s15 = float(out.loc[out["rank"] == 15, "score"].iloc[0])
+        except Exception:
+            s15 = None
+        Gap = float(s6 - s15) if (s6 is not None and s15 is not None) else None
 
-        if umin is None or umax is None or umax < umin:
-            st.session_state["mirror_rank_err"] = "universo_min/max inválido (ou não inferível)"
-            return None
+        # Estabilidade do Top6 ao variar janela (w-20 / w+20)
+        try:
+            base_top = set(int(x) for x in top6["passageiro"].tolist())
+            w_lo = int(max(10, w - 20))
+            w_hi = int(min(len(df), w + 20))
+            top_lo = set(int(x) for x in _rank_for_window(w_lo).head(6)["passageiro"].tolist())
+            top_hi = set(int(x) for x in _rank_for_window(w_hi).head(6)["passageiro"].tolist())
 
-        # janela recente (determinística, ex‑post)
-        w = min(180, len(df))
-        df_recent = df.tail(w)
+            def _overlap(a, b):
+                if not a or not b:
+                    return 0.0
+                return float(len(a & b) / float(len(a | b)))
 
-        long_vals = _pd.to_numeric(df[pcols].stack(), errors="coerce").dropna().astype(int)
-        recent_vals = _pd.to_numeric(df_recent[pcols].stack(), errors="coerce").dropna().astype(int)
-
-        if long_vals.empty or recent_vals.empty:
-            st.session_state["mirror_rank_err"] = "valores vazios após coerção numérica"
-            return None
-
-        total_long = max(1, len(long_vals))
-        total_recent = max(1, len(recent_vals))
-
-        vc_long = long_vals.value_counts()
-        vc_recent = recent_vals.value_counts()
-
-        rows = []
-        for x in range(umin, umax + 1):
-            c_r = int(vc_recent.get(x, 0))
-            c_l = int(vc_long.get(x, 0))
-            fr = c_r / total_recent
-            fl = c_l / total_long
-            eta = fr - fl  # recente vs longo
-            score = eta    # score observacional (canônico)
-            rows.append({
-                "rank": 0,
-                "passageiro": x,
-                "score": float(score),
-                "freq_recente": float(fr),
-                "freq_longo": float(fl),
-                "eta": float(eta),
-                "cnt_recente": int(c_r),
-                "cnt_longo": int(c_l),
-            })
-
-        out = _pd.DataFrame(rows)
-        out = out.sort_values(
-            ["score", "freq_recente", "passageiro"],
-            ascending=[False, False, True]
-        ).reset_index(drop=True)
-        out["rank"] = _np.arange(1, len(out) + 1)
+            Stab = float((_overlap(base_top, top_lo) + _overlap(base_top, top_hi)) / 2.0)
+        except Exception:
+            Stab = 0.0
 
         # persistir para a sessão (só leitura)
         st.session_state["mirror_rank_df"] = out.copy()
@@ -2380,12 +2453,18 @@ def _m1_obter_ranking_structural_df():
             "umin": int(umin),
             "umax": int(umax),
             "pcols_n": int(len(pcols)),
+            "mode": str(mode),
+            "C_top": float(C_top),
+            "Slope": float(Slope),
+            "Gap": (None if Gap is None else float(Gap)),
+            "Stab": float(Stab),
         }
         return out
 
     except Exception as e:
         st.session_state["mirror_rank_err"] = f"exceção: {type(e).__name__}: {e}"
         return None
+
 def _m1_render_mirror_panel() -> None:
     """Painel Mirror canônico (observacional). Nunca derruba o app."""
     try:
@@ -2403,6 +2482,28 @@ def _m1_render_mirror_panel() -> None:
         # V16h35 — MIRROR: Ranking estrutural (Top20) + Captura 8–15
         # (apenas leitura; não depende do SAFE; não altera listas)
         # ----------------------------------------------
+        
+        # ----------------------------------------------
+        # V16h46 — MIRROR: Universo alvo (AUTO / 1–50 / 1–60) + Métrica de Concentração (pré‑calibração)
+        # Regra: somente leitura, auditável, sem decisão e sem mexer na Camada 4.
+        # ----------------------------------------------
+        with st.expander("⚙️ Config do Mirror (auditoria) — Universo 1–50 / 1–60", expanded=False):
+            try:
+                cur = st.session_state.get("mirror_universe_mode", "AUTO")
+                opts = ["AUTO", "1–50", "1–60"]
+                if cur not in opts:
+                    cur = "AUTO"
+                sel = st.selectbox(
+                    "Universo-alvo do ranking (somente leitura)",
+                    options=opts,
+                    index=opts.index(cur),
+                    help="AUTO = inferir do histórico. 1–50/1–60 = força o ranking a considerar apenas esse universo (ignora números fora).",
+                )
+                st.session_state["mirror_universe_mode"] = sel
+                st.caption("Obs.: isto NÃO altera listas, não altera motor e não decide nada — é apenas leitura/diagnóstico.")
+            except Exception:
+                pass
+
         df_rank = _m1_obter_ranking_structural_df()
         if df_rank is None or (not isinstance(df_rank, pd.DataFrame)) or df_rank.empty:
             err = st.session_state.get("mirror_rank_err", "N/D")
@@ -2431,6 +2532,39 @@ def _m1_render_mirror_panel() -> None:
                 pass
             st.markdown("### 🧮 Ranking de Passageiros (1–N real) — somente leitura")
             st.caption(f"Fonte: histórico (p1..pN). Score = freq_recente − freq_longo. Janela recente = últimos {('N/D' if (w is None or w==0) else w)} registros.")
+
+            # --- V16h46: Métricas numéricas de concentração (somente leitura)
+            try:
+                C_top = rank_meta.get("C_top", None)
+                Slope = rank_meta.get("Slope", None)
+                Gap = rank_meta.get("Gap", None)
+                Stab = rank_meta.get("Stab", None)
+
+                c1, c2, c3, c4 = st.columns(4)
+                with c1:
+                    st.metric("C_top (z)", f"{C_top:.2f}" if isinstance(C_top, (int, float)) else "N/D")
+                with c2:
+                    st.metric("Slope (Top6−Borda)", f"{Slope:.4f}" if isinstance(Slope, (int, float)) else "N/D")
+                with c3:
+                    st.metric("Gap (6−15)", f"{Gap:.4f}" if isinstance(Gap, (int, float)) else "N/D")
+                with c4:
+                    st.metric("Stab Top6", f"{Stab:.2f}" if isinstance(Stab, (int, float)) else "N/D")
+
+                # leitura conservadora (não decide; só etiqueta)
+                leitura = "NEUTRO"
+                try:
+                    if isinstance(C_top, (int, float)) and isinstance(Slope, (int, float)) and isinstance(Stab, (int, float)):
+                        if (C_top >= 1.00) and (Slope > 0.0) and (Stab >= 0.50):
+                            leitura = "CONCENTRAÇÃO SUGERIDA"
+                        elif (C_top <= 0.40) or (abs(Slope) <= 0.0001) or (Stab < 0.35):
+                            leitura = "BORDA PLANA / INSTÁVEL"
+                except Exception:
+                    leitura = "NEUTRO"
+
+                st.caption(f"Leitura automática (sem decisão): **{leitura}** · Use isto apenas para orientar a próxima etapa (métrica → calibração → MC).")
+            except Exception:
+                pass
+
 
             st.markdown("**Top 20 (por score):**")
             st.dataframe(df_rank.head(20), use_container_width=True, hide_index=True)
