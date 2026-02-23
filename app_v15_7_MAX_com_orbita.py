@@ -18,11 +18,11 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h49 — MIRROR robust table (Wr 160/180/200/220) + UNI 1–50/1–60 + métricas concentração + TOP50 + snapshot sync + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h49_MIRROR_ROBUST_TABLE_WR_UNI_50_60_CONC_METRICS.py"
+BUILD_TAG = "v16h50 — MIRROR robustez (tabela Wr 160/180/200/220) + UNI 1–50/1–60 + métricas concentração + TOP50 + snapshot sync + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h50_MIRROR_ROBUST_TABLE_WR_UNI_50_60_CONC_METRICS.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-02-23_01 (ROBUST_WR_TABLE)"
+WATERMARK = "2026-02-22_07 (UNI50_60_CONC)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
 st.set_page_config(page_title="PredictCars V15.7 MAX — v16h46 — BUILD AUDITÁVEL (Mirror Ranking 1–50/1–60 + Concentração)", page_icon="🚗", layout="wide")
@@ -2466,15 +2466,24 @@ def _m1_obter_ranking_structural_df():
         return None
 
 
-def _m1_conc_metrics_for_wr(_w: int):
-    """Somente leitura: calcula métricas de concentração para uma janela recente específica (Wr).
-    Mantém a mesma regra de universo do Mirror (AUTO / 1–50 / 1–60).
-    Retorna dict com: wr, C_top, Slope, Gap, top6_set. Em falha, retorna None.
+def _m1_mirror_robustez_wr_table(wr_list=(160, 180, 200, 220), wr_base=180):
     """
+    Mirror (somente leitura): calcula robustez das métricas de concentração variando a janela recente (Wr).
+
+    - Não altera listas / motor / Camada 4.
+    - Não grava nada além de leitura local (não persiste em session_state).
+    - Funciona para universo 1–50 e 1–60 (AUTO/override) igual ao ranking principal.
+
+    Retorna: pandas.DataFrame com colunas:
+      Wr, C_top(z), Slope, Gap(6-15), Stab_vs_base
+    """
+    # imports defensivos (evita NameError se algo sobrescrever globais)
     import re as _re
     import numpy as _np
     import pandas as _pd
+
     try:
+        # Fonte principal + fallbacks (mesma lógica do ranking principal)
         df = st.session_state.get("historico_df", None)
         if df is None or (not isinstance(df, _pd.DataFrame)) or df.empty:
             for k in ["historico_df_full", "historico_df_full_safe", "_df_full_safe"]:
@@ -2485,18 +2494,22 @@ def _m1_conc_metrics_for_wr(_w: int):
         if df is None or (not isinstance(df, _pd.DataFrame)) or df.empty:
             return None
 
+        # colunas p1..pN
         pcols = [c for c in df.columns if isinstance(c, str) and _re.match(r"^p\d+$", c)]
         if not pcols:
             pcols = [c for c in df.columns if isinstance(c, str) and c.startswith("p")]
         if not pcols:
             return None
 
+        # Universo (AUTO vs override 1–50 / 1–60)
         mode = str(st.session_state.get("mirror_universe_mode", "AUTO")).strip().upper()
         override_umax = None
         if mode in ("1–50", "1-50", "50"):
             override_umax = 50
         elif mode in ("1–60", "1-60", "60"):
             override_umax = 60
+        else:
+            override_umax = None
 
         umin = st.session_state.get("universo_min", None)
         umax = st.session_state.get("universo_max", None)
@@ -2524,33 +2537,35 @@ def _m1_conc_metrics_for_wr(_w: int):
             umin = 1
         if umax is None:
             umax = 60
+
         if override_umax is not None:
             umin = 1
             umax = int(override_umax)
 
-        _w = int(max(30, min(len(df), int(_w))))
+        # helper: ranking para um Wr específico (score = p_recente - p_longo)
+        def _rank_for_window(_w: int):
+            _w = int(max(10, min(len(df), _w)))
+            dfr = df.tail(_w)[pcols].copy()
+            dfl = df[pcols].copy()
 
-        dfr = df.tail(_w)[pcols].copy()
-        dfl = df[pcols].copy()
+            a_r = _pd.to_numeric(dfr.stack(), errors="coerce").dropna()
+            a_l = _pd.to_numeric(dfl.stack(), errors="coerce").dropna()
 
-        a_r = _pd.to_numeric(dfr.stack(), errors="coerce").dropna()
-        a_l = _pd.to_numeric(dfl.stack(), errors="coerce").dropna()
+            a_r = a_r[(a_r >= int(umin)) & (a_r <= int(umax))]
+            a_l = a_l[(a_l >= int(umin)) & (a_l <= int(umax))]
 
-        a_r = a_r[(a_r >= int(umin)) & (a_r <= int(umax))]
-        a_l = a_l[(a_l >= int(umin)) & (a_l <= int(umax))]
+            fr = a_r.value_counts(normalize=True).to_dict()
+            fl = a_l.value_counts(normalize=True).to_dict()
 
-        fr = a_r.value_counts(normalize=True).to_dict()
-        fl = a_l.value_counts(normalize=True).to_dict()
-
-        rows = []
-        for p in range(int(umin), int(umax) + 1):
-            rr = float(fr.get(p, 0.0))
-            ll = float(fl.get(p, 0.0))
-            eta = rr - ll
-            rows.append({"passageiro": int(p), "freq_recente": rr, "freq_longo": ll, "score": float(eta)})
-        out = _pd.DataFrame(rows)
-        out = out.sort_values(["score", "passageiro"], ascending=[False, True]).reset_index(drop=True)
-        out["rank"] = _np.arange(1, len(out) + 1)
+            rows = []
+            for p in range(int(umin), int(umax) + 1):
+                rr = float(fr.get(p, 0.0))
+                ll = float(fl.get(p, 0.0))
+                rows.append({"passageiro": int(p), "score": float(rr - ll)})
+            out_ = _pd.DataFrame(rows)
+            out_ = out_.sort_values(["score", "passageiro"], ascending=[False, True]).reset_index(drop=True)
+            out_["rank"] = _np.arange(1, len(out_) + 1)
+            return out_
 
         def _safe_mean(vals):
             try:
@@ -2559,40 +2574,53 @@ def _m1_conc_metrics_for_wr(_w: int):
             except Exception:
                 return 0.0
 
-        scores_all = [float(x) for x in out["score"].tolist()] if "score" in out.columns else []
-        mu = _safe_mean(scores_all)
-        sd = float(_np.std(_np.array(scores_all), ddof=0)) if scores_all else 0.0
+        def _metricas(_out):
+            scores_all = [float(x) for x in _out["score"].tolist()] if "score" in _out.columns else []
+            mu = _safe_mean(scores_all)
+            sd = float(_np.std(_np.array(scores_all), ddof=0)) if scores_all else 0.0
 
-        top6 = out.head(6)
-        borda = out[(out["rank"] >= 8) & (out["rank"] <= 15)]
-        top6_mean = _safe_mean(top6["score"].tolist() if not top6.empty else [])
-        borda_mean = _safe_mean(borda["score"].tolist() if not borda.empty else [])
+            top6 = _out.head(6)
+            borda = _out[(_out["rank"] >= 8) & (_out["rank"] <= 15)]
+            top6_mean = _safe_mean(top6["score"].tolist() if not top6.empty else [])
+            borda_mean = _safe_mean(borda["score"].tolist() if not borda.empty else [])
 
-        C_top = float((top6_mean - mu) / sd) if sd > 1e-12 else 0.0
-        Slope = float(top6_mean - borda_mean)
+            c_top = float((top6_mean - mu) / sd) if sd > 1e-12 else 0.0
+            slope = float(top6_mean - borda_mean)
 
-        try:
-            s6 = float(out.loc[out["rank"] == 6, "score"].iloc[0])
-        except Exception:
-            s6 = None
-        try:
-            s15 = float(out.loc[out["rank"] == 15, "score"].iloc[0])
-        except Exception:
-            s15 = None
-        Gap = float(s6 - s15) if (s6 is not None and s15 is not None) else None
+            try:
+                s6 = float(_out.loc[_out["rank"] == 6, "score"].iloc[0])
+            except Exception:
+                s6 = None
+            try:
+                s15 = float(_out.loc[_out["rank"] == 15, "score"].iloc[0])
+            except Exception:
+                s15 = None
+            gap = float(s6 - s15) if (s6 is not None and s15 is not None) else None
+            top_set = set(int(x) for x in top6["passageiro"].tolist()) if not top6.empty else set()
+            return c_top, slope, gap, top_set
 
-        top6_set = set(int(x) for x in top6["passageiro"].tolist()) if not top6.empty else set()
+        base_w = int(max(10, min(len(df), wr_base)))
+        base_rank = _rank_for_window(base_w)
+        base_c, base_s, base_g, base_top = _metricas(base_rank)
 
-        return {
-            "wr": int(_w),
-            "C_top": float(C_top),
-            "Slope": float(Slope),
-            "Gap": (None if Gap is None else float(Gap)),
-            "top6_set": top6_set,
-        }
+        rows = []
+        for w in wr_list:
+            ww = int(max(10, min(len(df), int(w))))
+            outw = _rank_for_window(ww)
+            c_top, slope, gap, top_set = _metricas(outw)
+            stab = float(len(top_set & base_top) / 6.0) if base_top else 0.0
+            rows.append({
+                "Wr": int(ww),
+                "C_top(z)": float(c_top),
+                "Slope": float(slope),
+                "Gap(6-15)": (None if gap is None else float(gap)),
+                "Stab_vs_180": float(stab),
+            })
+
+        df_out = _pd.DataFrame(rows)
+        return df_out
     except Exception:
         return None
-
 
 
 def _m1_render_mirror_panel() -> None:
@@ -2696,62 +2724,22 @@ def _m1_render_mirror_panel() -> None:
                 pass
 
 
-            
-            # --- V16h48: Robustez por múltiplas janelas (Wr fixos) — SOMENTE LEITURA
-            try:
-                with st.expander("📊 Robustez Estrutural por Janela (Somente Leitura) — Wr 160/180/200/220", expanded=False):
-                    wr_list = [160, 180, 200, 220]
-                    base_wr = 180
-                    base = _m1_conc_metrics_for_wr(base_wr)
-                    base_set = base.get("top6_set", set()) if isinstance(base, dict) else set()
 
-                    rows = []
-                    for wr in wr_list:
-                        mwr = _m1_conc_metrics_for_wr(wr)
-                        if not isinstance(mwr, dict):
-                            rows.append({"Wr": wr, "C_top(z)": "N/D", "Slope": "N/D", "Gap": "N/D", "Stab vs 180": "N/D"})
-                            continue
-                        top_set = mwr.get("top6_set", set()) or set()
-                        stab = (len(top_set & base_set) / 6.0) if base_set else None
+            # --- V16h50: Robustez por múltiplas janelas (Wr fixos 160/180/200/220) — somente leitura
+            # Regra: não altera listas, não altera motor e não decide nada.
+            with st.expander("📊 Robustez Estrutural por Janela (Somente Leitura) — Wr 160/180/200/220", expanded=False):
+                try:
+                    df_wr = _m1_mirror_robustez_wr_table(wr_list=(160, 180, 200, 220), wr_base=180)
+                    if df_wr is None or (not isinstance(df_wr, pd.DataFrame)) or df_wr.empty:
+                        st.caption("Robustez indisponível (histórico insuficiente ou estado incompleto).")
+                    else:
+                        # Formatação simples (não decide nada): apenas exibe números
+                        st.dataframe(df_wr, use_container_width=True, hide_index=True)
+                        st.caption("Stab_vs_180 = |Top6(Wr) ∩ Top6(180)| / 6 · Use isto apenas para validar se o sinal é robusto (sem decisão).")
+                except Exception as _e:
+                    st.caption(f"Robustez indisponível (exceção: {type(_e).__name__}).")
 
-                        rows.append({
-                            "Wr": int(mwr.get("wr", wr)),
-                            "C_top(z)": float(mwr.get("C_top", 0.0)),
-                            "Slope": float(mwr.get("Slope", 0.0)),
-                            "Gap": (mwr.get("Gap", None) if mwr.get("Gap", None) is not None else None),
-                            "Stab vs 180": (float(stab) if stab is not None else None),
-                        })
-
-                    import pandas as _pd
-                    dfw = _pd.DataFrame(rows)
-
-                    def _fmt(v, nd="N/D", dec=4):
-                        try:
-                            if v is None:
-                                return nd
-                            if isinstance(v, str):
-                                return v
-                            return f"{float(v):.{dec}f}"
-                        except Exception:
-                            return nd
-
-                    # format display
-                    df_show = dfw.copy()
-                    if "C_top(z)" in df_show.columns:
-                        df_show["C_top(z)"] = df_show["C_top(z)"].apply(lambda x: _fmt(x, dec=2))
-                    if "Slope" in df_show.columns:
-                        df_show["Slope"] = df_show["Slope"].apply(lambda x: _fmt(x, dec=4))
-                    if "Gap" in df_show.columns:
-                        df_show["Gap"] = df_show["Gap"].apply(lambda x: _fmt(x, dec=4))
-                    if "Stab vs 180" in df_show.columns:
-                        df_show["Stab vs 180"] = df_show["Stab vs 180"].apply(lambda x: _fmt(x, dec=2))
-
-                    st.dataframe(df_show, use_container_width=True, hide_index=True)
-                    st.caption("Interpretação: se C_top se mantém alto e Slope/Gap não despencam ao variar Wr, o sinal é robusto (sem depender de série nova).")
-            except Exception:
-                pass
-
-st.markdown("**Top 20 (por score):**")
+            st.markdown("**Top 20 (por score):**")
             st.dataframe(df_rank.head(20), use_container_width=True, hide_index=True)
 
             with st.expander("📌 Ver Top 50 completo (auditoria)", expanded=False):
