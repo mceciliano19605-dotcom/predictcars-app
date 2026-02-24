@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h50 — MIRROR robustez (tabela Wr 160/180/200/220) + UNI 1–50/1–60 + métricas concentração + TOP50 + snapshot sync + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h50_MIRROR_ROBUST_TABLE_WR_UNI_50_60_CONC_METRICS.py"
+BUILD_TAG = "v16h51 — CALIB LEVE (pré-C4) por concentração + MIRROR robustez Wr + UNI 1–50/1–60 + métricas + TOP50 + snapshot sync + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h51_CALIB_LEVE_CONC_WR_UNI_50_60.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-02-22_07 (UNI50_60_CONC)"
@@ -2621,6 +2621,154 @@ def _m1_mirror_robustez_wr_table(wr_list=(160, 180, 200, 220), wr_base=180):
         return df_out
     except Exception:
         return None
+
+# ============================================================
+# V16h51 — CALIBRAÇÃO LEVE (pré-C4) baseada em CONCENTRAÇÃO (somente leitura)
+# - NÃO cria painel novo
+# - NÃO altera Camada 4
+# - NÃO altera risco / CAP / ECO
+# - Apenas ajusta levemente núcleo × dispersão no gerador (Modo 6) quando
+#   a concentração estrutural estiver sugerida e robusta.
+# ============================================================
+
+def v16_calib_leve_computar_da_concentracao(force_recompute: bool = False) -> dict:
+    """Computa (ou reutiliza) a calibração leve da sessão a partir das métricas do Mirror.
+
+    Retorna dict com:
+      - active (bool)
+      - I (float 0..1): intensidade
+      - n_from_top (int): qtde de picks puxados do Top
+      - noise_amp (int): amplitude do ruído em idx-space (1..3)
+      - top_pool (list[int]): pool Top (por score) dentro do universo atual
+      - meta (dict): espelho das métricas usadas
+
+    Importante:
+      - Se o Mirror não foi aberto, tenta usar mirror_rank_meta existente; se não houver,
+        tenta recomputar ranking a partir do histórico (somente leitura).
+    """
+    try:
+        if (not force_recompute) and isinstance(st.session_state.get("calib_leve_v16"), dict):
+            return st.session_state["calib_leve_v16"]
+
+        # 1) garantir meta do ranking (somente leitura)
+        rank_meta = st.session_state.get("mirror_rank_meta", None)
+        df_rank = st.session_state.get("mirror_rank_df", None)
+
+        if (rank_meta is None) or (df_rank is None) or (getattr(df_rank, "empty", True)):
+            try:
+                df_rank = _m1_obter_ranking_structural_df()
+                rank_meta = st.session_state.get("mirror_rank_meta", None)
+            except Exception:
+                df_rank = None
+                rank_meta = None
+
+        if not isinstance(rank_meta, dict) or df_rank is None or (not hasattr(df_rank, "empty")) or df_rank.empty:
+            out = {"active": False, "I": 0.0, "n_from_top": 0, "noise_amp": 3, "top_pool": [], "meta": {"motivo": "mirror_meta_indisponivel"}}
+            st.session_state["calib_leve_v16"] = out
+            return out
+
+        C_top = float(rank_meta.get("C_top", 0.0) or 0.0)
+        Slope = float(rank_meta.get("Slope", 0.0) or 0.0)
+        Gap = float(rank_meta.get("Gap", 0.0) or 0.0)
+        Stab = float(rank_meta.get("Stab", 0.0) or 0.0)
+        umin = int(rank_meta.get("umin", st.session_state.get("universo_min", 1)) or 1)
+        umax = int(rank_meta.get("umax", st.session_state.get("universo_max", 60)) or 60)
+
+        # 2) robustez por janelas (Wr) — somente leitura
+        stab_wr_min = None
+        try:
+            wr_tbl = _m1_mirror_robustez_wr_table(wr_list=(160, 180, 200, 220), wr_base=int(rank_meta.get("w_recente", 180) or 180))
+            # wr_tbl: lista de tuplas (wr, Ctop, Slope, Gap, Stab)
+            if isinstance(wr_tbl, (list, tuple)) and len(wr_tbl) > 0:
+                stabs = []
+                for row in wr_tbl:
+                    try:
+                        stabs.append(float(row[4]))
+                    except Exception:
+                        pass
+                stab_wr_min = min(stabs) if stabs else None
+        except Exception:
+            stab_wr_min = None
+
+        # 3) intensidade I (0..1) — simples e estável
+        def _clip01(x: float) -> float:
+            try:
+                return float(max(0.0, min(1.0, x)))
+            except Exception:
+                return 0.0
+
+        # normalizações simples (limiares conservadores)
+        i_ctop  = _clip01((C_top - 1.20) / 0.80)      # 1.20→0 ; 2.00→1
+        i_stab  = _clip01((Stab - 0.60) / 0.25)       # 0.60→0 ; 0.85→1
+        i_slope = _clip01((Slope - 0.0025) / 0.0025)  # 0.0025→0 ; 0.0050→1
+
+        I = float(_clip01(i_ctop * i_stab * (0.65 + 0.35 * i_slope)))
+
+        # 4) condições de ativação (governança)
+        classe = str(st.session_state.get("classe_risco", "") or "")
+        regime = str(st.session_state.get("regime", "") or st.session_state.get("regime_detectado", "") or "")
+        risco_ok = (not classe.strip().startswith("🔴"))
+        regime_ok = ("Ruptura" not in regime)
+
+        robust_ok = True
+        if stab_wr_min is not None:
+            robust_ok = (float(stab_wr_min) >= 0.66)
+
+        active = bool((I >= 0.25) and robust_ok and risco_ok and regime_ok)
+
+        # 5) parâmetros de aplicação (leves, com teto)
+        n_carro = int(st.session_state.get("n_real", st.session_state.get("n_alvo", 6)) or 6)
+        n_from_top = int(max(0, min(n_carro, round(I * n_carro))))
+        if active and n_from_top <= 0:
+            n_from_top = 1  # mínimo de efeito quando ativo
+
+        # ruído (dispersão) — reduz levemente quando ativo
+        # 3 → 2 → 1 conforme I sobe
+        noise_amp = 3
+        if active:
+            if I >= 0.75:
+                noise_amp = 1
+            elif I >= 0.45:
+                noise_amp = 2
+            else:
+                noise_amp = 3
+
+        # top_pool (Top12 por score dentro do universo atual)
+        top_pool = []
+        try:
+            df_top = df_rank.head(12).copy()
+            top_pool = [int(x) for x in df_top["passageiro"].tolist() if (umin <= int(x) <= umax)]
+        except Exception:
+            top_pool = []
+
+        out = {
+            "active": bool(active),
+            "I": float(I),
+            "n_from_top": int(n_from_top),
+            "noise_amp": int(noise_amp),
+            "top_pool": list(top_pool),
+            "meta": {
+                "C_top": float(C_top),
+                "Slope": float(Slope),
+                "Gap": float(Gap),
+                "Stab": float(Stab),
+                "stab_wr_min": (None if stab_wr_min is None else float(stab_wr_min)),
+                "umin": int(umin),
+                "umax": int(umax),
+                "classe_risco": classe,
+                "regime": regime,
+                "robust_ok": bool(robust_ok),
+            },
+        }
+        st.session_state["calib_leve_v16"] = out
+        return out
+
+    except Exception:
+        out = {"active": False, "I": 0.0, "n_from_top": 0, "noise_amp": 3, "top_pool": [], "meta": {"motivo": "excecao"}}
+        st.session_state["calib_leve_v16"] = out
+        return out
+
+
 
 
 def _m1_render_mirror_panel() -> None:
@@ -13861,12 +14009,44 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
     # ------------------------------------------------------------
     # BASE ULTRA (ORIGINAL, MAS EM ÍNDICES)
+    # + V16h51: calibração leve (pré-C4) baseada em concentração (somente leitura)
+    #   - não cria painel
+    #   - não toca Camada 4
     # ------------------------------------------------------------
+    calib_leve = v16_calib_leve_computar_da_concentracao(force_recompute=False)
+
     if ultima_prev:
         base_vals = ultima_prev if isinstance(ultima_prev[0], int) else ultima_prev[0]
         base_idx = ajustar_para_n(base_vals)
     else:
-        base_idx = rng.choice(universo_idx_use, size=n_real, replace=False).tolist()
+        # default: universo completo / foco P1 (já calculado em universo_idx_use)
+        if isinstance(calib_leve, dict) and calib_leve.get("active") and isinstance(calib_leve.get("top_pool"), list) and calib_leve["top_pool"]:
+            try:
+                n_top = int(calib_leve.get("n_from_top", 0) or 0)
+                n_top = max(1, min(int(n_real), n_top))
+                # converte top_pool (valores) para idx dentro do universo atual
+                top_vals = [int(v) for v in calib_leve["top_pool"] if int(universo_min) <= int(v) <= int(universo_max)]
+                top_idx = [idx_por_valor.get(int(v), None) for v in top_vals]
+                top_idx = [int(ix) for ix in top_idx if ix is not None]
+                top_idx = [ix for ix in top_idx if ix in set(universo_idx_use)]
+                top_idx = sorted(set(top_idx))
+                if len(top_idx) >= n_top:
+                    escolhe_top = rng.choice(top_idx, size=n_top, replace=False).tolist()
+                else:
+                    escolhe_top = top_idx[:]  # pode ser menor; completa abaixo
+                # completa com o restante do pool (sem colisão)
+                restante = [ix for ix in universo_idx_use if ix not in set(escolhe_top)]
+                n_rest = int(max(0, int(n_real) - len(escolhe_top)))
+                escolhe_rest = rng.choice(restante, size=n_rest, replace=False).tolist() if (n_rest > 0 and len(restante) >= n_rest) else []
+                base_idx = (escolhe_top + escolhe_rest)
+                # sanidade: se algo falhar, cai no fallback
+                if len(base_idx) != int(n_real):
+                    raise ValueError("base_idx_len_invalida")
+            except Exception:
+                base_idx = rng.choice(universo_idx_use, size=n_real, replace=False).tolist()
+        else:
+            base_idx = rng.choice(universo_idx_use, size=n_real, replace=False).tolist()
+
 
 
 
@@ -13893,7 +14073,13 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_brutas = []
 
     for _ in range(volume):
-        ruido = rng.integers(-3, 4, size=n_real)  # deslocamento leve
+        # V16h51: dispersão (ruído) pode ser levemente comprimida quando calibração leve estiver ativa
+        try:
+            amp = int((st.session_state.get("calib_leve_v16") or {}).get("noise_amp", 3))
+            amp = max(1, min(3, amp))
+        except Exception:
+            amp = 3
+        ruido = rng.integers(-amp, amp + 1, size=n_real)  # deslocamento leve
         if pool_mode == "foco_p1" and inv_pos is not None:
             # desloca dentro do pool focado (mantém coerência defensiva)
             nova_idx = []
