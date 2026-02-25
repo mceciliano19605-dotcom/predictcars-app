@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h23 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h51 — CALIB LEVE (pré-C4) por concentração + MIRROR robustez Wr + UNI 1–50/1–60 + métricas + TOP50 + snapshot sync + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h51_CALIB_LEVE_CONC_WR_UNI_50_60.py"
+BUILD_TAG = "v16h53 — CALIB LEVE (pré-C4) + audit calib no Replay/MC + MIRROR robustez Wr + UNI 1–50/1–60 + métricas + TOP50 + snapshot sync + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h53_CALIB_LEVE_AUDIT_REPLAY_MC_UNI_50_60.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-02-22_07 (UNI50_60_CONC)"
@@ -7629,6 +7629,97 @@ def v16_painel_mc_observacional_pacote_pre_c4():
         "dist_best_hit_0_6": base["dist"],
     })
 
+
+    # ----------------------------------------
+    # Split observacional (baseline interno) por calibração
+    # Nota: isso NÃO cria lista nova; apenas separa os hits já avaliados no Replay.
+    if "calib_applied" in df_eval.columns:
+        try:
+            df_on = df_eval[df_eval["calib_applied"] == True].copy()
+            df_off = df_eval[df_eval["calib_applied"] == False].copy()
+
+            def _collect_hits(_df):
+                _hits = []
+                for _c in cols_needed:
+                    for _v in _df[_c].tolist():
+                        if _v is None:
+                            continue
+                        try:
+                            _hits.append(int(_v))
+                        except Exception:
+                            continue
+                return _hits
+
+            hits_on = _collect_hits(df_on) if len(df_on) else []
+            hits_off = _collect_hits(df_off) if len(df_off) else []
+
+            if len(hits_on) > 0 or len(hits_off) > 0:
+                st.subheader("🔎 Split observacional — baseline interno (por calib_applied)")
+                st.caption("Sem depender de nada fora do Predicar: comparamos 'pacotes com calib_applied=True' vs 'False' dentro do mesmo Replay/SAFE.")
+                if len(hits_off) > 0:
+                    base_off = _rates(hits_off)
+                    st.json({
+                        "grupo": "BASELINE_INTERNO (calib_applied=False)",
+                        "targets_avaliados": base_off["n"],
+                        "avg_best": round(base_off["avg_best"], 4),
+                        "max_best": base_off["max_best"],
+                        "rate_3p": round(base_off["rate_3p"], 6),
+                        "rate_4p": round(base_off["rate_4p"], 6),
+                        "rate_5p": round(base_off["rate_5p"], 6),
+                        "rate_6p": round(base_off["rate_6p"], 6),
+                        "dist_best_hit_0_6": base_off["dist"],
+                    })
+                else:
+                    st.info("Não há amostras suficientes com calib_applied=False neste Replay.")
+
+                if len(hits_on) > 0:
+                    base_on = _rates(hits_on)
+                    st.json({
+                        "grupo": "CALIB_ATIVA (calib_applied=True)",
+                        "targets_avaliados": base_on["n"],
+                        "avg_best": round(base_on["avg_best"], 4),
+                        "max_best": base_on["max_best"],
+                        "rate_3p": round(base_on["rate_3p"], 6),
+                        "rate_4p": round(base_on["rate_4p"], 6),
+                        "rate_5p": round(base_on["rate_5p"], 6),
+                        "rate_6p": round(base_on["rate_6p"], 6),
+                        "dist_best_hit_0_6": base_on["dist"],
+                    })
+                else:
+                    st.info("Não há amostras suficientes com calib_applied=True neste Replay.")
+        except Exception as _e:
+            st.warning(f"Falha ao gerar split observacional por calib_applied: {_e}")
+
+    # ------------------------------------------------------------
+    # AUDIT — calibração leve (resumo dos pacotes registrados)
+    # ------------------------------------------------------------
+    try:
+        pacotes_reg = st.session_state.get("replay_progressivo_pacotes", {}) or {}
+        calib_items = []
+        for _k, _v in pacotes_reg.items():
+            c = (_v or {}).get("calib_leve")
+            if isinstance(c, dict):
+                calib_items.append(c)
+        if calib_items:
+            n_tot = len(calib_items)
+            n_active = sum(1 for c in calib_items if c.get("active"))
+            n_aplic = sum(1 for c in calib_items if c.get("aplicada_no_pacote"))
+            I_med = sum(float(c.get("I", 0.0) or 0.0) for c in calib_items) / float(n_tot)
+            st.subheader("🧩 Auditoria — Calibração Leve (pré-C4)")
+            st.json({
+                "pacotes_registrados": int(n_tot),
+                "active_em": f"{n_active}/{n_tot}",
+                "aplicada_em": f"{n_aplic}/{n_tot}",
+                "I_media": round(float(I_med), 6),
+                "nota": "I>0 indica que a calibração foi calculada; 'aplicada_em' indica que ela influenciou o sorteio do pacote (somente leitura)."
+            })
+        else:
+            st.subheader("🧩 Auditoria — Calibração Leve (pré-C4)")
+            st.info("Sem metadados de calibração nos pacotes desta sessão (ok se o Replay ainda não registrou pacotes).")
+    except Exception:
+        pass
+
+
     # 3) Janela móvel (alvos) — padrão 60 (mesmo espírito do sistema)
     st.subheader("🪟 Janela móvel (alvos) — MC observacional")
     w_default = 60
@@ -9994,6 +10085,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                 pacotes_reg[k_reg] = {
                     "ts": datetime.now().isoformat(timespec="seconds"),
                     "qtd": int(len(pacote_atual)),
+                    "calib_leve": st.session_state.get("v16_calib_leve_last_summary"),
                     "listas": [list(map(int, lst)) for lst in pacote_atual],
                     "snap_v9": {
                         "core": list(map(int, (v8_snap.get("core") or []))),
@@ -10393,6 +10485,11 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             "dist_max_fora_2": tr2.get("dist_max") if tr2 else None,
             "fora_perto_nums_2": json.dumps(tr2.get("fora_perto_nums") if tr2 else []) if tr2 else "[]",
             "fora_longe_nums_2": json.dumps(tr2.get("fora_longe_nums") if tr2 else []) if tr2 else "[]",
+            "calib_active": bool((info.get("calib_leve") or {}).get("active", False)),
+"calib_applied": bool((info.get("calib_leve") or {}).get("applied", False)),
+"calib_I_mean": float((info.get("calib_leve") or {}).get("I_mean", 0.0) or 0.0),
+"calib_I_max": float((info.get("calib_leve") or {}).get("I_max", 0.0) or 0.0),
+"calib_reason": str((info.get("calib_leve") or {}).get("reason", "")),
             "ts_registro": str(info.get("ts", "")),
         })
 
@@ -14015,11 +14112,37 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ------------------------------------------------------------
     calib_leve = v16_calib_leve_computar_da_concentracao(force_recompute=False)
 
+    # audit: registra calibração leve calculada (somente leitura)
+    try:
+        st.session_state["v16_calib_leve_last"] = calib_leve
+        st.session_state["v16_calib_leve_last_ts"] = datetime.now().isoformat(timespec="seconds")
+    except Exception:
+        pass
+
+    # ------------------------------------------------------------
+    # AUDIT — calibração leve aplicada?
+    # ------------------------------------------------------------
+    try:
+        _c = calib_leve if isinstance(calib_leve, dict) else {}
+        st.session_state["v16_calib_leve_last_summary"] = {
+            "active": bool(_c.get("active", False)),
+            "I": float(_c.get("I", 0.0) or 0.0),
+            "n_from_top": int(_c.get("n_from_top", 0) or 0),
+            "noise_amp": int(_c.get("noise_amp", 0) or 0),
+            "wr": int(_c.get("wr", 0) or 0),
+            "aplicada_no_pacote": bool(calib_aplicada),
+        }
+    except Exception:
+        pass
+
+    calib_aplicada = False  # audit: default
+
     if ultima_prev:
         base_vals = ultima_prev if isinstance(ultima_prev[0], int) else ultima_prev[0]
         base_idx = ajustar_para_n(base_vals)
     else:
         # default: universo completo / foco P1 (já calculado em universo_idx_use)
+        calib_aplicada = False  # audit: indica se a calibração leve influenciou este pacote
         if isinstance(calib_leve, dict) and calib_leve.get("active") and isinstance(calib_leve.get("top_pool"), list) and calib_leve["top_pool"]:
             try:
                 n_top = int(calib_leve.get("n_from_top", 0) or 0)
@@ -14039,6 +14162,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
                 n_rest = int(max(0, int(n_real) - len(escolhe_top)))
                 escolhe_rest = rng.choice(restante, size=n_rest, replace=False).tolist() if (n_rest > 0 and len(restante) >= n_rest) else []
                 base_idx = (escolhe_top + escolhe_rest)
+                calib_aplicada = True
                 # sanidade: se algo falhar, cai no fallback
                 if len(base_idx) != int(n_real):
                     raise ValueError("base_idx_len_invalida")
