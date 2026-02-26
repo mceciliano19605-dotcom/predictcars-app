@@ -1805,6 +1805,8 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
             "ts": datetime.now().isoformat(timespec="seconds"),
             "qtd": int(len(pacote_atual)),
             "listas": [list(map(int, lst)) for lst in pacote_atual],
+            "calib_leve": st.session_state.get("v16_calib_leve_last_summary"),
+            "listas_baseline": [list(map(int, lst)) for lst in (st.session_state.get("pacote_listas_baseline") or [])] if isinstance(st.session_state.get("pacote_listas_baseline"), list) else None,
             "snap_v9": {
                 "core": list(map(int, (v8_snap.get("core") or []))),
                 "quase_core": list(map(int, (v8_snap.get("quase_core") or []))),
@@ -1906,7 +1908,12 @@ def pc_semi_auto_processar_um_k(*, _df_full_safe: pd.DataFrame, k_exec: int) -> 
             return {"ok": False, "k": int(k_exec), "erro": "pipeline_falhou"}
 
         # modo 6
-        pacote = pc_modo6_gerar_pacote_top10_silent(df_recorte)
+        pacote_calib, calib_meta = pc_modo6_gerar_pacote_top10_silent(df_recorte, calib_override=None)
+        pacote_base, _meta_base = pc_modo6_gerar_pacote_top10_silent(df_recorte, calib_override=False)
+        st.session_state['pacote_listas_atual'] = pacote_calib
+        st.session_state['pacote_listas_baseline'] = pacote_base
+        st.session_state['v16_calib_leve_last_summary'] = calib_meta.copy()
+        pacote = pacote_calib
         if not pacote:
             # Bootstrap de emergência (SAFE): se o gerador canônico falhar por estado faltante,
             # geramos um pacote mínimo determinístico baseado no universo observado.
@@ -2082,6 +2089,78 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
 
         pool_idx = universo_idx
         pool_mode = "full"
+        # ------------------------------------------------------------
+        # v16h54 — Calibração Leve (pré‑C4) baseada em Métrica de Concentração
+        # - Sem painel novo, sem decisão, sem tocar Camada 4.
+        # - Atua somente na DISPERSÃO do gerador (ruído).
+        # - Gera metadados auditáveis para Replay/MC.
+        # ------------------------------------------------------------
+        calib_meta: Dict[str, Any] = {
+            "active": True,
+            "applied": False,
+            "I_mean": 0.0,
+            "I_max": 0.0,
+            "ruido_lim": 3,
+            "reason": "",
+            "rule": {"ctop_min": 1.50, "slope_min": 0.0035, "stab_min": 0.66},
+        }
+
+        try:
+            meta = st.session_state.get("mirror_rank_meta", None)
+            if not isinstance(meta, dict):
+                meta = None
+            if meta is None:
+                try:
+                    _m1_obter_ranking_structural_df()
+                except Exception:
+                    pass
+                meta = st.session_state.get("mirror_rank_meta", None)
+                if not isinstance(meta, dict):
+                    meta = None
+
+            C_top = float(meta.get("C_top", 0.0)) if meta else 0.0
+            Slope = float(meta.get("Slope", 0.0)) if meta else 0.0
+            Stab = float(meta.get("Stab", 0.0)) if meta else 0.0
+            Gap = meta.get("Gap", None) if meta else None
+            Gap = float(Gap) if Gap is not None else 0.0
+
+            I1 = max(0.0, min(1.0, (C_top - 1.20) / 1.20))
+            I2 = max(0.0, min(1.0, (Slope - 0.0020) / 0.0030))
+            I3 = max(0.0, min(1.0, (Stab - 0.55) / 0.35))
+            I4 = max(0.0, min(1.0, (Gap - 0.0015) / 0.0030))
+            I = float((I1 + I2 + I3 + I4) / 4.0)
+            calib_meta["I_mean"] = float(I)
+            calib_meta["I_max"] = float(I)
+
+            suggested = (C_top >= calib_meta["rule"]["ctop_min"]) and (Slope >= calib_meta["rule"]["slope_min"]) and (Stab >= calib_meta["rule"]["stab_min"])
+
+            if calib_override is True:
+                apply = True
+            elif calib_override is False:
+                apply = False
+            else:
+                apply = bool(suggested)
+
+            if apply:
+                calib_meta["ruido_lim"] = 2 if I >= 0.35 else 3
+                calib_meta["applied"] = True
+                calib_meta["reason"] = f"aplicada (C_top={C_top:.2f}, Slope={Slope:.4f}, Stab={Stab:.2f}, Gap={Gap:.4f}, I={I:.2f})"
+            else:
+                calib_meta["ruido_lim"] = 3
+                calib_meta["applied"] = False
+                if calib_override is False:
+                    calib_meta["reason"] = "baseline_forçado (calib_override=False)"
+                elif calib_override is True:
+                    calib_meta["reason"] = "calib_forçada (calib_override=True)"
+                else:
+                    calib_meta["reason"] = f"não aplicada (C_top={C_top:.2f}, Slope={Slope:.4f}, Stab={Stab:.2f})"
+        except Exception as _e:
+            calib_meta["active"] = True
+            calib_meta["applied"] = False
+            calib_meta["ruido_lim"] = 3
+            calib_meta["reason"] = f"calib_erro: {type(_e).__name__}: {_e}"
+
+        st.session_state["v16_calib_leve_last_summary"] = calib_meta.copy()
         inv_pos = None
         try:
             if isinstance(universo_idx_use, list) and universo_idx_use != universo_idx:
@@ -2095,7 +2174,9 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
 
         listas_brutas = []
         for _ in range(int(volume)):
-            ruido = rng.integers(-3, 4, size=n_real)
+            ruido_lim = int(st.session_state.get('v16_calib_leve_last_summary', {}).get('ruido_lim', 3))
+            ruido_lim = 3 if ruido_lim not in (1, 2, 3) else ruido_lim
+            ruido = rng.integers(-ruido_lim, ruido_lim + 1, size=n_real)
             if pool_mode == "foco_p1" and inv_pos is not None:
                 nova_idx = []
                 for idx, r in zip(base_idx, ruido):
@@ -2182,7 +2263,12 @@ def pc_cap_invisivel_v1_processar_um_k(_df_full_safe: pd.DataFrame, k_alvo: int)
             return False
 
         # gerar pacote e registrar snapshot
-        pacote = pc_modo6_gerar_pacote_top10_silent(df_k)
+        pacote_calib, calib_meta = pc_modo6_gerar_pacote_top10_silent(df_k, calib_override=None)
+        pacote_base, _meta_base = pc_modo6_gerar_pacote_top10_silent(df_k, calib_override=False)
+        st.session_state['pacote_listas_atual'] = pacote_calib
+        st.session_state['pacote_listas_baseline'] = pacote_base
+        st.session_state['v16_calib_leve_last_summary'] = calib_meta.copy()
+        pacote = pacote_calib
         if not pacote:
             return False
 
@@ -10444,6 +10530,24 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         if alvo2 and listas:
             for lst in listas:
                 best2 = max(best2, len(set(lst) & alvo2))
+# Baseline interno (quando disponível): listas_baseline
+listas_base = info.get("listas_baseline", None)
+base_best1 = None
+base_best2 = None
+if isinstance(listas_base, list) and listas_base:
+    try:
+        base_best1 = 0
+        base_best2 = 0
+        if alvo1:
+            for lst in listas_base:
+                base_best1 = max(base_best1, len(set(lst) & alvo1))
+        if alvo2:
+            for lst in listas_base:
+                base_best2 = max(base_best2, len(set(lst) & alvo2))
+    except Exception:
+        base_best1 = None
+        base_best2 = None
+
 
         # --- V9 (BLOCO B): onde caíram os acertos (ex-post) ---
         core, quase, b_in, b_ex, uni = _v9_get_sets(info)
@@ -10473,6 +10577,10 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             "fora_longe_nums_1": json.dumps(tr1.get("fora_longe_nums") if tr1 else []) if tr1 else "[]",
             "alvo_2": f"C{k_reg+2}" if alvo2 is not None else "—",
             "best_acerto_alvo_2": int(best2) if alvo2 is not None else None,
+            "best_acerto_alvo_1_baseline": int(base_best1) if base_best1 is not None else None,
+            "best_acerto_alvo_2_baseline": int(base_best2) if base_best2 is not None else None,
+            "delta_best_1": (int(best1) - int(base_best1)) if base_best1 is not None else None,
+            "delta_best_2": (int(best2) - int(base_best2)) if base_best2 is not None else None,
             "core_hit_2": int(org2.get("core")) if org2 else None,
             "quase_hit_2": int(org2.get("quase")) if org2 else None,
             "borda_in_hit_2": int(org2.get("borda_in")) if org2 else None,
