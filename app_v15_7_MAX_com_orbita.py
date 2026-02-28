@@ -15,17 +15,17 @@ from datetime import datetime
 import re
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h55 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h56 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h53 — CALIB LEVE (pré-C4) + audit calib no Replay/MC + MIRROR robustez Wr + UNI 1–50/1–60 + métricas + TOP50 + snapshot sync + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h55_CALIB_LEVE_BASELINE_INTERNO_REPLAY_MC_UNI_50_60_FIX_INFO_SCOPE.py"
+BUILD_TAG = "v16h56 — CALIB LEVE (pré-C4) + audit calib no Replay/MC + MIRROR robustez Wr + UNI 1–50/1–60 + métricas + TOP50 + snapshot sync + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h56_CALIB_LEVE_BASELINE_INTERNO_REPLAY_MC_UNI_50_60_CONSOLIDADO.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-02-22_07 (UNI50_60_CONC)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h46 — BUILD AUDITÁVEL (Mirror Ranking 1–50/1–60 + Concentração)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h56 — BUILD AUDITÁVEL (Mirror Ranking 1–50/1–60 + Concentração)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2090,7 +2090,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
         pool_idx = universo_idx
         pool_mode = "full"
         # ------------------------------------------------------------
-        # v16h55 — Calibração Leve (pré‑C4) baseada em Métrica de Concentração
+        # v16h56 — Calibração Leve (pré‑C4) baseada em Métrica de Concentração
         # - Sem painel novo, sem decisão, sem tocar Camada 4.
         # - Atua somente na DISPERSÃO do gerador (ruído).
         # - Gera metadados auditáveis para Replay/MC.
@@ -10536,18 +10536,17 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         base_best2 = None
         if isinstance(listas_base, list) and listas_base:
             try:
-        base_best1 = 0
-        base_best2 = 0
-        if alvo1:
-            for lst in listas_base:
-                base_best1 = max(base_best1, len(set(lst) & alvo1))
-        if alvo2:
-            for lst in listas_base:
-                base_best2 = max(base_best2, len(set(lst) & alvo2))
+                base_best1 = 0
+                base_best2 = 0
+                if alvo1:
+                    for lst in listas_base:
+                        base_best1 = max(base_best1, len(set(lst) & alvo1))
+                if alvo2:
+                    for lst in listas_base:
+                        base_best2 = max(base_best2, len(set(lst) & alvo2))
             except Exception:
-        base_best1 = None
-        base_best2 = None
-
+                base_best1 = None
+                base_best2 = None
 
         # --- V9 (BLOCO B): onde caíram os acertos (ex-post) ---
         core, quase, b_in, b_ex, uni = _v9_get_sets(info)
@@ -10594,10 +10593,10 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             "fora_perto_nums_2": json.dumps(tr2.get("fora_perto_nums") if tr2 else []) if tr2 else "[]",
             "fora_longe_nums_2": json.dumps(tr2.get("fora_longe_nums") if tr2 else []) if tr2 else "[]",
             "calib_active": bool((info.get("calib_leve") or {}).get("active", False)),
-"calib_applied": bool((info.get("calib_leve") or {}).get("applied", False)),
-"calib_I_mean": float((info.get("calib_leve") or {}).get("I_mean", 0.0) or 0.0),
-"calib_I_max": float((info.get("calib_leve") or {}).get("I_max", 0.0) or 0.0),
-"calib_reason": str((info.get("calib_leve") or {}).get("reason", "")),
+            "calib_applied": bool((info.get("calib_leve") or {}).get("applied", False)),
+            "calib_I_mean": float((info.get("calib_leve") or {}).get("I_mean", 0.0) or 0.0),
+            "calib_I_max": float((info.get("calib_leve") or {}).get("I_max", 0.0) or 0.0),
+            "calib_reason": str((info.get("calib_leve") or {}).get("reason", "")),
             "ts_registro": str(info.get("ts", "")),
         })
 
