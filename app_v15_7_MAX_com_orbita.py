@@ -15,17 +15,17 @@ from datetime import datetime
 import re
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h54 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h55 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
 # ============================================================
 
-BUILD_TAG = "v16h54 — CALIB LEVE (pré-C4) + audit calib no Replay/MC + MIRROR robustez Wr + UNI 1–50/1–60 + métricas + TOP50 + snapshot sync + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h54_CALIB_LEVE_AUDIT_REPLAY_MC_UNI_50_60.py"
+BUILD_TAG = "v16h53 — CALIB LEVE (pré-C4) + audit calib no Replay/MC + MIRROR robustez Wr + UNI 1–50/1–60 + métricas + TOP50 + snapshot sync + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h55_CALIB_LEVE_BASELINE_INTERNO_REPLAY_MC_UNI_50_60_FIX_INFO_SCOPE.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-02-22_07 (UNI50_60_CONC)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h54 — BUILD AUDITÁVEL (Mirror Ranking 1–50/1–60 + Concentração)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h46 — BUILD AUDITÁVEL (Mirror Ranking 1–50/1–60 + Concentração)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2090,7 +2090,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
         pool_idx = universo_idx
         pool_mode = "full"
         # ------------------------------------------------------------
-        # v16h54 — Calibração Leve (pré‑C4) baseada em Métrica de Concentração
+        # v16h55 — Calibração Leve (pré‑C4) baseada em Métrica de Concentração
         # - Sem painel novo, sem decisão, sem tocar Camada 4.
         # - Atua somente na DISPERSÃO do gerador (ruído).
         # - Gera metadados auditáveis para Replay/MC.
@@ -10530,12 +10530,12 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
         if alvo2 and listas:
             for lst in listas:
                 best2 = max(best2, len(set(lst) & alvo2))
-# Baseline interno (quando disponível): listas_baseline
-listas_base = info.get("listas_baseline", None)
-base_best1 = None
-base_best2 = None
-if isinstance(listas_base, list) and listas_base:
-    try:
+        # Baseline interno (quando disponível): listas_baseline
+        listas_base = info.get("listas_baseline", None)
+        base_best1 = None
+        base_best2 = None
+        if isinstance(listas_base, list) and listas_base:
+            try:
         base_best1 = 0
         base_best2 = 0
         if alvo1:
@@ -10544,7 +10544,7 @@ if isinstance(listas_base, list) and listas_base:
         if alvo2:
             for lst in listas_base:
                 base_best2 = max(base_best2, len(set(lst) & alvo2))
-    except Exception:
+            except Exception:
         base_best1 = None
         base_best2 = None
 
