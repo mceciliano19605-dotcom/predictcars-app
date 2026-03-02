@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57E — CALIB LEVE (pré-C4) + baseline interno (split) + threshold dinâmico anti-ruído (escala por I_hist) + auditoria I_min/mean/max + MIRROR Wr + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57E_CALIB_LEVE_BASELINE_INTERNO_THRESH_DYN_IHIST_AUDIT_I_MINMAX_BANNER_OK.py"
+BUILD_TAG = "v16h57F — CALIB LEVE (pré-C4) + baseline interno (split) + threshold dinâmico anti-ruído (escala por I_hist) + auditoria I_min/mean/max + MIRROR Wr + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57F_CALIB_LEVE_BASELINE_INTERNO_THRESH_DYN_IHIST_AUDIT_I_MINMAX_BANNER_OK_SYNTAXFIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57E — BUILD AUDITÁVEL (UNI 1–50/1–60 + Mirror + Wr + Baseline interno)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57F — BUILD AUDITÁVEL (UNI 1–50/1–60 + Mirror + Wr + Baseline interno)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2868,13 +2868,10 @@ def v16_calib_leve_computar_da_concentracao(force_recompute: bool = False) -> di
             "applied": bool(active),  # quando ativo, influencia a dispersão (noise_amp) e o mix do topo
             "I": float(I),
             "I_threshold": float(I_threshold),
-            "I_thr_dyn": float(I_thr_dyn) if I_thr_dyn is not None else None,
-            "I_med_hist": float(I_med_hist) if I_med_hist is not None else None,
+            "I_thr_dyn": (float(I_thr_dyn) if I_thr_dyn is not None else None),
+            "I_med_hist": (float(I_med_hist) if I_med_hist is not None else None),
             "I_hist_n": int(len(I_hist)) if isinstance(I_hist, list) else 0,
             "n_from_top": int(n_from_top),
-            "noise_amp": int(noise_amp),
-            "top_pool": list(top_pool),
-            "meta": {            "n_from_top": int(n_from_top),
             "noise_amp": int(noise_amp),
             "top_pool": list(top_pool),
             "meta": {
