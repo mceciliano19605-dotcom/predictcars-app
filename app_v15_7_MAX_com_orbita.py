@@ -15,17 +15,17 @@ from datetime import datetime
 import re
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h56 — GAMMA PRE-4 GATE + PARABÓLICA/CAP + SNAP UNIVERSE FIX (AUDITÁVEL HARD) + BANNER FIX
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h56 — CALIB LEVE (pré-C4) + audit calib no Replay/MC + MIRROR robustez Wr + UNI 1–50/1–60 + métricas + TOP50 + snapshot sync + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h56_CALIB_LEVE_BASELINE_INTERNO_REPLAY_MC_UNI_50_60_CONSOLIDADO.py"
+BUILD_TAG = "v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57B_CALIB_LEVE_BASELINE_INTERNO_REPLAY_MC_UNI_50_60_FIX_APPLIED_BANNERFIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-02-22_07 (UNI50_60_CONC)"
+WATERMARK = "2026-03-02_0045_BANNERFIX"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h56 — BUILD AUDITÁVEL (Mirror Ranking 1–50/1–60 + Concentração)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57B — BUILD AUDITÁVEL (Mirror Ranking 1–50/1–60 + Concentração)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
