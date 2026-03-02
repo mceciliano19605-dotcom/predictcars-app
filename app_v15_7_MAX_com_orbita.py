@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57C — CALIB LEVE (pré-C4) + baseline interno (split) + auditoria calib coerente (I_mean/I_max) + MIRROR Wr + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57C_CALIB_LEVE_BASELINE_INTERNO_REPLAY_MC_UNI_50_60_AUDIT_FIX_BANNER_OK.py"
+BUILD_TAG = "v16h57D — CALIB LEVE (pré-C4) + baseline interno (split) + auditoria calib coerente (I_mean/I_max) + MIRROR Wr + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57D_CALIB_LEVE_BASELINE_INTERNO_REPLAY_MC_UNI_50_60_AUDIT_FIX_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57C — BUILD AUDITÁVEL (UNI 1–50/1–60 + Mirror + Wr + Baseline interno)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57D — BUILD AUDITÁVEL (UNI 1–50/1–60 + Mirror + Wr + Baseline interno)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -7793,13 +7793,18 @@ def v16_painel_mc_observacional_pacote_pre_c4():
             n_active = sum(1 for c in calib_items if bool(c.get("active", True)))
             n_aplic = sum(1 for c in calib_items if bool(c.get("aplicada_no_pacote", c.get("applied", False))))
             # I "canônico": preferir chave I, mas aceitar I_mean legado
-            I_med = sum(float(c.get("I", c.get("I_mean", 0.0)) or 0.0) for c in calib_items) / float(n_tot)
+            I_vals = [float(c.get("I", c.get("I_mean", 0.0)) or 0.0) for c in calib_items]
+            I_med = (sum(I_vals) / float(n_tot)) if n_tot else 0.0
+            I_min = min(I_vals) if I_vals else 0.0
+            I_max = max(I_vals) if I_vals else 0.0
             st.subheader("🧩 Auditoria — Calibração Leve (pré-C4)")
             st.json({
                 "pacotes_registrados": int(n_tot),
                 "active_em": f"{n_active}/{n_tot}",
                 "aplicada_em": f"{n_aplic}/{n_tot}",
                 "I_media": round(float(I_med), 6),
+                "I_min": round(float(I_min), 6),
+                "I_max": round(float(I_max), 6),
                 "nota": "I>0 indica que a calibração foi calculada; 'aplicada_em' indica que ela influenciou o sorteio do pacote (somente leitura)."
             })
         else:
