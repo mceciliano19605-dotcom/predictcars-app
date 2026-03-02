@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57B_CALIB_LEVE_BASELINE_INTERNO_REPLAY_MC_UNI_50_60_FIX_APPLIED_BANNERFIX.py"
+BUILD_TAG = "v16h57C — CALIB LEVE (pré-C4) + baseline interno (split) + auditoria calib coerente (I_mean/I_max) + MIRROR Wr + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57C_CALIB_LEVE_BASELINE_INTERNO_REPLAY_MC_UNI_50_60_AUDIT_FIX_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-03-02_0045_BANNERFIX"
+WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57B — BUILD AUDITÁVEL (Mirror Ranking 1–50/1–60 + Concentração)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57C — BUILD AUDITÁVEL (UNI 1–50/1–60 + Mirror + Wr + Baseline interno)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2131,6 +2131,8 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
             I = float((I1 + I2 + I3 + I4) / 4.0)
             calib_meta["I_mean"] = float(I)
             calib_meta["I_max"] = float(I)
+            calib_meta["I"] = float(I)
+            calib_meta["aplicada_no_pacote"] = bool(calib_meta.get("applied", False))
 
             suggested = (C_top >= calib_meta["rule"]["ctop_min"]) and (Slope >= calib_meta["rule"]["slope_min"]) and (Stab >= calib_meta["rule"]["stab_min"])
 
@@ -7788,9 +7790,10 @@ def v16_painel_mc_observacional_pacote_pre_c4():
                 calib_items.append(c)
         if calib_items:
             n_tot = len(calib_items)
-            n_active = sum(1 for c in calib_items if c.get("active"))
-            n_aplic = sum(1 for c in calib_items if c.get("aplicada_no_pacote"))
-            I_med = sum(float(c.get("I", 0.0) or 0.0) for c in calib_items) / float(n_tot)
+            n_active = sum(1 for c in calib_items if bool(c.get("active", True)))
+            n_aplic = sum(1 for c in calib_items if bool(c.get("aplicada_no_pacote", c.get("applied", False))))
+            # I "canônico": preferir chave I, mas aceitar I_mean legado
+            I_med = sum(float(c.get("I", c.get("I_mean", 0.0)) or 0.0) for c in calib_items) / float(n_tot)
             st.subheader("🧩 Auditoria — Calibração Leve (pré-C4)")
             st.json({
                 "pacotes_registrados": int(n_tot),
