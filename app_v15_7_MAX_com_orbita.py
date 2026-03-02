@@ -14229,20 +14229,25 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ------------------------------------------------------------
     # AUDIT — calibração leve aplicada?
     # ------------------------------------------------------------
+    calib_aplicada = False  # audit: default (será marcado True se influenciar o pacote)
     try:
         _c = calib_leve if isinstance(calib_leve, dict) else {}
+        _ap = bool(_c.get("applied", False))
         st.session_state["v16_calib_leve_last_summary"] = {
             "active": bool(_c.get("active", False)),
+            "applied": _ap,
+            "I_mean": float(_c.get("I_mean", _c.get("I", 0.0)) or 0.0),
+            "I_max": float(_c.get("I_max", _c.get("I", 0.0)) or 0.0),
             "I": float(_c.get("I", 0.0) or 0.0),
             "n_from_top": int(_c.get("n_from_top", 0) or 0),
             "noise_amp": int(_c.get("noise_amp", 0) or 0),
             "wr": int(_c.get("wr", 0) or 0),
-            "aplicada_no_pacote": bool(calib_aplicada),
+            "aplicada_no_pacote": False,  # será atualizado mais abaixo quando aplicarmos de fato
+            "reason": str(_c.get("reason", "")) if isinstance(_c.get("reason", ""), str) else "",
         }
     except Exception:
         pass
 
-    calib_aplicada = False  # audit: default
 
     if ultima_prev:
         base_vals = ultima_prev if isinstance(ultima_prev[0], int) else ultima_prev[0]
@@ -14270,6 +14275,11 @@ if painel == "🎯 Modo 6 Acertos — Execução":
                 escolhe_rest = rng.choice(restante, size=n_rest, replace=False).tolist() if (n_rest > 0 and len(restante) >= n_rest) else []
                 base_idx = (escolhe_top + escolhe_rest)
                 calib_aplicada = True
+                try:
+                    if isinstance(st.session_state.get('v16_calib_leve_last_summary'), dict):
+                        st.session_state['v16_calib_leve_last_summary']['aplicada_no_pacote'] = True
+                except Exception:
+                    pass
                 # sanidade: se algo falhar, cai no fallback
                 if len(base_idx) != int(n_real):
                     raise ValueError("base_idx_len_invalida")
