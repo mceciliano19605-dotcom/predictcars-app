@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57D — CALIB LEVE (pré-C4) + baseline interno (split) + auditoria calib coerente (I_mean/I_max) + MIRROR Wr + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57D_CALIB_LEVE_BASELINE_INTERNO_REPLAY_MC_UNI_50_60_AUDIT_FIX_BANNER_OK.py"
+BUILD_TAG = "v16h57E — CALIB LEVE (pré-C4) + baseline interno (split) + threshold dinâmico anti-ruído (escala por I_hist) + auditoria I_min/mean/max + MIRROR Wr + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57E_CALIB_LEVE_BASELINE_INTERNO_THRESH_DYN_IHIST_AUDIT_I_MINMAX_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57D — BUILD AUDITÁVEL (UNI 1–50/1–60 + Mirror + Wr + Baseline interno)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57E — BUILD AUDITÁVEL (UNI 1–50/1–60 + Mirror + Wr + Baseline interno)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -295,6 +295,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
 # ============================================================
 
 import math
+import statistics
 
 def pc_v16_mc_observacional_pacote_pre_c4(
     *,
@@ -2802,7 +2803,40 @@ def v16_calib_leve_computar_da_concentracao(force_recompute: bool = False) -> di
         if stab_wr_min is not None:
             robust_ok = (float(stab_wr_min) >= 0.66)
 
-        active = bool((I >= 0.25) and robust_ok and risco_ok and regime_ok)
+        # 4b) threshold dinâmico (ANTI-RUÍDO): escala pelo histórico de I no Replay
+        # Ideia: não aplicar por um valor fixo fora de escala; aplicar somente quando I estiver
+        # significativamente acima do "nível típico" (mediana) do próprio Replay.
+        # Isso evita: (a) calibração morta por threshold alto demais; (b) calibração barulhenta por threshold baixo demais.
+        try:
+            pac_hist = st.session_state.get("replay_progressivo_pacotes") or {}
+            I_hist = []
+            for _k, _p in pac_hist.items():
+                try:
+                    _cl = (_p or {}).get("calib_leve") or {}
+                    _Iv = _cl.get("I")
+                    if _Iv is None:
+                        continue
+                    I_hist.append(float(_Iv))
+                except Exception:
+                    continue
+            if len(I_hist) >= 8:
+                I_med_hist = float(statistics.median(I_hist))
+                mad = float(statistics.median([abs(x - I_med_hist) for x in I_hist]))
+                I_thr_dyn = I_med_hist + (3.0 * mad)
+            elif len(I_hist) > 0:
+                I_med_hist = float(statistics.median(I_hist))
+                I_thr_dyn = I_med_hist  # sem MAD suficiente → conservador: não "adianta" o limiar
+            else:
+                I_med_hist = None
+                I_thr_dyn = 0.25  # fallback seguro
+            # Piso mínimo de escala: abaixo disso é quase sempre ruído estrutural (valor empírico do regime atual)
+            I_threshold = float(max(0.02, I_thr_dyn))
+        except Exception:
+            I_med_hist = None
+            I_thr_dyn = 0.25
+            I_threshold = 0.25
+
+        active = bool((I >= I_threshold) and robust_ok and risco_ok and regime_ok)
 
         # 5) parâmetros de aplicação (leves, com teto)
         n_carro = int(st.session_state.get("n_real", st.session_state.get("n_alvo", 6)) or 6)
@@ -2831,8 +2865,16 @@ def v16_calib_leve_computar_da_concentracao(force_recompute: bool = False) -> di
 
         out = {
             "active": bool(active),
+            "applied": bool(active),  # quando ativo, influencia a dispersão (noise_amp) e o mix do topo
             "I": float(I),
+            "I_threshold": float(I_threshold),
+            "I_thr_dyn": float(I_thr_dyn) if I_thr_dyn is not None else None,
+            "I_med_hist": float(I_med_hist) if I_med_hist is not None else None,
+            "I_hist_n": int(len(I_hist)) if isinstance(I_hist, list) else 0,
             "n_from_top": int(n_from_top),
+            "noise_amp": int(noise_amp),
+            "top_pool": list(top_pool),
+            "meta": {            "n_from_top": int(n_from_top),
             "noise_amp": int(noise_amp),
             "top_pool": list(top_pool),
             "meta": {
