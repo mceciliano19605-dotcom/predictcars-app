@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57F — CALIB LEVE (pré-C4) + baseline interno (split) + threshold dinâmico anti-ruído (escala por I_hist) + auditoria I_min/mean/max + MIRROR Wr + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57F_CALIB_LEVE_BASELINE_INTERNO_THRESH_DYN_IHIST_AUDIT_I_MINMAX_BANNER_OK_SYNTAXFIX.py"
+BUILD_TAG = "v16h57G — CALIB LEVE (pré-C4) + baseline interno (split) + auditoria I (canônico) vs I2 (contraste topo×borda) + insumos (C_top/Slope/Stab/Gap) + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57G_CALIB_LEVE_BASELINE_INTERNO_THRESH_DYN_IHIST_AUDIT_I_MINMAX_BANNER_OK_SYNTAXFIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57F — BUILD AUDITÁVEL (UNI 1–50/1–60 + Mirror + Wr + Baseline interno)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57G — BUILD AUDITÁVEL (I vs I2 + baseline interno)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2130,9 +2130,26 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame) -> List[List[int]]:
             I3 = max(0.0, min(1.0, (Stab - 0.55) / 0.35))
             I4 = max(0.0, min(1.0, (Gap - 0.0015) / 0.0030))
             I = float((I1 + I2 + I3 + I4) / 4.0)
+
+            # I2 (contraste) — mais sensível ao 'topo vs borda'
+            # Importante: POR ORA é apenas auditoria (não altera aplicação), para medirmos escala e variação.
+            J1 = max(0.0, min(1.0, (C_top - 1.00) / 0.80))
+            J2 = max(0.0, min(1.0, (Slope) / 0.0040))
+            J3 = max(0.0, min(1.0, (Stab - 0.50) / 0.25))
+            J4 = max(0.0, min(1.0, (Gap) / 0.0030))
+            I2_contraste = float((J1 + J2 + J3 + J4) / 4.0)
+
+            calib_meta["C_top"] = float(C_top)
+            calib_meta["Slope"] = float(Slope)
+            calib_meta["Stab"] = float(Stab)
+            calib_meta["Gap"] = float(Gap)
             calib_meta["I_mean"] = float(I)
             calib_meta["I_max"] = float(I)
             calib_meta["I"] = float(I)
+            calib_meta["I2"] = float(I2_contraste)
+            calib_meta["I2_mean"] = float(I2_contraste)
+            calib_meta["I2_max"] = float(I2_contraste)
+
             calib_meta["aplicada_no_pacote"] = bool(calib_meta.get("applied", False))
 
             suggested = (C_top >= calib_meta["rule"]["ctop_min"]) and (Slope >= calib_meta["rule"]["slope_min"]) and (Stab >= calib_meta["rule"]["stab_min"])
@@ -7836,6 +7853,23 @@ def v16_painel_mc_observacional_pacote_pre_c4():
             I_med = (sum(I_vals) / float(n_tot)) if n_tot else 0.0
             I_min = min(I_vals) if I_vals else 0.0
             I_max = max(I_vals) if I_vals else 0.0
+
+            # I2 (contraste) — auditoria (não altera aplicação)
+            I2_vals = [float(c.get("I2", c.get("I2_mean", 0.0)) or 0.0) for c in calib_items]
+            I2_med = (sum(I2_vals) / float(n_tot)) if n_tot else 0.0
+            I2_min = min(I2_vals) if I2_vals else 0.0
+            I2_max = max(I2_vals) if I2_vals else 0.0
+
+            # Insumos (para auditoria de escala)
+            C_vals = [float(c.get("C_top", 0.0) or 0.0) for c in calib_items]
+            S_vals = [float(c.get("Slope", 0.0) or 0.0) for c in calib_items]
+            T_vals = [float(c.get("Stab", 0.0) or 0.0) for c in calib_items]
+            G_vals = [float(c.get("Gap", 0.0) or 0.0) for c in calib_items]
+            C_med = (sum(C_vals) / float(n_tot)) if n_tot else 0.0
+            S_med = (sum(S_vals) / float(n_tot)) if n_tot else 0.0
+            T_med = (sum(T_vals) / float(n_tot)) if n_tot else 0.0
+            G_med = (sum(G_vals) / float(n_tot)) if n_tot else 0.0
+
             st.subheader("🧩 Auditoria — Calibração Leve (pré-C4)")
             st.json({
                 "pacotes_registrados": int(n_tot),
@@ -7844,6 +7878,15 @@ def v16_painel_mc_observacional_pacote_pre_c4():
                 "I_media": round(float(I_med), 6),
                 "I_min": round(float(I_min), 6),
                 "I_max": round(float(I_max), 6),
+                "I2_media": round(float(I2_med), 6),
+                "I2_min": round(float(I2_min), 6),
+                "I2_max": round(float(I2_max), 6),
+                "insumos_media": {
+                    "C_top": round(float(C_med), 6),
+                    "Slope": round(float(S_med), 6),
+                    "Stab": round(float(T_med), 6),
+                    "Gap": round(float(G_med), 6),
+                },
                 "nota": "I>0 indica que a calibração foi calculada; 'aplicada_em' indica que ela influenciou o sorteio do pacote (somente leitura)."
             })
         else:
