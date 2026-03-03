@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57H — AUDIT FIX (lê I/I2/insumos de metadados legados) + baseline interno + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57H_CALIB_LEVE_I2_AUDIT_KEYS_FIX_BANNER_OK.py"
+BUILD_TAG = "v16h57I — REG FIX (snapshot mirror_meta nos pacotes + calib_meta sempre preenchido) + audit I/I2/insumos + baseline interno + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57I_CALIB_LEVE_I2_AUDIT_REG_MIRROR_SNAPSHOT_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H — BUILD AUDITÁVEL (I2 + auditoria robusta)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57I — BUILD AUDITÁVEL (I2 + snapshot mirror_meta)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1473,6 +1473,74 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
             universo_pacote = []
 
         # Replay (mapa por janela)
+
+        # --- v16h57I: garantir snapshot de métricas do Mirror no momento do registro ---
+        # A calib_leve depende de mirror_rank_meta; se o usuário não abriu o painel Mirror,
+        # nós forçamos um refresh silencioso aqui (read-only) para não registrar pacotes "cegos".
+        mirror_meta = None
+        try:
+            mirror_meta = st.session_state.get("mirror_rank_meta")
+            if not isinstance(mirror_meta, dict):
+                mirror_meta = None
+            if mirror_meta is None:
+                try:
+                    _m1_obter_ranking_structural_df()  # preenche mirror_rank_meta (read-only)
+                except Exception:
+                    pass
+                mirror_meta = st.session_state.get("mirror_rank_meta")
+                if not isinstance(mirror_meta, dict):
+                    mirror_meta = None
+        except Exception:
+            mirror_meta = None
+
+        # Se calib_leve ainda não existe (ou veio incompleto), cria um resumo mínimo a partir do mirror_meta
+        try:
+            calib_snap = st.session_state.get("v16_calib_leve_last_summary")
+            if not isinstance(calib_snap, dict):
+                calib_snap = {}
+            # preenche insumos e I/I2 se estiverem faltando
+            if mirror_meta is not None:
+                calib_snap.setdefault("C_top", float(mirror_meta.get("C_top", 0.0) or 0.0))
+                calib_snap.setdefault("Slope", float(mirror_meta.get("Slope", 0.0) or 0.0))
+                calib_snap.setdefault("Stab", float(mirror_meta.get("Stab", mirror_meta.get("StabTop6", 0.0) or 0.0) or 0.0))
+                calib_snap.setdefault("Gap", float(mirror_meta.get("Gap", mirror_meta.get("gap", 0.0) or 0.0) or 0.0))
+                # I canônico (se não existir)
+                if "I" not in calib_snap and "I_mean" not in calib_snap:
+                    C_top = float(calib_snap.get("C_top", 0.0))
+                    Slope = float(calib_snap.get("Slope", 0.0))
+                    Stab = float(calib_snap.get("Stab", 0.0))
+                    Gap  = float(calib_snap.get("Gap", 0.0))
+                    I1 = max(0.0, min(1.0, (C_top - 1.20) / 1.20))
+                    I2_ = max(0.0, min(1.0, (Slope - 0.0020) / 0.0030))
+                    I3 = max(0.0, min(1.0, (Stab - 0.55) / 0.35))
+                    I4 = max(0.0, min(1.0, (Gap - 0.0015) / 0.0030))
+                    I = float((I1 + I2_ + I3 + I4) / 4.0)
+                    calib_snap["I"] = float(I)
+                    calib_snap["I_mean"] = float(I)
+                    calib_snap["I_max"] = float(I)
+                # I2 contraste (se não existir)
+                if "I2" not in calib_snap and "I2_mean" not in calib_snap:
+                    C_top = float(calib_snap.get("C_top", 0.0))
+                    Slope = float(calib_snap.get("Slope", 0.0))
+                    Stab = float(calib_snap.get("Stab", 0.0))
+                    Gap  = float(calib_snap.get("Gap", 0.0))
+                    J1 = max(0.0, min(1.0, (C_top - 1.00) / 0.80))
+                    J2 = max(0.0, min(1.0, (Slope) / 0.0040))
+                    J3 = max(0.0, min(1.0, (Stab - 0.50) / 0.25))
+                    J4 = max(0.0, min(1.0, (Gap) / 0.0030))
+                    I2_contraste = float((J1 + J2 + J3 + J4) / 4.0)
+                    calib_snap["I2"] = float(I2_contraste)
+                    calib_snap["I2_mean"] = float(I2_contraste)
+                    calib_snap["I2_max"] = float(I2_contraste)
+                calib_snap.setdefault("active", True)
+                # guarda snapshot do mirror para auditoria robusta
+                calib_snap.setdefault("insumos", {})
+                calib_snap["insumos"].setdefault("mirror", {})
+                calib_snap["insumos"]["mirror"].setdefault("metrics", mirror_meta)
+            st.session_state["v16_calib_leve_last_summary"] = calib_snap.copy()
+        except Exception:
+            pass
+
         pacotes_reg[int(k_reg)] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
             "qtd": int(len(pacote_norm)),
@@ -7872,14 +7940,14 @@ def v16_painel_mc_observacional_pacote_pre_c4():
                 return default
 
             # I "canônico" — aceitar várias chaves que já existiram em builds anteriores
-            I_keys = ["I", "I_mean", "I_canon", "I_can", "I_val", "I_score", "score_I", "compressao_I"]
+            I_keys = ["I", "I_mean", "I_media", "I_canon", "I_can", "I_val", "I_score", "score_I", "compressao_I"]
             I_vals = [ _get_first(c, I_keys, default=_get_nested(c, ["insumos","mirror","metrics"], I_keys, default=0.0)) for c in calib_items ]
             I_med = (sum(I_vals) / float(n_tot)) if n_tot else 0.0
             I_min = min(I_vals) if I_vals else 0.0
             I_max = max(I_vals) if I_vals else 0.0
 
             # I2 (contraste topo×borda)
-            I2_keys = ["I2", "I2_mean", "I2_val", "I2_score", "contraste_I2", "contrast_I2"]
+            I2_keys = ["I2", "I2_mean", "I2_media", "I2_val", "I2_score", "contraste_I2", "contrast_I2"]
             I2_vals = [ _get_first(c, I2_keys, default=_get_nested(c, ["insumos","mirror","metrics"], I2_keys, default=0.0)) for c in calib_items ]
             I2_med = (sum(I2_vals) / float(n_tot)) if n_tot else 0.0
             I2_min = min(I2_vals) if I2_vals else 0.0
