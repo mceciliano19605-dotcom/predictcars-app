@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57G — CALIB LEVE (pré-C4) + baseline interno (split) + auditoria I (canônico) vs I2 (contraste topo×borda) + insumos (C_top/Slope/Stab/Gap) + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57G_CALIB_LEVE_BASELINE_INTERNO_THRESH_DYN_IHIST_AUDIT_I_MINMAX_BANNER_OK_SYNTAXFIX.py"
+BUILD_TAG = "v16h57H — AUDIT FIX (lê I/I2/insumos de metadados legados) + baseline interno + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57H_CALIB_LEVE_I2_AUDIT_KEYS_FIX_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57G — BUILD AUDITÁVEL (I vs I2 + baseline interno)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H — BUILD AUDITÁVEL (I2 + auditoria robusta)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -7848,23 +7848,53 @@ def v16_painel_mc_observacional_pacote_pre_c4():
             n_tot = len(calib_items)
             n_active = sum(1 for c in calib_items if bool(c.get("active", True)))
             n_aplic = sum(1 for c in calib_items if bool(c.get("aplicada_no_pacote", c.get("applied", False))))
-            # I "canônico": preferir chave I, mas aceitar I_mean legado
-            I_vals = [float(c.get("I", c.get("I_mean", 0.0)) or 0.0) for c in calib_items]
+            # I / I2 / insumos — auditoria robusta (aceita metadados legados)
+            def _get_first(d, keys, default=0.0):
+                if not isinstance(d, dict):
+                    return default
+                for k in keys:
+                    if k in d and d.get(k) is not None:
+                        try:
+                            return float(d.get(k))
+                        except Exception:
+                            pass
+                return default
+
+            def _get_nested(d, outer_keys, inner_keys, default=0.0):
+                if not isinstance(d, dict):
+                    return default
+                for ok in outer_keys:
+                    subd = d.get(ok)
+                    if isinstance(subd, dict):
+                        v = _get_first(subd, inner_keys, default=None)
+                        if v is not None:
+                            return v
+                return default
+
+            # I "canônico" — aceitar várias chaves que já existiram em builds anteriores
+            I_keys = ["I", "I_mean", "I_canon", "I_can", "I_val", "I_score", "score_I", "compressao_I"]
+            I_vals = [ _get_first(c, I_keys, default=_get_nested(c, ["insumos","mirror","metrics"], I_keys, default=0.0)) for c in calib_items ]
             I_med = (sum(I_vals) / float(n_tot)) if n_tot else 0.0
             I_min = min(I_vals) if I_vals else 0.0
             I_max = max(I_vals) if I_vals else 0.0
 
-            # I2 (contraste) — auditoria (não altera aplicação)
-            I2_vals = [float(c.get("I2", c.get("I2_mean", 0.0)) or 0.0) for c in calib_items]
+            # I2 (contraste topo×borda)
+            I2_keys = ["I2", "I2_mean", "I2_val", "I2_score", "contraste_I2", "contrast_I2"]
+            I2_vals = [ _get_first(c, I2_keys, default=_get_nested(c, ["insumos","mirror","metrics"], I2_keys, default=0.0)) for c in calib_items ]
             I2_med = (sum(I2_vals) / float(n_tot)) if n_tot else 0.0
             I2_min = min(I2_vals) if I2_vals else 0.0
             I2_max = max(I2_vals) if I2_vals else 0.0
 
-            # Insumos (para auditoria de escala)
-            C_vals = [float(c.get("C_top", 0.0) or 0.0) for c in calib_items]
-            S_vals = [float(c.get("Slope", 0.0) or 0.0) for c in calib_items]
-            T_vals = [float(c.get("Stab", 0.0) or 0.0) for c in calib_items]
-            G_vals = [float(c.get("Gap", 0.0) or 0.0) for c in calib_items]
+            # Insumos (C_top / Slope / Stab / Gap) — aceitar nomes legados e/ou bloco aninhado
+            C_keys = ["C_top", "Ctop", "C_top_z", "Cz", "C"]
+            S_keys = ["Slope", "slope", "slope_top_borda", "Top6_minus_Borda", "delta_top_borda"]
+            T_keys = ["Stab", "StabTop6", "stab_top6", "stability", "T"]
+            G_keys = ["Gap", "gap", "gap_6_15", "gap_6_15_norm", "G"]
+
+            C_vals = [ _get_first(c, C_keys, default=_get_nested(c, ["insumos","mirror","metrics"], C_keys, default=0.0)) for c in calib_items ]
+            S_vals = [ _get_first(c, S_keys, default=_get_nested(c, ["insumos","mirror","metrics"], S_keys, default=0.0)) for c in calib_items ]
+            T_vals = [ _get_first(c, T_keys, default=_get_nested(c, ["insumos","mirror","metrics"], T_keys, default=0.0)) for c in calib_items ]
+            G_vals = [ _get_first(c, G_keys, default=_get_nested(c, ["insumos","mirror","metrics"], G_keys, default=0.0)) for c in calib_items ]
             C_med = (sum(C_vals) / float(n_tot)) if n_tot else 0.0
             S_med = (sum(S_vals) / float(n_tot)) if n_tot else 0.0
             T_med = (sum(T_vals) / float(n_tot)) if n_tot else 0.0
