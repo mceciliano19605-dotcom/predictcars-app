@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57K — REG APPLIED FIX (define calib_leve_store/pacote_store no registrar) + baseline interno real + auditoria I/I2 + split calib_applied True/False + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57K_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_STORE_BANNER_OK.py"
+BUILD_TAG = "v16h57L — REG APPLIED FLAG FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57L_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57K — BUILD AUDITÁVEL (Split baseline interno + I2 + calib aplicada no registro)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57L — BUILD AUDITÁVEL (baseline interno + split calib_applied real)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1602,7 +1602,19 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
             if isinstance(new_tot, list) and new_tot:
                 pacote_store = [list(map(int, lst)) for lst in new_tot if isinstance(lst, (list, tuple)) and len(lst) >= 6]
 
-        # consolida metadados (sempre preenchidos)
+        
+                # Decide flag real de aplicação: só conta se houve mudança efetiva no pacote registrado
+                try:
+                    _aplicado_flag = bool(resp_info.get("aplicado", False)) if isinstance(resp_info, dict) else False
+                    _mudou_flag = (pacote_store != pacote_baseline)
+                    calib_applied = bool(_aplicado_flag and _mudou_flag)
+                    if _aplicado_flag and (not _mudou_flag):
+                        # aplicado "sem mudança" vira não aplicado (evita split falso)
+                        calib_applied = False
+                except Exception:
+                    calib_applied = False
+
+                # consolida metadados (sempre preenchidos)
         calib_leve_store = dict(calib_leve)
         calib_leve_store.update({
             "active": calib_active,
@@ -10421,8 +10433,11 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                 I2_val = float(I2_max if I2_max is not None else I2_mean)
                 I_val  = float(I_max if I_max is not None else I_mean)
 
-                calib_active  = bool((I2_val > 0.0) or (I_val > 0.0))
-                calib_applied = bool(calib_active and (I2_val >= THR_BASE))
+                calib_active = bool((I2_val > 0.0) or (I_val > 0.0))
+                # Gate de intenção: quando o sensor (I2) está acima do threshold, tentamos aplicar.
+                calib_should_apply = bool(calib_active and (I2_val >= THR_BASE))
+                # Flag real de aplicação (só vira True se a diversificação realmente modificou o pacote registrado).
+                calib_applied = False
 
                 # baseline interno (sempre)
                 pacote_baseline = [list(map(int, lst)) for lst in (pacote_atual or [])]
@@ -10430,7 +10445,7 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                 resp_info = {"aplicado": False, "motivo": "nao_aplicado"}
 
                 # aplica diversificação mínima (RESPIRÁVEL) somente no pacote registrado (pré-C4)
-                if calib_applied:
+                if calib_should_apply:
                     try:
                         umax = int(st.session_state.get("UNIVERSE_MAX") or st.session_state.get("universe_max") or 60)
                     except Exception:
@@ -10453,7 +10468,6 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                     except Exception:
                         resp_info = {"aplicado": False, "motivo": "falha_diversificacao"}
                         pacote_store = pacote_baseline
-                        calib_applied = False
 
                 # consolida metadados (sempre preenchidos)
                 calib_leve_store = dict(calib_leve)
