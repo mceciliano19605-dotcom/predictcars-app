@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57J — REG APPLIED (calib_leve aplicada no registro + baseline interno real) + auditoria I/I2 + split calib_applied True/False + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57J_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_BANNER_OK.py"
+BUILD_TAG = "v16h57K — REG APPLIED FIX (define calib_leve_store/pacote_store no registrar) + baseline interno real + auditoria I/I2 + split calib_applied True/False + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57K_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_STORE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57J — BUILD AUDITÁVEL (Split baseline interno + I2 + calib aplicada no registro)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57K — BUILD AUDITÁVEL (Split baseline interno + I2 + calib aplicada no registro)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1474,7 +1474,7 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
 
         # Replay (mapa por janela)
 
-        # --- v16h57J: garantir snapshot de métricas do Mirror no momento do registro ---
+        # --- v16h57K: garantir snapshot de métricas do Mirror no momento do registro ---
         # A calib_leve depende de mirror_rank_meta; se o usuário não abriu o painel Mirror,
         # nós forçamos um refresh silencioso aqui (read-only) para não registrar pacotes "cegos".
         mirror_meta = None
@@ -10395,6 +10395,80 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
             try:
                 from datetime import datetime
                 k_reg = int(st.session_state.get("replay_janela_k_active", k_novo))
+                # --- V16 (CALIB LEVE) — aplica no registro (pré-C4) + baseline interno real ---
+                calib_leve = st.session_state.get("v16_calib_leve_last_summary") or {}
+                if not isinstance(calib_leve, dict):
+                    calib_leve = {}
+
+                # Lê I/I2 de chaves novas ou legadas (tudo auditável)
+                def _get_num(d, keys, default=0.0):
+                    for kk in keys:
+                        if kk in d and d[kk] is not None:
+                            try:
+                                return float(d[kk])
+                            except Exception:
+                                pass
+                    return float(default)
+
+                I_mean  = _get_num(calib_leve, ["I_mean", "I_media", "I", "I_val"], 0.0)
+                I_max   = _get_num(calib_leve, ["I_max", "Imax", "I_maximo"], I_mean)
+                I2_mean = _get_num(calib_leve, ["I2_mean", "I2_media", "I2"], 0.0)
+                I2_max  = _get_num(calib_leve, ["I2_max", "I2max", "I2_maximo"], I2_mean)
+
+                # Threshold base canônico (mantido) — aplicado no I2 (contraste topo×borda)
+                THR_BASE = float(calib_leve.get("thr_base", 0.25) or 0.25)
+
+                I2_val = float(I2_max if I2_max is not None else I2_mean)
+                I_val  = float(I_max if I_max is not None else I_mean)
+
+                calib_active  = bool((I2_val > 0.0) or (I_val > 0.0))
+                calib_applied = bool(calib_active and (I2_val >= THR_BASE))
+
+                # baseline interno (sempre)
+                pacote_baseline = [list(map(int, lst)) for lst in (pacote_atual or [])]
+                pacote_store = pacote_baseline
+                resp_info = {"aplicado": False, "motivo": "nao_aplicado"}
+
+                # aplica diversificação mínima (RESPIRÁVEL) somente no pacote registrado (pré-C4)
+                if calib_applied:
+                    try:
+                        umax = int(st.session_state.get("UNIVERSE_MAX") or st.session_state.get("universe_max") or 60)
+                    except Exception:
+                        umax = 60
+                    umax = 50 if umax <= 50 else 60
+                    universo = list(range(1, umax + 1))
+
+                    try:
+                        new_tot, _new_top10, resp_info = pc_resp_aplicar_diversificacao(
+                            listas_totais=pacote_baseline,
+                            listas_top10=pacote_baseline[:10],
+                            universo=universo,
+                            seed=int(k_reg),
+                            n_alvo=6,
+                            memoria_sufocadores=None,
+                            cap_pct=0.65,
+                        )
+                        if isinstance(new_tot, list) and new_tot:
+                            pacote_store = [list(map(int, lst)) for lst in new_tot if isinstance(lst, (list, tuple)) and len(lst) >= 6]
+                    except Exception:
+                        resp_info = {"aplicado": False, "motivo": "falha_diversificacao"}
+                        pacote_store = pacote_baseline
+                        calib_applied = False
+
+                # consolida metadados (sempre preenchidos)
+                calib_leve_store = dict(calib_leve)
+                calib_leve_store.update({
+                    "active": calib_active,
+                    "applied": calib_applied,
+                    "thr_base": THR_BASE,
+                    "I_mean": float(I_mean),
+                    "I_max": float(I_max),
+                    "I2_mean": float(I2_mean),
+                    "I2_max": float(I2_max),
+                    "resp_info": resp_info,
+                    "reason": "I2>=thr_base" if calib_applied else ("I2<thr_base" if calib_active else "I2=0"),
+                })
+
                 # --- V9 (BLOCO B) — snapshot estrutural do pacote (OBSERVACIONAL / ex-post) ---
                 # Regra: separar o valor digitado (widget) do estado ativo e registrar um snapshot por janela.
                 # Isso NÃO decide nada e NÃO altera listas — apenas guarda estrutura para avaliação posterior.
