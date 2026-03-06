@@ -131,13 +131,15 @@ def pc_classificar_postura_motor(pipeline_regime: str | None, nr_percent, div_s6
         div_s6_mc=div_s6_mc,
     )
 
-def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65, core_min=core_min):
+def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65, core_min=None):
     """Em RESPIRÁVEL, aplicamos *elasticidade mínima* no pacote (pré-C4):
     - Anti-clone leve (remove duplicatas)
     - Anti-core leve (troca 1 passageiro em algumas listas para reduzir compressão)
     Mantém volume e não inventa motor novo.
     """
     try:
+        if core_min is None:
+            core_min = 0.60
         import random
         rng = random.Random(int(seed) if seed is not None else 0)
 
