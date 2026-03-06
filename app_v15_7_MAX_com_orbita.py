@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57L — REG APPLIED FLAG FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57L_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_BANNER_OK.py"
+BUILD_TAG = "v16h57M — REG APPLIED FLAG FIX + OP2B CORELESS (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57M_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57L — BUILD AUDITÁVEL (baseline interno + split calib_applied real)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57M — BUILD AUDITÁVEL (baseline interno + split calib_applied real)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -131,7 +131,7 @@ def pc_classificar_postura_motor(pipeline_regime: str | None, nr_percent, div_s6
         div_s6_mc=div_s6_mc,
     )
 
-def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65):
+def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65, core_min=core_min):
     """Em RESPIRÁVEL, aplicamos *elasticidade mínima* no pacote (pré-C4):
     - Anti-clone leve (remove duplicatas)
     - Anti-core leve (troca 1 passageiro em algumas listas para reduzir compressão)
@@ -1589,14 +1589,35 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
             umax = 50 if umax <= 50 else 60
             universo = list(range(1, umax + 1))
 
+            # Opção 2 (B) — aplicar também quando não existe CORE>=60%:
+            # usamos sufocadores por frequência no Top10 (>=40%) + nocivos consistentes (se existirem),
+            # e reduzimos o cap para permitir efeito mensurável sem virar motor.
+            _top10_tmp = pacote_baseline[:10]
+            _freq = {}
+            for _lst in _top10_tmp:
+                for _x in _lst:
+                    _freq[_x] = _freq.get(_x, 0) + 1
+            _suf_freq = [x for x,c in _freq.items() if (c / max(1,len(_top10_tmp))) >= 0.40]
+            _nocivos = []
+            try:
+                _nocivos = list(st.session_state.get("pc_nocivos_consistentes", []))
+            except Exception:
+                _nocivos = []
+            _suf = sorted(set(_suf_freq) | set(_nocivos))
+
+            # cap_pct: se I2 já está alto (>=0.65), permitimos cap mais baixo (0.35) para gerar efeito;
+            # caso contrário, cap um pouco mais conservador (0.45).
+            _cap_pct = 0.35 if (I2 >= 0.65) else 0.45
+
             new_tot, new_top10, resp_info = pc_resp_aplicar_diversificacao(
                 listas_totais=pacote_baseline,
-                listas_top10=pacote_baseline[:10],
+                listas_top10=_top10_tmp,
                 universo=universo,
                 seed=int(k_reg),
                 n_alvo=6,
-                memoria_sufocadores=None,
-                cap_pct=0.65,
+                memoria_sufocadores=_suf,
+                cap_pct=_cap_pct,
+                core_min=0.40,
             )
             # Segurança: mantém lista de listas 6 ints
             if isinstance(new_tot, list) and new_tot:
