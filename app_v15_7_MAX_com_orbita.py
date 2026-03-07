@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57N — REG APPLIED FLAG FIX + OP2B CORELESS (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57N_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_BANNER_OK.py"
+BUILD_TAG = "v16h57O — REG APPLIED FLAG FIX + OP2B CORELESS + DIVERS FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57O_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -162,8 +162,9 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                     continue
                 freq[vv] = freq.get(vv, 0) + 1
 
-        # CORE: presença >= 60% do top
-        core = {v for v, c in freq.items() if c >= max(1, int(0.60 * max(1, len(top))))}
+        # CORE: presença >= core_min do top
+        core_thr = max(1, int(float(core_min) * max(1, len(top))))
+        core = {v for v, c in freq.items() if c >= core_thr}
 
         # Memória estrutural (sufocadores) — opcional e auditável
         sufocadores = set()
@@ -183,11 +184,12 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
 
         # Candidatos de baixa frequência (para "respirar")
         uni = [int(x) for x in universo] if isinstance(universo, (list, tuple)) else []
-        uni = [u for u in uni if u > 0]
+        uni = sorted({u for u in uni if u > 0})
         if not uni:
             return listas_totais, listas_top10, {"aplicado": False, "motivo": "universo indisponível"}
 
-        low = sorted(uni, key=lambda u: (freq.get(u, 0), u))
+        low_all = sorted(uni, key=lambda u: (freq.get(u, 0), u))
+        low_pref = [u for u in low_all if freq.get(u, 0) <= 1]
 
         def _norm(lst):
             out = []
@@ -199,69 +201,81 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
             out = sorted(set(out))
             # completa se perdeu algo
             if len(out) < n_alvo:
-                for u in low:
+                for u in low_all:
                     if u not in out:
                         out.append(u)
                     if len(out) >= n_alvo:
                         break
             return sorted(out[:n_alvo])
 
+        def _pick_candidate(base, blocked=None):
+            blocked = set(blocked or [])
+            pool = [u for u in low_pref if u not in base and u not in blocked]
+            if not pool:
+                pool = [u for u in low_all if u not in base and u not in blocked]
+            for cand in pool:
+                novo_pct = float(freq.get(int(cand), 0) + 1) / float(max(1, len(top)))
+                if novo_pct <= cap_pct:
+                    return int(cand)
+            return None
+
         # Aplica em poucas listas (elasticidade mínima), evitando mexer no pacote inteiro
         new_top = []
         trocas = 0
         for idx, lst in enumerate(top):
             base = _norm(lst)
-            if idx < 6 and core:  # mexe nas 6 primeiras do top
-                # se lista está muito "colada" no CORE, troca 1 elemento core por um low
-                core_in = [v for v in base if v in core]
-                if len(core_in) >= 2:
-                    drop = rng.choice(core_in)
-                    cand = None
-                    for u in low:
-                        if u not in base:
-                            cand = u
-                            break
-                    if cand is not None:
+
+            # Anti-core leve nas primeiras listas do top
+            if idx < 6:
+                removiveis = [v for v in base if v in core]
+                if len(removiveis) < 2:
+                    removiveis = [v for v in base if (float(freq.get(v, 0)) / float(max(1, len(top)))) >= 0.40]
+                if not removiveis:
+                    removiveis = sorted(base, key=lambda v: (-freq.get(v, 0), v))
+
+                if removiveis:
+                    drop = rng.choice(removiveis[:min(len(removiveis), 3)])
+                    cand = _pick_candidate(base, blocked={drop})
+                    if cand is not None and cand not in base:
                         base2 = [v for v in base if v != drop]
                         base2.append(cand)
-                        base = sorted(set(base2))[:n_alvo]
-                        # garante tamanho
-                        while len(base) < n_alvo:
-                            for u in low:
-                                if u not in base:
-                                    base.append(u)
-                                if len(base) >= n_alvo:
-                                    break
-                        base = sorted(base)[:n_alvo]
-                        trocas += 1
+                        base2 = sorted(set(base2))
+                        while len(base2) < n_alvo:
+                            extra = _pick_candidate(base2, blocked={drop})
+                            if extra is None:
+                                break
+                            base2.append(extra)
+                            base2 = sorted(set(base2))
+                        base2 = sorted(base2[:n_alvo])
+                        if base2 != base:
+                            base = base2
+                            trocas += 1
 
             # Enforce cap de dominância para sufocadores (apenas nas primeiras listas do top)
             try:
                 if sufocadores and idx < 8:
                     for s in list(sufocadores):
                         c0 = freq.get(int(s), 0)
-                        # se já está acima do cap, tenta tirar o sufocador desta lista (1 troca)
                         if len(top) > 0 and (float(c0) / float(len(top))) > cap_pct and int(s) in base:
-                            cand2 = None
-                            for u in low:
-                                if u not in base:
-                                    cand2 = u
-                                    break
-                            if cand2 is not None:
+                            cand2 = _pick_candidate(base, blocked={int(s)})
+                            if cand2 is not None and cand2 not in base:
                                 base2 = [v for v in base if v != int(s)]
                                 base2.append(int(cand2))
-                                base = sorted(set(base2))[:n_alvo]
-                                while len(base) < n_alvo:
-                                    for u in low:
-                                        if u not in base:
-                                            base.append(u)
-                                        if len(base) >= n_alvo:
-                                            break
-                                base = sorted(base)[:n_alvo]
-                                trocas += 1
-                                break
+                                base2 = sorted(set(base2))
+                                while len(base2) < n_alvo:
+                                    extra = _pick_candidate(base2, blocked={int(s)})
+                                    if extra is None:
+                                        break
+                                    base2.append(extra)
+                                    base2 = sorted(set(base2))
+                                base2 = sorted(base2[:n_alvo])
+                                if base2 != base:
+                                    base = base2
+                                    trocas += 1
+                                    break
             except Exception:
                 pass
+
             new_top.append(base)
 
         # Reconstrói listas_totais: substitui prefixo correspondente ao top, preserva o resto
@@ -288,18 +302,19 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        info = {"aplicado": True, "trocas": trocas, "core_sz": len(core), "sufocadores_sz": len(sufocadores), "cap_pct": float(cap_pct), "motivo": "respiravel_diversificacao_minima"}
+        info = {
+            "aplicado": bool(trocas > 0),
+            "trocas": int(trocas),
+            "core_sz": len(core),
+            "core_thr": int(core_thr),
+            "low_pref_sz": len(low_pref),
+            "sufocadores_sz": len(sufocadores),
+            "cap_pct": float(cap_pct),
+            "motivo": "respiravel_diversificacao_minima" if trocas > 0 else "sem_trocas_validas",
+        }
         return new_tot, new_top10, info
     except Exception as e:
         return listas_totais, listas_top10, {"aplicado": False, "motivo": f"falha_resp: {e}"}
-
-# ============================================================
-# P2 — Hipóteses de Família (pré-C4, automático, observacional)
-# ============================================================
-
-import math
-import statistics
-
 def pc_v16_mc_observacional_pacote_pre_c4(
     *,
     modo6_listas_totais,
