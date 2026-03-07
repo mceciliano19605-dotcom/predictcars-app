@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57M — REG APPLIED FLAG FIX + OP2B CORELESS (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57M_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_BANNER_OK.py"
+BUILD_TAG = "v16h57N — REG APPLIED FLAG FIX + OP2B CORELESS (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57N_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57M — BUILD AUDITÁVEL (baseline interno + split calib_applied real)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57N — BUILD AUDITÁVEL (baseline interno + split calib_applied real)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -132,14 +132,15 @@ def pc_classificar_postura_motor(pipeline_regime: str | None, nr_percent, div_s6
     )
 
 def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65, core_min=None):
+    if core_min is None:
+        core_min = 0.60
+
     """Em RESPIRÁVEL, aplicamos *elasticidade mínima* no pacote (pré-C4):
     - Anti-clone leve (remove duplicatas)
     - Anti-core leve (troca 1 passageiro em algumas listas para reduzir compressão)
     Mantém volume e não inventa motor novo.
     """
     try:
-        if core_min is None:
-            core_min = 0.60
         import random
         rng = random.Random(int(seed) if seed is not None else 0)
 
