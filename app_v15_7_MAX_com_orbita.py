@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57Q — REG APPLIED FLAG FIX + OP2B CORELESS + DIVERS MID UNLOCK + APPLIED COUNTER FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57Q_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
+BUILD_TAG = "v16h57R — REG APPLIED FLAG FIX + OP2B CORELESS + CALIB REAL APPLY + APPLIED COUNTER FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57R_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
