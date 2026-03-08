@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57V — REG APPLIED FLAG FIX + OP2B CORELESS + REPLAY STORE FIX + APPLIED COUNTER FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57V_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
+BUILD_TAG = "v16h57W — REG APPLIED FLAG FIX + OP2B CORELESS + REPLAY STORE FIX REAL + APPLIED COUNTER FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57W_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -1457,7 +1457,7 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
             except Exception:
                 continue
 
-        if len(pacote_store) == 0:
+        if len(pacote_norm) == 0:
             return False
 
         pacotes_reg = st.session_state.get("replay_progressivo_pacotes", {})
@@ -1470,9 +1470,9 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
         try:
             v8_snap = st.session_state.get("v8_borda_qualificada") or {}
             if not isinstance(v8_snap, dict) or v8_snap.get("meta", {}).get("status") not in ("ok", "presenca_vazia"):
-                base_n = int(min(10, len(pacote_store)))
+                base_n = int(min(10, len(pacote_norm)))
                 v8_snap = v8_classificar_borda_qualificada(
-                    listas=[list(map(int, lst)) for lst in pacote_store],
+                    listas=[list(map(int, lst)) for lst in pacote_norm],
                     base_n=base_n,
                     core_presenca_min=0.60,
                     quase_delta=0.12,
@@ -1486,7 +1486,7 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
 
         # Universo do pacote
         try:
-            universo_pacote = sorted({int(x) for lst in pacote_store for x in lst})
+            universo_pacote = sorted({int(x) for lst in pacote_norm for x in lst})
         except Exception:
             universo_pacote = []
 
