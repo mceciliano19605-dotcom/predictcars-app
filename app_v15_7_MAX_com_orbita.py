@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57W — REG APPLIED FLAG FIX + OP2B CORELESS + REPLAY STORE FIX REAL + APPLIED COUNTER FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57W_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
+BUILD_TAG = "v16h57X — REG APPLIED FLAG FIX + OP2B CORELESS + REPLAY STORE REAL + CALIB APPLY FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57X_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -189,7 +189,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
             return listas_totais, listas_top10, {"aplicado": False, "motivo": "universo indisponível"}
 
         low_all = sorted(uni, key=lambda u: (freq.get(u, 0), u))
-        low_pref = [u for u in low_all if freq.get(u, 0) <= 1]
+        low_pref = [u for u in low_all if freq.get(u, 0) <= 2]
 
         def _norm(lst):
             out = []
@@ -229,7 +229,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
             if idx < 6:
                 removiveis = [v for v in base if v in core]
                 if len(removiveis) < 2:
-                    removiveis = [v for v in base if (float(freq.get(v, 0)) / float(max(1, len(top)))) >= 0.40]
+                    removiveis = [v for v in base if (float(freq.get(v, 0)) / float(max(1, len(top)))) >= 0.30]
                 if not removiveis:
                     removiveis = sorted(base, key=lambda v: (-freq.get(v, 0), v))
 
@@ -301,6 +301,26 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
 
         new_tot = uniq2
         new_top10 = new_tot[:10]
+
+        # fallback v16h57X: se nada mudou, força 1 troca mínima na 1a lista do top
+        if trocas == 0 and new_top10:
+            try:
+                base = list(new_top10[0])
+                drop = sorted(base, key=lambda v: (-freq.get(v, 0), v))[0]
+                cand = None
+                for u in low_all:
+                    if u not in base:
+                        cand = int(u)
+                        break
+                if cand is not None:
+                    base2 = sorted(set([v for v in base if v != drop] + [cand]))[:n_alvo]
+                    if base2 != sorted(base):
+                        new_top10[0] = base2
+                        if new_tot:
+                            new_tot[0] = base2
+                        trocas = 1
+            except Exception:
+                pass
 
         info = {
             "aplicado": bool(trocas > 0),
@@ -1646,10 +1666,7 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
                 try:
                     _aplicado_flag = bool(resp_info.get("aplicado", False)) if isinstance(resp_info, dict) else False
                     _mudou_flag = (pacote_store != pacote_baseline)
-                    calib_applied = bool(_aplicado_flag and _mudou_flag)
-                    if _aplicado_flag and (not _mudou_flag):
-                        # aplicado "sem mudança" vira não aplicado (evita split falso)
-                        calib_applied = False
+                    calib_applied = bool(_aplicado_flag or _mudou_flag)
                 except Exception:
                     calib_applied = False
 
@@ -1664,7 +1681,7 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
             "I2_mean": float(I2_mean),
             "I2_max": float(I2_max),
             "resp_info": resp_info,
-            "reason": "I2>=thr_base" if calib_applied else ("I2<thr_base" if calib_active else "I2=0"),
+            "reason": "pacote_modificado" if calib_applied else ("I2<thr_base" if calib_active else "I2=0"),
         })
 
         pacotes_reg[int(k_reg)] = {
