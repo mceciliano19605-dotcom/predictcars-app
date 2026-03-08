@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57S — REG APPLIED FLAG FIX + OP2B CORELESS + CALIB PIPELINE LINK + APPLIED COUNTER FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57S_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
+BUILD_TAG = "v16h57T — REG APPLIED FLAG FIX + OP2B CORELESS + CALIB REAL LINK + APPLIED COUNTER FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57T_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -1655,7 +1655,19 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
 
                 # consolida metadados (sempre preenchidos)
         calib_leve_store = dict(calib_leve)
-        calib_leve_store.update({
+        
+        # --- PATCH v16h57T: recompute calib_applied from real pacote ---
+        try:
+            calib_applied_real = False
+            if 'resp_info' in locals():
+                calib_applied_real = bool(resp_info.get("aplicado", False))
+            if not calib_applied_real and 'pacote_store' in locals() and 'pacote_baseline' in locals():
+                calib_applied_real = pacote_store != pacote_baseline
+            calib_applied = calib_applied_real
+        except Exception:
+            pass
+        # --- END PATCH v16h57T ---
+calib_leve_store.update({
             "active": calib_active,
             "applied": calib_applied,
             "thr_base": THR_BASE,
