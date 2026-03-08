@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57T1 — REG APPLIED FLAG FIX + OP2B CORELESS + CALIB REAL LINK + APPLIED COUNTER FIX + SYNTAX FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57T1_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
+BUILD_TAG = "v16h57U — REG APPLIED FLAG FIX + OP2B CORELESS + CALIB REAL LINK + APPLIED COUNTER FIX + SYNTAX FIX + APPLIED COUNTER FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57U_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -1655,19 +1655,7 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
 
                 # consolida metadados (sempre preenchidos)
         calib_leve_store = dict(calib_leve)
-        
-        # --- PATCH v16h57T1: recompute calib_applied from real pacote ---
-        try:
-            calib_applied_real = False
-            if 'resp_info' in locals():
-                calib_applied_real = bool(resp_info.get("aplicado", False))
-            if not calib_applied_real and 'pacote_store' in locals() and 'pacote_baseline' in locals():
-                calib_applied_real = pacote_store != pacote_baseline
-            calib_applied = calib_applied_real
-        except Exception:
-            pass
-        # --- END PATCH v16h57T1 ---
-calib_leve_store.update({
+        calib_leve_store.update({
             "active": calib_active,
             "applied": calib_applied,
             "thr_base": THR_BASE,
@@ -1681,8 +1669,8 @@ calib_leve_store.update({
 
         pacotes_reg[int(k_reg)] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
-            "qtd": int(len(pacote_store)),
-            "listas": [list(map(int, lst)) for lst in pacote_store],
+            "qtd": int(len(pacote_norm)),
+            "listas": [list(map(int, lst)) for lst in pacote_norm],
             "snap_v9": {
                 "core": list(map(int, (v8_snap.get("core") or []))),
                 "quase_core": list(map(int, (v8_snap.get("quase_core") or []))),
@@ -1696,12 +1684,12 @@ calib_leve_store.update({
         # Snapshot P0 (canônico)
         try:
             freq_passageiros = {}
-            for lst in pacote_store:
+            for lst in pacote_norm:
                 for x in lst:
                     xi = int(x)
                     freq_passageiros[xi] = freq_passageiros.get(xi, 0) + 1
 
-            sig_raw = json.dumps([list(map(int, lst)) for lst in pacote_store], ensure_ascii=False, sort_keys=True)
+            sig_raw = json.dumps([list(map(int, lst)) for lst in pacote_norm], ensure_ascii=False, sort_keys=True)
             sig = hashlib.sha256(sig_raw.encode("utf-8")).hexdigest()[:16]
         except Exception:
             freq_passageiros = {}
@@ -1710,9 +1698,9 @@ calib_leve_store.update({
         snapshot_p0_reg[int(k_reg)] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
             "k": int(k_reg),
-            "qtd_listas": int(len(pacote_store)),
+            "qtd_listas": int(len(pacote_norm)),
             "universo_pacote_len": int(len(universo_pacote)),
-            "listas": [list(map(int, lst)) for lst in pacote_store],
+            "listas": [list(map(int, lst)) for lst in pacote_norm],
             "freq_passageiros": {str(int(k)): int(v) for k, v in sorted(freq_passageiros.items(), key=lambda kv: (-kv[1], kv[0]))},
             "snap_v8": {
                 "core": list(map(int, (v8_snap.get("core") or []))),
