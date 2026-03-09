@@ -342,17 +342,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                         trocas = 1
         except Exception:
             pass
-
-        
-# --- DEBUG RESP (v16h57AB) ---
-try:
-    print("DEBUG_RESP",
-          "trocas=", trocas,
-          "core_sz=", len(core) if 'core' in locals() else None,
-          "low_pref_sz=", len(low_pref) if 'low_pref' in locals() else None,
-          "top_sz=", len(top) if 'top' in locals() else None)
-except Exception:
-    pass
+        print("DEBUG_RESP", "trocas=", trocas, "core_sz=", len(core), "low_pref_sz=", len(low_pref), "top_sz=", len(top))
 
         info = {
             "aplicado": bool(trocas > 0),
