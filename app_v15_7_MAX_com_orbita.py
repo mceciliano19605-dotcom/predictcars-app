@@ -1708,17 +1708,15 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
 
         
         # --- RESP APPLICATION (FIX v16h57AD) ---
-        try:
-            new_tot, new_top10, resp_info = pc_resp_aplicar_diversificacao(
-                pacote_store,
-                pacote_store[:10] if len(pacote_store) >= 10 else pacote_store,
-                list(range(universo_min, universo_max + 1))
-            )
-            if resp_info and resp_info.get("aplicado", False):
-                pacote_store = new_tot
-        except Exception as e:
-            print("DEBUG_RESP_APPLY_ERROR:", e)
+        new_tot, new_top10, resp_info = pc_resp_aplicar_diversificacao(
+            pacote_store,
+            pacote_store[:10] if len(pacote_store) >= 10 else pacote_store,
+            list(range(universo_min, universo_max + 1))
+        )
+        if resp_info and resp_info.get("aplicado", False):
+            pacote_store = new_tot
         # --- END RESP APPLICATION ---
+
 pacotes_reg[int(k_reg)] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
             "qtd": int(len(pacote_store)),
