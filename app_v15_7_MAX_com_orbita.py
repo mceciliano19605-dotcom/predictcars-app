@@ -1687,23 +1687,23 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
                 try:
                     _aplicado_flag = bool(resp_info.get("aplicado", False)) if isinstance(resp_info, dict) else False
                     
-        print(
-            "DEBUG_GATE_SILENT_RESP",
-            "k_reg=", int(k_reg),
-            "resp_info=", resp_info if 'resp_info' in locals() else None,
-            "pacote_store_len=", len(pacote_store) if isinstance(pacote_store, list) else None,
-            "pacote_baseline_len=", len(pacote_baseline) if isinstance(pacote_baseline, list) else None
-        )
+                    print(
+                        "DEBUG_GATE_SILENT_RESP",
+                        "k_reg=", int(k_reg),
+                        "resp_info=", resp_info if 'resp_info' in locals() else None,
+                        "pacote_store_len=", len(pacote_store) if isinstance(pacote_store, list) else None,
+                        "pacote_baseline_len=", len(pacote_baseline) if isinstance(pacote_baseline, list) else None
+                    )
 
-        _mudou_flag = (pacote_store != pacote_baseline)
+                    _mudou_flag = (pacote_store != pacote_baseline)
 
-        print(
-            "DEBUG_GATE_SILENT_POST",
-            "k_reg=", int(k_reg),
-            "_aplicado_flag=", _aplicado_flag,
-            "_mudou_flag=", _mudou_flag,
-            "calib_applied=", bool(_aplicado_flag or _mudou_flag)
-        )
+                    print(
+                        "DEBUG_GATE_SILENT_POST",
+                        "k_reg=", int(k_reg),
+                        "_aplicado_flag=", _aplicado_flag,
+                        "_mudou_flag=", _mudou_flag,
+                        "calib_applied=", bool(_aplicado_flag or _mudou_flag)
+                    )
 
                     calib_applied = bool(_aplicado_flag or _mudou_flag)
                 except Exception:
