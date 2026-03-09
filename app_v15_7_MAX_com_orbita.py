@@ -40,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57AD — RESP FIX INSIDE REPLAY REGISTER + BANNER OK
+        <b>BUILD: v16h57AC — GATE SILENT DEBUG + RESP PATH TELEMETRY + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -1706,18 +1706,7 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
             "reason": "pacote_modificado" if calib_applied else ("I2<thr_base" if calib_active else "I2=0"),
         })
 
-        
-        # --- RESP APPLICATION (FIX v16h57AD) ---
-        new_tot, new_top10, resp_info = pc_resp_aplicar_diversificacao(
-            pacote_store,
-            pacote_store[:10] if len(pacote_store) >= 10 else pacote_store,
-            list(range(universo_min, universo_max + 1))
-        )
-        if resp_info and resp_info.get("aplicado", False):
-            pacote_store = new_tot
-        # --- END RESP APPLICATION ---
-
-pacotes_reg[int(k_reg)] = {
+        pacotes_reg[int(k_reg)] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
             "qtd": int(len(pacote_store)),
             "listas": [list(map(int, lst)) for lst in pacote_store],
@@ -2003,6 +1992,11 @@ def pc_monitor_risco_silent(df: pd.DataFrame) -> dict:
 
 
 def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, universo_min: int, universo_max: int) -> bool:
+
+    try:
+        print("DEBUG_GATE_SILENT_PRE")
+    except Exception:
+        pass
     """Registra pacote e Snapshot P0 canônico para a janela k_reg (silencioso).
     - Mantém mesma estrutura do botão 'Registrar pacote da janela atual'
     - Atualiza Memória Estrutural automaticamente (quando aplicável)
