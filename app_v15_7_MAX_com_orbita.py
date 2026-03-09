@@ -1687,19 +1687,17 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
                 try:
                     _aplicado_flag = bool(resp_info.get("aplicado", False)) if isinstance(resp_info, dict) else False
                     
-                    print(
-                        "DEBUG_GATE_SILENT_RESP",
-                        "k_reg=", int(k_reg),
+                    ,
                         "resp_info=", resp_info if 'resp_info' in locals() else None,
                         "pacote_store_len=", len(pacote_store) if isinstance(pacote_store, list) else None,
                         "pacote_baseline_len=", len(pacote_baseline) if isinstance(pacote_baseline, list) else None
                     )
 
-                    _mudou_flag = (pacote_store != pacote_baseline)
+                    print("DEBUG_GATE_SILENT_RESP", k_reg, resp_info if "resp_info" in locals() else None)
+        _mudou_flag = (pacote_store != pacote_baseline)
+        print("DEBUG_GATE_SILENT_POST", k_reg, _aplicado_flag if "_aplicado_flag" in locals() else None, _mudou_flag)
 
-                    print(
-                        "DEBUG_GATE_SILENT_POST",
-                        "k_reg=", int(k_reg),
+                    ,
                         "_aplicado_flag=", _aplicado_flag,
                         "_mudou_flag=", _mudou_flag,
                         "calib_applied=", bool(_aplicado_flag or _mudou_flag)
@@ -10531,10 +10529,9 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                 calib_active = bool((I2_val > 0.0) or (I_val > 0.0))
                 # Gate de intenção: quando o sensor (I2) está acima do threshold, tentamos aplicar.
                 calib_should_apply = bool(calib_active and (I2_val >= THR_BASE))
+        print("DEBUG_GATE_SILENT_PRE", k_reg, I_val, I2_val, THR_BASE, calib_active, calib_should_apply)
 
-        print(
-            "DEBUG_GATE_SILENT_PRE",
-            "k_reg=", int(k_reg),
+        ,
             "I_val=", I_val,
             "I2_val=", I2_val,
             "THR_BASE=", THR_BASE,
