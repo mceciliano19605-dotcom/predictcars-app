@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AD — REPLAY REGISTRO SALVA CALIB_LEVE + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AD_REPLAY_REG_CALIB_SAVE_BANNER_OK.py"
+BUILD_TAG = "v16h57AE — RESP TELEMETRY + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AE_RESP_TELEMETRY_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AD — BUILD AUDITÁVEL (replay registra calib_leve)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57N — BUILD AUDITÁVEL (baseline interno + split calib_applied real)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> {BUILD_TAG}<br>
+        <b>BUILD: v16h57AC — GATE SILENT DEBUG + RESP PATH TELEMETRY + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -132,6 +132,11 @@ def pc_classificar_postura_motor(pipeline_regime: str | None, nr_percent, div_s6
     )
 
 def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65, core_min=None):
+    try:
+        print("DEBUG_RESP_START")
+    except Exception:
+        pass
+
     if core_min is None:
         core_min = 0.60
 
@@ -1710,8 +1715,6 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
             "ts": datetime.now().isoformat(timespec="seconds"),
             "qtd": int(len(pacote_store)),
             "listas": [list(map(int, lst)) for lst in pacote_store],
-            "calib_leve": calib_leve_store,
-            "listas_baseline": [list(map(int, lst)) for lst in pacote_baseline] if calib_applied else None,
             "snap_v9": {
                 "core": list(map(int, (v8_snap.get("core") or []))),
                 "quase_core": list(map(int, (v8_snap.get("quase_core") or []))),
@@ -1742,8 +1745,6 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
             "qtd_listas": int(len(pacote_store)),
             "universo_pacote_len": int(len(universo_pacote)),
             "listas": [list(map(int, lst)) for lst in pacote_store],
-            "calib_leve": calib_leve_store,
-            "listas_baseline": [list(map(int, lst)) for lst in pacote_baseline] if calib_applied else None,
             "freq_passageiros": {str(int(k)): int(v) for k, v in sorted(freq_passageiros.items(), key=lambda kv: (-kv[1], kv[0]))},
             "snap_v8": {
                 "core": list(map(int, (v8_snap.get("core") or []))),
