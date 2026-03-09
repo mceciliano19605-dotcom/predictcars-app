@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AE — RESP TELEMETRY + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AE_RESP_TELEMETRY_BANNER_OK.py"
+BUILD_TAG = "v16h57AF — RESP INTEGRADA NO REPLAY + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AF_RESP_INTEGRADA_REPLAY_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -132,11 +132,6 @@ def pc_classificar_postura_motor(pipeline_regime: str | None, nr_percent, div_s6
     )
 
 def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65, core_min=None):
-    try:
-        print("DEBUG_RESP_START")
-    except Exception:
-        pass
-
     if core_min is None:
         core_min = 0.60
 
@@ -1710,6 +1705,29 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
             "resp_info": resp_info,
             "reason": "pacote_modificado" if calib_applied else ("I2<thr_base" if calib_active else "I2=0"),
         })
+        # --- RESP integrada no Replay (v16h57AF) ---
+        try:
+            universo_resp=list(range(int(universo_min),int(universo_max)+1))
+            pacote_store=[list(map(int,l)) for l in pacote_atual]
+            top10_resp=pacote_store[:10] if len(pacote_store)>=10 else pacote_store
+            new_tot,new_top10,resp_info=pc_resp_aplicar_diversificacao(
+                listas_totais=pacote_store,
+                listas_top10=top10_resp,
+                universo=universo_resp,
+                seed=int(k_reg),
+                n_alvo=6
+            )
+            if isinstance(new_tot,list) and len(new_tot)>0:
+                pacote_store=new_tot
+                pacote_atual=pacote_store
+        except Exception as e:
+            try:
+                print("DEBUG_RESP_REPLAY_ERROR",e)
+            except Exception:
+                pass
+        # --- fim RESP ---
+
+
 
         pacotes_reg[int(k_reg)] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
