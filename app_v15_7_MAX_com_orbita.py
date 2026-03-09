@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AB — REG APPLIED FLAG FIX + OP2B CORELESS + REPLAY STORE REAL + CALIB FORCE SWAP FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AB_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
+BUILD_TAG = "v16h57AC — REG APPLIED FLAG FIX + OP2B CORELESS + REPLAY STORE REAL + CALIB FORCE SWAP FIX (calib_applied = aplicado_real) + baseline interno real + auditoria I/I2 + split True/False + UNI 1–50/1–60 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AC_CALIB_LEVE_I2_REG_APPLIED_SPLIT_BASELINE_FIX_APPLIEDFLAG_DIVERS_FIX_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -302,7 +302,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        # fallback v16h57AB: se nada mudou, força 1 troca mínima na 1a lista do top
+        # fallback v16h57AC: se nada mudou, força 1 troca mínima na 1a lista do top
         if trocas == 0 and new_top10:
             try:
                 base = list(new_top10[0])
@@ -323,7 +323,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                 pass
 
         
-        # v16h57AB safety: guarantee at least one minimal swap if calibration active
+        # v16h57AC safety: guarantee at least one minimal swap if calibration active
         try:
             if trocas == 0 and new_top10:
                 base = list(new_top10[0])
@@ -342,7 +342,6 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                         trocas = 1
         except Exception:
             pass
-        print("DEBUG_RESP", "trocas=", trocas, "core_sz=", len(core), "low_pref_sz=", len(low_pref), "top_sz=", len(top))
 
         info = {
             "aplicado": bool(trocas > 0),
@@ -1687,7 +1686,25 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
                 # Decide flag real de aplicação: só conta se houve mudança efetiva no pacote registrado
                 try:
                     _aplicado_flag = bool(resp_info.get("aplicado", False)) if isinstance(resp_info, dict) else False
-                    _mudou_flag = (pacote_store != pacote_baseline)
+                    
+        print(
+            "DEBUG_GATE_SILENT_RESP",
+            "k_reg=", int(k_reg),
+            "resp_info=", resp_info if 'resp_info' in locals() else None,
+            "pacote_store_len=", len(pacote_store) if isinstance(pacote_store, list) else None,
+            "pacote_baseline_len=", len(pacote_baseline) if isinstance(pacote_baseline, list) else None
+        )
+
+        _mudou_flag = (pacote_store != pacote_baseline)
+
+        print(
+            "DEBUG_GATE_SILENT_POST",
+            "k_reg=", int(k_reg),
+            "_aplicado_flag=", _aplicado_flag,
+            "_mudou_flag=", _mudou_flag,
+            "calib_applied=", bool(_aplicado_flag or _mudou_flag)
+        )
+
                     calib_applied = bool(_aplicado_flag or _mudou_flag)
                 except Exception:
                     calib_applied = False
@@ -10514,6 +10531,17 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                 calib_active = bool((I2_val > 0.0) or (I_val > 0.0))
                 # Gate de intenção: quando o sensor (I2) está acima do threshold, tentamos aplicar.
                 calib_should_apply = bool(calib_active and (I2_val >= THR_BASE))
+
+        print(
+            "DEBUG_GATE_SILENT_PRE",
+            "k_reg=", int(k_reg),
+            "I_val=", I_val,
+            "I2_val=", I2_val,
+            "THR_BASE=", THR_BASE,
+            "calib_active=", calib_active,
+            "calib_should_apply=", calib_should_apply
+        )
+
                 # Flag real de aplicação (só vira True se a diversificação realmente modificou o pacote registrado).
                 calib_applied = False
 
