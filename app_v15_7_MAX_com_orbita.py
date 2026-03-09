@@ -1992,6 +1992,11 @@ def pc_monitor_risco_silent(df: pd.DataFrame) -> dict:
 
 
 def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, universo_min: int, universo_max: int) -> bool:
+
+    try:
+        print("DEBUG_GATE_SILENT_PRE")
+    except Exception:
+        pass
     """Registra pacote e Snapshot P0 canônico para a janela k_reg (silencioso).
     - Mantém mesma estrutura do botão 'Registrar pacote da janela atual'
     - Atualiza Memória Estrutural automaticamente (quando aplicável)
