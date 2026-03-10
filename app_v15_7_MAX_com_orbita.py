@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AF — RESP INTEGRADA NO REPLAY + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AF_RESP_INTEGRADA_REPLAY_BANNER_OK.py"
+BUILD_TAG = "v16h57AG — REPLAY SILENT CANONICAL REGISTRAR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AG_REPLAY_SILENT_CANONICAL_REGISTRAR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -1705,29 +1705,6 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
             "resp_info": resp_info,
             "reason": "pacote_modificado" if calib_applied else ("I2<thr_base" if calib_active else "I2=0"),
         })
-        # --- RESP integrada no Replay (v16h57AF) ---
-        try:
-            universo_resp=list(range(int(universo_min),int(universo_max)+1))
-            pacote_store=[list(map(int,l)) for l in pacote_atual]
-            top10_resp=pacote_store[:10] if len(pacote_store)>=10 else pacote_store
-            new_tot,new_top10,resp_info=pc_resp_aplicar_diversificacao(
-                listas_totais=pacote_store,
-                listas_top10=top10_resp,
-                universo=universo_resp,
-                seed=int(k_reg),
-                n_alvo=6
-            )
-            if isinstance(new_tot,list) and len(new_tot)>0:
-                pacote_store=new_tot
-                pacote_atual=pacote_store
-        except Exception as e:
-            try:
-                print("DEBUG_RESP_REPLAY_ERROR",e)
-            except Exception:
-                pass
-        # --- fim RESP ---
-
-
 
         pacotes_reg[int(k_reg)] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
@@ -2014,15 +1991,10 @@ def pc_monitor_risco_silent(df: pd.DataFrame) -> dict:
         return {"status": "erro", "erro": str(e)}
 
 
-def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, universo_min: int, universo_max: int) -> bool:
 
-    try:
-        print("DEBUG_GATE_SILENT_PRE")
-    except Exception:
-        pass
+def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, universo_min: int, universo_max: int) -> bool:
     """Registra pacote e Snapshot P0 canônico para a janela k_reg (silencioso).
-    - Mantém mesma estrutura do botão 'Registrar pacote da janela atual'
-    - Atualiza Memória Estrutural automaticamente (quando aplicável)
+    Caminho canônico alinhado ao registro manual, com baseline interno real e calibração leve persistida.
     """
     try:
         if not isinstance(pacote_atual, list) or len(pacote_atual) == 0:
@@ -2040,12 +2012,81 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
         from datetime import datetime
         import hashlib, json
 
+        # baseline interno real
+        pacote_baseline = []
+        for lst in (pacote_atual or []):
+            try:
+                li = [int(x) for x in lst]
+                if len(li) >= 6:
+                    pacote_baseline.append(li[:6])
+            except Exception:
+                continue
+        if not pacote_baseline:
+            return False
+
+        pacote_store = [list(lst) for lst in pacote_baseline]
+        calib_applied = False
+        resp_info = {"aplicado": False, "motivo": "nao_executado"}
+
+        # calib leve last summary (se existir)
+        calib_leve = st.session_state.get("v16_calib_leve_last_summary")
+        if isinstance(calib_leve, dict):
+            calib_leve_store = dict(calib_leve)
+        else:
+            calib_leve_store = {}
+
+        # Gate simples: se há calibração ativa no resumo OU I/I2 presentes, tenta RESP
+        try:
+            calib_active = bool(calib_leve_store.get("active", False) or calib_leve_store.get("I_mean", 0) or calib_leve_store.get("I2_mean", 0))
+        except Exception:
+            calib_active = True
+
+        if calib_active:
+            try:
+                universo_resp = list(range(int(universo_min), int(universo_max) + 1))
+                top10_resp = pacote_store[:10] if len(pacote_store) >= 10 else list(pacote_store)
+                new_tot, new_top10, resp_info = pc_resp_aplicar_diversificacao(
+                    listas_totais=pacote_store,
+                    listas_top10=top10_resp,
+                    universo=universo_resp,
+                    seed=int(k_reg),
+                    n_alvo=6,
+                    memoria_sufocadores=None,
+                    cap_pct=0.65,
+                )
+                if isinstance(new_tot, list) and len(new_tot) > 0:
+                    pacote_store = []
+                    for lst in new_tot:
+                        try:
+                            li = [int(x) for x in lst]
+                            if len(li) >= 6:
+                                pacote_store.append(li[:6])
+                        except Exception:
+                            continue
+                _aplicado_flag = bool(resp_info.get("aplicado", False)) if isinstance(resp_info, dict) else False
+                _mudou_flag = (pacote_store != pacote_baseline)
+                calib_applied = bool(_aplicado_flag or _mudou_flag)
+            except Exception as e:
+                try:
+                    print("DEBUG_RESP_REPLAY_ERROR", e)
+                except Exception:
+                    pass
+                calib_applied = False
+
+        calib_leve_store.update({
+            "active": bool(calib_active),
+            "applied": bool(calib_applied),
+            "aplicada_no_pacote": bool(calib_applied),
+            "resp_info": resp_info,
+            "reason": "pacote_modificado" if calib_applied else "sem_aplicacao_real",
+        })
+
         # V8 (borda) — reaproveita/recupera
         try:
             v8_snap = st.session_state.get("v8_borda_qualificada") or {}
             if not isinstance(v8_snap, dict) or v8_snap.get("meta", {}).get("status") not in ("ok", "presenca_vazia"):
                 v8_snap = v8_classificar_borda_qualificada(
-                    listas=[list(map(int, lst)) for lst in pacote_atual],
+                    listas=[list(map(int, lst)) for lst in pacote_store],
                     base_n=10,
                     core_presenca_min=0.60,
                     quase_delta=0.12,
@@ -2059,13 +2100,13 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
 
         # Universo do pacote
         try:
-            universo_pacote = sorted({int(x) for lst in pacote_atual for x in lst})
+            universo_pacote = sorted({int(x) for lst in pacote_store for x in lst})
         except Exception:
             universo_pacote = []
 
         pacotes_reg[int(k_reg)] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
-            "qtd": int(len(pacote_atual)),
+            "qtd": int(len(pacote_store)),
             "listas": [list(map(int, lst)) for lst in pacote_store],
             "calib_leve": calib_leve_store,
             "listas_baseline": [list(map(int, lst)) for lst in pacote_baseline] if calib_applied else None,
@@ -2082,12 +2123,12 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
         # Snapshot P0 (canônico)
         try:
             freq_passageiros = {}
-            for lst in pacote_atual:
+            for lst in pacote_store:
                 for x in lst:
                     xi = int(x)
                     freq_passageiros[xi] = freq_passageiros.get(xi, 0) + 1
 
-            sig_raw = json.dumps([list(map(int, lst)) for lst in pacote_atual], ensure_ascii=False, sort_keys=True)
+            sig_raw = json.dumps([list(map(int, lst)) for lst in pacote_store], ensure_ascii=False, sort_keys=True)
             sig = hashlib.sha256(sig_raw.encode("utf-8")).hexdigest()[:16]
         except Exception:
             freq_passageiros = {}
@@ -2096,7 +2137,7 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
         snapshot_p0_reg[int(k_reg)] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
             "k": int(k_reg),
-            "qtd_listas": int(len(pacote_atual)),
+            "qtd_listas": int(len(pacote_store)),
             "listas": [list(map(int, lst)) for lst in pacote_store],
             "calib_leve": calib_leve_store,
             "listas_baseline": [list(map(int, lst)) for lst in pacote_baseline] if calib_applied else None,
@@ -2125,7 +2166,6 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
         return True
     except Exception:
         return False
-
 
 def pc_semi_auto_processar_um_k(*, _df_full_safe: pd.DataFrame, k_exec: int) -> dict:
     """Executa a sequência mínima segura por k (sem decisão automática):
