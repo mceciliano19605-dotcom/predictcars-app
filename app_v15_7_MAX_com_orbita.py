@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AG — REPLAY SILENT CANONICAL REGISTRAR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AG_REPLAY_SILENT_CANONICAL_REGISTRAR_BANNER_OK.py"
+BUILD_TAG = "v16h57AI — MC RESP CONTRACT FIX + CANONICAL RESP APPLY + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AI_MC_RESP_CONTRACT_FIX_CANONICAL_APPLY_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57N — BUILD AUDITÁVEL (baseline interno + split calib_applied real)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AI — BUILD AUDITÁVEL (MC RESP contract + canonical apply)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57AC — GATE SILENT DEBUG + RESP PATH TELEMETRY + BANNER OK
+        <b>BUILD: v16h57AI — MC RESP CONTRACT FIX + CANONICAL RESP APPLY + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -344,19 +344,203 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
             pass
         print("DEBUG_RESP", "trocas=", trocas, "core_sz=", len(core), "low_pref_sz=", len(low_pref), "top_sz=", len(top))
 
+        try:
+            _mudou_top_bruto = bool(new_top != [_norm(lst) for lst in top])
+        except Exception:
+            _mudou_top_bruto = bool(trocas > 0)
+        try:
+            _mudou_pacote_final = bool(new_tot != listas_totais_norm)
+        except Exception:
+            _mudou_pacote_final = bool(trocas > 0)
+        try:
+            _dedup_removeu_qtd = max(0, int(len(listas_totais_norm) - len(uniq)))
+        except Exception:
+            _dedup_removeu_qtd = 0
+
         info = {
             "aplicado": bool(trocas > 0),
             "trocas": int(trocas),
+            "trocas_brutas": int(trocas),
+            "trocas_final": int(trocas),
             "core_sz": len(core),
             "core_thr": int(core_thr),
             "low_pref_sz": len(low_pref),
             "sufocadores_sz": len(sufocadores),
             "cap_pct": float(cap_pct),
+            "mudou_top_bruto": bool(_mudou_top_bruto),
+            "mudou_pacote_final": bool(_mudou_pacote_final),
+            "normalizacao_ocorreu": True,
+            "dedup_removeu_qtd": int(_dedup_removeu_qtd),
+            "pacote_entrada_qtd": int(len(listas_totais_norm)),
+            "pacote_saida_qtd": int(len(new_tot)),
+            "fallback_forcado": bool(trocas > 0 and not _mudou_top_bruto),
             "motivo": "respiravel_diversificacao_minima" if trocas > 0 else "sem_trocas_validas",
         }
         return new_tot, new_top10, info
     except Exception as e:
         return listas_totais, listas_top10, {"aplicado": False, "motivo": f"falha_resp: {e}"}
+
+def pc_v16_aplicar_resp_no_pacote(*, pacote_atual, k_reg, universo_min=1, universo_max=60, calib_leve_summary=None, top10_override=None, memoria_sufocadores=None, cap_pct=None, core_min=0.40):
+    """Rotina canônica de aplicação RESP no pacote (pré-C4, auditável)."""
+    try:
+        pacote_baseline = []
+        for lst in (pacote_atual or []):
+            try:
+                li = [int(x) for x in lst]
+                if len(li) >= 6:
+                    pacote_baseline.append(li[:6])
+            except Exception:
+                continue
+        if not pacote_baseline:
+            return {
+                "pacote_baseline": [],
+                "pacote_store": [],
+                "top10_final": [],
+                "resp_info": {"aplicado": False, "motivo": "pacote_vazio"},
+                "calib_active": False,
+                "calib_should_apply": False,
+                "calib_applied": False,
+                "I_mean": 0.0,
+                "I_max": 0.0,
+                "I2_mean": 0.0,
+                "I2_max": 0.0,
+                "thr_base": 0.25,
+                "diff_conteudo_qtd": 0,
+                "diff_posicao_qtd": 0,
+                "diff_dedup_qtd": 0,
+            }
+
+        calib_leve = calib_leve_summary if isinstance(calib_leve_summary, dict) else (st.session_state.get("v16_calib_leve_last_summary") or {})
+        if not isinstance(calib_leve, dict):
+            calib_leve = {}
+
+        def _get_num(d, keys, default=0.0):
+            for k in keys:
+                try:
+                    v = d.get(k, None)
+                    if v is None:
+                        continue
+                    return float(v)
+                except Exception:
+                    continue
+            return float(default)
+
+        I_mean = _get_num(calib_leve, ["I_mean", "I_media", "I", "I_val"], 0.0)
+        I_max  = _get_num(calib_leve, ["I_max", "Imax", "I_maximo"], I_mean)
+        I2_mean = _get_num(calib_leve, ["I2_mean", "I2_media", "I2"], 0.0)
+        I2_max  = _get_num(calib_leve, ["I2_max", "I2max", "I2_maximo"], I2_mean)
+        THR_BASE = float(calib_leve.get("thr_base", 0.25) or 0.25)
+
+        I2_val = float(I2_max if I2_max is not None else I2_mean)
+        I_val  = float(I_max if I_max is not None else I_mean)
+        calib_active = bool(I2_val > 0.0 or I_val > 0.0)
+        calib_should_apply = bool(calib_active and (I2_val >= THR_BASE))
+
+        pacote_store = [list(lst) for lst in pacote_baseline]
+        top10_final = list(top10_override) if isinstance(top10_override, list) and top10_override else pacote_store[:10]
+        resp_info = {"aplicado": False, "motivo": "nao_aplicado"}
+
+        if calib_should_apply:
+            try:
+                universo_resp = list(range(int(universo_min), int(universo_max) + 1))
+            except Exception:
+                universo_resp = list(range(1, 61))
+            universo_resp = [int(x) for x in universo_resp if int(x) > 0]
+            top10_resp = list(top10_override) if isinstance(top10_override, list) and top10_override else (pacote_store[:10] if len(pacote_store) >= 10 else list(pacote_store))
+            _cap_pct = float(cap_pct) if cap_pct is not None else (0.35 if (I2_val >= 0.65) else 0.45)
+            new_tot, new_top10, resp_info = pc_resp_aplicar_diversificacao(
+                listas_totais=pacote_store,
+                listas_top10=top10_resp,
+                universo=universo_resp,
+                seed=int(k_reg),
+                n_alvo=6,
+                memoria_sufocadores=memoria_sufocadores,
+                cap_pct=_cap_pct,
+                core_min=core_min,
+            )
+            if isinstance(new_tot, list) and len(new_tot) > 0:
+                _tmp = []
+                for lst in new_tot:
+                    try:
+                        li = [int(x) for x in lst]
+                        if len(li) >= 6:
+                            _tmp.append(li[:6])
+                    except Exception:
+                        continue
+                if _tmp:
+                    pacote_store = _tmp
+            if isinstance(new_top10, list) and len(new_top10) > 0:
+                _top = []
+                for lst in new_top10:
+                    try:
+                        li = [int(x) for x in lst]
+                        if len(li) >= 6:
+                            _top.append(li[:6])
+                    except Exception:
+                        continue
+                top10_final = _top if _top else pacote_store[:10]
+            else:
+                top10_final = pacote_store[:10]
+
+        def _tup(lst):
+            try:
+                return tuple(int(x) for x in lst[:6])
+            except Exception:
+                return tuple()
+
+        base_tups = [_tup(lst) for lst in pacote_baseline]
+        store_tups = [_tup(lst) for lst in pacote_store]
+        base_set = set(base_tups)
+        store_set = set(store_tups)
+
+        diff_conteudo_qtd = int(len(base_set.symmetric_difference(store_set)))
+        diff_posicao_qtd = int(sum(1 for i in range(min(len(base_tups), len(store_tups))) if base_tups[i] != store_tups[i]))
+        diff_dedup_qtd = int(abs(len(store_tups) - len(base_tups)))
+
+        _aplicado_flag = bool(resp_info.get("aplicado", False)) if isinstance(resp_info, dict) else False
+        _mudou_flag = bool(pacote_store != pacote_baseline)
+        calib_applied = bool(_aplicado_flag or _mudou_flag)
+
+        return {
+            "pacote_baseline": pacote_baseline,
+            "pacote_store": pacote_store,
+            "top10_final": top10_final,
+            "resp_info": resp_info if isinstance(resp_info, dict) else {"aplicado": False, "motivo": "resp_info_invalido"},
+            "calib_active": bool(calib_active),
+            "calib_should_apply": bool(calib_should_apply),
+            "calib_applied": bool(calib_applied),
+            "I_mean": float(I_mean),
+            "I_max": float(I_max),
+            "I2_mean": float(I2_mean),
+            "I2_max": float(I2_max),
+            "thr_base": float(THR_BASE),
+            "diff_conteudo_qtd": int(diff_conteudo_qtd),
+            "diff_posicao_qtd": int(diff_posicao_qtd),
+            "diff_dedup_qtd": int(diff_dedup_qtd),
+        }
+    except Exception as e:
+        try:
+            _base = [list(map(int, lst[:6])) for lst in (pacote_atual or []) if isinstance(lst, (list, tuple)) and len(lst) >= 6]
+        except Exception:
+            _base = []
+        return {
+            "pacote_baseline": _base,
+            "pacote_store": list(_base),
+            "top10_final": list(_base[:10]),
+            "resp_info": {"aplicado": False, "motivo": f"falha_apply_resp: {e}"},
+            "calib_active": False,
+            "calib_should_apply": False,
+            "calib_applied": False,
+            "I_mean": 0.0,
+            "I_max": 0.0,
+            "I2_mean": 0.0,
+            "I2_max": 0.0,
+            "thr_base": 0.25,
+            "diff_conteudo_qtd": 0,
+            "diff_posicao_qtd": 0,
+            "diff_dedup_qtd": 0,
+        }
+
 def pc_v16_mc_observacional_pacote_pre_c4(
     *,
     modo6_listas_totais,
@@ -453,24 +637,59 @@ def pc_v16_mc_observacional_pacote_pre_c4(
     baseline_noc = nocivo_share(baseline)
 
     def sim_diversificado(cap_pct: float):
+        import random
         rates4 = []
         rates3 = []
         avgs = []
         ovm = []
         noc = []
+        resp_called = 0
+        resp_aplicado = 0
+        fallback_baseline = 0
+        pacote_origem_counts = {"baseline": 0, "resp_top10": 0, "resp_tot10": 0}
+        resp_motivos = {}
+        try:
+            universo_resp = sorted({int(x) for lst in (modo6_listas_totais or []) for x in (lst or []) if int(x) > 0})
+        except Exception:
+            universo_resp = []
+        if not universo_resp:
+            universo_resp = list(range(1, 61))
+        top10_resp = list(modo6_listas_top10 or [])
+
         for s in range(sims):
             random.seed(1337 + s)
+            pacote = baseline
+            origem = "baseline"
             try:
-                out = pc_resp_aplicar_diversificacao(
+                resp_called += 1
+                new_tot, new_top10, resp_info = pc_resp_aplicar_diversificacao(
                     listas_totais=modo6_listas_totais,
-                    listas_top10=modo6_listas_top10,
-                    universo=None,
+                    listas_top10=top10_resp,
+                    universo=universo_resp,
                     cap_pct=cap_pct,
                     seed=1337 + s,
+                    n_alvo=6,
                 )
-                pacote = out.get("listas_top10_final") or out.get("top10_final") or out.get("listas_top10") or baseline
-            except Exception:
+                if isinstance(resp_info, dict):
+                    motivo = str(resp_info.get("motivo", "sem_motivo"))
+                    resp_motivos[motivo] = resp_motivos.get(motivo, 0) + 1
+                    if bool(resp_info.get("aplicado", False)):
+                        resp_aplicado += 1
+                if isinstance(new_top10, list) and len(new_top10) > 0:
+                    pacote = [list(map(int, lst[:6])) for lst in new_top10 if isinstance(lst, (list, tuple)) and len(lst) >= 6]
+                    origem = "resp_top10"
+                elif isinstance(new_tot, list) and len(new_tot) > 0:
+                    pacote = [list(map(int, lst[:6])) for lst in new_tot[:10] if isinstance(lst, (list, tuple)) and len(lst) >= 6]
+                    origem = "resp_tot10"
+                else:
+                    fallback_baseline += 1
+            except Exception as e:
+                motivo = f"falha_mc_resp: {e}"
+                resp_motivos[motivo] = resp_motivos.get(motivo, 0) + 1
+                fallback_baseline += 1
                 pacote = baseline
+                origem = "baseline"
+            pacote_origem_counts[origem] = pacote_origem_counts.get(origem, 0) + 1
             ev = eval_pacote(pacote)
             rg = rigidez(pacote)
             rates4.append(ev["rate_4p"])
@@ -494,6 +713,12 @@ def pc_v16_mc_observacional_pacote_pre_c4(
             "avg_best_mean": float(sum(avgs)/max(1,len(avgs))),
             "ov_mean_mean": float(sum(ovm)/max(1,len(ovm))),
             "nocivo_share_mean": float(sum(noc)/max(1,len(noc))),
+            "resp_called": int(resp_called),
+            "resp_aplicado": int(resp_aplicado),
+            "fallback_baseline": int(fallback_baseline),
+            "pacote_mc_origem_counts": pacote_origem_counts,
+            "universo_resp_qtd": int(len(universo_resp)),
+            "resp_motivos": resp_motivos,
         }
 
     scen_loose = sim_diversificado(0.60)
@@ -1602,107 +1827,62 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
             pass
 
         # --- V16: calibração leve (pré-C4) aplicada NO REGISTRO do pacote (auditável) ---
-        # Objetivo: permitir split interno (baseline vs calibrado) sem depender de memória externa.
-        # Regra: não altera Camada 4; atua apenas no pacote registrado para avaliação observacional.
         calib_leve = st.session_state.get("v16_calib_leve_last_summary") or {}
         if not isinstance(calib_leve, dict):
             calib_leve = {}
 
-        # Lê I/I2 de chaves novas ou legadas
-        def _get_num(d, keys, default=0.0):
-            for k in keys:
-                try:
-                    v = d.get(k, None)
-                    if v is None:
-                        continue
-                    return float(v)
-                except Exception:
-                    continue
-            return float(default)
-
-        I_mean = _get_num(calib_leve, ["I_mean", "I_media", "I", "I_val"], 0.0)
-        I_max  = _get_num(calib_leve, ["I_max", "Imax", "I_maximo"], I_mean)
-        I2_mean = _get_num(calib_leve, ["I2_mean", "I2_media", "I2"], 0.0)
-        I2_max  = _get_num(calib_leve, ["I2_max", "I2max", "I2_maximo"], I2_mean)
-
-        # Threshold base canônico (mantido) — agora aplicado na escala do I2 (contraste topo×borda)
-        THR_BASE = float(calib_leve.get("thr_base", 0.25) or 0.25)
-
-        # Medidor principal (canônico desta fase): I2
-        I2_val = float(I2_max if I2_max is not None else I2_mean)
-        I_val  = float(I_max if I_max is not None else I_mean)
-
-        calib_active = bool(I2_val > 0.0 or I_val > 0.0)
-        calib_applied = bool(calib_active and (I2_val >= THR_BASE))
-
-        # Se aplicar, guardamos baseline e registramos um pacote "respirado" (diversificação mínima)
-        pacote_baseline = [list(map(int, lst)) for lst in pacote_atual]
-        pacote_store = pacote_baseline
-        resp_info = {"aplicado": False, "motivo": "nao_aplicado"}
-
-        if calib_applied:
-            # universo (se não houver, cai em 1..60)
-            try:
-                umax = int(st.session_state.get("UNIVERSE_MAX") or st.session_state.get("universe_max") or 60)
-            except Exception:
-                umax = 60
-            umax = 50 if umax <= 50 else 60
-            universo = list(range(1, umax + 1))
-
-            # Opção 2 (B) — aplicar também quando não existe CORE>=60%:
-            # usamos sufocadores por frequência no Top10 (>=40%) + nocivos consistentes (se existirem),
-            # e reduzimos o cap para permitir efeito mensurável sem virar motor.
-            _top10_tmp = pacote_baseline[:10]
+        try:
+            _top10_tmp = pacote_norm[:10]
             _freq = {}
             for _lst in _top10_tmp:
                 for _x in _lst:
                     _freq[_x] = _freq.get(_x, 0) + 1
-            _suf_freq = [x for x,c in _freq.items() if (c / max(1,len(_top10_tmp))) >= 0.40]
+            _suf_freq = [x for x, c in _freq.items() if (c / max(1, len(_top10_tmp))) >= 0.40]
+        except Exception:
+            _suf_freq = []
+        try:
+            _nocivos = list(st.session_state.get("pc_nocivos_consistentes", []))
+        except Exception:
             _nocivos = []
-            try:
-                _nocivos = list(st.session_state.get("pc_nocivos_consistentes", []))
-            except Exception:
-                _nocivos = []
-            _suf = sorted(set(_suf_freq) | set(_nocivos))
+        _suf = sorted(set(_suf_freq) | set(_nocivos))
 
-            # cap_pct: se I2 já está alto (>=0.65), permitimos cap mais baixo (0.35) para gerar efeito;
-            # caso contrário, cap um pouco mais conservador (0.45).
-            _cap_pct = 0.35 if (I2 >= 0.65) else 0.45
+        _resp_apply = pc_v16_aplicar_resp_no_pacote(
+            pacote_atual=pacote_norm,
+            k_reg=int(k_reg),
+            universo_min=int(universo_min),
+            universo_max=int(universo_max),
+            calib_leve_summary=calib_leve,
+            top10_override=pacote_norm[:10],
+            memoria_sufocadores=_suf,
+            cap_pct=None,
+            core_min=0.40,
+        )
 
-            new_tot, new_top10, resp_info = pc_resp_aplicar_diversificacao(
-                listas_totais=pacote_baseline,
-                listas_top10=_top10_tmp,
-                universo=universo,
-                seed=int(k_reg),
-                n_alvo=6,
-                memoria_sufocadores=_suf,
-                cap_pct=_cap_pct,
-                core_min=0.40,
-            )
-            # Segurança: mantém lista de listas 6 ints
-            if isinstance(new_tot, list) and new_tot:
-                pacote_store = [list(map(int, lst)) for lst in new_tot if isinstance(lst, (list, tuple)) and len(lst) >= 6]
+        pacote_baseline = _resp_apply.get("pacote_baseline", [])
+        pacote_store = _resp_apply.get("pacote_store", pacote_baseline)
+        resp_info = _resp_apply.get("resp_info", {"aplicado": False, "motivo": "nao_aplicado"})
+        calib_active = bool(_resp_apply.get("calib_active", False))
+        calib_applied = bool(_resp_apply.get("calib_applied", False))
+        I_mean = float(_resp_apply.get("I_mean", 0.0))
+        I_max = float(_resp_apply.get("I_max", I_mean))
+        I2_mean = float(_resp_apply.get("I2_mean", 0.0))
+        I2_max = float(_resp_apply.get("I2_max", I2_mean))
+        THR_BASE = float(_resp_apply.get("thr_base", 0.25))
 
-        
-                # Decide flag real de aplicação: só conta se houve mudança efetiva no pacote registrado
-                try:
-                    _aplicado_flag = bool(resp_info.get("aplicado", False)) if isinstance(resp_info, dict) else False
-                    _mudou_flag = (pacote_store != pacote_baseline)
-                    calib_applied = bool(_aplicado_flag or _mudou_flag)
-                except Exception:
-                    calib_applied = False
-
-                # consolida metadados (sempre preenchidos)
         calib_leve_store = dict(calib_leve)
         calib_leve_store.update({
             "active": calib_active,
             "applied": calib_applied,
+            "aplicada_no_pacote": calib_applied,
             "thr_base": THR_BASE,
             "I_mean": float(I_mean),
             "I_max": float(I_max),
             "I2_mean": float(I2_mean),
             "I2_max": float(I2_max),
             "resp_info": resp_info,
+            "diff_conteudo_qtd": int(_resp_apply.get("diff_conteudo_qtd", 0)),
+            "diff_posicao_qtd": int(_resp_apply.get("diff_posicao_qtd", 0)),
+            "diff_dedup_qtd": int(_resp_apply.get("diff_dedup_qtd", 0)),
             "reason": "pacote_modificado" if calib_applied else ("I2<thr_base" if calib_active else "I2=0"),
         })
 
@@ -2012,72 +2192,41 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
         from datetime import datetime
         import hashlib, json
 
-        # baseline interno real
-        pacote_baseline = []
-        for lst in (pacote_atual or []):
-            try:
-                li = [int(x) for x in lst]
-                if len(li) >= 6:
-                    pacote_baseline.append(li[:6])
-            except Exception:
-                continue
-        if not pacote_baseline:
-            return False
-
-        pacote_store = [list(lst) for lst in pacote_baseline]
-        calib_applied = False
-        resp_info = {"aplicado": False, "motivo": "nao_executado"}
-
-        # calib leve last summary (se existir)
+        # baseline interno real + aplicação RESP canônica
         calib_leve = st.session_state.get("v16_calib_leve_last_summary")
         if isinstance(calib_leve, dict):
             calib_leve_store = dict(calib_leve)
         else:
             calib_leve_store = {}
 
-        # Gate simples: se há calibração ativa no resumo OU I/I2 presentes, tenta RESP
-        try:
-            calib_active = bool(calib_leve_store.get("active", False) or calib_leve_store.get("I_mean", 0) or calib_leve_store.get("I2_mean", 0))
-        except Exception:
-            calib_active = True
+        _resp_apply = pc_v16_aplicar_resp_no_pacote(
+            pacote_atual=pacote_atual,
+            k_reg=int(k_reg),
+            universo_min=int(universo_min),
+            universo_max=int(universo_max),
+            calib_leve_summary=calib_leve_store,
+            top10_override=None,
+            memoria_sufocadores=None,
+            cap_pct=0.65,
+            core_min=0.40,
+        )
 
-        if calib_active:
-            try:
-                universo_resp = list(range(int(universo_min), int(universo_max) + 1))
-                top10_resp = pacote_store[:10] if len(pacote_store) >= 10 else list(pacote_store)
-                new_tot, new_top10, resp_info = pc_resp_aplicar_diversificacao(
-                    listas_totais=pacote_store,
-                    listas_top10=top10_resp,
-                    universo=universo_resp,
-                    seed=int(k_reg),
-                    n_alvo=6,
-                    memoria_sufocadores=None,
-                    cap_pct=0.65,
-                )
-                if isinstance(new_tot, list) and len(new_tot) > 0:
-                    pacote_store = []
-                    for lst in new_tot:
-                        try:
-                            li = [int(x) for x in lst]
-                            if len(li) >= 6:
-                                pacote_store.append(li[:6])
-                        except Exception:
-                            continue
-                _aplicado_flag = bool(resp_info.get("aplicado", False)) if isinstance(resp_info, dict) else False
-                _mudou_flag = (pacote_store != pacote_baseline)
-                calib_applied = bool(_aplicado_flag or _mudou_flag)
-            except Exception as e:
-                try:
-                    print("DEBUG_RESP_REPLAY_ERROR", e)
-                except Exception:
-                    pass
-                calib_applied = False
+        pacote_baseline = _resp_apply.get("pacote_baseline", [])
+        if not pacote_baseline:
+            return False
+        pacote_store = _resp_apply.get("pacote_store", pacote_baseline)
+        resp_info = _resp_apply.get("resp_info", {"aplicado": False, "motivo": "nao_executado"})
+        calib_active = bool(_resp_apply.get("calib_active", False))
+        calib_applied = bool(_resp_apply.get("calib_applied", False))
 
         calib_leve_store.update({
             "active": bool(calib_active),
             "applied": bool(calib_applied),
             "aplicada_no_pacote": bool(calib_applied),
             "resp_info": resp_info,
+            "diff_conteudo_qtd": int(_resp_apply.get("diff_conteudo_qtd", 0)),
+            "diff_posicao_qtd": int(_resp_apply.get("diff_posicao_qtd", 0)),
+            "diff_dedup_qtd": int(_resp_apply.get("diff_dedup_qtd", 0)),
             "reason": "pacote_modificado" if calib_applied else "sem_aplicacao_real",
         })
 
@@ -10558,75 +10707,45 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                 if not isinstance(calib_leve, dict):
                     calib_leve = {}
 
-                # Lê I/I2 de chaves novas ou legadas (tudo auditável)
-                def _get_num(d, keys, default=0.0):
-                    for kk in keys:
-                        if kk in d and d[kk] is not None:
-                            try:
-                                return float(d[kk])
-                            except Exception:
-                                pass
-                    return float(default)
+                _resp_apply = pc_v16_aplicar_resp_no_pacote(
+                    pacote_atual=pacote_atual,
+                    k_reg=int(k_reg),
+                    universo_min=int(st.session_state.get("UNIVERSE_MIN", 1) or 1),
+                    universo_max=int(st.session_state.get("UNIVERSE_MAX", 60) or 60),
+                    calib_leve_summary=calib_leve,
+                    top10_override=(pacote_atual[:10] if isinstance(pacote_atual, list) else None),
+                    memoria_sufocadores=None,
+                    cap_pct=0.65,
+                    core_min=0.40,
+                )
 
-                I_mean  = _get_num(calib_leve, ["I_mean", "I_media", "I", "I_val"], 0.0)
-                I_max   = _get_num(calib_leve, ["I_max", "Imax", "I_maximo"], I_mean)
-                I2_mean = _get_num(calib_leve, ["I2_mean", "I2_media", "I2"], 0.0)
-                I2_max  = _get_num(calib_leve, ["I2_max", "I2max", "I2_maximo"], I2_mean)
+                pacote_baseline = _resp_apply.get("pacote_baseline", [])
+                pacote_store = _resp_apply.get("pacote_store", pacote_baseline)
+                resp_info = _resp_apply.get("resp_info", {"aplicado": False, "motivo": "nao_aplicado"})
+                calib_active = bool(_resp_apply.get("calib_active", False))
+                calib_should_apply = bool(_resp_apply.get("calib_should_apply", False))
+                calib_applied = bool(_resp_apply.get("calib_applied", False))
+                I_mean = float(_resp_apply.get("I_mean", 0.0))
+                I_max = float(_resp_apply.get("I_max", I_mean))
+                I2_mean = float(_resp_apply.get("I2_mean", 0.0))
+                I2_max = float(_resp_apply.get("I2_max", I2_mean))
+                THR_BASE = float(_resp_apply.get("thr_base", 0.25))
 
-                # Threshold base canônico (mantido) — aplicado no I2 (contraste topo×borda)
-                THR_BASE = float(calib_leve.get("thr_base", 0.25) or 0.25)
-
-                I2_val = float(I2_max if I2_max is not None else I2_mean)
-                I_val  = float(I_max if I_max is not None else I_mean)
-
-                calib_active = bool((I2_val > 0.0) or (I_val > 0.0))
-                # Gate de intenção: quando o sensor (I2) está acima do threshold, tentamos aplicar.
-                calib_should_apply = bool(calib_active and (I2_val >= THR_BASE))
-                # Flag real de aplicação (só vira True se a diversificação realmente modificou o pacote registrado).
-                calib_applied = False
-
-                # baseline interno (sempre)
-                pacote_baseline = [list(map(int, lst)) for lst in (pacote_atual or [])]
-                pacote_store = pacote_baseline
-                resp_info = {"aplicado": False, "motivo": "nao_aplicado"}
-
-                # aplica diversificação mínima (RESPIRÁVEL) somente no pacote registrado (pré-C4)
-                if calib_should_apply:
-                    try:
-                        umax = int(st.session_state.get("UNIVERSE_MAX") or st.session_state.get("universe_max") or 60)
-                    except Exception:
-                        umax = 60
-                    umax = 50 if umax <= 50 else 60
-                    universo = list(range(1, umax + 1))
-
-                    try:
-                        new_tot, _new_top10, resp_info = pc_resp_aplicar_diversificacao(
-                            listas_totais=pacote_baseline,
-                            listas_top10=pacote_baseline[:10],
-                            universo=universo,
-                            seed=int(k_reg),
-                            n_alvo=6,
-                            memoria_sufocadores=None,
-                            cap_pct=0.65,
-                        )
-                        if isinstance(new_tot, list) and new_tot:
-                            pacote_store = [list(map(int, lst)) for lst in new_tot if isinstance(lst, (list, tuple)) and len(lst) >= 6]
-                    except Exception:
-                        resp_info = {"aplicado": False, "motivo": "falha_diversificacao"}
-                        pacote_store = pacote_baseline
-
-                # consolida metadados (sempre preenchidos)
                 calib_leve_store = dict(calib_leve)
                 calib_leve_store.update({
                     "active": calib_active,
                     "applied": calib_applied,
+                    "aplicada_no_pacote": calib_applied,
                     "thr_base": THR_BASE,
                     "I_mean": float(I_mean),
                     "I_max": float(I_max),
                     "I2_mean": float(I2_mean),
                     "I2_max": float(I2_max),
                     "resp_info": resp_info,
-                    "reason": "I2>=thr_base" if calib_applied else ("I2<thr_base" if calib_active else "I2=0"),
+                    "diff_conteudo_qtd": int(_resp_apply.get("diff_conteudo_qtd", 0)),
+                    "diff_posicao_qtd": int(_resp_apply.get("diff_posicao_qtd", 0)),
+                    "diff_dedup_qtd": int(_resp_apply.get("diff_dedup_qtd", 0)),
+                    "reason": "I2>=thr_base" if calib_should_apply else ("I2<thr_base" if calib_active else "I2=0"),
                 })
 
                 # --- V9 (BLOCO B) — snapshot estrutural do pacote (OBSERVACIONAL / ex-post) ---
