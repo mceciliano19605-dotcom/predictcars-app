@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AL — ADAPTIVE PACKET COMPRESSION + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AL_ADAPTIVE_PACKET_COMPRESSION_BANNER_OK.py"
+BUILD_TAG = "v16h57AM — SELECTIVE PACKET COMPRESSION + CALIB PRESERVE + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AM_SELECTIVE_PACKET_COMPRESSION_CALIB_PRESERVE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AL — BUILD AUDITÁVEL (adaptive packet compression)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AK — BUILD AUDITÁVEL (SAFE modo6 signature fix + fallback)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57AL — ADAPTIVE PACKET COMPRESSION + BANNER OK
+        <b>BUILD: v16h57AM — SELECTIVE PACKET COMPRESSION + CALIB PRESERVE + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -2407,20 +2407,32 @@ def pc_semi_auto_processar_um_k(*, _df_full_safe: pd.DataFrame, k_exec: int) -> 
         return {"ok": False, "erro": str(e)}
 
 
-def pc_v16_aplicar_compressao_adaptativa_pacote(listas_totais, *, n_alvo: int = 6, seed: int = 0, i2_hint: float | None = None, strong_vals=None):
-    """Compressão adaptativa leve do pacote (pré-C4, auditável).
-    Objetivo: concentrar parcialmente passageiros fortes em poucas listas sem colapsar a diversidade.
-    Não altera volume, não cria motor novo, não toca Camada 4.
+def pc_v16_aplicar_compressao_seletiva_pacote(listas_totais, *, n_alvo: int = 6, seed: int = 0, i2_hint: float | None = None, strong_vals=None, calib_active: bool = True):
+    """Compressão seletiva leve do pacote (pré-C4, auditável).
+    Só atua quando a calibração está ativa, preservando baseline e a governança do AK.
+    Concentra parcialmente passageiros fortes em poucas listas, sem colapsar o pacote.
     """
     try:
         norm = []
         for lst in (listas_totais or []):
             try:
-                li = sorted({int(x) for x in lst[:n_alvo]})
+                li = [int(x) for x in lst[:n_alvo]]
                 if len(li) >= n_alvo:
-                    norm.append(li[:n_alvo])
+                    norm.append(sorted(set(li))[:n_alvo])
             except Exception:
                 continue
+
+        if not calib_active:
+            return list(listas_totais or []), {
+                "active": False,
+                "applied": False,
+                "reason": "compressao_desligada_calib_inativa",
+                "listas_comprimidas_qtd": 0,
+                "compress_frac_efetivo": 0.0,
+                "top_keep_efetivo": 0,
+                "strong_vals": [],
+            }
+
         if not norm:
             return list(listas_totais or []), {
                 "active": False,
@@ -2437,15 +2449,16 @@ def pc_v16_aplicar_compressao_adaptativa_pacote(listas_totais, *, n_alvo: int = 
         except Exception:
             i2 = 0.0
 
+        # seletiva: poucas listas comprimidas para não matar a diversidade
         if i2 >= 0.90:
-            compress_frac = 0.30
-            top_keep = min(4, n_alvo)
+            compress_frac = 0.22
+            top_keep = min(3, n_alvo)
         elif i2 >= 0.75:
-            compress_frac = 0.20
+            compress_frac = 0.18
             top_keep = min(3, n_alvo)
         else:
-            compress_frac = 0.15
-            top_keep = min(3, n_alvo)
+            compress_frac = 0.12
+            top_keep = min(2, n_alvo)
 
         import random
         rng = random.Random(int(seed) if seed is not None else 0)
@@ -2465,30 +2478,23 @@ def pc_v16_aplicar_compressao_adaptativa_pacote(listas_totais, *, n_alvo: int = 
                 except Exception:
                     pass
         if not strong:
-            strong = [v for v, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))[:max(top_keep + 2, 6)]]
+            strong = [v for v, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))[:max(top_keep + 2, 5)]]
 
         n_comp = int(round(len(norm) * compress_frac))
-        n_comp = max(1, n_comp) if len(norm) >= 6 else min(1, len(norm))
-        n_comp = min(n_comp, max(1, min(4, len(norm))))
+        n_comp = max(1, n_comp) if len(norm) >= 8 else min(1, len(norm))
+        n_comp = min(n_comp, max(1, min(3, len(norm))))
 
         out = []
         for idx, base in enumerate(norm):
             if idx < n_comp:
                 new = []
+                # preserva parte da base e injeta poucos fortes para concentrar sem colapsar
                 for v in strong:
                     if v in base and v not in new:
                         new.append(v)
                     if len(new) >= top_keep:
                         break
-                if len(new) < top_keep:
-                    for v in strong:
-                        if v not in new:
-                            new.append(v)
-                        if len(new) >= top_keep:
-                            break
-                fill = list(base)
-                rng.shuffle(fill)
-                for v in fill:
+                for v in base:
                     if v not in new:
                         new.append(v)
                     if len(new) >= n_alvo:
@@ -2498,18 +2504,20 @@ def pc_v16_aplicar_compressao_adaptativa_pacote(listas_totais, *, n_alvo: int = 
                         break
                     if v not in new:
                         new.append(v)
-                new = sorted({int(x) for x in new})[:n_alvo]
+                new = sorted(set(int(x) for x in new))[:n_alvo]
                 if len(new) < n_alvo:
                     rest = [v for v, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0])) if v not in new]
+                    rng.shuffle(rest)
                     for v in rest:
-                        new.append(int(v))
-                        new = sorted(set(new))
+                        if v not in new:
+                            new.append(int(v))
                         if len(new) >= n_alvo:
                             break
                 out.append(sorted(new[:n_alvo]))
             else:
                 out.append(list(base))
 
+        # dedup sem destruir volume: mantém ordem e repõe do original se cair demais
         seen = set()
         uniq = []
         for lst in out:
@@ -2517,11 +2525,19 @@ def pc_v16_aplicar_compressao_adaptativa_pacote(listas_totais, *, n_alvo: int = 
             if t not in seen:
                 seen.add(t)
                 uniq.append(lst)
+        if len(uniq) < len(norm):
+            for lst in norm:
+                t = tuple(lst)
+                if t not in seen:
+                    seen.add(t)
+                    uniq.append(lst)
+                if len(uniq) >= len(norm):
+                    break
 
         info = {
             "active": True,
             "applied": bool(uniq != norm),
-            "reason": "compressao_adaptativa_aplicada" if uniq != norm else "compressao_sem_delta",
+            "reason": "compressao_seletiva_aplicada" if uniq != norm else "compressao_sem_delta",
             "listas_comprimidas_qtd": int(n_comp),
             "compress_frac_efetivo": float(compress_frac),
             "top_keep_efetivo": int(top_keep),
@@ -2540,13 +2556,32 @@ def pc_v16_aplicar_compressao_adaptativa_pacote(listas_totais, *, n_alvo: int = 
         }
 
 
-def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) -> tuple[List[List[int]], Dict[str, Any]]:
+def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) -> Tuple[List[List[int]], Dict[str, Any]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
+    v16h57AK:
+    - aceita calib_override (compatível com SAFE/CAP)
+    - sempre retorna (pacote, calib_meta)
+    - protege o SAFE contra abortos por assinatura/estado mínimo
     """
+    calib_meta: Dict[str, Any] = {
+        "active": False,
+        "applied": False,
+        "I_mean": 0.0,
+        "I_max": 0.0,
+        "I2_mean": 0.0,
+        "I2_max": 0.0,
+        "I": 0.0,
+        "I2": 0.0,
+        "ruido_lim": 3,
+        "reason": "",
+        "rule": {"ctop_min": 1.50, "slope_min": 0.0035, "stab_min": 0.66},
+        "aplicada_no_pacote": False,
+    }
     try:
         if df is None or df.empty:
-            return [], {}
+            calib_meta["reason"] = "df_vazio"
+            return [], calib_meta
 
         # k* (fallback)
         _kstar_raw = st.session_state.get("sentinela_kstar")
@@ -2558,8 +2593,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
         ultima_prev = st.session_state.get("ultima_previsao")
 
         # Ajuste de ambiente (PRÉ-ECO) — usa função canônica existente
-        # IMPORTANTE: em modo SAFE (silencioso), não podemos depender de estado prévio.
-        # Se a função canônica falhar por qualquer motivo, fazemos fallback conservador.
         try:
             config = ajustar_ambiente_modo6(
                 df=df,
@@ -2578,19 +2611,17 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
 
         # Detectar n_real e universo real
         col_pass = [c for c in df.columns if str(c).startswith("p")]
-        # Fallback: alguns históricos podem vir com colunas numéricas sem prefixo "p".
-        # Em modo SAFE, tentamos inferir colunas de passageiros de forma segura.
         if not col_pass:
             _cand = []
             for c in df.columns:
                 cn = str(c).strip().lower()
                 if cn in ("k", "serie", "série", "concurso", "id", "idx", "index"):
                     continue
-                # heurística: colunas com dígitos no nome ou colunas já numéricas
                 if cn.startswith("n") or cn.isdigit():
                     _cand.append(c)
             if _cand:
                 col_pass = _cand
+
         universo_tmp = []
         contagens = []
         for _, row in df.iterrows():
@@ -2606,22 +2637,22 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 universo_tmp.extend(vals)
 
         if not contagens or not universo_tmp:
-            return [], {}
+            calib_meta["reason"] = "historico_sem_passageiros"
+            return [], calib_meta
 
         n_real = int(pd.Series(contagens).mode().iloc[0])
         st.session_state["n_alvo"] = n_real
 
         universo = sorted({int(v) for v in universo_tmp if int(v) > 0})
         if not universo:
-            return [], {}
+            calib_meta["reason"] = "universo_vazio"
+            return [], calib_meta
         umin, umax = int(min(universo)), int(max(universo))
 
-        # salva universo (canônico) para o snapshot
         st.session_state["universo_min"] = umin
         st.session_state["universo_max"] = umax
         st.session_state["universo_str"] = f"{umin}–{umax}"
 
-        # RNG determinístico (canônico)
         seed = pc_stable_seed(f"PC-M6-{len(df)}-{n_real}-{umin}-{umax}")
         rng = np.random.default_rng(seed)
 
@@ -2629,7 +2660,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
         valor_por_idx = {i: universo[i] for i in universo_idx}
         idx_por_valor = {v: i for i, v in valor_por_idx.items()}
 
-        # decisão P1 automático (pré-C4)
         universo_idx_use = universo_idx
         try:
             df_full_for_gov = st.session_state.get("_df_full_safe") or st.session_state.get("historico_df_full") or st.session_state.get("historico_df") or df
@@ -2664,7 +2694,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     out_idx.append(cand)
             return out_idx[:n_real]
 
-        # base
         if ultima_prev:
             try:
                 base_vals = ultima_prev if isinstance(ultima_prev[0], int) else ultima_prev[0]
@@ -2676,21 +2705,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
 
         pool_idx = universo_idx
         pool_mode = "full"
-        # ------------------------------------------------------------
-        # v16h56 — Calibração Leve (pré‑C4) baseada em Métrica de Concentração
-        # - Sem painel novo, sem decisão, sem tocar Camada 4.
-        # - Atua somente na DISPERSÃO do gerador (ruído).
-        # - Gera metadados auditáveis para Replay/MC.
-        # ------------------------------------------------------------
-        calib_meta: Dict[str, Any] = {
-            "active": True,
-            "applied": False,
-            "I_mean": 0.0,
-            "I_max": 0.0,
-            "ruido_lim": 3,
-            "reason": "",
-            "rule": {"ctop_min": 1.50, "slope_min": 0.0035, "stab_min": 0.66},
-        }
 
         try:
             meta = st.session_state.get("mirror_rank_meta", None)
@@ -2712,19 +2726,18 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             Gap = float(Gap) if Gap is not None else 0.0
 
             I1 = max(0.0, min(1.0, (C_top - 1.20) / 1.20))
-            I2 = max(0.0, min(1.0, (Slope - 0.0020) / 0.0030))
+            I2m = max(0.0, min(1.0, (Slope - 0.0020) / 0.0030))
             I3 = max(0.0, min(1.0, (Stab - 0.55) / 0.35))
             I4 = max(0.0, min(1.0, (Gap - 0.0015) / 0.0030))
-            I = float((I1 + I2 + I3 + I4) / 4.0)
+            I = float((I1 + I2m + I3 + I4) / 4.0)
 
-            # I2 (contraste) — mais sensível ao 'topo vs borda'
-            # Importante: POR ORA é apenas auditoria (não altera aplicação), para medirmos escala e variação.
             J1 = max(0.0, min(1.0, (C_top - 1.00) / 0.80))
             J2 = max(0.0, min(1.0, (Slope) / 0.0040))
             J3 = max(0.0, min(1.0, (Stab - 0.50) / 0.25))
             J4 = max(0.0, min(1.0, (Gap) / 0.0030))
             I2_contraste = float((J1 + J2 + J3 + J4) / 4.0)
 
+            calib_meta["active"] = True
             calib_meta["C_top"] = float(C_top)
             calib_meta["Slope"] = float(Slope)
             calib_meta["Stab"] = float(Stab)
@@ -2735,8 +2748,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             calib_meta["I2"] = float(I2_contraste)
             calib_meta["I2_mean"] = float(I2_contraste)
             calib_meta["I2_max"] = float(I2_contraste)
-
-            calib_meta["aplicada_no_pacote"] = bool(calib_meta.get("applied", False))
 
             suggested = (C_top >= calib_meta["rule"]["ctop_min"]) and (Slope >= calib_meta["rule"]["slope_min"]) and (Stab >= calib_meta["rule"]["stab_min"])
 
@@ -2766,7 +2777,9 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             calib_meta["ruido_lim"] = 3
             calib_meta["reason"] = f"calib_erro: {type(_e).__name__}: {_e}"
 
+        calib_meta["aplicada_no_pacote"] = bool(calib_meta.get("applied", False))
         st.session_state["v16_calib_leve_last_summary"] = calib_meta.copy()
+
         inv_pos = None
         try:
             if isinstance(universo_idx_use, list) and universo_idx_use != universo_idx:
@@ -2797,7 +2810,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             nova = [int(valor_por_idx[i]) for i in nova_idx]
             listas_brutas.append(nova)
 
-        # filtro final de domínio
         listas_filtradas = []
         for lista in listas_brutas:
             try:
@@ -2808,9 +2820,10 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
 
         listas_totais = sanidade_final_listas(listas_filtradas)
         # ------------------------------------------------------------
-        # COMPRESSÃO ADAPTATIVA DO PACOTE (AL)
+        # COMPRESSÃO SELETIVA DO PACOTE (AM)
         # - Pré-C4 · auditável · não altera volume
-        # - Concentra parcialmente passageiros fortes em poucas listas
+        # - Só atua quando a calibração está ativa/aplicada
+        # - Mantém baseline intacto quando calib_override=False
         # ------------------------------------------------------------
         try:
             _top_pool_vals = []
@@ -2818,32 +2831,39 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 _top_pool_vals = [int(v) for v in (calib_meta.get("top_pool") or [])]
             except Exception:
                 _top_pool_vals = []
-            listas_totais, _comp_info = pc_v16_aplicar_compressao_adaptativa_pacote(
-                listas_totais,
-                n_alvo=n_real,
-                seed=seed,
-                i2_hint=calib_meta.get("I2_max", calib_meta.get("I2_mean", calib_meta.get("I2", 0.0))),
-                strong_vals=_top_pool_vals,
-            )
+            if calib_override is False:
+                _comp_info = {
+                    "active": False,
+                    "applied": False,
+                    "reason": "compressao_desligada_baseline",
+                    "listas_comprimidas_qtd": 0,
+                    "compress_frac_efetivo": 0.0,
+                    "top_keep_efetivo": 0,
+                    "strong_vals": [],
+                }
+            else:
+                listas_totais, _comp_info = pc_v16_aplicar_compressao_seletiva_pacote(
+                    listas_totais,
+                    n_alvo=n_real,
+                    seed=seed,
+                    i2_hint=calib_meta.get("I2_max", calib_meta.get("I2_mean", calib_meta.get("I2", 0.0))),
+                    strong_vals=_top_pool_vals,
+                    calib_active=bool(calib_meta.get("applied", False)),
+                )
             calib_meta["packet_compression"] = dict(_comp_info)
         except Exception as _e:
             calib_meta["packet_compression"] = {"active": False, "applied": False, "reason": f"compressao_erro: {_e}"}
 
         listas_top10 = listas_totais[:10]
 
-        # BLOCO C (V10) — ajuste fino (se existir)
         try:
             _v8_info = st.session_state.get("v8_borda_qualificada_info", None)
             _v9_info = st.session_state.get("v9_memoria_borda", None)
-            # BLOCOC_CALLSITE_CANONICO
-
-            # Captura do pacote ANTES do BLOCO C (baseline A/B)
             try:
                 st.session_state["pacote_pre_bloco_c"] = [list(x) for x in (listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais)]
                 st.session_state["pacote_pre_bloco_c_origem"] = "CAP Invisível (V1) — Modo 6 (pré-BLOCO C)"
             except Exception:
                 pass
-
 
             _c_out = v10_bloco_c_aplicar_ajuste_fino_numerico(
                 listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais,
@@ -2861,9 +2881,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
         except Exception:
             pass
 
-        # pacote para snapshot: Top10 quando existir
         pacote = listas_top10 if (isinstance(listas_top10, list) and len(listas_top10) > 0) else listas_totais
-        # grava para consistência observacional, mas o CAP Invisível restaura depois
         st.session_state["pacote_listas_atual"] = pacote
         st.session_state["pacote_listas_origem"] = "CAP Invisível (V1) — Modo 6 (Top10)" if pacote is listas_top10 else "CAP Invisível (V1) — Modo 6 (Total)"
         try:
@@ -2871,8 +2889,9 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
         except Exception:
             pass
         return pacote, calib_meta
-    except Exception:
-        return [], {}
+    except Exception as e:
+        calib_meta["reason"] = f"modo6_silent_erro: {type(e).__name__}: {e}"
+        return [], calib_meta
 
 
 def pc_cap_invisivel_v1_processar_um_k(_df_full_safe: pd.DataFrame, k_alvo: int) -> bool:
@@ -15167,28 +15186,6 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     except Exception:
         # fallback silencioso (não quebra execução)
         pass
-
-    # ------------------------------------------------------------
-    # COMPRESSÃO ADAPTATIVA DO PACOTE (AL)
-    # - Pré-C4 · auditável · não altera volume
-    # - Atua antes do uso final do pacote no Modo 6
-    # ------------------------------------------------------------
-    try:
-        _top_pool_vals_ui = []
-        try:
-            _top_pool_vals_ui = [int(v) for v in ((calib_leve if isinstance(calib_leve, dict) else {}).get("top_pool") or [])]
-        except Exception:
-            _top_pool_vals_ui = []
-        listas_totais, _comp_info_ui = pc_v16_aplicar_compressao_adaptativa_pacote(
-            listas_totais,
-            n_alvo=n_real,
-            seed=seed,
-            i2_hint=(calib_leve if isinstance(calib_leve, dict) else {}).get("I2_max", (calib_leve if isinstance(calib_leve, dict) else {}).get("I2_mean", (calib_leve if isinstance(calib_leve, dict) else {}).get("I2", 0.0))),
-            strong_vals=_top_pool_vals_ui,
-        )
-        st.session_state["v16_packet_compression_last"] = dict(_comp_info_ui)
-    except Exception as _e:
-        st.session_state["v16_packet_compression_last"] = {"active": False, "applied": False, "reason": f"compressao_ui_erro: {_e}"}
 
     listas_top10 = listas_totais[:10]
 
