@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AQ — TOP COUPLING PACKET + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AQ_TOP_COUPLING_PACKET_BANNER_OK.py"
+BUILD_TAG = "v16h57AR — COOCCURRENCE PACKET + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AR_COOCCURRENCE_PACKET_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -40,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57AQ — TOP COUPLING PACKET + BANNER OK
+        <b>BUILD: v16h57AR — COOCCURRENCE PACKET + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -60,22 +60,45 @@ st.sidebar.warning(
 # V16h6 — BOOT CLEAN (anti-resíduo de sessão)
 
 # ============================================================
-# V16h57AQ — TOP COUPLING PACKET (pré‑C4 · auditável)
-# Favorece coesão entre os passageiros com maior ranking
-# ao montar listas do pacote. Não altera Camada 4.
+# V16h57AR — COOCCURRENCE PACKET (pré‑C4 · auditável)
+# Matriz simples de co‑ocorrência entre passageiros para
+# favorecer pares historicamente frequentes nas listas.
+# Não altera Camada 4.
 # ============================================================
-def pc_v16_top_coupling_packet(ranking):
+def pc_v16_cooccurrence_matrix(series_hist):
     try:
-        if not isinstance(ranking, list) or len(ranking) < 6:
+        from collections import defaultdict
+        co = defaultdict(int)
+        for s in series_hist:
+            nums = list(dict.fromkeys(s))
+            for i in range(len(nums)):
+                for j in range(i+1, len(nums)):
+                    pair = tuple(sorted((nums[i], nums[j])))
+                    co[pair] += 1
+        return co
+    except Exception:
+        return {}
+
+def pc_v16_apply_cooccurrence(ranking, co_matrix):
+    try:
+        if not isinstance(ranking, list) or not co_matrix:
             return ranking
         
-        top = ranking[:8]
-        rest = ranking[8:]
+        top = ranking[:10]
+        scored = []
+        for n in top:
+            score = 0
+            for m in top:
+                if n == m:
+                    continue
+                pair = tuple(sorted((n, m)))
+                score += co_matrix.get(pair, 0)
+            scored.append((score, n))
         
-        coupled = top[:6] + top[6:8]
-        coupled = list(dict.fromkeys(coupled))
-        
-        return coupled + rest
+        scored.sort(reverse=True)
+        new_top = [n for _, n in scored]
+        rest = ranking[10:]
+        return new_top + rest
     except Exception:
         return ranking
 
