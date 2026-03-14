@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AN — TOP COHESION PACKET + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AN_TOP_COHESION_PACKET_BANNER_OK.py"
+BUILD_TAG = "v16h57AO — RANK MICRO ADJUST + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AO_RANK_MICRO_ADJUST_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AN — BUILD AUDITÁVEL (top cohesion packet)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AO — BUILD AUDITÁVEL (rank micro adjust)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57AN — TOP COHESION PACKET + BANNER OK
+        <b>BUILD: v16h57AO — RANK MICRO ADJUST + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -1499,6 +1499,26 @@ from typing import List, Dict, Tuple, Optional, Any
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+
+# ============================================================
+# V16h57AO — RANK MICRO ADJUST (pré‑C4 · auditável)
+# Pequena rotação no topo do ranking para reduzir erro de 1 passageiro.
+# Não altera Camada 4. Não altera SAFE.
+# ============================================================
+def pc_v16_rank_micro_adjust(ranking):
+    try:
+        if not isinstance(ranking, list) or len(ranking) < 6:
+            return ranking
+        top = ranking[:6]
+        rest = ranking[6:]
+        # rotação leve
+        new_top = top[1:4] + [top[0]] + top[4:]
+        return new_top + rest
+    except Exception:
+        return ranking
+
+
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # DEBUG TEMPORÁRIO — PROVA DE EXECUÇÃO DO ARQUIVO
