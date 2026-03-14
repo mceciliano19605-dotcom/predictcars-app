@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AM — SELECTIVE PACKET COMPRESSION + CALIB PRESERVE + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AM_SELECTIVE_PACKET_COMPRESSION_CALIB_PRESERVE_BANNER_OK.py"
+BUILD_TAG = "v16h57AN — TOP COHESION PACKET + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AN_TOP_COHESION_PACKET_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AK — BUILD AUDITÁVEL (SAFE modo6 signature fix + fallback)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AN — BUILD AUDITÁVEL (top cohesion packet)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57AM — SELECTIVE PACKET COMPRESSION + CALIB PRESERVE + BANNER OK
+        <b>BUILD: v16h57AN — TOP COHESION PACKET + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -2407,10 +2407,11 @@ def pc_semi_auto_processar_um_k(*, _df_full_safe: pd.DataFrame, k_exec: int) -> 
         return {"ok": False, "erro": str(e)}
 
 
-def pc_v16_aplicar_compressao_seletiva_pacote(listas_totais, *, n_alvo: int = 6, seed: int = 0, i2_hint: float | None = None, strong_vals=None, calib_active: bool = True):
-    """Compressão seletiva leve do pacote (pré-C4, auditável).
-    Só atua quando a calibração está ativa, preservando baseline e a governança do AK.
-    Concentra parcialmente passageiros fortes em poucas listas, sem colapsar o pacote.
+def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: int = 0, i2_hint: float | None = None, strong_vals=None, calib_active: bool = True):
+    """Top Cohesion leve do pacote (pré-C4, auditável).
+    - Só atua quando a calibração está ativa.
+    - Mantém a diversidade da maior parte do pacote.
+    - Concentra parcialmente passageiros fortes em poucas listas do topo.
     """
     try:
         norm = []
@@ -2418,7 +2419,9 @@ def pc_v16_aplicar_compressao_seletiva_pacote(listas_totais, *, n_alvo: int = 6,
             try:
                 li = [int(x) for x in lst[:n_alvo]]
                 if len(li) >= n_alvo:
-                    norm.append(sorted(set(li))[:n_alvo])
+                    li = sorted(set(li))
+                    if len(li) >= n_alvo:
+                        norm.append(li[:n_alvo])
             except Exception:
                 continue
 
@@ -2426,10 +2429,10 @@ def pc_v16_aplicar_compressao_seletiva_pacote(listas_totais, *, n_alvo: int = 6,
             return list(listas_totais or []), {
                 "active": False,
                 "applied": False,
-                "reason": "compressao_desligada_calib_inativa",
-                "listas_comprimidas_qtd": 0,
-                "compress_frac_efetivo": 0.0,
-                "top_keep_efetivo": 0,
+                "reason": "top_cohesion_desligada_calib_inativa",
+                "listas_coesas_qtd": 0,
+                "cohesion_frac_efetivo": 0.0,
+                "top_anchor_efetivo": 0,
                 "strong_vals": [],
             }
 
@@ -2438,9 +2441,9 @@ def pc_v16_aplicar_compressao_seletiva_pacote(listas_totais, *, n_alvo: int = 6,
                 "active": False,
                 "applied": False,
                 "reason": "pacote_vazio",
-                "listas_comprimidas_qtd": 0,
-                "compress_frac_efetivo": 0.0,
-                "top_keep_efetivo": 0,
+                "listas_coesas_qtd": 0,
+                "cohesion_frac_efetivo": 0.0,
+                "top_anchor_efetivo": 0,
                 "strong_vals": [],
             }
 
@@ -2449,16 +2452,16 @@ def pc_v16_aplicar_compressao_seletiva_pacote(listas_totais, *, n_alvo: int = 6,
         except Exception:
             i2 = 0.0
 
-        # seletiva: poucas listas comprimidas para não matar a diversidade
+        # Coesão leve: poucas listas recebem âncoras fortes, o resto fica intacto.
         if i2 >= 0.90:
-            compress_frac = 0.22
-            top_keep = min(3, n_alvo)
+            cohesion_frac = 0.30
+            top_anchor = min(4, n_alvo)
         elif i2 >= 0.75:
-            compress_frac = 0.18
-            top_keep = min(3, n_alvo)
+            cohesion_frac = 0.24
+            top_anchor = min(4, n_alvo)
         else:
-            compress_frac = 0.12
-            top_keep = min(2, n_alvo)
+            cohesion_frac = 0.18
+            top_anchor = min(3, n_alvo)
 
         import random
         rng = random.Random(int(seed) if seed is not None else 0)
@@ -2478,36 +2481,34 @@ def pc_v16_aplicar_compressao_seletiva_pacote(listas_totais, *, n_alvo: int = 6,
                 except Exception:
                     pass
         if not strong:
-            strong = [v for v, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))[:max(top_keep + 2, 5)]]
+            strong = [v for v, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))[:max(top_anchor + 2, 6)]]
 
-        n_comp = int(round(len(norm) * compress_frac))
-        n_comp = max(1, n_comp) if len(norm) >= 8 else min(1, len(norm))
-        n_comp = min(n_comp, max(1, min(3, len(norm))))
+        n_cohesive = int(round(len(norm) * cohesion_frac))
+        n_cohesive = max(1, n_cohesive) if len(norm) >= 8 else min(1, len(norm))
+        n_cohesive = min(n_cohesive, max(1, min(4, len(norm))))
 
         out = []
         for idx, base in enumerate(norm):
-            if idx < n_comp:
+            if idx < n_cohesive:
+                anchors = []
+                for v in strong:
+                    if v not in anchors:
+                        anchors.append(v)
+                    if len(anchors) >= top_anchor:
+                        break
+                preserved = [v for v in base if v not in anchors]
+                rng.shuffle(preserved)
                 new = []
-                # preserva parte da base e injeta poucos fortes para concentrar sem colapsar
-                for v in strong:
-                    if v in base and v not in new:
-                        new.append(v)
-                    if len(new) >= top_keep:
-                        break
-                for v in base:
+                for v in anchors:
                     if v not in new:
                         new.append(v)
-                    if len(new) >= n_alvo:
-                        break
-                for v in strong:
+                for v in preserved:
                     if len(new) >= n_alvo:
                         break
                     if v not in new:
                         new.append(v)
-                new = sorted(set(int(x) for x in new))[:n_alvo]
                 if len(new) < n_alvo:
                     rest = [v for v, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0])) if v not in new]
-                    rng.shuffle(rest)
                     for v in rest:
                         if v not in new:
                             new.append(int(v))
@@ -2517,7 +2518,6 @@ def pc_v16_aplicar_compressao_seletiva_pacote(listas_totais, *, n_alvo: int = 6,
             else:
                 out.append(list(base))
 
-        # dedup sem destruir volume: mantém ordem e repõe do original se cair demais
         seen = set()
         uniq = []
         for lst in out:
@@ -2537,10 +2537,10 @@ def pc_v16_aplicar_compressao_seletiva_pacote(listas_totais, *, n_alvo: int = 6,
         info = {
             "active": True,
             "applied": bool(uniq != norm),
-            "reason": "compressao_seletiva_aplicada" if uniq != norm else "compressao_sem_delta",
-            "listas_comprimidas_qtd": int(n_comp),
-            "compress_frac_efetivo": float(compress_frac),
-            "top_keep_efetivo": int(top_keep),
+            "reason": "top_cohesion_aplicada" if uniq != norm else "top_cohesion_sem_delta",
+            "listas_coesas_qtd": int(n_cohesive),
+            "cohesion_frac_efetivo": float(cohesion_frac),
+            "top_anchor_efetivo": int(top_anchor),
             "strong_vals": [int(v) for v in strong[:8]],
         }
         return uniq, info
@@ -2548,10 +2548,10 @@ def pc_v16_aplicar_compressao_seletiva_pacote(listas_totais, *, n_alvo: int = 6,
         return list(listas_totais or []), {
             "active": False,
             "applied": False,
-            "reason": f"compressao_falha: {e}",
-            "listas_comprimidas_qtd": 0,
-            "compress_frac_efetivo": 0.0,
-            "top_keep_efetivo": 0,
+            "reason": f"top_cohesion_falha: {e}",
+            "listas_coesas_qtd": 0,
+            "cohesion_frac_efetivo": 0.0,
+            "top_anchor_efetivo": 0,
             "strong_vals": [],
         }
 
@@ -2820,9 +2820,9 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
 
         listas_totais = sanidade_final_listas(listas_filtradas)
         # ------------------------------------------------------------
-        # COMPRESSÃO SELETIVA DO PACOTE (AM)
+                # TOP COHESION DO PACOTE (AN)
         # - Pré-C4 · auditável · não altera volume
-        # - Só atua quando a calibração está ativa/aplicada
+                # - Só atua quando a calibração está ativa/aplicada
         # - Mantém baseline intacto quando calib_override=False
         # ------------------------------------------------------------
         try:
@@ -2835,14 +2835,14 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 _comp_info = {
                     "active": False,
                     "applied": False,
-                    "reason": "compressao_desligada_baseline",
+                    "reason": "top_cohesion_desligada_baseline",
                     "listas_comprimidas_qtd": 0,
                     "compress_frac_efetivo": 0.0,
                     "top_keep_efetivo": 0,
                     "strong_vals": [],
                 }
             else:
-                listas_totais, _comp_info = pc_v16_aplicar_compressao_seletiva_pacote(
+                listas_totais, _comp_info = pc_v16_aplicar_top_cohesion_pacote(
                     listas_totais,
                     n_alvo=n_real,
                     seed=seed,
@@ -2852,7 +2852,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 )
             calib_meta["packet_compression"] = dict(_comp_info)
         except Exception as _e:
-            calib_meta["packet_compression"] = {"active": False, "applied": False, "reason": f"compressao_erro: {_e}"}
+            calib_meta["packet_compression"] = {"active": False, "applied": False, "reason": f"top_cohesion_erro: {_e}"}
 
         listas_top10 = listas_totais[:10]
 
