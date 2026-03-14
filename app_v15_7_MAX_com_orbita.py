@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AS — COOCCURRENCE LIST GENERATOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AS_COOCCURRENCE_LIST_GENERATOR_BANNER_OK.py"
+BUILD_TAG = "v16h57AT — NEW PACKET GENERATOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AT_NEW_PACKET_GENERATOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AN — BUILD AUDITÁVEL (top cohesion packet)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AT — BUILD AUDITÁVEL (new packet generator)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57AS — COOCCURRENCE LIST GENERATOR + BANNER OK
+        <b>BUILD: v16h57AT — NEW PACKET GENERATOR + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -142,6 +142,132 @@ def pc_v16_apply_cooccurrence(ranking, co_matrix):
         return new_top + rest
     except Exception:
         return ranking
+
+
+# ============================================================
+# V16h57AT — NEW PACKET GENERATOR (pré-C4 · auditável)
+# Atua no gerador REAL do Modo 6.
+# Usa coocorrência + top_pool para regenerar parte do pacote.
+# ============================================================
+def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_df=None, n_alvo=6, seed=0, max_lists=None):
+    try:
+        base = []
+        for lst in (listas_totais or []):
+            try:
+                li = [int(x) for x in lst][:int(n_alvo)]
+                if len(li) >= int(n_alvo):
+                    t = sorted(dict.fromkeys(li))[:int(n_alvo)]
+                    if len(t) >= int(n_alvo):
+                        base.append(t)
+            except Exception:
+                pass
+        if not base:
+            return listas_totais, {"active": False, "applied": False, "reason": "base_vazia", "listas_regeneradas_qtd": 0}
+
+        max_lists = int(max_lists or len(base) or 0)
+        if max_lists <= 0:
+            return listas_totais, {"active": False, "applied": False, "reason": "max_lists_zero", "listas_regeneradas_qtd": 0}
+
+        # histórico -> matriz de coocorrência
+        series_hist = []
+        try:
+            dfh = historico_df
+            if dfh is not None and hasattr(dfh, "columns"):
+                cols = [c for c in dfh.columns if str(c).startswith("p")]
+                for _, row in dfh.iterrows():
+                    vals = []
+                    for c in cols[:int(n_alvo)]:
+                        try:
+                            if pd.notna(row[c]):
+                                vals.append(int(row[c]))
+                        except Exception:
+                            pass
+                    if len(vals) >= int(n_alvo):
+                        series_hist.append(vals[:int(n_alvo)])
+        except Exception:
+            series_hist = []
+
+        co = pc_v16_cooccurrence_matrix(series_hist) if series_hist else {}
+
+        ranking = []
+        try:
+            ranking = [int(x) for x in (ranking_vals or [])]
+        except Exception:
+            ranking = []
+
+        if not ranking:
+            freq = {}
+            for lst in base:
+                for v in lst:
+                    freq[v] = freq.get(v, 0) + 1
+            ranking = [v for v, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+        if not ranking:
+            return listas_totais, {"active": False, "applied": False, "reason": "ranking_vazio", "listas_regeneradas_qtd": 0}
+
+        ranking2 = pc_v16_apply_cooccurrence(ranking, co) if co else list(ranking)
+
+        geradas = pc_v16_generate_lists_cooccurrence(
+            ranking2,
+            co,
+            n=int(n_alvo),
+            k_lists=min(max_lists, max(9, min(12, max_lists)))
+        ) if co else []
+
+        if not geradas:
+            try:
+                rng = np.random.default_rng(int(seed) if seed is not None else 0)
+                top = ranking2[:max(12, int(n_alvo))]
+                geradas = []
+                for _ in range(min(max_lists, max(9, min(12, max_lists)))):
+                    pick = list(top[:int(n_alvo)])
+                    if len(pick) < int(n_alvo):
+                        pool = [x for x in ranking2 if x not in pick]
+                        while len(pick) < int(n_alvo) and pool:
+                            idx = int(rng.integers(0, len(pool)))
+                            pick.append(pool.pop(idx))
+                    if len(pick) >= int(n_alvo):
+                        t = sorted(dict.fromkeys([int(x) for x in pick]))[:int(n_alvo)]
+                        if len(t) >= int(n_alvo):
+                            geradas.append(t)
+            except Exception:
+                geradas = []
+
+        if not geradas:
+            return listas_totais, {"active": True, "applied": False, "reason": "gerador_sem_saida", "listas_regeneradas_qtd": 0}
+
+        out = []
+        seen = set()
+        for lst in geradas + base:
+            try:
+                t = tuple(sorted(dict.fromkeys([int(x) for x in lst[:int(n_alvo)]]))[:int(n_alvo)])
+                if len(t) >= int(n_alvo) and t not in seen:
+                    seen.add(t)
+                    out.append(list(t))
+            except Exception:
+                pass
+
+        out = out[:max_lists]
+        if len(out) < len(base):
+            for lst in base:
+                t = tuple(lst[:int(n_alvo)])
+                if t not in seen:
+                    seen.add(t)
+                    out.append(list(t))
+                if len(out) >= len(base):
+                    break
+
+        return out, {
+            "active": True,
+            "applied": bool(out != base),
+            "reason": "ok" if out else "saida_vazia",
+            "listas_regeneradas_qtd": int(min(len(geradas), len(base))),
+            "co_pairs_qtd": int(len(co)),
+            "ranking_base_qtd": int(len(ranking2)),
+        }
+    except Exception as e:
+        return listas_totais, {"active": False, "applied": False, "reason": f"new_packet_generator_erro: {e}", "listas_regeneradas_qtd": 0}
+
 
 # - Se não há histórico carregado, remove saídas antigas que podem
 #   "vazar" na UI (ex.: pacote final / previsões antigas).
@@ -2904,6 +3030,41 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 pass
 
         listas_totais = sanidade_final_listas(listas_filtradas)
+        # ------------------------------------------------------------
+        # NEW PACKET GENERATOR (AT)
+        # - Atua no gerador REAL do Modo 6
+        # - Mantém baseline intacto quando calib_override=False
+        # ------------------------------------------------------------
+        try:
+            _ranking_vals_at = []
+            try:
+                _ranking_vals_at = [int(v) for v in (calib_meta.get("top_pool") or [])]
+            except Exception:
+                _ranking_vals_at = []
+            if calib_override is False:
+                calib_meta["new_packet_generator"] = {
+                    "active": False,
+                    "applied": False,
+                    "reason": "desligado_baseline",
+                    "listas_regeneradas_qtd": 0,
+                }
+            else:
+                listas_totais, _npgen_info = pc_v16_new_packet_generator(
+                    listas_totais,
+                    ranking_vals=_ranking_vals_at,
+                    historico_df=df,
+                    n_alvo=n_real,
+                    seed=seed,
+                    max_lists=len(listas_totais),
+                )
+                calib_meta["new_packet_generator"] = dict(_npgen_info)
+        except Exception as _e:
+            calib_meta["new_packet_generator"] = {
+                "active": False,
+                "applied": False,
+                "reason": f"new_packet_generator_erro: {_e}",
+                "listas_regeneradas_qtd": 0,
+            }
         # ------------------------------------------------------------
                 # TOP COHESION DO PACOTE (AN)
         # - Pré-C4 · auditável · não altera volume
