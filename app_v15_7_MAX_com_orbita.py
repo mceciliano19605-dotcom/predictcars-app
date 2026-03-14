@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AR — COOCCURRENCE PACKET + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AR_COOCCURRENCE_PACKET_BANNER_OK.py"
+BUILD_TAG = "v16h57AS — COOCCURRENCE LIST GENERATOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AS_COOCCURRENCE_LIST_GENERATOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -40,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57AR — COOCCURRENCE PACKET + BANNER OK
+        <b>BUILD: v16h57AS — COOCCURRENCE LIST GENERATOR + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -78,6 +78,47 @@ def pc_v16_cooccurrence_matrix(series_hist):
         return co
     except Exception:
         return {}
+
+# ============================================================
+# V16h57AS — COOCCURRENCE LIST GENERATOR (pré‑C4 · auditável)
+# Novo gerador de listas baseado em pares fortes de co‑ocorrência.
+# Substitui parcialmente o gerador anterior ao montar listas
+# usando pares historicamente frequentes.
+# ============================================================
+
+def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12):
+    try:
+        if not isinstance(ranking, list) or len(ranking) < n:
+            return []
+
+        from random import shuffle
+        top = ranking[:20]  # universo mais relevante
+        pairs = []
+
+        # construir pares fortes
+        for i in range(len(top)):
+            for j in range(i+1, len(top)):
+                pair = tuple(sorted((top[i], top[j])))
+                score = co_matrix.get(pair, 0)
+                if score > 0:
+                    pairs.append((score, pair))
+
+        pairs.sort(reverse=True)
+
+        lists = []
+        for score, pair in pairs[:k_lists*3]:
+            base = list(pair)
+            rest = [x for x in top if x not in base]
+            shuffle(rest)
+            while len(base) < n and rest:
+                base.append(rest.pop())
+            if len(base) == n:
+                lists.append(base)
+
+        return lists[:k_lists]
+    except Exception:
+        return []
+
 
 def pc_v16_apply_cooccurrence(ranking, co_matrix):
     try:
