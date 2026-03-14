@@ -18,8 +18,8 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AO — RANK MICRO ADJUST + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AO_RANK_MICRO_ADJUST_BANNER_OK.py"
+BUILD_TAG = "v16h57AP — ADAPTIVE UNIVERSE EXPANSION + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AP_ADAPTIVE_UNIVERSE_EXPANSION_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -40,13 +40,31 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57AO — RANK MICRO ADJUST + BANNER OK
+        <b>BUILD: v16h57AP — ADAPTIVE UNIVERSE EXPANSION + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
     """,
     unsafe_allow_html=True,
 )
+
+
+# ============================================================
+# V16h57AP — ADAPTIVE UNIVERSE EXPANSION (pré‑C4 · auditável)
+# Expansão leve do universo candidato quando proximidade externa
+# é muito alta. Não altera Camada 4 diretamente.
+# ============================================================
+def pc_v16_adaptive_universe_expand(universo_base, proximidade_ratio=0.0):
+    try:
+        if not isinstance(universo_base, list):
+            return universo_base
+        if proximidade_ratio > 0.9 and len(universo_base) < 26:
+            extra = universo_base[: min(6, len(universo_base))]
+            universo_expandido = list(dict.fromkeys(universo_base + extra))
+            return universo_expandido
+        return universo_base
+    except Exception:
+        return universo_base
 
 st.sidebar.warning(
     f"EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE}\n"
