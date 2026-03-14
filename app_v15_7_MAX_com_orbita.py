@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AP — ADAPTIVE UNIVERSE EXPANSION + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AP_ADAPTIVE_UNIVERSE_EXPANSION_BANNER_OK.py"
+BUILD_TAG = "v16h57AQ — TOP COUPLING PACKET + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AQ_TOP_COUPLING_PACKET_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AO — BUILD AUDITÁVEL (rank micro adjust)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AN — BUILD AUDITÁVEL (top cohesion packet)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,31 +40,13 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57AP — ADAPTIVE UNIVERSE EXPANSION + BANNER OK
+        <b>BUILD: v16h57AQ — TOP COUPLING PACKET + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
     """,
     unsafe_allow_html=True,
 )
-
-
-# ============================================================
-# V16h57AP — ADAPTIVE UNIVERSE EXPANSION (pré‑C4 · auditável)
-# Expansão leve do universo candidato quando proximidade externa
-# é muito alta. Não altera Camada 4 diretamente.
-# ============================================================
-def pc_v16_adaptive_universe_expand(universo_base, proximidade_ratio=0.0):
-    try:
-        if not isinstance(universo_base, list):
-            return universo_base
-        if proximidade_ratio > 0.9 and len(universo_base) < 26:
-            extra = universo_base[: min(6, len(universo_base))]
-            universo_expandido = list(dict.fromkeys(universo_base + extra))
-            return universo_expandido
-        return universo_base
-    except Exception:
-        return universo_base
 
 st.sidebar.warning(
     f"EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE}\n"
@@ -76,6 +58,27 @@ st.sidebar.warning(
 
 # ------------------------------------------------------------
 # V16h6 — BOOT CLEAN (anti-resíduo de sessão)
+
+# ============================================================
+# V16h57AQ — TOP COUPLING PACKET (pré‑C4 · auditável)
+# Favorece coesão entre os passageiros com maior ranking
+# ao montar listas do pacote. Não altera Camada 4.
+# ============================================================
+def pc_v16_top_coupling_packet(ranking):
+    try:
+        if not isinstance(ranking, list) or len(ranking) < 6:
+            return ranking
+        
+        top = ranking[:8]
+        rest = ranking[8:]
+        
+        coupled = top[:6] + top[6:8]
+        coupled = list(dict.fromkeys(coupled))
+        
+        return coupled + rest
+    except Exception:
+        return ranking
+
 # - Se não há histórico carregado, remove saídas antigas que podem
 #   "vazar" na UI (ex.: pacote final / previsões antigas).
 # ------------------------------------------------------------
@@ -1517,26 +1520,6 @@ from typing import List, Dict, Tuple, Optional, Any
 import numpy as np
 import pandas as pd
 import streamlit as st
-
-
-# ============================================================
-# V16h57AO — RANK MICRO ADJUST (pré‑C4 · auditável)
-# Pequena rotação no topo do ranking para reduzir erro de 1 passageiro.
-# Não altera Camada 4. Não altera SAFE.
-# ============================================================
-def pc_v16_rank_micro_adjust(ranking):
-    try:
-        if not isinstance(ranking, list) or len(ranking) < 6:
-            return ranking
-        top = ranking[:6]
-        rest = ranking[6:]
-        # rotação leve
-        new_top = top[1:4] + [top[0]] + top[4:]
-        return new_top + rest
-    except Exception:
-        return ranking
-
-
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # DEBUG TEMPORÁRIO — PROVA DE EXECUÇÃO DO ARQUIVO
