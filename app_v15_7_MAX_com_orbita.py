@@ -342,7 +342,12 @@ def pc_classificar_postura_motor(pipeline_regime: str | None, nr_percent, div_s6
         div_s6_mc=div_s6_mc,
     )
 
-def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65, core_min=None):
+def print("\nAUDIT B2 — antes RESP")
+        try:
+            print("hash:", hash(str(listas_totais)))
+        except Exception as _e:
+            print("AUDIT B2 erro:", _e)
+        pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65, core_min=None):
     if core_min is None:
         core_min = 0.60
 
@@ -3030,6 +3035,14 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 pass
 
         listas_totais = sanidade_final_listas(listas_filtradas)
+        print("\nAUDIT A1 — após sanidade_final_listas")
+        try:
+            print("n_listas:", len(listas_totais))
+            print("hash:", hash(str(listas_totais)))
+            print("exemplo:", listas_totais[:3])
+        except Exception as _e:
+            print("AUDIT A1 erro:", _e)
+
         # ------------------------------------------------------------
         # NEW PACKET GENERATOR (AT)
         # - Atua no gerador REAL do Modo 6
@@ -3049,7 +3062,12 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     "listas_regeneradas_qtd": 0,
                 }
             else:
-                listas_totais, _npgen_info = pc_v16_new_packet_generator(
+                print("\nAUDIT A2 — entrada NEW_PACKET_GENERATOR")
+        try:
+            print("hash antes:", hash(str(listas_totais)))
+        except Exception as _e:
+            print("AUDIT A2 erro:", _e)
+        listas_totais, _npgen_info = pc_v16_new_packet_generator(
                     listas_totais,
                     ranking_vals=_ranking_vals_at,
                     historico_df=df,
