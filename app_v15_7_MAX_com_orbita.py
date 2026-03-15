@@ -150,8 +150,7 @@ def pc_v16_apply_cooccurrence(ranking, co_matrix):
 # Usa coocorrência + top_pool para regenerar parte do pacote.
 # ============================================================
 def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_df=None, n_alvo=6, seed=0, max_lists=None):
-    print("
-AUDIT A2 — entrada NEW_PACKET_GENERATOR")
+    print("\nAUDIT A2 — entrada NEW_PACKET_GENERATOR")
     try:
         print("hash antes:", hash(str(listas_totais)))
     except Exception as _e:
