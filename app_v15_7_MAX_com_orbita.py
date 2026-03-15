@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AT — NEW PACKET GENERATOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AT_NEW_PACKET_GENERATOR_BANNER_OK.py"
+BUILD_TAG = "v16h57BB — AUDIT LOGS STABLE + PIPELINE TRACE + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BB_AUDIT_LOGS_STABLE_PIPELINE_TRACE.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AT — BUILD AUDITÁVEL (new packet generator)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BB — BUILD AUDITÁVEL (audit logs pipeline trace)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
