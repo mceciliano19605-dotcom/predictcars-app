@@ -11,53 +11,37 @@ Arquivo único, íntegro e operacional.
 
 
 import streamlit as st
+
+# ================= AUDIT TRACE SESSION LOGGER =================
+def _pc_audit_log(label, payload=None):
+    try:
+        import streamlit as st
+        if "AUDIT_TRACE" not in st.session_state:
+            st.session_state["AUDIT_TRACE"] = []
+        entry = {"label": label}
+        if payload is not None:
+            entry["payload"] = str(payload)[:5000]
+        st.session_state["AUDIT_TRACE"].append(entry)
+        print(f"AUDIT::{label} -> {payload}")
+    except Exception as e:
+        _pc_audit_log("LOGGER ERROR:", e)
+# ===============================================================
+
 from datetime import datetime
 import re
 
-import math
-
-def _pc_audit_packet_stats(label, pacote):
-    try:
-        pkt = []
-        for lst in (pacote or []):
-            try:
-                li = [int(x) for x in lst]
-                if li:
-                    pkt.append(li)
-            except Exception:
-                pass
-
-        unique_vals = sorted({int(x) for lst in pkt for x in lst}) if pkt else []
-        overlaps = []
-        for i in range(len(pkt)):
-            si = set(pkt[i])
-            for j in range(i + 1, len(pkt)):
-                overlaps.append(len(si.intersection(pkt[j])))
-
-        overlap_mean = (sum(overlaps) / len(overlaps)) if overlaps else 0.0
-
-        print(f"\n{label}")
-        print("n_listas:", len(pkt))
-        print("hash:", hash(str(pkt)))
-        print("passageiros_unicos:", len(unique_vals))
-        print("sobreposicao_media:", round(float(overlap_mean), 4))
-        print("exemplo:", pkt[:3])
-    except Exception as _e:
-        print(f"{label} erro:", _e)
-
-
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57BD — PIPELINE TRACE DEEP + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BD — PIPELINE TRACE DEEP + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BD_PIPELINE_TRACE_DEEP.py"
+BUILD_TAG = "v16h57BE — NEW PACKET GENERATOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BE_NEW_PACKET_GENERATOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-03-15_01 (PIPELINE_TRACE_DEEP_BC)"
+WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BC — BUILD AUDITÁVEL (pipeline trace deep)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BE — BUILD AUDITÁVEL (new packet generator)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -72,7 +56,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57BD — PIPELINE TRACE DEEP + BANNER OK<br>
+        <b>BUILD: v16h57BE — NEW PACKET GENERATOR + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -680,7 +664,6 @@ def pc_v16_aplicar_resp_no_pacote(*, pacote_atual, k_reg, universo_min=1, univer
         calib_should_apply = bool(calib_active and (I2_val >= THR_BASE))
 
         pacote_store = [list(lst) for lst in pacote_baseline]
-        _pc_audit_packet_stats("AUDIT B2 — antes RESP", pacote_store)
         top10_final = list(top10_override) if isinstance(top10_override, list) and top10_override else pacote_store[:10]
         resp_info = {"aplicado": False, "motivo": "nao_aplicado"}
 
@@ -744,7 +727,6 @@ def pc_v16_aplicar_resp_no_pacote(*, pacote_atual, k_reg, universo_min=1, univer
         _aplicado_flag = bool(resp_info.get("aplicado", False)) if isinstance(resp_info, dict) else False
         _mudou_flag = bool(pacote_store != pacote_baseline)
         calib_applied = bool(_aplicado_flag or _mudou_flag)
-        _pc_audit_packet_stats("AUDIT B3 — após RESP", pacote_store)
 
         return {
             "pacote_baseline": pacote_baseline,
@@ -2105,7 +2087,6 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
 
         pacote_baseline = _resp_apply.get("pacote_baseline", [])
         pacote_store = _resp_apply.get("pacote_store", pacote_baseline)
-        _pc_audit_packet_stats("AUDIT B4 — Replay recebeu pacote", pacote_store)
         resp_info = _resp_apply.get("resp_info", {"aplicado": False, "motivo": "nao_aplicado"})
         calib_active = bool(_resp_apply.get("calib_active", False))
         calib_applied = bool(_resp_apply.get("calib_applied", False))
@@ -2461,7 +2442,6 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
         if not pacote_baseline:
             return False
         pacote_store = _resp_apply.get("pacote_store", pacote_baseline)
-        _pc_audit_packet_stats("AUDIT B4 — Replay recebeu pacote", pacote_store)
         resp_info = _resp_apply.get("resp_info", {"aplicado": False, "motivo": "nao_executado"})
         calib_active = bool(_resp_apply.get("calib_active", False))
         calib_applied = bool(_resp_apply.get("calib_applied", False))
@@ -3066,7 +3046,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 pass
 
         listas_totais = sanidade_final_listas(listas_filtradas)
-        _pc_audit_packet_stats("AUDIT A1 — após sanidade_final_listas", listas_totais)
         # ------------------------------------------------------------
         # NEW PACKET GENERATOR (AT)
         # - Atua no gerador REAL do Modo 6
@@ -3086,7 +3065,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     "listas_regeneradas_qtd": 0,
                 }
             else:
-                _pc_audit_packet_stats("AUDIT A2 — entrada NEW_PACKET_GENERATOR", listas_totais)
                 listas_totais, _npgen_info = pc_v16_new_packet_generator(
                     listas_totais,
                     ranking_vals=_ranking_vals_at,
@@ -3096,7 +3074,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     max_lists=len(listas_totais),
                 )
                 calib_meta["new_packet_generator"] = dict(_npgen_info)
-                _pc_audit_packet_stats("AUDIT A3 — saída NEW_PACKET_GENERATOR", listas_totais)
         except Exception as _e:
             calib_meta["new_packet_generator"] = {
                 "active": False,
@@ -3136,7 +3113,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     calib_active=bool(calib_meta.get("applied", False)),
                 )
             calib_meta["packet_compression"] = dict(_comp_info)
-            _pc_audit_packet_stats("AUDIT B1 — após TOP_COHESION", listas_totais)
         except Exception as _e:
             calib_meta["packet_compression"] = {"active": False, "applied": False, "reason": f"top_cohesion_erro: {_e}"}
 
