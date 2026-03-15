@@ -47,11 +47,11 @@ def _pc_audit_packet_stats(label, pacote):
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57BC — PIPELINE TRACE DEEP + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57BD — PIPELINE TRACE DEEP + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BC — PIPELINE TRACE DEEP + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BC_PIPELINE_TRACE_DEEP.py"
+BUILD_TAG = "v16h57BD — PIPELINE TRACE DEEP + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BD_PIPELINE_TRACE_DEEP.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-15_01 (PIPELINE_TRACE_DEEP_BC)"
@@ -72,7 +72,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57BC — PIPELINE TRACE DEEP + BANNER OK<br>
+        <b>BUILD:</b> v16h57BD — PIPELINE TRACE DEEP + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
