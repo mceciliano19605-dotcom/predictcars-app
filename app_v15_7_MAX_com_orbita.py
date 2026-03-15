@@ -15,17 +15,17 @@ from datetime import datetime
 import re
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57AW — AUDIT LOGS STABLE + PIPELINE TRACE + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57BA — AUDIT LOGS STABLE + PIPELINE TRACE + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57AW — AUDIT LOGS STABLE + PIPELINE TRACE + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57AW_AUDIT_LOGS_STABLE.py"
+BUILD_TAG = "v16h57BA — AUDIT LOGS STABLE + PIPELINE TRACE + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BA_AUDIT_LOGS_STABLE_PIPELINE_TRACE.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-03-14_01 (AUDIT_LOGS_STABLE_AW)"
+WATERMARK = "2026-03-15_01 (AUDIT_LOGS_STABLE_BA)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57AW — BUILD AUDITÁVEL (audit logs stable)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BA — BUILD AUDITÁVEL (audit logs stable)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57AW — AUDIT LOGS STABLE + PIPELINE TRACE + BANNER OK<br>
+        <b>BUILD:</b> v16h57BA — AUDIT LOGS STABLE + PIPELINE TRACE + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -150,12 +150,6 @@ def pc_v16_apply_cooccurrence(ranking, co_matrix):
 # Usa coocorrência + top_pool para regenerar parte do pacote.
 # ============================================================
 def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_df=None, n_alvo=6, seed=0, max_lists=None):
-    print("\nAUDIT A2 — entrada NEW_PACKET_GENERATOR")
-    try:
-        print("hash antes:", hash(str(listas_totais)))
-    except Exception as _e:
-        print("AUDIT A2 erro:", _e)
-
     try:
         base = []
         for lst in (listas_totais or []):
@@ -348,15 +342,7 @@ def pc_classificar_postura_motor(pipeline_regime: str | None, nr_percent, div_s6
         div_s6_mc=div_s6_mc,
     )
 
-def pc_resp_aplicar_diversificacao(
-
-print("\nAUDIT B2 — antes RESP")
-try:
-    print("hash:", hash(str(listas_totais)))
-except Exception as _e:
-    print("AUDIT B2 erro:", _e)
-
-listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65, core_min=None):
+def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65, core_min=None):
     if core_min is None:
         core_min = 0.60
 
@@ -673,6 +659,11 @@ def pc_v16_aplicar_resp_no_pacote(*, pacote_atual, k_reg, universo_min=1, univer
             universo_resp = [int(x) for x in universo_resp if int(x) > 0]
             top10_resp = list(top10_override) if isinstance(top10_override, list) and top10_override else (pacote_store[:10] if len(pacote_store) >= 10 else list(pacote_store))
             _cap_pct = float(cap_pct) if cap_pct is not None else (0.35 if (I2_val >= 0.65) else 0.45)
+            print("\nAUDIT B2 — antes RESP")
+            try:
+                print("hash:", hash(str(pacote_store)))
+            except Exception as _e:
+                print("AUDIT B2 erro:", _e)
             new_tot, new_top10, resp_info = pc_resp_aplicar_diversificacao(
                 listas_totais=pacote_store,
                 listas_top10=top10_resp,
@@ -683,6 +674,13 @@ def pc_v16_aplicar_resp_no_pacote(*, pacote_atual, k_reg, universo_min=1, univer
                 cap_pct=_cap_pct,
                 core_min=core_min,
             )
+            print("\nAUDIT B3 — após RESP")
+            try:
+                print("hash:", hash(str(new_tot)))
+                print("exemplo:", new_tot[:3] if isinstance(new_tot, list) else new_tot)
+                print("resp_info:", resp_info)
+            except Exception as _e:
+                print("AUDIT B3 erro:", _e)
             if isinstance(new_tot, list) and len(new_tot) > 0:
                 _tmp = []
                 for lst in new_tot:
@@ -2111,6 +2109,12 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
             "reason": "pacote_modificado" if calib_applied else ("I2<thr_base" if calib_active else "I2=0"),
         })
 
+        print("\nAUDIT B4 — pacote registrado no Replay")
+        try:
+            print("hash:", hash(str(pacote_store)))
+            print("n_listas:", len(pacote_store))
+        except Exception as _e:
+            print("AUDIT B4 erro:", _e)
         pacotes_reg[int(k_reg)] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
             "qtd": int(len(pacote_store)),
@@ -2632,15 +2636,7 @@ def pc_semi_auto_processar_um_k(*, _df_full_safe: pd.DataFrame, k_exec: int) -> 
         return {"ok": False, "erro": str(e)}
 
 
-def pc_v16_aplicar_top_cohesion_pacote(
-
-print("\nAUDIT B1 — após TOP_COHESION")
-try:
-    print("hash:", hash(str(listas_totais)))
-except Exception as _e:
-    print("AUDIT B1 erro:", _e)
-
-listas_totais, *, n_alvo: int = 6, seed: int = 0, i2_hint: float | None = None, strong_vals=None, calib_active: bool = True):
+def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: int = 0, i2_hint: float | None = None, strong_vals=None, calib_active: bool = True):
     """Top Cohesion leve do pacote (pré-C4, auditável).
     - Só atua quando a calibração está ativa.
     - Mantém a diversidade da maior parte do pacote.
@@ -3052,16 +3048,13 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 pass
 
         listas_totais = sanidade_final_listas(listas_filtradas)
-
-print("\nAUDIT A1 — após sanidade_final_listas")
-try:
-    print("n_listas:", len(listas_totais))
-    print("hash:", hash(str(listas_totais)))
-    print("exemplo:", listas_totais[:3])
-except Exception as _e:
-    print("AUDIT A1 erro:", _e)
-
-
+        print("\nAUDIT A1 — após sanidade_final_listas")
+        try:
+            print("n_listas:", len(listas_totais))
+            print("hash:", hash(str(listas_totais)))
+            print("exemplo:", listas_totais[:3])
+        except Exception as _e:
+            print("AUDIT A1 erro:", _e)
         # ------------------------------------------------------------
         # NEW PACKET GENERATOR (AT)
         # - Atua no gerador REAL do Modo 6
@@ -3081,16 +3074,12 @@ except Exception as _e:
                     "listas_regeneradas_qtd": 0,
                 }
             else:
-                listas_totais, _npgen_info = pc_v16_new_packet_generator
-
-print("\nAUDIT A3 — saída NEW_PACKET_GENERATOR")
-try:
-    print("hash depois:", hash(str(listas_totais)))
-    print("exemplo:", listas_totais[:3])
-except Exception as _e:
-    print("AUDIT A3 erro:", _e)
-
-(
+                print("\nAUDIT A2 — entrada NEW_PACKET_GENERATOR")
+                try:
+                    print("hash antes:", hash(str(listas_totais)))
+                except Exception as _e:
+                    print("AUDIT A2 erro:", _e)
+                listas_totais, _npgen_info = pc_v16_new_packet_generator(
                     listas_totais,
                     ranking_vals=_ranking_vals_at,
                     historico_df=df,
@@ -3098,6 +3087,13 @@ except Exception as _e:
                     seed=seed,
                     max_lists=len(listas_totais),
                 )
+                print("\nAUDIT A3 — saída NEW_PACKET_GENERATOR")
+                try:
+                    print("hash depois:", hash(str(listas_totais)))
+                    print("exemplo:", listas_totais[:3])
+                    print("info:", _npgen_info)
+                except Exception as _e:
+                    print("AUDIT A3 erro:", _e)
                 calib_meta["new_packet_generator"] = dict(_npgen_info)
         except Exception as _e:
             calib_meta["new_packet_generator"] = {
@@ -3137,6 +3133,11 @@ except Exception as _e:
                     strong_vals=_top_pool_vals,
                     calib_active=bool(calib_meta.get("applied", False)),
                 )
+                print("\nAUDIT B1 — após TOP_COHESION")
+                try:
+                    print("hash:", hash(str(listas_totais)))
+                except Exception as _e:
+                    print("AUDIT B1 erro:", _e)
             calib_meta["packet_compression"] = dict(_comp_info)
         except Exception as _e:
             calib_meta["packet_compression"] = {"active": False, "applied": False, "reason": f"top_cohesion_erro: {_e}"}
