@@ -342,12 +342,12 @@ def pc_classificar_postura_motor(pipeline_regime: str | None, nr_percent, div_s6
         div_s6_mc=div_s6_mc,
     )
 
-def print("\nAUDIT B2 — antes RESP")
+print("\nAUDIT B2 — antes RESP")
         try:
             print("hash:", hash(str(listas_totais)))
         except Exception as _e:
             print("AUDIT B2 erro:", _e)
-        pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65, core_min=None):
+        pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0, n_alvo=6, memoria_sufocadores=None, cap_pct=0.65, core_min=None)
     if core_min is None:
         core_min = 0.60
 
