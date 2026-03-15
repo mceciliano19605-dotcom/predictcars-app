@@ -11,22 +11,6 @@ Arquivo único, íntegro e operacional.
 
 
 import streamlit as st
-
-# ================= AUDIT TRACE SESSION LOGGER =================
-def _pc_audit_log(label, payload=None):
-    try:
-        import streamlit as st
-        if "AUDIT_TRACE" not in st.session_state:
-            st.session_state["AUDIT_TRACE"] = []
-        entry = {"label": label}
-        if payload is not None:
-            entry["payload"] = str(payload)[:5000]
-        st.session_state["AUDIT_TRACE"].append(entry)
-        print(f"AUDIT::{label} -> {payload}")
-    except Exception as e:
-        _pc_audit_log("LOGGER ERROR:", e)
-# ===============================================================
-
 from datetime import datetime
 import re
 
@@ -34,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BE — NEW PACKET GENERATOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BE_NEW_PACKET_GENERATOR_BANNER_OK.py"
+BUILD_TAG = "v16h57BF — PIPELINE AUDIT PANEL + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BF_NEW_PACKET_GENERATOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BE — BUILD AUDITÁVEL (new packet generator)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BF — BUILD AUDITÁVEL (new packet generator)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -56,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57BE — NEW PACKET GENERATOR + BANNER OK
+        <b>BUILD: v16h57BF — PIPELINE AUDIT PANEL + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -21108,3 +21092,20 @@ if painel == "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)":
 
 if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
+
+
+# ===================== AUDITORIA DO PACOTE =====================
+try:
+    import streamlit as st
+    st.markdown("## 🔎 Auditoria do Pacote (Pipeline Trace)")
+
+    if "AUDIT_TRACE" in st.session_state:
+        trace = st.session_state["AUDIT_TRACE"]
+        st.write("Eventos capturados:", len(trace))
+        st.write(trace)
+
+    else:
+        st.info("Nenhum evento AUDIT_TRACE capturado nesta execução.")
+except Exception as e:
+    print("AUDIT PANEL ERROR:", e)
+# ===============================================================
