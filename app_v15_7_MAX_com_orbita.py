@@ -14,34 +14,18 @@ import streamlit as st
 from datetime import datetime
 import re
 
-# ===== AUDIT LOGGER =====
-def _pc_audit_log(label,pacote):
-    try:
-        import streamlit as st
-        if "AUDIT_TRACE" not in st.session_state:
-            st.session_state["AUDIT_TRACE"]=[]
-        st.session_state["AUDIT_TRACE"].append({
-            "label":label,
-            "n_listas":len(pacote) if pacote else 0,
-            "hash":hash(str(pacote)) if pacote else None
-        })
-    except Exception as e:
-        print("AUDIT ERROR",e)
-# ========================
-
-
 # ============================================================
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BG — PIPELINE AUDIT PANEL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BG_NEW_PACKET_GENERATOR_BANNER_OK.py"
+BUILD_TAG = "v16h57BH — POST MODO6 AUDIT PANEL + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BH_NEW_PACKET_GENERATOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BG — BUILD AUDITÁVEL (new packet generator)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BH — BUILD AUDITÁVEL (new packet generator)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -56,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57BG — PIPELINE AUDIT PANEL + BANNER OK
+        <b>BUILD: v16h57BH — POST MODO6 AUDIT PANEL + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -3116,7 +3100,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
         except Exception as _e:
             calib_meta["packet_compression"] = {"active": False, "applied": False, "reason": f"top_cohesion_erro: {_e}"}
 
-        _pc_audit_log('A1 listas_totais apos geracao', listas_totais)
         listas_top10 = listas_totais[:10]
 
         try:
@@ -3140,8 +3123,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     listas_top10 = _aj
                 else:
                     listas_totais = _aj
-                    _pc_audit_log('A1 listas_totais apos geracao', listas_totais)
-        listas_top10 = listas_totais[:10]
+                    listas_top10 = listas_totais[:10]
         except Exception:
             pass
 
@@ -15527,8 +15509,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
                 )
             except Exception:
                 pass
-            _pc_audit_log('A1 listas_totais apos geracao', listas_totais)
-        listas_top10 = listas_totais[:10]
+            listas_top10 = listas_totais[:10]
     
         # registro em sessão (para Relatório Final / Bala Humano)
         st.session_state["orbita_info"] = info_orbita
@@ -15581,8 +15562,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
                 listas_top10 = _aj
             else:
                 listas_totais = _aj
-                _pc_audit_log('A1 listas_totais apos geracao', listas_totais)
-        listas_top10 = listas_totais[:10]
+                listas_top10 = listas_totais[:10]
 
         st.session_state["bloco_c_info"] = {
             "aplicado": bool(_c_out.get("aplicado")),
@@ -21131,15 +21111,39 @@ except Exception as e:
 # ===============================================================
 
 
-# ===== AUDITORIA DO PACOTE =====
+
+# ===================== POST MODO6 AUDIT =====================
 try:
     import streamlit as st
-    st.markdown("## 🔎 Auditoria do Pacote")
-    trace=st.session_state.get("AUDIT_TRACE",[])
-    if trace:
-        st.write(trace)
+    st.markdown("## 🔎 Auditoria do Pacote (POST MODO6)")
+
+    pacote = None
+
+    # Try to locate package safely
+    if "listas_top10" in globals():
+        pacote = globals()["listas_top10"]
+    elif "listas_top10" in st.session_state:
+        pacote = st.session_state["listas_top10"]
+
+    if pacote:
+        unique_vals = sorted({x for lst in pacote for x in lst})
+        overlaps = []
+        for i in range(len(pacote)):
+            si=set(pacote[i])
+            for j in range(i+1,len(pacote)):
+                overlaps.append(len(si.intersection(pacote[j])))
+
+        overlap_mean = (sum(overlaps)/len(overlaps)) if overlaps else 0
+
+        st.write({
+            "n_listas": len(pacote),
+            "hash": hash(str(pacote)),
+            "passageiros_unicos": len(unique_vals),
+            "sobreposicao_media": overlap_mean,
+            "exemplo": pacote[:3]
+        })
     else:
-        st.info("Nenhum evento capturado")
-except:
-    pass
-# ===============================
+        st.info("Pacote ainda não detectado nesta execução.")
+except Exception as e:
+    print("POST MODO6 AUDIT ERROR:", e)
+# ============================================================
