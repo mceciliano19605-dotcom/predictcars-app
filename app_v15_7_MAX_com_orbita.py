@@ -16,32 +16,32 @@ import re
 
 import math
 
-def _pc_audit_pkt(label, pacote):
-    """Audit helper: safe packet trace."""
+def _pc_audit_packet_stats(label, pacote):
     try:
-        pkt = pacote if isinstance(pacote, list) else []
-        norm = []
-        for lst in pkt:
-            if isinstance(lst, (list, tuple)):
-                try:
-                    norm.append([int(x) for x in lst])
-                except Exception:
-                    pass
-        n_listas = len(norm)
-        uniq = sorted({int(x) for lst in norm for x in lst})
+        pkt = []
+        for lst in (pacote or []):
+            try:
+                li = [int(x) for x in lst]
+                if li:
+                    pkt.append(li)
+            except Exception:
+                pass
+
+        unique_vals = sorted({int(x) for lst in pkt for x in lst}) if pkt else []
         overlaps = []
-        for i in range(len(norm)):
-            si = set(norm[i])
-            for j in range(i + 1, len(norm)):
-                overlaps.append(len(si & set(norm[j])))
-        overlap_med = round(sum(overlaps) / len(overlaps), 4) if overlaps else 0.0
+        for i in range(len(pkt)):
+            si = set(pkt[i])
+            for j in range(i + 1, len(pkt)):
+                overlaps.append(len(si.intersection(pkt[j])))
+
+        overlap_mean = (sum(overlaps) / len(overlaps)) if overlaps else 0.0
+
         print(f"\n{label}")
-        print("n_listas:", n_listas)
-        print("hash:", hash(str(norm)))
-        print("passageiros_unicos_qtd:", len(uniq))
-        print("passageiros_unicos_top20:", uniq[:20])
-        print("intersec_media:", overlap_med)
-        print("exemplo:", norm[:3])
+        print("n_listas:", len(pkt))
+        print("hash:", hash(str(pkt)))
+        print("passageiros_unicos:", len(unique_vals))
+        print("sobreposicao_media:", round(float(overlap_mean), 4))
+        print("exemplo:", pkt[:3])
     except Exception as _e:
         print(f"{label} erro:", _e)
 
@@ -680,6 +680,7 @@ def pc_v16_aplicar_resp_no_pacote(*, pacote_atual, k_reg, universo_min=1, univer
         calib_should_apply = bool(calib_active and (I2_val >= THR_BASE))
 
         pacote_store = [list(lst) for lst in pacote_baseline]
+        _pc_audit_packet_stats("AUDIT B2 — antes RESP", pacote_store)
         top10_final = list(top10_override) if isinstance(top10_override, list) and top10_override else pacote_store[:10]
         resp_info = {"aplicado": False, "motivo": "nao_aplicado"}
 
@@ -691,7 +692,6 @@ def pc_v16_aplicar_resp_no_pacote(*, pacote_atual, k_reg, universo_min=1, univer
             universo_resp = [int(x) for x in universo_resp if int(x) > 0]
             top10_resp = list(top10_override) if isinstance(top10_override, list) and top10_override else (pacote_store[:10] if len(pacote_store) >= 10 else list(pacote_store))
             _cap_pct = float(cap_pct) if cap_pct is not None else (0.35 if (I2_val >= 0.65) else 0.45)
-            _pc_audit_pkt("AUDIT B2 — antes RESP", pacote_store)
             new_tot, new_top10, resp_info = pc_resp_aplicar_diversificacao(
                 listas_totais=pacote_store,
                 listas_top10=top10_resp,
@@ -713,7 +713,6 @@ def pc_v16_aplicar_resp_no_pacote(*, pacote_atual, k_reg, universo_min=1, univer
                         continue
                 if _tmp:
                     pacote_store = _tmp
-                    _pc_audit_pkt("AUDIT B3 — após RESP", pacote_store)
             if isinstance(new_top10, list) and len(new_top10) > 0:
                 _top = []
                 for lst in new_top10:
@@ -745,6 +744,7 @@ def pc_v16_aplicar_resp_no_pacote(*, pacote_atual, k_reg, universo_min=1, univer
         _aplicado_flag = bool(resp_info.get("aplicado", False)) if isinstance(resp_info, dict) else False
         _mudou_flag = bool(pacote_store != pacote_baseline)
         calib_applied = bool(_aplicado_flag or _mudou_flag)
+        _pc_audit_packet_stats("AUDIT B3 — após RESP", pacote_store)
 
         return {
             "pacote_baseline": pacote_baseline,
@@ -2105,7 +2105,7 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
 
         pacote_baseline = _resp_apply.get("pacote_baseline", [])
         pacote_store = _resp_apply.get("pacote_store", pacote_baseline)
-        _pc_audit_pkt("AUDIT B4 — Replay recebeu pacote", pacote_store)
+        _pc_audit_packet_stats("AUDIT B4 — Replay recebeu pacote", pacote_store)
         resp_info = _resp_apply.get("resp_info", {"aplicado": False, "motivo": "nao_aplicado"})
         calib_active = bool(_resp_apply.get("calib_active", False))
         calib_applied = bool(_resp_apply.get("calib_applied", False))
@@ -2461,7 +2461,7 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
         if not pacote_baseline:
             return False
         pacote_store = _resp_apply.get("pacote_store", pacote_baseline)
-        _pc_audit_pkt("AUDIT B4 — Replay recebeu pacote", pacote_store)
+        _pc_audit_packet_stats("AUDIT B4 — Replay recebeu pacote", pacote_store)
         resp_info = _resp_apply.get("resp_info", {"aplicado": False, "motivo": "nao_executado"})
         calib_active = bool(_resp_apply.get("calib_active", False))
         calib_applied = bool(_resp_apply.get("calib_applied", False))
@@ -3066,7 +3066,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 pass
 
         listas_totais = sanidade_final_listas(listas_filtradas)
-        _pc_audit_pkt("AUDIT A1 — após sanidade_final_listas", listas_totais)
+        _pc_audit_packet_stats("AUDIT A1 — após sanidade_final_listas", listas_totais)
         # ------------------------------------------------------------
         # NEW PACKET GENERATOR (AT)
         # - Atua no gerador REAL do Modo 6
@@ -3086,7 +3086,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     "listas_regeneradas_qtd": 0,
                 }
             else:
-                _pc_audit_pkt("AUDIT A2 — entrada NEW_PACKET_GENERATOR", listas_totais)
+                _pc_audit_packet_stats("AUDIT A2 — entrada NEW_PACKET_GENERATOR", listas_totais)
                 listas_totais, _npgen_info = pc_v16_new_packet_generator(
                     listas_totais,
                     ranking_vals=_ranking_vals_at,
@@ -3095,8 +3095,8 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     seed=seed,
                     max_lists=len(listas_totais),
                 )
-                _pc_audit_pkt("AUDIT A3 — saída NEW_PACKET_GENERATOR", listas_totais)
                 calib_meta["new_packet_generator"] = dict(_npgen_info)
+                _pc_audit_packet_stats("AUDIT A3 — saída NEW_PACKET_GENERATOR", listas_totais)
         except Exception as _e:
             calib_meta["new_packet_generator"] = {
                 "active": False,
@@ -3135,8 +3135,8 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     strong_vals=_top_pool_vals,
                     calib_active=bool(calib_meta.get("applied", False)),
                 )
-            _pc_audit_pkt("AUDIT B1 — após TOP_COHESION", listas_totais)
             calib_meta["packet_compression"] = dict(_comp_info)
+            _pc_audit_packet_stats("AUDIT B1 — após TOP_COHESION", listas_totais)
         except Exception as _e:
             calib_meta["packet_compression"] = {"active": False, "applied": False, "reason": f"top_cohesion_erro: {_e}"}
 
