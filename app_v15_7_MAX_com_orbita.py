@@ -14,18 +14,65 @@ import streamlit as st
 from datetime import datetime
 import re
 
+# ================= AUDIT TRACE HELPERS =================
+def _pc_packet_stats(pacote):
+    try:
+        pkt = []
+        for lst in (pacote or []):
+            try:
+                li = [int(x) for x in lst]
+                if li:
+                    pkt.append(li)
+            except Exception:
+                pass
+
+        unique_vals = sorted({int(x) for lst in pkt for x in lst}) if pkt else []
+        overlaps = []
+        for i in range(len(pkt)):
+            si = set(pkt[i])
+            for j in range(i + 1, len(pkt)):
+                overlaps.append(len(si.intersection(pkt[j])))
+
+        overlap_mean = (sum(overlaps) / len(overlaps)) if overlaps else 0.0
+        return {
+            "n_listas": len(pkt),
+            "hash": hash(str(pkt)),
+            "passageiros_unicos": len(unique_vals),
+            "sobreposicao_media": round(float(overlap_mean), 4),
+            "exemplo": pkt[:3],
+        }
+    except Exception as e:
+        return {"erro": str(e)}
+
+def _pc_audit_log(label, pacote=None, extra=None):
+    try:
+        import streamlit as st
+        if "AUDIT_TRACE" not in st.session_state:
+            st.session_state["AUDIT_TRACE"] = []
+        payload = {}
+        if pacote is not None:
+            payload["pacote"] = _pc_packet_stats(pacote)
+        if extra is not None:
+            payload["extra"] = extra
+        st.session_state["AUDIT_TRACE"].append({"label": label, "payload": payload})
+        print(f"AUDIT::{label} -> {payload}")
+    except Exception as e:
+        print("AUDIT LOGGER ERROR:", e)
+# =======================================================
+
+
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57BG — DEEP MODO6 TRACE + AUDIT PANEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BF — PIPELINE AUDIT PANEL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BF_NEW_PACKET_GENERATOR_BANNER_OK.py"
+BUILD_TAG = "v16h57BG — DEEP MODO6 TRACE + AUDIT PANEL + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BG_DEEP_MODO6_TRACE_AUDIT_PANEL.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
+WATERMARK = "2026-03-15_02 (DEEP_MODO6_TRACE_BG)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BF — BUILD AUDITÁVEL (new packet generator)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BG — BUILD AUDITÁVEL (deep modo6 trace)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,7 +87,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57BF — PIPELINE AUDIT PANEL + BANNER OK
+        <b>BUILD:</b> v16h57BG — DEEP MODO6 TRACE + AUDIT PANEL + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -2070,8 +2117,11 @@ def pc_snapshot_p0_autoregistrar(pacote_atual, k_reg, universo_min=1, universo_m
         )
 
         pacote_baseline = _resp_apply.get("pacote_baseline", [])
+        _pc_audit_log("B2 — antes RESP", pacote=pacote_baseline)
         pacote_store = _resp_apply.get("pacote_store", pacote_baseline)
+        _pc_audit_log("B3 — após RESP", pacote=pacote_store, extra=_resp_apply.get("resp_info", {}))
         resp_info = _resp_apply.get("resp_info", {"aplicado": False, "motivo": "nao_aplicado"})
+        _pc_audit_log("B4 — Replay recebeu pacote", pacote=pacote_store)
         calib_active = bool(_resp_apply.get("calib_active", False))
         calib_applied = bool(_resp_apply.get("calib_applied", False))
         I_mean = float(_resp_apply.get("I_mean", 0.0))
@@ -2423,9 +2473,11 @@ def pc_replay_registrar_pacote_silent(*, k_reg: int, pacote_atual: list, univers
         )
 
         pacote_baseline = _resp_apply.get("pacote_baseline", [])
+        _pc_audit_log("B2 — antes RESP", pacote=pacote_baseline)
         if not pacote_baseline:
             return False
         pacote_store = _resp_apply.get("pacote_store", pacote_baseline)
+        _pc_audit_log("B3 — após RESP", pacote=pacote_store, extra=_resp_apply.get("resp_info", {}))
         resp_info = _resp_apply.get("resp_info", {"aplicado": False, "motivo": "nao_executado"})
         calib_active = bool(_resp_apply.get("calib_active", False))
         calib_applied = bool(_resp_apply.get("calib_applied", False))
@@ -3030,6 +3082,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 pass
 
         listas_totais = sanidade_final_listas(listas_filtradas)
+        _pc_audit_log("A1 — após sanidade_final_listas", pacote=listas_totais)
         # ------------------------------------------------------------
         # NEW PACKET GENERATOR (AT)
         # - Atua no gerador REAL do Modo 6
@@ -3049,6 +3102,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     "listas_regeneradas_qtd": 0,
                 }
             else:
+                _pc_audit_log("A2 — entrada NEW_PACKET_GENERATOR", pacote=listas_totais)
                 listas_totais, _npgen_info = pc_v16_new_packet_generator(
                     listas_totais,
                     ranking_vals=_ranking_vals_at,
@@ -3058,6 +3112,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     max_lists=len(listas_totais),
                 )
                 calib_meta["new_packet_generator"] = dict(_npgen_info)
+                _pc_audit_log("A3 — saída NEW_PACKET_GENERATOR", pacote=listas_totais, extra=_npgen_info)
         except Exception as _e:
             calib_meta["new_packet_generator"] = {
                 "active": False,
@@ -3097,10 +3152,12 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     calib_active=bool(calib_meta.get("applied", False)),
                 )
             calib_meta["packet_compression"] = dict(_comp_info)
+            _pc_audit_log("B1 — após TOP_COHESION", pacote=listas_totais, extra=_comp_info)
         except Exception as _e:
             calib_meta["packet_compression"] = {"active": False, "applied": False, "reason": f"top_cohesion_erro: {_e}"}
 
         listas_top10 = listas_totais[:10]
+        _pc_audit_log("B1.5 — após corte listas_top10", pacote=listas_top10)
 
         try:
             _v8_info = st.session_state.get("v8_borda_qualificada_info", None)
@@ -11145,8 +11202,11 @@ if painel == "🧭 Replay Progressivo — Janela Móvel (Assistido)":
                 )
 
                 pacote_baseline = _resp_apply.get("pacote_baseline", [])
+        _pc_audit_log("B2 — antes RESP", pacote=pacote_baseline)
                 pacote_store = _resp_apply.get("pacote_store", pacote_baseline)
+        _pc_audit_log("B3 — após RESP", pacote=pacote_store, extra=_resp_apply.get("resp_info", {}))
                 resp_info = _resp_apply.get("resp_info", {"aplicado": False, "motivo": "nao_aplicado"})
+        _pc_audit_log("B4 — Replay recebeu pacote", pacote=pacote_store)
                 calib_active = bool(_resp_apply.get("calib_active", False))
                 calib_should_apply = bool(_resp_apply.get("calib_should_apply", False))
                 calib_applied = bool(_resp_apply.get("calib_applied", False))
@@ -21094,18 +21154,20 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 
+
 # ===================== AUDITORIA DO PACOTE =====================
 try:
     import streamlit as st
     st.markdown("## 🔎 Auditoria do Pacote (Pipeline Trace)")
-
-    if "AUDIT_TRACE" in st.session_state:
-        trace = st.session_state["AUDIT_TRACE"]
-        st.write("Eventos capturados:", len(trace))
-        st.write(trace)
-
+    trace = st.session_state.get("AUDIT_TRACE", [])
+    if trace:
+        st.success(f"Eventos capturados: {len(trace)}")
+        for i, ev in enumerate(trace, 1):
+            st.markdown(f"### {i}. {ev.get('label', 'sem_label')}")
+            st.json(ev.get("payload", {}))
     else:
         st.info("Nenhum evento AUDIT_TRACE capturado nesta execução.")
 except Exception as e:
     print("AUDIT PANEL ERROR:", e)
 # ===============================================================
+
