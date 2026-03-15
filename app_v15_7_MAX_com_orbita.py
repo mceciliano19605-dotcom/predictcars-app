@@ -14,50 +14,27 @@ import streamlit as st
 from datetime import datetime
 import re
 
-# ================= AUDIT TRACE HELPERS =================
-def _pc_packet_stats(pacote):
-    try:
-        pkt=[]
-        for lst in (pacote or []):
-            try:
-                li=[int(x) for x in lst]
-                if li: pkt.append(li)
-            except: pass
-        unique_vals=sorted({x for l in pkt for x in l}) if pkt else []
-        overlaps=[]
-        for i in range(len(pkt)):
-            si=set(pkt[i])
-            for j in range(i+1,len(pkt)):
-                overlaps.append(len(si.intersection(pkt[j])))
-        overlap_mean=(sum(overlaps)/len(overlaps)) if overlaps else 0.0
-        return {
-            "n_listas":len(pkt),
-            "hash":hash(str(pkt)),
-            "passageiros_unicos":len(unique_vals),
-            "sobreposicao_media":round(overlap_mean,4),
-            "exemplo":pkt[:3],
-        }
-    except Exception as e:
-        return {"erro":str(e)}
-
-def _pc_audit_log(label,pacote=None):
+# ===== AUDIT LOGGER =====
+def _pc_audit_log(label,pacote):
     try:
         import streamlit as st
         if "AUDIT_TRACE" not in st.session_state:
             st.session_state["AUDIT_TRACE"]=[]
-        payload=_pc_packet_stats(pacote) if pacote is not None else {}
-        st.session_state["AUDIT_TRACE"].append({"label":label,"payload":payload})
-        print("AUDIT::",label,payload)
+        st.session_state["AUDIT_TRACE"].append({
+            "label":label,
+            "n_listas":len(pacote) if pacote else 0,
+            "hash":hash(str(pacote)) if pacote else None
+        })
     except Exception as e:
-        print("AUDIT LOGGER ERROR",e)
-# ======================================================
+        print("AUDIT ERROR",e)
+# ========================
 
 
 # ============================================================
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BG — DEEP MODO6 TRACE + AUDIT PANEL + BANNER OK"
+BUILD_TAG = "v16h57BG — PIPELINE AUDIT PANEL + BANNER OK"
 BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BG_NEW_PACKET_GENERATOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -79,7 +56,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57BG — DEEP MODO6 TRACE + AUDIT PANEL + BANNER OK
+        <b>BUILD: v16h57BG — PIPELINE AUDIT PANEL + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -3069,7 +3046,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 pass
 
         listas_totais = sanidade_final_listas(listas_filtradas)
-        _pc_audit_log('A1 apos sanidade_final_listas', listas_totais)
         # ------------------------------------------------------------
         # NEW PACKET GENERATOR (AT)
         # - Atua no gerador REAL do Modo 6
@@ -3140,7 +3116,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
         except Exception as _e:
             calib_meta["packet_compression"] = {"active": False, "applied": False, "reason": f"top_cohesion_erro: {_e}"}
 
-        _pc_audit_log('B1 apos top_cohesion', listas_totais)
+        _pc_audit_log('A1 listas_totais apos geracao', listas_totais)
         listas_top10 = listas_totais[:10]
 
         try:
@@ -3164,7 +3140,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     listas_top10 = _aj
                 else:
                     listas_totais = _aj
-                    _pc_audit_log('B1 apos top_cohesion', listas_totais)
+                    _pc_audit_log('A1 listas_totais apos geracao', listas_totais)
         listas_top10 = listas_totais[:10]
         except Exception:
             pass
@@ -15475,8 +15451,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         # fallback silencioso (não quebra execução)
         pass
 
-    _pc_audit_log('B1 apos top_cohesion', listas_totais)
-        listas_top10 = listas_totais[:10]
+    listas_top10 = listas_totais[:10]
 
     # ============================================================
     # Órbita (E1) + Gradiente + N_EXTRA
@@ -15552,7 +15527,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
                 )
             except Exception:
                 pass
-            _pc_audit_log('B1 apos top_cohesion', listas_totais)
+            _pc_audit_log('A1 listas_totais apos geracao', listas_totais)
         listas_top10 = listas_totais[:10]
     
         # registro em sessão (para Relatório Final / Bala Humano)
@@ -15606,7 +15581,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
                 listas_top10 = _aj
             else:
                 listas_totais = _aj
-                _pc_audit_log('B1 apos top_cohesion', listas_totais)
+                _pc_audit_log('A1 listas_totais apos geracao', listas_totais)
         listas_top10 = listas_totais[:10]
 
         st.session_state["bloco_c_info"] = {
@@ -21156,18 +21131,15 @@ except Exception as e:
 # ===============================================================
 
 
-# ===================== AUDITORIA DO PACOTE =====================
+# ===== AUDITORIA DO PACOTE =====
 try:
     import streamlit as st
-    st.markdown("## 🔎 Auditoria do Pacote (Pipeline Trace)")
-    trace = st.session_state.get("AUDIT_TRACE", [])
+    st.markdown("## 🔎 Auditoria do Pacote")
+    trace=st.session_state.get("AUDIT_TRACE",[])
     if trace:
-        st.success(f"Eventos capturados: {len(trace)}")
-        for ev in trace:
-            st.markdown(f"**{ev['label']}**")
-            st.json(ev["payload"])
+        st.write(trace)
     else:
-        st.info("Nenhum evento AUDIT_TRACE capturado nesta execução.")
-except Exception as e:
-    print("AUDIT PANEL ERROR:", e)
-# ===============================================================
+        st.info("Nenhum evento capturado")
+except:
+    pass
+# ===============================
