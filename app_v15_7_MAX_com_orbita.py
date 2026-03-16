@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 # ============================================================
 # PACKET COHESION CONTROLLER (defined early to avoid NameError)
@@ -22,7 +23,6 @@ def packet_cohesion_controller(listas):
     except Exception:
         return listas
 
-from __future__ import annotations
 
 # ============================================================
 # PARTE 1/8 — INÍCIO
