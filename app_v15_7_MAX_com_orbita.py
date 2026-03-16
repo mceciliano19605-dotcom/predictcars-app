@@ -15438,7 +15438,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
 
     listas_totais = packet_cohesion_controller(listas_totais)
-            listas_top10 = listas_totais[:10]
+    listas_top10 = listas_totais[:10]
 
     # ============================================================
     # Órbita (E1) + Gradiente + N_EXTRA
