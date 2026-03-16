@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BH — POST MODO6 AUDIT PANEL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BH_NEW_PACKET_GENERATOR_BANNER_OK.py"
+BUILD_TAG = "v16h57BF — PIPELINE AUDIT PANEL + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BF_NEW_PACKET_GENERATOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BH — BUILD AUDITÁVEL (new packet generator)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BF — BUILD AUDITÁVEL (new packet generator)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD: v16h57BH — POST MODO6 AUDIT PANEL + BANNER OK
+        <b>BUILD: v16h57BF — PIPELINE AUDIT PANEL + BANNER OK
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -3030,6 +3030,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 pass
 
         listas_totais = sanidade_final_listas(listas_filtradas)
+        listas_totais = packet_cohesion_controller(listas_totais)
         # ------------------------------------------------------------
         # NEW PACKET GENERATOR (AT)
         # - Atua no gerador REAL do Modo 6
@@ -21111,39 +21112,50 @@ except Exception as e:
 # ===============================================================
 
 
-
-# ===================== POST MODO6 AUDIT =====================
-try:
-    import streamlit as st
-    st.markdown("## 🔎 Auditoria do Pacote (POST MODO6)")
-
-    pacote = None
-
-    # Try to locate package safely
-    if "listas_top10" in globals():
-        pacote = globals()["listas_top10"]
-    elif "listas_top10" in st.session_state:
-        pacote = st.session_state["listas_top10"]
-
-    if pacote:
-        unique_vals = sorted({x for lst in pacote for x in lst})
-        overlaps = []
-        for i in range(len(pacote)):
-            si=set(pacote[i])
-            for j in range(i+1,len(pacote)):
-                overlaps.append(len(si.intersection(pacote[j])))
-
-        overlap_mean = (sum(overlaps)/len(overlaps)) if overlaps else 0
-
-        st.write({
-            "n_listas": len(pacote),
-            "hash": hash(str(pacote)),
-            "passageiros_unicos": len(unique_vals),
-            "sobreposicao_media": overlap_mean,
-            "exemplo": pacote[:3]
-        })
-    else:
-        st.info("Pacote ainda não detectado nesta execução.")
-except Exception as e:
-    print("POST MODO6 AUDIT ERROR:", e)
 # ============================================================
+# v16h57BI — PACKET COHESION CONTROLLER
+# ============================================================
+def packet_cohesion_controller(listas_totais, max_unique=24):
+    try:
+        if not listas_totais:
+            return listas_totais
+
+        # flatten
+        flat = [p for l in listas_totais for p in l]
+        freq = {}
+        for p in flat:
+            freq[p] = freq.get(p,0)+1
+
+        # passageiros mais frequentes = núcleo estrutural
+        core = sorted(freq, key=freq.get, reverse=True)[:8]
+
+        novas = []
+        for l in listas_totais:
+            base = [p for p in l if p in core]
+            extras = [p for p in l if p not in base]
+            nova = (base + extras)[:6]
+            if len(nova) < 6:
+                for c in core:
+                    if c not in nova:
+                        nova.append(c)
+                    if len(nova)==6:
+                        break
+            novas.append(sorted(nova))
+
+        # limitar diversidade extrema
+        uniq = sorted(set([p for l in novas for p in l]))
+        if len(uniq) > max_unique:
+            allowed = set(uniq[:max_unique])
+            novas2 = []
+            for l in novas:
+                nl = [p for p in l if p in allowed]
+                while len(nl)<6:
+                    nl.append(list(allowed)[0])
+                novas2.append(sorted(nl[:6]))
+            novas = novas2
+
+        return novas
+    except Exception as e:
+        print("COHESION_CONTROLLER_ERROR:", e)
+        return listas_totais
+
