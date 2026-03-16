@@ -3127,7 +3127,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 else:
                     listas_totais = _aj
                     listas_totais = packet_cohesion_controller(listas_totais)
-        listas_top10 = listas_totais[:10]
+            listas_top10 = listas_totais[:10]
         except Exception:
             pass
 
@@ -15438,7 +15438,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
 
     listas_totais = packet_cohesion_controller(listas_totais)
-        listas_top10 = listas_totais[:10]
+            listas_top10 = listas_totais[:10]
 
     # ============================================================
     # Órbita (E1) + Gradiente + N_EXTRA
@@ -15515,7 +15515,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
             except Exception:
                 pass
             listas_totais = packet_cohesion_controller(listas_totais)
-        listas_top10 = listas_totais[:10]
+            listas_top10 = listas_totais[:10]
     
         # registro em sessão (para Relatório Final / Bala Humano)
         st.session_state["orbita_info"] = info_orbita
@@ -15569,7 +15569,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
             else:
                 listas_totais = _aj
                 listas_totais = packet_cohesion_controller(listas_totais)
-        listas_top10 = listas_totais[:10]
+            listas_top10 = listas_totais[:10]
 
         st.session_state["bloco_c_info"] = {
             "aplicado": bool(_c_out.get("aplicado")),
