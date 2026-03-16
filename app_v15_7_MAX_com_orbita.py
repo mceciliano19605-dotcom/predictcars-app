@@ -1,3 +1,27 @@
+
+# ============================================================
+# PACKET COHESION CONTROLLER (defined early to avoid NameError)
+# ============================================================
+def packet_cohesion_controller(listas):
+    try:
+        if not listas:
+            return listas
+        from collections import Counter
+        flat=[x for l in listas for x in l]
+        freq=Counter(flat)
+        core=[p for p,_ in freq.most_common(8)]
+        novas=[]
+        for l in listas:
+            base=[p for p in l if p in core]
+            extra=[p for p in l if p not in base]
+            nl=(base+extra)[:6]
+            while len(nl)<6:
+                nl.append(core[0])
+            novas.append(sorted(nl))
+        return novas
+    except Exception:
+        return listas
+
 from __future__ import annotations
 
 # ============================================================
@@ -18,14 +42,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BL — PACKET COHESION CONTROLLER (MODO6 INTEGRATION) + POST MODO6 AUDIT + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BL_PACKET_COHESION_MODO6_INTEGRATION.py"
+BUILD_TAG = "v16h57BM — PACKET COHESION CONTROLLER (MODO6 INTEGRATION) + POST MODO6 AUDIT + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BM_PACKET_COHESION_TOPFIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BL — BUILD AUDITÁVEL (packet cohesion controller modo6 integration)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BM — BUILD AUDITÁVEL (packet cohesion controller modo6 integration)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,7 +64,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57BL — PACKET COHESION CONTROLLER (MODO6 INTEGRATION) + POST MODO6 AUDIT + BANNER OK<br>
+        <b>BUILD:</b> v16h57BM — PACKET COHESION CONTROLLER (MODO6 INTEGRATION) + POST MODO6 AUDIT + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
