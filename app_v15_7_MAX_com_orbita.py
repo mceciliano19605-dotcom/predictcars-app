@@ -18,14 +18,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BJ — PACKET COHESION CONTROLLER + POST MODO6 AUDIT + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BJ_PACKET_COHESION_CONTROLLER_POST_AUDIT.py"
+BUILD_TAG = "v16h57BK — PACKET COHESION CONTROLLER + POST MODO6 AUDIT RESTORED + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BK_PACKET_COHESION_CONTROLLER_POST_AUDIT_RESTORE.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BJ — BUILD AUDITÁVEL (packet cohesion controller + post modo6 audit)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BK — BUILD AUDITÁVEL (packet cohesion controller + post modo6 audit restored)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -40,7 +40,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57BJ — PACKET COHESION CONTROLLER + POST MODO6 AUDIT + BANNER OK<br>
+        <b>BUILD:</b> v16h57BK — PACKET COHESION CONTROLLER + POST MODO6 AUDIT RESTORED + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -21159,3 +21159,40 @@ def packet_cohesion_controller(listas_totais, max_unique=24):
         print("COHESION_CONTROLLER_ERROR:", e)
         return listas_totais
 
+
+
+# ============================================================
+# POST MODO6 AUDIT (RESTORED v16h57BK)
+# ============================================================
+try:
+    import itertools
+    
+    listas_ref = None
+    
+    if 'listas_top10' in globals():
+        listas_ref = listas_top10
+    elif 'listas_totais' in globals():
+        listas_ref = listas_totais[:10]
+    
+    if listas_ref:
+        flat = [x for l in listas_ref for x in l]
+        passageiros_unicos = len(set(flat))
+        
+        inter = []
+        for a,b in itertools.combinations(listas_ref,2):
+            inter.append(len(set(a).intersection(set(b))))
+        
+        sobreposicao = round(sum(inter)/len(inter),2) if inter else 0
+        
+        pacote_hash = hash(str(listas_ref))
+        
+        st.markdown("### 🔎 Auditoria do Pacote (POST MODO6)")
+        st.json({
+            "n_listas": len(listas_ref),
+            "hash": pacote_hash,
+            "passageiros_unicos": passageiros_unicos,
+            "sobreposicao_media": sobreposicao,
+            "exemplo": listas_ref[:3]
+        })
+except Exception as e:
+    print("POST_MODO6_AUDIT_ERROR:", e)
