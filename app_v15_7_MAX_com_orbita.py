@@ -3,10 +3,23 @@ from __future__ import annotations
 # ============================================================
 # PACKET COHESION CONTROLLER (defined early to avoid NameError)
 # ============================================================
-def _packet_cohesion_controller_core(listas):
+def packet_cohesion_controller(listas):
     try:
         if not listas:
             return listas
+
+        def _pkt_stats(pkt):
+            try:
+                flat = [x for l in pkt for x in l]
+                uniq = len(set(flat))
+                return {"hash": hash(str(pkt)), "passageiros_unicos": uniq}
+            except Exception:
+                return {"hash": None, "passageiros_unicos": 0}
+
+        before = _pkt_stats(listas)
+        print("\n🔎 POST MODO6 BEFORE CONTROLLER")
+        print(before)
+
         from collections import Counter
         flat=[x for l in listas for x in l]
         freq=Counter(flat)
@@ -19,40 +32,12 @@ def _packet_cohesion_controller_core(listas):
             while len(nl)<6:
                 nl.append(core[0])
             novas.append(sorted(nl))
-        return novas
 
-# ============================================================
-# AUDIT WRAPPER — BEFORE / AFTER CONTROLLER
-# ============================================================
-def packet_cohesion_controller(listas):
-    try:
-        import json, hashlib
-        
-        def _hash(x):
-            try:
-                return hash(str(x))
-            except Exception:
-                return None
-
-        before_hash = _hash(listas)
-        before_uni = len(set([p for l in listas for p in l])) if listas else 0
-
-        print("\n🔎 POST MODO6 BEFORE CONTROLLER")
-        print({"hash": before_hash, "passageiros_unicos": before_uni})
-
-        listas2 = _packet_cohesion_controller_core(listas)
-
-        after_hash = _hash(listas2)
-        after_uni = len(set([p for l in listas2 for p in l])) if listas2 else 0
-
+        after = _pkt_stats(novas)
         print("\n🔎 POST MODO6 AFTER CONTROLLER")
-        print({"hash": after_hash, "passageiros_unicos": after_uni})
+        print(after)
 
-        return listas2
-
-    except Exception:
-        return listas
-
+        return novas
     except Exception:
         return listas
 
@@ -75,14 +60,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BN — PACKET COHESION CONTROLLER (MODO6 INTEGRATION) + POST MODO6 AUDIT + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BN_PACKET_COHESION_TOPFIX.py"
+BUILD_TAG = "v16h57BN — BEFORE/AFTER COHESION AUDIT + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BN_PACKET_COHESION_BEFORE_AFTER_AUDIT.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BN — BUILD AUDITÁVEL (packet cohesion controller modo6 integration)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BN — BUILD AUDITÁVEL (before after cohesion audit)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -97,7 +82,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57BN — PACKET COHESION CONTROLLER (MODO6 INTEGRATION) + POST MODO6 AUDIT + BANNER OK<br>
+        <b>BUILD:</b> v16h57BN — BEFORE/AFTER COHESION AUDIT + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -21178,7 +21163,7 @@ except Exception as e:
 # ============================================================
 # v16h57BI — PACKET COHESION CONTROLLER
 # ============================================================
-def _packet_cohesion_controller_core(listas_totais, max_unique=24):
+def packet_cohesion_controller(listas_totais, max_unique=24):
     try:
         if not listas_totais:
             return listas_totais
