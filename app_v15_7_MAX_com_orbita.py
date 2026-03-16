@@ -42,14 +42,14 @@ import re
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BR — COHESION CONTROLLER SAFE BUILD + POST MODO6 AUDIT + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BR_PACKET_COHESION_TOPFIX.py"
+BUILD_TAG = "v16h57BS — COHESION CONTROLLER REAL MODO6 HOOK + BEFORE/AFTER AUDIT + POST MODO6 AUDIT + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BS_PACKET_COHESION_TOPFIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BR — BUILD AUDITÁVEL (packet cohesion controller modo6 integration)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BS — BUILD AUDITÁVEL (packet cohesion controller modo6 integration)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -64,7 +64,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57BR — COHESION CONTROLLER SAFE BUILD + POST MODO6 AUDIT + BANNER OK<br>
+        <b>BUILD:</b> v16h57BS — COHESION CONTROLLER REAL MODO6 HOOK + BEFORE/AFTER AUDIT + POST MODO6 AUDIT + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -3127,6 +3127,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             calib_meta["packet_compression"] = {"active": False, "applied": False, "reason": f"top_cohesion_erro: {_e}"}
 
         listas_totais = packet_cohesion_controller(listas_totais)
+        listas_totais = packet_cohesion_controller(listas_totais)
         listas_top10 = listas_totais[:10]
 
         try:
@@ -3151,7 +3152,8 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 else:
                     listas_totais = _aj
                     listas_totais = packet_cohesion_controller(listas_totais)
-            listas_top10 = listas_totais[:10]
+            listas_totais = packet_cohesion_controller(listas_totais)
+        listas_top10 = listas_totais[:10]
         except Exception:
             pass
 
@@ -15462,7 +15464,8 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
 
     listas_totais = packet_cohesion_controller(listas_totais)
-    listas_top10 = listas_totais[:10]
+    listas_totais = packet_cohesion_controller(listas_totais)
+        listas_top10 = listas_totais[:10]
 
     # ============================================================
     # Órbita (E1) + Gradiente + N_EXTRA
@@ -15539,7 +15542,8 @@ if painel == "🎯 Modo 6 Acertos — Execução":
             except Exception:
                 pass
             listas_totais = packet_cohesion_controller(listas_totais)
-            listas_top10 = listas_totais[:10]
+            listas_totais = packet_cohesion_controller(listas_totais)
+        listas_top10 = listas_totais[:10]
     
         # registro em sessão (para Relatório Final / Bala Humano)
         st.session_state["orbita_info"] = info_orbita
@@ -15593,7 +15597,8 @@ if painel == "🎯 Modo 6 Acertos — Execução":
             else:
                 listas_totais = _aj
                 listas_totais = packet_cohesion_controller(listas_totais)
-            listas_top10 = listas_totais[:10]
+            listas_totais = packet_cohesion_controller(listas_totais)
+        listas_top10 = listas_totais[:10]
 
         st.session_state["bloco_c_info"] = {
             "aplicado": bool(_c_out.get("aplicado")),
