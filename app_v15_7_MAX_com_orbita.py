@@ -1,30 +1,6 @@
 from __future__ import annotations
 
 # ============================================================
-# PACKET COHESION CONTROLLER (defined early to avoid NameError)
-# ============================================================
-def packet_cohesion_controller(listas):
-    try:
-        if not listas:
-            return listas
-        from collections import Counter
-        flat=[x for l in listas for x in l]
-        freq=Counter(flat)
-        core=[p for p,_ in freq.most_common(8)]
-        novas=[]
-        for l in listas:
-            base=[p for p in l if p in core]
-            extra=[p for p in l if p not in base]
-            nl=(base+extra)[:6]
-            while len(nl)<6:
-                nl.append(core[0])
-            novas.append(sorted(nl))
-        return novas
-    except Exception:
-        return listas
-
-
-# ============================================================
 # PARTE 1/8 — INÍCIO
 # ============================================================
 """PredictCars V15.7 MAX — V16 Premium
@@ -39,17 +15,63 @@ from datetime import datetime
 import re
 
 # ============================================================
+# V16h57BT — PACKET COHESION CONTROLLER (safe hook)
+# ============================================================
+def packet_cohesion_controller(listas):
+    try:
+        if not listas:
+            print("\n🔎 POST MODO6 BEFORE CONTROLLER")
+            print({"hash": None, "passageiros_unicos": 0})
+            print("\n🔎 POST MODO6 AFTER CONTROLLER")
+            print({"hash": None, "passageiros_unicos": 0})
+            return listas
+
+        def _stats(pkt):
+            flat = [x for l in pkt for x in l]
+            return {"hash": hash(str(pkt)), "passageiros_unicos": len(set(flat))}
+
+        before = _stats(listas)
+        print("\n🔎 POST MODO6 BEFORE CONTROLLER")
+        print(before)
+
+        from collections import Counter
+        flat = [x for l in listas for x in l]
+        freq = Counter(flat)
+        core = [p for p, _ in freq.most_common(8)]
+
+        novas = []
+        for l in listas:
+            base = [p for p in l if p in core]
+            extra = [p for p in l if p not in base]
+            nl = (base + extra)[:6]
+            while len(nl) < 6 and core:
+                if core[0] not in nl:
+                    nl.append(core[0])
+                else:
+                    break
+            novas.append(sorted(nl[:6]))
+
+        after = _stats(novas)
+        print("\n🔎 POST MODO6 AFTER CONTROLLER")
+        print(after)
+        return novas
+    except Exception:
+        return listas
+
+
+
+# ============================================================
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BR — COHESION CONTROLLER SAFE BUILD + POST MODO6 AUDIT + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BR_PACKET_COHESION_TOPFIX.py"
+BUILD_TAG = "v16h57BT — COHESION REAL HOOK + BEFORE/AFTER + POST MODO6 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BT_COHESION_REAL_HOOK_FIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BR — BUILD AUDITÁVEL (packet cohesion controller modo6 integration)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BT — BUILD AUDITÁVEL (cohesion real hook fix)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -64,7 +86,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57BR — COHESION CONTROLLER SAFE BUILD + POST MODO6 AUDIT + BANNER OK<br>
+        <b>BUILD:</b> v16h57BT — COHESION REAL HOOK + BEFORE/AFTER + POST MODO6 + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -3054,8 +3076,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 pass
 
         listas_totais = sanidade_final_listas(listas_filtradas)
-        listas_totais = packet_cohesion_controller(listas_totais)
-        listas_totais = packet_cohesion_controller(listas_totais)
         # ------------------------------------------------------------
         # NEW PACKET GENERATOR (AT)
         # - Atua no gerador REAL do Modo 6
@@ -3150,8 +3170,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     listas_top10 = _aj
                 else:
                     listas_totais = _aj
-                    listas_totais = packet_cohesion_controller(listas_totais)
-            listas_top10 = listas_totais[:10]
+                    listas_top10 = listas_totais[:10]
         except Exception:
             pass
 
@@ -15461,7 +15480,6 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         # fallback silencioso (não quebra execução)
         pass
 
-    listas_totais = packet_cohesion_controller(listas_totais)
     listas_top10 = listas_totais[:10]
 
     # ============================================================
@@ -15538,7 +15556,6 @@ if painel == "🎯 Modo 6 Acertos — Execução":
                 )
             except Exception:
                 pass
-            listas_totais = packet_cohesion_controller(listas_totais)
             listas_top10 = listas_totais[:10]
     
         # registro em sessão (para Relatório Final / Bala Humano)
@@ -15592,8 +15609,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
                 listas_top10 = _aj
             else:
                 listas_totais = _aj
-                listas_totais = packet_cohesion_controller(listas_totais)
-            listas_top10 = listas_totais[:10]
+                listas_top10 = listas_totais[:10]
 
         st.session_state["bloco_c_info"] = {
             "aplicado": bool(_c_out.get("aplicado")),
@@ -21124,98 +21140,26 @@ if painel == "📐 Parabólica — Curvatura do Erro (Governança Pré-C4)":
 if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
-
-# ===================== AUDITORIA DO PACOTE =====================
-try:
-    import streamlit as st
-    st.markdown("## 🔎 Auditoria do Pacote (Pipeline Trace)")
-
-    if "AUDIT_TRACE" in st.session_state:
-        trace = st.session_state["AUDIT_TRACE"]
-        st.write("Eventos capturados:", len(trace))
-        st.write(trace)
-
-    else:
-        st.info("Nenhum evento AUDIT_TRACE capturado nesta execução.")
-except Exception as e:
-    print("AUDIT PANEL ERROR:", e)
-# ===============================================================
-
-
 # ============================================================
-# v16h57BI — PACKET COHESION CONTROLLER
-# ============================================================
-def packet_cohesion_controller(listas_totais, max_unique=24):
-    try:
-        if not listas_totais:
-            return listas_totais
-
-        # flatten
-        flat = [p for l in listas_totais for p in l]
-        freq = {}
-        for p in flat:
-            freq[p] = freq.get(p,0)+1
-
-        # passageiros mais frequentes = núcleo estrutural
-        core = sorted(freq, key=freq.get, reverse=True)[:8]
-
-        novas = []
-        for l in listas_totais:
-            base = [p for p in l if p in core]
-            extras = [p for p in l if p not in base]
-            nova = (base + extras)[:6]
-            if len(nova) < 6:
-                for c in core:
-                    if c not in nova:
-                        nova.append(c)
-                    if len(nova)==6:
-                        break
-            novas.append(sorted(nova))
-
-        # limitar diversidade extrema
-        uniq = sorted(set([p for l in novas for p in l]))
-        if len(uniq) > max_unique:
-            allowed = set(uniq[:max_unique])
-            novas2 = []
-            for l in novas:
-                nl = [p for p in l if p in allowed]
-                while len(nl)<6:
-                    nl.append(list(allowed)[0])
-                novas2.append(sorted(nl[:6]))
-            novas = novas2
-
-        return novas
-    except Exception as e:
-        print("COHESION_CONTROLLER_ERROR:", e)
-        return listas_totais
-
-
-
-# ============================================================
-# POST MODO6 AUDIT (RESTORED v16h57BK)
+# POST MODO6 AUDIT (v16h57BT)
 # ============================================================
 try:
     import itertools
-    
     listas_ref = None
-    
     if 'listas_top10' in globals():
         listas_ref = listas_top10
     elif 'listas_totais' in globals():
         listas_ref = listas_totais[:10]
-    
+
     if listas_ref:
         flat = [x for l in listas_ref for x in l]
         passageiros_unicos = len(set(flat))
-        
         inter = []
-        for a,b in itertools.combinations(listas_ref,2):
+        for a, b in itertools.combinations(listas_ref, 2):
             inter.append(len(set(a).intersection(set(b))))
-        
-        sobreposicao = round(sum(inter)/len(inter),2) if inter else 0
-        
+        sobreposicao = round(sum(inter) / len(inter), 2) if inter else 0
         pacote_hash = hash(str(listas_ref))
-        
+
         st.markdown("### 🔎 Auditoria do Pacote (POST MODO6)")
         st.json({
             "n_listas": len(listas_ref),
