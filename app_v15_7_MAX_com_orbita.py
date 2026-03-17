@@ -21,14 +21,23 @@ def packet_cohesion_controller(listas):
     try:
         if not listas:
             print("\n🔎 POST MODO6 BEFORE CONTROLLER")
-            print({"hash": None, "passageiros_unicos": 0})
+            print({"hash": None, "passageiros_unicos": 0, "sobreposicao_media": 0})
             print("\n🔎 POST MODO6 AFTER CONTROLLER")
-            print({"hash": None, "passageiros_unicos": 0})
+            print({"hash": None, "passageiros_unicos": 0, "sobreposicao_media": 0})
             return listas
 
         def _stats(pkt):
             flat = [x for l in pkt for x in l]
-            return {"hash": hash(str(pkt)), "passageiros_unicos": len(set(flat))}
+            inter = []
+            for i in range(len(pkt)):
+                si = set(pkt[i])
+                for j in range(i + 1, len(pkt)):
+                    inter.append(len(si.intersection(pkt[j])))
+            return {
+                "hash": hash(str(pkt)),
+                "passageiros_unicos": len(set(flat)),
+                "sobreposicao_media": round(sum(inter) / len(inter), 2) if inter else 0
+            }
 
         before = _stats(listas)
         print("\n🔎 POST MODO6 BEFORE CONTROLLER")
@@ -37,18 +46,44 @@ def packet_cohesion_controller(listas):
         from collections import Counter
         flat = [x for l in listas for x in l]
         freq = Counter(flat)
-        core = [p for p, _ in freq.most_common(8)]
+        core = [p for p, _ in freq.most_common(10)]
+        if not core:
+            return listas
 
         novas = []
-        for l in listas:
-            base = [p for p in l if p in core]
-            extra = [p for p in l if p not in base]
-            nl = (base + extra)[:6]
-            while len(nl) < 6 and core:
-                if core[0] not in nl:
-                    nl.append(core[0])
-                else:
+        for idx, l in enumerate(listas):
+            orig = [int(x) for x in l[:6]]
+            anchor_n = 3 if idx < min(6, len(listas)) else 2
+
+            anchor = [p for p in core if p in orig][:anchor_n]
+            for p in core:
+                if len(anchor) >= anchor_n:
                     break
+                if p not in anchor:
+                    anchor.append(p)
+
+            rest_pool = [p for p in orig if p not in anchor]
+            global_pool = [p for p in core if p not in anchor and p not in rest_pool]
+
+            nl = anchor + rest_pool
+            dedup = []
+            for p in nl:
+                if p not in dedup:
+                    dedup.append(p)
+            nl = dedup[:6]
+
+            for p in global_pool:
+                if len(nl) >= 6:
+                    break
+                if p not in nl:
+                    nl.append(p)
+
+            for p in orig:
+                if len(nl) >= 6:
+                    break
+                if p not in nl:
+                    nl.append(p)
+
             novas.append(sorted(nl[:6]))
 
         after = _stats(novas)
@@ -64,14 +99,14 @@ def packet_cohesion_controller(listas):
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57BT — COHESION REAL HOOK + BEFORE/AFTER + POST MODO6 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57BT_COHESION_REAL_HOOK_FIX.py"
+BUILD_TAG = "v16h57CA — COHESION CONTROLLER STRONG + BEFORE/AFTER + POST MODO6 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CA_COHESION_CONTROLLER_STRONG.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57BT — BUILD AUDITÁVEL (cohesion real hook fix)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CA — BUILD AUDITÁVEL (cohesion controller strong)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -86,7 +121,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57BT — COHESION REAL HOOK + BEFORE/AFTER + POST MODO6 + BANNER OK<br>
+        <b>BUILD:</b> v16h57CA — COHESION CONTROLLER STRONG + BEFORE/AFTER + POST MODO6 + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
