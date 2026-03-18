@@ -15,34 +15,35 @@ from datetime import datetime
 import re
 
 # ============================================================
-# V16h57BT — PACKET COHESION CONTROLLER (safe hook)
+# V16h57CE — FULL FLOW AUDIT HELPERS
 # ============================================================
-def pc_packet_audit_stats(listas):
+def pc_packet_audit_dict(listas, label=""):
     try:
         if not listas:
             return {
+                "label": label,
                 "n_listas": 0,
                 "hash": None,
                 "passageiros_unicos": 0,
                 "sobreposicao_media": 0.0,
                 "exemplo": [],
             }
-
         pkt = []
-        for lst in listas:
+        for l in (listas or []):
             try:
-                pkt.append([int(x) for x in lst[:6]])
+                li = [int(x) for x in list(l)[:6]]
+                if li:
+                    pkt.append(li)
             except Exception:
                 pass
-
         flat = [x for l in pkt for x in l]
         inter = []
         for i in range(len(pkt)):
             si = set(pkt[i])
             for j in range(i + 1, len(pkt)):
                 inter.append(len(si.intersection(pkt[j])))
-
         return {
+            "label": label,
             "n_listas": len(pkt),
             "hash": hash(str(pkt)),
             "passageiros_unicos": len(set(flat)),
@@ -51,6 +52,7 @@ def pc_packet_audit_stats(listas):
         }
     except Exception as e:
         return {
+            "label": label,
             "n_listas": 0,
             "hash": None,
             "passageiros_unicos": 0,
@@ -59,31 +61,29 @@ def pc_packet_audit_stats(listas):
             "erro": str(e),
         }
 
-
-def pc_packet_audit_emit(label, listas, session_key=None):
-    info = pc_packet_audit_stats(listas)
+def pc_trace_store(key, listas, label=None):
     try:
-        if session_key:
-            st.session_state[session_key] = dict(info)
+        info = pc_packet_audit_dict(listas, label or key)
+        st.session_state[key] = info
+        return info
     except Exception:
-        pass
-    try:
-        print(f"\n🔎 {label}")
-        print(info)
-    except Exception:
-        pass
-    return info
-
+        return None
 
 # ============================================================
-# V16h57CD — PACKET COHESION CONTROLLER (forced audit hook)
+# V16h57BT — PACKET COHESION CONTROLLER (safe hook)
 # ============================================================
 def packet_cohesion_controller(listas):
     try:
-        pc_packet_audit_emit("POST MODO6 BEFORE CONTROLLER", listas, session_key="pc_packet_audit_before")
+        before = pc_trace_store("pc_trace_after_npg_before_controller", listas, "POST MODO6 AFTER NEW PACKET GENERATOR / BEFORE CONTROLLER")
+        if before is not None:
+            print("\n🔎 POST MODO6 AFTER NEW PACKET GENERATOR / BEFORE CONTROLLER")
+            print(before)
 
         if not listas:
-            pc_packet_audit_emit("POST MODO6 AFTER CONTROLLER", listas, session_key="pc_packet_audit_after")
+            after_empty = pc_trace_store("pc_trace_after_controller", listas, "POST MODO6 AFTER CONTROLLER")
+            if after_empty is not None:
+                print("\n🔎 POST MODO6 AFTER CONTROLLER")
+                print(after_empty)
             return listas
 
         from collections import Counter
@@ -91,7 +91,10 @@ def packet_cohesion_controller(listas):
         freq = Counter(flat)
         core = [p for p, _ in freq.most_common(8)]
         if not core:
-            pc_packet_audit_emit("POST MODO6 AFTER CONTROLLER", listas, session_key="pc_packet_audit_after")
+            after_same = pc_trace_store("pc_trace_after_controller", listas, "POST MODO6 AFTER CONTROLLER")
+            if after_same is not None:
+                print("\n🔎 POST MODO6 AFTER CONTROLLER")
+                print(after_same)
             return listas
 
         novas = []
@@ -130,29 +133,31 @@ def packet_cohesion_controller(listas):
 
             novas.append(sorted(nl[:6]))
 
-        pc_packet_audit_emit("POST MODO6 AFTER CONTROLLER", novas, session_key="pc_packet_audit_after")
+        after = pc_trace_store("pc_trace_after_controller", novas, "POST MODO6 AFTER CONTROLLER")
+        if after is not None:
+            print("\n🔎 POST MODO6 AFTER CONTROLLER")
+            print(after)
         return novas
-    except Exception:
+    except Exception as e:
         try:
-            pc_packet_audit_emit("POST MODO6 AFTER CONTROLLER", listas, session_key="pc_packet_audit_after")
+            st.session_state["pc_trace_after_controller_error"] = str(e)
         except Exception:
             pass
         return listas
-
 
 
 # ============================================================
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CD — COHESION AUDIT FORCED (BEFORE/AFTER HARD) + POST MODO6 FINAL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CD_COHESION_AUDIT_FORCED_BEFORE_AFTER.py"
+BUILD_TAG = "v16h57CE — FULL FLOW AUDIT (MULTI-POINT TRACE) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CE_FULL_FLOW_AUDIT_MULTI_POINT_TRACE.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CD — BUILD AUDITÁVEL (cohesion audit forced)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CE — BUILD AUDITÁVEL (full flow audit multi-point trace)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -167,7 +172,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57CD — COHESION AUDIT FORCED (BEFORE/AFTER HARD) + POST MODO6 FINAL + BANNER OK<br>
+        <b>BUILD:</b> v16h57CE — FULL FLOW AUDIT (MULTI-POINT TRACE) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -3227,9 +3232,30 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
         except Exception as _e:
             calib_meta["packet_compression"] = {"active": False, "applied": False, "reason": f"top_cohesion_erro: {_e}"}
 
+        try:
+            pc_trace_store("pc_trace_after_sanidade", listas_totais, "POST SANIDADE FINAL LISTAS")
+        except Exception:
+            pass
+
+        try:
+            if isinstance(npg_info, dict):
+                pc_trace_store("pc_trace_after_npg", listas_totais, "POST NEW PACKET GENERATOR")
+        except Exception:
+            pass
+
         listas_totais = packet_cohesion_controller(listas_totais)
+
+        try:
+            pc_trace_store("pc_trace_before_top10", listas_totais, "POST CONTROLLER / BEFORE TOP10")
+        except Exception:
+            pass
+
         listas_top10 = listas_totais[:10]
-        pc_packet_audit_emit("FINAL (TOP10 APÓS CAMADAS DO MODO 6)", listas_top10, session_key="pc_packet_audit_final")
+
+        try:
+            pc_trace_store("pc_trace_top10_raw", listas_top10, "TOP10 RAW APOS CONTROLLER")
+        except Exception:
+            pass
 
         try:
             _v8_info = st.session_state.get("v8_borda_qualificada_info", None)
@@ -21223,49 +21249,46 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 # ============================================================
-# POST MODO6 AUDIT (v16h57BT)
+# POST MODO6 AUDIT (v16h57CE — FULL FLOW AUDIT)
 # ============================================================
 try:
-    import itertools
+    st.markdown("### 🔎 Auditoria do Pacote (POST MODO6)")
+
+    trace_keys = [
+        ("pc_trace_after_sanidade", "1) POST SANIDADE FINAL LISTAS"),
+        ("pc_trace_after_npg", "2) POST NEW PACKET GENERATOR"),
+        ("pc_trace_after_npg_before_controller", "3) BEFORE CONTROLLER"),
+        ("pc_trace_after_controller", "4) AFTER CONTROLLER"),
+        ("pc_trace_before_top10", "5) BEFORE TOP10"),
+        ("pc_trace_top10_raw", "6) TOP10 RAW APOS CONTROLLER"),
+    ]
+
+    rendered_any = False
+    for _key, _title in trace_keys:
+        _info = st.session_state.get(_key, None)
+        if _info:
+            rendered_any = True
+            st.markdown(f"**{_title}**")
+            st.json(_info)
+
     listas_ref = None
     if 'listas_top10' in globals():
         listas_ref = listas_top10
     elif 'listas_totais' in globals():
         listas_ref = listas_totais[:10]
 
-    if listas_ref:
-        flat = [x for l in listas_ref for x in l]
-        passageiros_unicos = len(set(flat))
-        inter = []
-        for a, b in itertools.combinations(listas_ref, 2):
-            inter.append(len(set(a).intersection(set(b))))
-        sobreposicao = round(sum(inter) / len(inter), 2) if inter else 0
-        pacote_hash = hash(str(listas_ref))
+    final_info = pc_packet_audit_dict(listas_ref, "FINAL (TOP10 APÓS CAMADAS DO MODO 6)")
+    st.markdown("**FINAL (TOP10 APÓS CAMADAS DO MODO 6)**")
+    st.json(final_info)
 
-        st.markdown("### 🔎 Auditoria do Pacote (POST MODO6)")
-        _before = st.session_state.get("pc_packet_audit_before")
-        _after = st.session_state.get("pc_packet_audit_after")
-        _final = st.session_state.get("pc_packet_audit_final")
+    if not rendered_any:
+        st.info("Nenhum trace intermediário do Modo 6 foi capturado nesta execução.")
 
-        if isinstance(_before, dict):
-            st.markdown("**BEFORE CONTROLLER**")
-            st.json(_before)
-
-        if isinstance(_after, dict):
-            st.markdown("**AFTER CONTROLLER**")
-            st.json(_after)
-
-        if isinstance(_final, dict):
-            st.markdown("**FINAL (TOP10 APÓS CAMADAS DO MODO 6)**")
-            st.json(_final)
-        else:
-            st.markdown("**FINAL (TOP10 APÓS CAMADAS DO MODO 6)**")
-            st.json({
-                "n_listas": len(listas_ref),
-                "hash": pacote_hash,
-                "passageiros_unicos": passageiros_unicos,
-                "sobreposicao_media": sobreposicao,
-                "exemplo": listas_ref[:3]
-            })
+    _trace_errors = {
+        "pc_trace_after_controller_error": st.session_state.get("pc_trace_after_controller_error", None),
+    }
+    if any(v is not None for v in _trace_errors.values()):
+        st.markdown("**TRACE ERRORS**")
+        st.json(_trace_errors)
 except Exception as e:
     print("POST_MODO6_AUDIT_ERROR:", e)
