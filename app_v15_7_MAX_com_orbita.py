@@ -15,6 +15,68 @@ from datetime import datetime
 import re
 
 # ============================================================
+# V16h57CJ — MODE6 FUNCTION TRACE HELPERS
+# ============================================================
+def pc_packet_audit_dict(listas, label=""):
+    try:
+        pkt = []
+        for l in (listas or []):
+            try:
+                li = [int(x) for x in list(l)[:6]]
+                if li:
+                    pkt.append(li)
+            except Exception:
+                pass
+        if not pkt:
+            return {
+                "label": label,
+                "n_listas": 0,
+                "hash": None,
+                "passageiros_unicos": 0,
+                "sobreposicao_media": 0.0,
+                "exemplo": [],
+            }
+        flat = [x for l in pkt for x in l]
+        inter = []
+        for i in range(len(pkt)):
+            si = set(pkt[i])
+            for j in range(i + 1, len(pkt)):
+                inter.append(len(si.intersection(pkt[j])))
+        return {
+            "label": label,
+            "n_listas": len(pkt),
+            "hash": hash(str(pkt)),
+            "passageiros_unicos": len(set(flat)),
+            "sobreposicao_media": round(sum(inter) / len(inter), 2) if inter else 0.0,
+            "exemplo": pkt[:3],
+        }
+    except Exception as e:
+        return {
+            "label": label,
+            "n_listas": 0,
+            "hash": None,
+            "passageiros_unicos": 0,
+            "sobreposicao_media": 0.0,
+            "exemplo": [],
+            "erro": str(e),
+        }
+
+def pc_exec_trace(step, payload=None):
+    try:
+        key = "v16h57CJ_exec_trace"
+        arr = st.session_state.get(key)
+        if not isinstance(arr, list):
+            arr = []
+        item = {"step": str(step)}
+        if isinstance(payload, dict):
+            item.update(payload)
+        arr.append(item)
+        st.session_state[key] = arr
+    except Exception:
+        pass
+
+
+# ============================================================
 # V16h57CF — INTERNAL MODE6 TRACE HELPERS
 # ============================================================
 def pc_packet_audit_dict(listas, label=""):
@@ -74,44 +136,12 @@ def pc_trace_store(key, listas, label=None):
         return None
 
 
-def pc_render_mode6_ui_trace():
-    """Renderiza na UI os traces capturados dentro do Modo 6.
-    Não altera listas; apenas observabilidade pré-C4.
-    """
-    try:
-        trace_keys = [
-            ("pc_trace_after_sanidade", "TRACE — APÓS SANIDADE FINAL"),
-            ("pc_trace_after_generator_opening", "TRACE — APÓS GENERATOR OPENING"),
-            ("pc_trace_after_npg", "TRACE — APÓS NEW PACKET GENERATOR"),
-            ("pc_trace_before_controller", "TRACE — ANTES COHESION"),
-            ("pc_trace_after_controller", "TRACE — APÓS COHESION"),
-            ("pc_trace_before_top10", "TRACE — ANTES TOP10"),
-            ("pc_trace_top10_raw", "TRACE — TOP10 RAW"),
-        ]
-        visiveis = []
-        for key, fallback_label in trace_keys:
-            info = st.session_state.get(key)
-            if isinstance(info, dict):
-                info = dict(info)
-                if not info.get("label"):
-                    info["label"] = fallback_label
-                visiveis.append(info)
-        if visiveis:
-            st.markdown("### 🧭 MODE6 UI TRACE (VISIBLE INTERNAL FLOW)")
-            for info in visiveis:
-                st.markdown(f"**{info.get('label', 'TRACE')}**")
-                st.json(info)
-        else:
-            st.info("Nenhum trace intermediário do Modo 6 foi capturado nesta execução.")
-    except Exception as e:
-        st.warning(f"Falha ao renderizar MODE6 UI TRACE: {e}")
-
-
 # ============================================================
 # V16h57BT — PACKET COHESION CONTROLLER (safe hook)
 # ============================================================
 def packet_cohesion_controller(listas):
     try:
+        pc_exec_trace("ENTER packet_cohesion_controller", {"arg_n": len(listas or [])})
         if not listas:
             print("\n🔎 POST MODO6 BEFORE CONTROLLER")
             print({"hash": None, "passageiros_unicos": 0, "sobreposicao_media": 0})
@@ -349,17 +379,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57CI — MODE6 UI TRACE (VISIBLE INTERNAL FLOW) + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CI — MODE6 UI TRACE (VISIBLE INTERNAL FLOW) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CI_MODE6_UI_TRACE_VISIBLE.py"
+BUILD_TAG = "v16h57CJ — MODE6 FUNCTION TRACE (REAL EXECUTION PATH) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CJ_MODE6_FUNCTION_TRACE_REAL_EXECUTION_PATH.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CI — BUILD AUDITÁVEL (mode6 ui trace)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CJ — BUILD AUDITÁVEL (mode6 function trace)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -374,7 +404,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57CI — MODE6 UI TRACE (VISIBLE INTERNAL FLOW) + BANNER OK<br>
+        <b>BUILD:</b> v16h57CJ — MODE6 FUNCTION TRACE (REAL EXECUTION PATH) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -485,6 +515,7 @@ def pc_v16_apply_cooccurrence(ranking, co_matrix):
 # ============================================================
 def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_df=None, n_alvo=6, seed=0, max_lists=None):
     try:
+        pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
         base = []
         for lst in (listas_totais or []):
             try:
@@ -3364,6 +3395,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 pass
 
         listas_totais = sanidade_final_listas(listas_filtradas)
+        pc_exec_trace("AFTER sanidade_final_listas", pc_packet_audit_dict(listas_totais, "after_sanidade"))
         try:
             pc_trace_store("pc_trace_after_sanidade", listas_totais, "1) POST SANIDADE FINAL LISTAS")
         except Exception:
@@ -3429,6 +3461,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 except Exception:
                     pass
                 calib_meta["new_packet_generator"] = dict(_npgen_info)
+                pc_exec_trace("AFTER pc_v16_new_packet_generator", dict(_npgen_info or {}, **pc_packet_audit_dict(listas_totais, "after_new_packet")))
         except Exception as _e:
             calib_meta["new_packet_generator"] = {
                 "active": False,
@@ -3468,6 +3501,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     calib_active=bool(calib_meta.get("applied", False)),
                 )
             calib_meta["packet_compression"] = dict(_comp_info)
+            pc_exec_trace("AFTER pc_v16_aplicar_top_cohesion_pacote", dict(_comp_info or {}, **pc_packet_audit_dict(listas_totais, "after_top_cohesion")))
         except Exception as _e:
             calib_meta["packet_compression"] = {"active": False, "applied": False, "reason": f"top_cohesion_erro: {_e}"}
 
@@ -3476,12 +3510,14 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
         except Exception:
             pass
         listas_totais = packet_cohesion_controller(listas_totais)
+        pc_exec_trace("AFTER packet_cohesion_controller", pc_packet_audit_dict(listas_totais, "after_controller"))
         try:
             pc_trace_store("pc_trace_after_controller", listas_totais, "4) AFTER CONTROLLER")
             pc_trace_store("pc_trace_before_top10", listas_totais, "5) BEFORE TOP10")
         except Exception:
             pass
         listas_top10 = listas_totais[:10]
+        pc_exec_trace("AFTER listas_top10", pc_packet_audit_dict(listas_top10, "after_top10"))
         try:
             pc_trace_store("pc_trace_top10_raw", listas_top10, "6) TOP10 RAW APOS CONTROLLER")
         except Exception:
@@ -14142,6 +14178,7 @@ def v16_avaliar_pre_eco_eco():
 # ============================================================
 
 def sanidade_final_listas(listas):
+    pc_exec_trace("ENTER sanidade_final_listas", {"arg_n": len(listas or [])})
     """
     Sanidade final das listas de previsão.
     Regras:
@@ -15461,6 +15498,7 @@ def v16_sanidade_universo_listas(listas, historico_df):
 
 if painel == "🎯 Modo 6 Acertos — Execução":
 
+    st.session_state["v16h57CJ_exec_trace"] = []
     st.markdown("## 🎯 Modo 6 Acertos — Execução")
 
     df = st.session_state.get("historico_df")
@@ -16784,6 +16822,7 @@ if painel == "🧪 Testes de Confiabilidade REAL":
 # ============================================================
 
 def sanidade_final_listas(listas):
+    pc_exec_trace("ENTER sanidade_final_listas", {"arg_n": len(listas or [])})
     """
     Sanidade final das listas de previsão.
     Regras:
@@ -21499,10 +21538,15 @@ try:
         pacote_hash = hash(str(listas_ref))
 
         st.markdown("### 🔎 Auditoria do Pacote (POST MODO6)")
-        pc_render_mode6_ui_trace()
-        st.markdown("**FINAL (TOP10 APÓS CAMADAS DO MODO 6)**")
+        _trace_exec = st.session_state.get("v16h57CJ_exec_trace", [])
+        if isinstance(_trace_exec, list) and len(_trace_exec) > 0:
+            st.markdown("#### 🧭 TRACE — CAMINHO REAL DE EXECUÇÃO DO MODO 6")
+            for _item in _trace_exec:
+                st.json(_item)
+        else:
+            st.warning("Nenhum trace de função do Modo 6 foi capturado nesta execução.")
+        st.markdown("#### FINAL (TOP10 APÓS CAMADAS DO MODO 6)")
         st.json({
-            "label": "FINAL (TOP10 APÓS CAMADAS DO MODO 6)",
             "n_listas": len(listas_ref),
             "hash": pacote_hash,
             "passageiros_unicos": passageiros_unicos,
