@@ -74,6 +74,39 @@ def pc_trace_store(key, listas, label=None):
         return None
 
 
+def pc_render_mode6_ui_trace():
+    """Renderiza na UI os traces capturados dentro do Modo 6.
+    Não altera listas; apenas observabilidade pré-C4.
+    """
+    try:
+        trace_keys = [
+            ("pc_trace_after_sanidade", "TRACE — APÓS SANIDADE FINAL"),
+            ("pc_trace_after_generator_opening", "TRACE — APÓS GENERATOR OPENING"),
+            ("pc_trace_after_npg", "TRACE — APÓS NEW PACKET GENERATOR"),
+            ("pc_trace_before_controller", "TRACE — ANTES COHESION"),
+            ("pc_trace_after_controller", "TRACE — APÓS COHESION"),
+            ("pc_trace_before_top10", "TRACE — ANTES TOP10"),
+            ("pc_trace_top10_raw", "TRACE — TOP10 RAW"),
+        ]
+        visiveis = []
+        for key, fallback_label in trace_keys:
+            info = st.session_state.get(key)
+            if isinstance(info, dict):
+                info = dict(info)
+                if not info.get("label"):
+                    info["label"] = fallback_label
+                visiveis.append(info)
+        if visiveis:
+            st.markdown("### 🧭 MODE6 UI TRACE (VISIBLE INTERNAL FLOW)")
+            for info in visiveis:
+                st.markdown(f"**{info.get('label', 'TRACE')}**")
+                st.json(info)
+        else:
+            st.info("Nenhum trace intermediário do Modo 6 foi capturado nesta execução.")
+    except Exception as e:
+        st.warning(f"Falha ao renderizar MODE6 UI TRACE: {e}")
+
+
 # ============================================================
 # V16h57BT — PACKET COHESION CONTROLLER (safe hook)
 # ============================================================
@@ -316,17 +349,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57CI — MODE6 UI TRACE (VISIBLE INTERNAL FLOW) + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CG — GENERATOR OPENING CONTROL (ANTI-COMPRESSION AT SOURCE) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CG_GENERATOR_OPENING_CONTROL_ANTI_COMPRESSION_AT_SOURCE.py"
+BUILD_TAG = "v16h57CI — MODE6 UI TRACE (VISIBLE INTERNAL FLOW) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CI_MODE6_UI_TRACE_VISIBLE.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CG — BUILD AUDITÁVEL (generator opening control)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CI — BUILD AUDITÁVEL (mode6 ui trace)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -341,7 +374,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57CG — GENERATOR OPENING CONTROL (ANTI-COMPRESSION AT SOURCE) + BANNER OK<br>
+        <b>BUILD:</b> v16h57CI — MODE6 UI TRACE (VISIBLE INTERNAL FLOW) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -21466,7 +21499,10 @@ try:
         pacote_hash = hash(str(listas_ref))
 
         st.markdown("### 🔎 Auditoria do Pacote (POST MODO6)")
+        pc_render_mode6_ui_trace()
+        st.markdown("**FINAL (TOP10 APÓS CAMADAS DO MODO 6)**")
         st.json({
+            "label": "FINAL (TOP10 APÓS CAMADAS DO MODO 6)",
             "n_listas": len(listas_ref),
             "hash": pacote_hash,
             "passageiros_unicos": passageiros_unicos,
