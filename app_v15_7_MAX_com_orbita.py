@@ -154,19 +154,179 @@ def packet_cohesion_controller(listas):
         return listas
 
 
+# ============================================================
+# V16h57CG — GENERATOR OPENING CONTROL (anti-compression at source)
+# Atua no nascimento do pacote, antes das camadas de coesão.
+# Objetivo: abrir o universo útil sem trocar o motor do Predicart.
+# ============================================================
+def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo=6, target_unique_min=22, max_replace_per_list=2):
+    try:
+        base = []
+        for lst in (listas_totais or []):
+            try:
+                li = sorted(dict.fromkeys(int(x) for x in lst[:int(n_alvo)]))
+                if len(li) == int(n_alvo):
+                    base.append(li)
+            except Exception:
+                pass
+
+        if not base:
+            return listas_totais, {
+                "active": False,
+                "applied": False,
+                "reason": "base_vazia",
+                "passageiros_unicos_antes": 0,
+                "passageiros_unicos_depois": 0,
+            }
+
+        flat = [x for l in base for x in l]
+        unique_before = len(set(flat))
+        if unique_before >= int(target_unique_min):
+            return base, {
+                "active": True,
+                "applied": False,
+                "reason": "ja_aberto_suficiente",
+                "passageiros_unicos_antes": int(unique_before),
+                "passageiros_unicos_depois": int(unique_before),
+            }
+
+        from collections import Counter
+        freq = Counter(flat)
+
+        ranking_pool = []
+        for x in (ranking_vals or []):
+            try:
+                xi = int(x)
+                if xi not in ranking_pool:
+                    ranking_pool.append(xi)
+            except Exception:
+                pass
+
+        packet_vals = []
+        for x, _ in freq.most_common():
+            if x not in packet_vals:
+                packet_vals.append(int(x))
+
+        candidate_pool = []
+        for x in ranking_pool + packet_vals:
+            if x not in candidate_pool:
+                candidate_pool.append(int(x))
+
+        if not candidate_pool:
+            return base, {
+                "active": True,
+                "applied": False,
+                "reason": "sem_pool_candidatos",
+                "passageiros_unicos_antes": int(unique_before),
+                "passageiros_unicos_depois": int(unique_before),
+            }
+
+        dominant = [int(x) for x, c in freq.most_common() if c >= max(4, len(base)//2)]
+        rare_candidates = [x for x in candidate_pool if x not in set(flat)]
+        fallback_candidates = [x for x in candidate_pool if x in set(flat)]
+
+        novas = []
+        used_global = set(flat)
+        rotate_idx = 0
+
+        for idx, lst in enumerate(base):
+            orig = [int(x) for x in lst[:int(n_alvo)]]
+            nova = list(orig)
+
+            # later lists breathe more than early lists
+            replace_budget = 1 if idx < max(3, len(base)//3) else int(max_replace_per_list)
+            replace_positions = [p for p, val in enumerate(nova) if val in dominant]
+            replace_positions += [p for p, val in enumerate(nova) if val not in dominant]
+            seen_pos = []
+            replace_positions = [p for p in replace_positions if not (p in seen_pos or seen_pos.append(p))]
+
+            done = 0
+            for pos in replace_positions:
+                if done >= replace_budget:
+                    break
+
+                candidate = None
+                search_pool = rare_candidates + fallback_candidates
+                tries = 0
+                while tries < len(search_pool):
+                    cand = search_pool[(rotate_idx + tries) % len(search_pool)]
+                    tries += 1
+                    if cand in nova:
+                        continue
+                    if idx < max(3, len(base)//3) and cand in set(orig[:3]):
+                        continue
+                    candidate = cand
+                    rotate_idx = (rotate_idx + tries) % max(1, len(search_pool))
+                    break
+
+                if candidate is None:
+                    continue
+
+                old = nova[pos]
+                nova[pos] = int(candidate)
+                if len(set(nova)) != int(n_alvo):
+                    nova[pos] = old
+                    continue
+
+                used_global.add(int(candidate))
+                done += 1
+
+            novas.append(sorted(nova))
+
+        # dedup final while preserving count as much as possible
+        saneadas = []
+        seen = set()
+        for lst in novas:
+            key = tuple(sorted(lst))
+            if key in seen:
+                continue
+            seen.add(key)
+            saneadas.append(list(lst))
+
+        for lst in base:
+            if len(saneadas) >= len(base):
+                break
+            key = tuple(sorted(lst))
+            if key not in seen:
+                seen.add(key)
+                saneadas.append(list(lst))
+
+        final_flat = [x for l in saneadas for x in l]
+        unique_after = len(set(final_flat))
+
+        return saneadas[:len(base)], {
+            "active": True,
+            "applied": bool(unique_after != unique_before or saneadas != base),
+            "reason": "ok",
+            "passageiros_unicos_antes": int(unique_before),
+            "passageiros_unicos_depois": int(unique_after),
+            "delta_unicos": int(unique_after - unique_before),
+            "listas_qtd": int(len(saneadas[:len(base)])),
+            "dominant_vals": dominant[:8],
+        }
+    except Exception as _e:
+        return listas_totais, {
+            "active": False,
+            "applied": False,
+            "reason": f"generator_opening_control_erro: {_e}",
+            "passageiros_unicos_antes": 0,
+            "passageiros_unicos_depois": 0,
+        }
+
+
 
 # ============================================================
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CF — INTERNAL MODE6 TRACE (INSIDE HOOK) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CF_INTERNAL_MODE6_TRACE_INSIDE_HOOK.py"
+BUILD_TAG = "v16h57CG — GENERATOR OPENING CONTROL (ANTI-COMPRESSION AT SOURCE) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CG_GENERATOR_OPENING_CONTROL_ANTI_COMPRESSION_AT_SOURCE.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CF — BUILD AUDITÁVEL (cohesion controller balanced)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CG — BUILD AUDITÁVEL (generator opening control)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -181,7 +341,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57CF — INTERNAL MODE6 TRACE (INSIDE HOOK) + BANNER OK<br>
+        <b>BUILD:</b> v16h57CG — GENERATOR OPENING CONTROL (ANTI-COMPRESSION AT SOURCE) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -3175,6 +3335,35 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             pc_trace_store("pc_trace_after_sanidade", listas_totais, "1) POST SANIDADE FINAL LISTAS")
         except Exception:
             pass
+        # ------------------------------------------------------------
+        # GENERATOR OPENING CONTROL (CG)
+        # - Atua na origem do pacote, antes das camadas de coesão
+        # - Objetivo: reduzir anti-compressão estrutural nativa do Modo 6
+        # ------------------------------------------------------------
+        try:
+            _opening_ranking_vals = []
+            try:
+                _opening_ranking_vals = [int(v) for v in (calib_meta.get("top_pool") or [])]
+            except Exception:
+                _opening_ranking_vals = []
+            listas_totais, _opening_info = pc_v16_generator_opening_control(
+                listas_totais,
+                ranking_vals=_opening_ranking_vals,
+                n_alvo=n_real,
+                target_unique_min=22,
+                max_replace_per_list=2,
+            )
+            calib_meta["generator_opening_control"] = dict(_opening_info)
+            try:
+                pc_trace_store("pc_trace_after_generator_opening", listas_totais, "1.5) POST GENERATOR OPENING CONTROL")
+            except Exception:
+                pass
+        except Exception as _e:
+            calib_meta["generator_opening_control"] = {
+                "active": False,
+                "applied": False,
+                "reason": f"generator_opening_control_erro: {_e}",
+            }
         # ------------------------------------------------------------
         # NEW PACKET GENERATOR (AT)
         # - Atua no gerador REAL do Modo 6
