@@ -46,14 +46,14 @@ def packet_cohesion_controller(listas):
         from collections import Counter
         flat = [x for l in listas for x in l]
         freq = Counter(flat)
-        core = [p for p, _ in freq.most_common(10)]
+        core = [p for p, _ in freq.most_common(8)]
         if not core:
             return listas
 
         novas = []
         for idx, l in enumerate(listas):
             orig = [int(x) for x in l[:6]]
-            anchor_n = 3 if idx < min(6, len(listas)) else 2
+            anchor_n = 2 if idx < min(5, len(listas)) else 1
 
             anchor = [p for p in core if p in orig][:anchor_n]
             for p in core:
@@ -99,14 +99,14 @@ def packet_cohesion_controller(listas):
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CA — COHESION CONTROLLER STRONG + BEFORE/AFTER + POST MODO6 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CA_COHESION_CONTROLLER_STRONG.py"
+BUILD_TAG = "v16h57CB — COHESION CONTROLLER BALANCED + BEFORE/AFTER + POST MODO6 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CB_COHESION_CONTROLLER_BALANCED.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CA — BUILD AUDITÁVEL (cohesion controller strong)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CB — BUILD AUDITÁVEL (cohesion controller balanced)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -121,7 +121,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57CA — COHESION CONTROLLER STRONG + BEFORE/AFTER + POST MODO6 + BANNER OK<br>
+        <b>BUILD:</b> v16h57CB — COHESION CONTROLLER BALANCED + BEFORE/AFTER + POST MODO6 + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
