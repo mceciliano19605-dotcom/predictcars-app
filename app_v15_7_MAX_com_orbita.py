@@ -17,7 +17,7 @@ import re
 # ============================================================
 # V16h57BT — PACKET COHESION CONTROLLER (safe hook)
 # ============================================================
-def pc_packet_audit_snapshot(listas):
+def pc_packet_audit_stats(listas):
     try:
         if not listas:
             return {
@@ -29,9 +29,9 @@ def pc_packet_audit_snapshot(listas):
             }
 
         pkt = []
-        for l in (listas or []):
+        for lst in listas:
             try:
-                pkt.append([int(x) for x in list(l)[:6]])
+                pkt.append([int(x) for x in lst[:6]])
             except Exception:
                 pass
 
@@ -49,39 +49,41 @@ def pc_packet_audit_snapshot(listas):
             "sobreposicao_media": round(sum(inter) / len(inter), 2) if inter else 0.0,
             "exemplo": pkt[:3],
         }
-    except Exception:
+    except Exception as e:
         return {
             "n_listas": 0,
             "hash": None,
             "passageiros_unicos": 0,
             "sobreposicao_media": 0.0,
             "exemplo": [],
+            "erro": str(e),
         }
 
 
-def pc_packet_audit_log(label, snapshot):
+def pc_packet_audit_emit(label, listas, session_key=None):
+    info = pc_packet_audit_stats(listas)
     try:
-        print(f"\n🔎 {label}")
-        print(snapshot)
+        if session_key:
+            st.session_state[session_key] = dict(info)
     except Exception:
         pass
+    try:
+        print(f"\n🔎 {label}")
+        print(info)
+    except Exception:
+        pass
+    return info
 
 
+# ============================================================
+# V16h57CD — PACKET COHESION CONTROLLER (forced audit hook)
+# ============================================================
 def packet_cohesion_controller(listas):
     try:
-        before = pc_packet_audit_snapshot(listas)
-        try:
-            st.session_state["pc_post_modo6_before_controller"] = dict(before)
-        except Exception:
-            pass
-        pc_packet_audit_log("POST MODO6 BEFORE CONTROLLER", before)
+        pc_packet_audit_emit("POST MODO6 BEFORE CONTROLLER", listas, session_key="pc_packet_audit_before")
 
         if not listas:
-            try:
-                st.session_state["pc_post_modo6_after_controller"] = dict(before)
-            except Exception:
-                pass
-            pc_packet_audit_log("POST MODO6 AFTER CONTROLLER", before)
+            pc_packet_audit_emit("POST MODO6 AFTER CONTROLLER", listas, session_key="pc_packet_audit_after")
             return listas
 
         from collections import Counter
@@ -89,11 +91,7 @@ def packet_cohesion_controller(listas):
         freq = Counter(flat)
         core = [p for p, _ in freq.most_common(8)]
         if not core:
-            try:
-                st.session_state["pc_post_modo6_after_controller"] = dict(before)
-            except Exception:
-                pass
-            pc_packet_audit_log("POST MODO6 AFTER CONTROLLER", before)
+            pc_packet_audit_emit("POST MODO6 AFTER CONTROLLER", listas, session_key="pc_packet_audit_after")
             return listas
 
         novas = []
@@ -132,17 +130,11 @@ def packet_cohesion_controller(listas):
 
             novas.append(sorted(nl[:6]))
 
-        after = pc_packet_audit_snapshot(novas)
-        try:
-            st.session_state["pc_post_modo6_after_controller"] = dict(after)
-        except Exception:
-            pass
-        pc_packet_audit_log("POST MODO6 AFTER CONTROLLER", after)
+        pc_packet_audit_emit("POST MODO6 AFTER CONTROLLER", novas, session_key="pc_packet_audit_after")
         return novas
     except Exception:
         try:
-            fallback = pc_packet_audit_snapshot(listas)
-            st.session_state["pc_post_modo6_after_controller"] = dict(fallback)
+            pc_packet_audit_emit("POST MODO6 AFTER CONTROLLER", listas, session_key="pc_packet_audit_after")
         except Exception:
             pass
         return listas
@@ -153,14 +145,14 @@ def packet_cohesion_controller(listas):
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CC — COHESION AUDIT FIX + BEFORE/AFTER REAL + POST MODO6 FINAL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CC_COHESION_AUDIT_FIX_BEFORE_AFTER_REAL.py"
+BUILD_TAG = "v16h57CD — COHESION AUDIT FORCED (BEFORE/AFTER HARD) + POST MODO6 FINAL + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CD_COHESION_AUDIT_FORCED_BEFORE_AFTER.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CC — BUILD AUDITÁVEL (cohesion audit fix before/after real)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CD — BUILD AUDITÁVEL (cohesion audit forced)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -175,7 +167,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57CC — COHESION AUDIT FIX + BEFORE/AFTER REAL + POST MODO6 FINAL + BANNER OK<br>
+        <b>BUILD:</b> v16h57CD — COHESION AUDIT FORCED (BEFORE/AFTER HARD) + POST MODO6 FINAL + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -3237,6 +3229,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
 
         listas_totais = packet_cohesion_controller(listas_totais)
         listas_top10 = listas_totais[:10]
+        pc_packet_audit_emit("FINAL (TOP10 APÓS CAMADAS DO MODO 6)", listas_top10, session_key="pc_packet_audit_final")
 
         try:
             _v8_info = st.session_state.get("v8_borda_qualificada_info", None)
@@ -21230,30 +21223,49 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 # ============================================================
-# POST MODO6 AUDIT (v16h57CC)
+# POST MODO6 AUDIT (v16h57BT)
 # ============================================================
 try:
-    _audit_before = st.session_state.get("pc_post_modo6_before_controller", None)
-    _audit_after = st.session_state.get("pc_post_modo6_after_controller", None)
-
+    import itertools
     listas_ref = None
     if 'listas_top10' in globals():
         listas_ref = listas_top10
     elif 'listas_totais' in globals():
         listas_ref = listas_totais[:10]
 
-    _audit_final = pc_packet_audit_snapshot(listas_ref) if listas_ref else None
+    if listas_ref:
+        flat = [x for l in listas_ref for x in l]
+        passageiros_unicos = len(set(flat))
+        inter = []
+        for a, b in itertools.combinations(listas_ref, 2):
+            inter.append(len(set(a).intersection(set(b))))
+        sobreposicao = round(sum(inter) / len(inter), 2) if inter else 0
+        pacote_hash = hash(str(listas_ref))
 
-    if _audit_before or _audit_after or _audit_final:
         st.markdown("### 🔎 Auditoria do Pacote (POST MODO6)")
-        if _audit_before is not None:
+        _before = st.session_state.get("pc_packet_audit_before")
+        _after = st.session_state.get("pc_packet_audit_after")
+        _final = st.session_state.get("pc_packet_audit_final")
+
+        if isinstance(_before, dict):
             st.markdown("**BEFORE CONTROLLER**")
-            st.json(_audit_before)
-        if _audit_after is not None:
+            st.json(_before)
+
+        if isinstance(_after, dict):
             st.markdown("**AFTER CONTROLLER**")
-            st.json(_audit_after)
-        if _audit_final is not None:
+            st.json(_after)
+
+        if isinstance(_final, dict):
             st.markdown("**FINAL (TOP10 APÓS CAMADAS DO MODO 6)**")
-            st.json(_audit_final)
+            st.json(_final)
+        else:
+            st.markdown("**FINAL (TOP10 APÓS CAMADAS DO MODO 6)**")
+            st.json({
+                "n_listas": len(listas_ref),
+                "hash": pacote_hash,
+                "passageiros_unicos": passageiros_unicos,
+                "sobreposicao_media": sobreposicao,
+                "exemplo": listas_ref[:3]
+            })
 except Exception as e:
     print("POST_MODO6_AUDIT_ERROR:", e)
