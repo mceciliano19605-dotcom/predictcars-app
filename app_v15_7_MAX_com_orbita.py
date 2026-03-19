@@ -15,7 +15,7 @@ from datetime import datetime
 import re
 
 # ============================================================
-# V16h57CL — TRUE GENERATOR TRACE HELPERS
+# V16h57CJ — MODE6 FUNCTION TRACE HELPERS
 # ============================================================
 def pc_packet_audit_dict(listas, label=""):
     try:
@@ -63,13 +63,47 @@ def pc_packet_audit_dict(listas, label=""):
 
 def pc_exec_trace(step, payload=None):
     try:
-        key = "v16h57CL_exec_trace"
+        key = "v16h57CJ_exec_trace"
         arr = st.session_state.get(key)
         if not isinstance(arr, list):
             arr = []
         item = {"step": str(step)}
         if isinstance(payload, dict):
             item.update(payload)
+        arr.append(item)
+        st.session_state[key] = arr
+    except Exception:
+        pass
+
+
+def pc_list_source_detector(step, listas=None, extra=None):
+    try:
+        import inspect
+        key = "v16h57CM_source_detector"
+        arr = st.session_state.get(key)
+        if not isinstance(arr, list):
+            arr = []
+        info = pc_packet_audit_dict(listas or [], label=str(step))
+        callers = []
+        try:
+            for fr in inspect.stack()[1:6]:
+                fn = str(fr.function)
+                if fn not in callers:
+                    callers.append(fn)
+        except Exception:
+            callers = []
+        item = {
+            "step": str(step),
+            "caller_chain": callers,
+            "list_obj_id": int(id(listas)) if listas is not None else None,
+            "is_session_modo6_listas": bool(listas is st.session_state.get("modo6_listas")) if listas is not None else False,
+            "is_session_pacote_atual": bool(listas is st.session_state.get("pacote_listas_atual")) if listas is not None else False,
+            "is_session_pacote_baseline": bool(listas is st.session_state.get("pacote_listas_baseline")) if listas is not None else False,
+            "session_keys_present": [k for k in ["modo6_listas","pacote_listas_atual","pacote_listas_baseline","v16_execucao","ultima_previsao"] if k in st.session_state],
+            "packet": info,
+        }
+        if isinstance(extra, dict):
+            item.update(extra)
         arr.append(item)
         st.session_state[key] = arr
     except Exception:
@@ -382,14 +416,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CL — TRUE GENERATOR TRACE (PRE-SANITY ROOT CAPTURE) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CL_TRUE_GENERATOR_TRACE_PRE_SANITY_ROOT_CAPTURE.py"
+BUILD_TAG = "v16h57CM — LIST SOURCE DETECTOR (WHO BUILT THE PACKET) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CM_LIST_SOURCE_DETECTOR_WHO_BUILT_THE_PACKET.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CL — BUILD AUDITÁVEL (true generator trace)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CM — BUILD AUDITÁVEL (list source detector)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -404,7 +438,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57CL — TRUE GENERATOR TRACE (PRE-SANITY ROOT CAPTURE) + BANNER OK<br>
+        <b>BUILD:</b> v16h57CM — LIST SOURCE DETECTOR (WHO BUILT THE PACKET) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -3394,11 +3428,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             except Exception:
                 pass
 
-        try:
-            pc_trace_store("pc_trace_pre_sanidade", listas_filtradas, "0) PRE SANIDADE (LISTAS FILTRADAS)")
-            pc_exec_trace("BEFORE sanidade_final_listas", pc_packet_audit_dict(listas_filtradas, "pre_sanidade"))
-        except Exception:
-            pass
         listas_totais = sanidade_final_listas(listas_filtradas)
         pc_exec_trace("AFTER sanidade_final_listas", pc_packet_audit_dict(listas_totais, "after_sanidade"))
         try:
@@ -14184,6 +14213,7 @@ def v16_avaliar_pre_eco_eco():
 
 def sanidade_final_listas(listas):
     pc_exec_trace("ENTER sanidade_final_listas", {"arg_n": len(listas or [])})
+    pc_list_source_detector("BEFORE sanidade_final_listas", listas, {"arg_n": len(listas or [])})
     """
     Sanidade final das listas de previsão.
     Regras:
@@ -14215,6 +14245,7 @@ def sanidade_final_listas(listas):
         vistos.add(chave)
         listas_saneadas.append(nums)
 
+    pc_list_source_detector("AFTER sanidade_final_listas", listas_saneadas, {"arg_n": len(listas_saneadas or [])})
     return listas_saneadas
 
 # ============================================================
@@ -15503,7 +15534,7 @@ def v16_sanidade_universo_listas(listas, historico_df):
 
 if painel == "🎯 Modo 6 Acertos — Execução":
 
-    st.session_state["v16h57CL_exec_trace"] = []
+    st.session_state["v16h57CJ_exec_trace"] = []
     st.markdown("## 🎯 Modo 6 Acertos — Execução")
 
     df = st.session_state.get("historico_df")
@@ -16828,6 +16859,7 @@ if painel == "🧪 Testes de Confiabilidade REAL":
 
 def sanidade_final_listas(listas):
     pc_exec_trace("ENTER sanidade_final_listas", {"arg_n": len(listas or [])})
+    pc_list_source_detector("BEFORE sanidade_final_listas", listas, {"arg_n": len(listas or [])})
     """
     Sanidade final das listas de previsão.
     Regras:
@@ -16863,6 +16895,7 @@ def sanidade_final_listas(listas):
         vistos.add(chave)
         listas_saneadas.append(nums)
 
+    pc_list_source_detector("AFTER sanidade_final_listas", listas_saneadas, {"arg_n": len(listas_saneadas or [])})
     return listas_saneadas
 
 
@@ -21543,7 +21576,7 @@ try:
         pacote_hash = hash(str(listas_ref))
 
         st.markdown("### 🔎 Auditoria do Pacote (POST MODO6)")
-        _trace_exec = st.session_state.get("v16h57CL_exec_trace", [])
+        _trace_exec = st.session_state.get("v16h57CJ_exec_trace", [])
         if isinstance(_trace_exec, list) and len(_trace_exec) > 0:
             st.markdown("#### 🧭 TRACE — CAMINHO REAL DE EXECUÇÃO DO MODO 6")
             for _item in _trace_exec:
@@ -21551,27 +21584,13 @@ try:
         else:
             st.warning("Nenhum trace de função do Modo 6 foi capturado nesta execução.")
 
-        _packet_trace_keys = [
-            "pc_trace_pre_sanidade",
-            "pc_trace_after_sanidade",
-            "pc_trace_after_generator_opening",
-            "pc_trace_after_npg",
-            "pc_trace_before_controller",
-            "pc_trace_after_controller",
-            "pc_trace_before_top10",
-            "pc_trace_top10_raw",
-        ]
-        _packet_trace_items = []
-        for _k in _packet_trace_keys:
-            _v = st.session_state.get(_k)
-            if isinstance(_v, dict) and _v.get("n_listas", None) is not None:
-                _packet_trace_items.append((_k, _v))
-        st.markdown("#### 🧪 TRACE — PACOTES INTERNOS DO MODO 6")
-        if _packet_trace_items:
-            for _k, _v in _packet_trace_items:
-                st.json(_v)
+        _src_trace = st.session_state.get("v16h57CM_source_detector", [])
+        st.markdown("#### 🧪 TRACE — DETECTOR DE ORIGEM DAS LISTAS")
+        if isinstance(_src_trace, list) and len(_src_trace) > 0:
+            for _item in _src_trace:
+                st.json(_item)
         else:
-            st.warning("Nenhum trace de pacote interno do Modo 6 foi capturado nesta execução.")
+            st.warning("Nenhum trace de origem das listas foi capturado nesta execução.")
 
         st.markdown("#### FINAL (TOP10 APÓS CAMADAS DO MODO 6)")
         st.json({
