@@ -382,14 +382,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CJ — MODE6 FUNCTION TRACE (REAL EXECUTION PATH) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CJ_MODE6_FUNCTION_TRACE_REAL_EXECUTION_PATH.py"
+BUILD_TAG = "v16h57CK — PRE-SANITY REAL SOURCE TRACE (CORRECT HOOK) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CK_PRE_SANITY_REAL_SOURCE_TRACE_CORRECT_HOOK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CJ — BUILD AUDITÁVEL (mode6 function trace)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CK — BUILD AUDITÁVEL (pre-sanity real source trace)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -404,7 +404,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57CJ — MODE6 FUNCTION TRACE (REAL EXECUTION PATH) + BANNER OK<br>
+        <b>BUILD:</b> v16h57CK — PRE-SANITY REAL SOURCE TRACE (CORRECT HOOK) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -3394,6 +3394,11 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             except Exception:
                 pass
 
+        pc_exec_trace("BEFORE sanidade_final_listas", pc_packet_audit_dict(listas_filtradas, "before_sanidade"))
+        try:
+            pc_trace_store("pc_trace_before_sanidade", listas_filtradas, "0) PRE-SANIDADE (LISTAS FILTRADAS)")
+        except Exception:
+            pass
         listas_totais = sanidade_final_listas(listas_filtradas)
         pc_exec_trace("AFTER sanidade_final_listas", pc_packet_audit_dict(listas_totais, "after_sanidade"))
         try:
@@ -21545,6 +21550,29 @@ try:
                 st.json(_item)
         else:
             st.warning("Nenhum trace de função do Modo 6 foi capturado nesta execução.")
+
+        _trace_keys = [
+            "pc_trace_before_sanidade",
+            "pc_trace_after_sanidade",
+            "pc_trace_after_generator_opening",
+            "pc_trace_after_npg",
+            "pc_trace_before_controller",
+            "pc_trace_after_controller",
+            "pc_trace_before_top10",
+            "pc_trace_top10_raw",
+        ]
+        _trace_blocks = []
+        for _k in _trace_keys:
+            _v = st.session_state.get(_k)
+            if isinstance(_v, dict) and _v.get("n_listas", None) is not None:
+                _trace_blocks.append((_k, _v))
+        if _trace_blocks:
+            st.markdown("#### 🛰️ TRACE — PACOTES INTERNOS DO MODO 6")
+            for _k, _v in _trace_blocks:
+                st.markdown(f"**{_k}**")
+                st.json(_v)
+        else:
+            st.warning("Nenhum trace de pacote interno do Modo 6 foi capturado nesta execução.")
         st.markdown("#### FINAL (TOP10 APÓS CAMADAS DO MODO 6)")
         st.json({
             "n_listas": len(listas_ref),
