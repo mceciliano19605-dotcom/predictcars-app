@@ -416,14 +416,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CM — LIST SOURCE DETECTOR (WHO BUILT THE PACKET) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CM_LIST_SOURCE_DETECTOR_WHO_BUILT_THE_PACKET.py"
+BUILD_TAG = "v16h57CN — SESSION STATE CONTROL (FORCE FRESH PACKET) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CN_SESSION_STATE_CONTROL_FORCE_FRESH_PACKET.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CM — BUILD AUDITÁVEL (list source detector)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CN — BUILD AUDITÁVEL (session state control force fresh packet)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -438,7 +438,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57CM — LIST SOURCE DETECTOR (WHO BUILT THE PACKET) + BANNER OK<br>
+        <b>BUILD:</b> v16h57CN — SESSION STATE CONTROL (FORCE FRESH PACKET) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -678,6 +678,39 @@ try:
                 del st.session_state[_k]
 except Exception:
     pass
+
+# ============================================================
+# V16h57CN — SESSION STATE CONTROL (FORCE FRESH PACKET)
+# Limpa pacotes/listas persistidas antes de uma nova execução do Modo 6,
+# para evitar reutilização de estado antigo na sessão.
+# ============================================================
+def v16h57CN_clear_mode6_packet_state():
+    removed = []
+    keys = [
+        "modo6_listas",
+        "modo6_listas_top10",
+        "modo6_listas_totais",
+        "pacote_listas_atual",
+        "pacote_listas_origem",
+        "pacote_pre_bloco_c",
+        "pacote_pre_bloco_c_origem",
+        "pacote_listas_baseline",
+        "listas_geradas",
+        "ultima_previsao",
+        "bloco_c_info",
+        "postura_respiravel_info",
+        "postura_respiravel_memoria",
+    ]
+    try:
+        for k in keys:
+            if k in st.session_state:
+                removed.append(k)
+                del st.session_state[k]
+    except Exception:
+        pass
+    st.session_state["v16h57CN_fresh_packet_removed_keys"] = removed
+    st.session_state["v16h57CN_fresh_packet_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return removed
 
 # ============================================================
 # V16 — POSTURA OPERACIONAL (pré-C4)
@@ -9863,6 +9896,15 @@ if painel == "🎯 Compressão do Alvo (Observacional)":
     risco = (st.session_state.get("diagnostico_risco") or {}).get("indice_risco")
 
     df = st.session_state.get("historico_df")
+
+    # ------------------------------------------------------------
+    # V16h57CN — SESSION STATE CONTROL (FORCE FRESH PACKET)
+    # ------------------------------------------------------------
+    _removed_fresh_keys = v16h57CN_clear_mode6_packet_state()
+    if _removed_fresh_keys:
+        st.caption("🧹 Session State limpo para pacote fresco do Modo 6: " + ", ".join(_removed_fresh_keys))
+    else:
+        st.caption("🧹 Session State do pacote já estava limpo para execução fresca do Modo 6.")
 
     if df is None or nr is None or div is None or k_star is None or risco is None:
         exibir_bloco_mensagem(
