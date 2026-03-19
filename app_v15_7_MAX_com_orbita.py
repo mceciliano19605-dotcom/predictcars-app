@@ -416,14 +416,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CN — SESSION STATE CONTROL (FORCE FRESH PACKET) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CN_SESSION_STATE_CONTROL_FORCE_FRESH_PACKET.py"
+BUILD_TAG = "v16h57CO — FORCE GENERATOR PRIORITY (IGNORE SESSION OVERRIDE) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CO_FORCE_GENERATOR_PRIORITY_IGNORE_SESSION_OVERRIDE.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CN — BUILD AUDITÁVEL (session state control force fresh packet)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CO — BUILD AUDITÁVEL (force generator priority ignore session override)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -438,7 +438,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57CN — SESSION STATE CONTROL (FORCE FRESH PACKET) + BANNER OK<br>
+        <b>BUILD:</b> v16h57CO — FORCE GENERATOR PRIORITY (IGNORE SESSION OVERRIDE) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -680,11 +680,11 @@ except Exception:
     pass
 
 # ============================================================
-# V16h57CN — SESSION STATE CONTROL (FORCE FRESH PACKET)
+# V16h57CO — FORCE GENERATOR PRIORITY (IGNORE SESSION OVERRIDE)
 # Limpa pacotes/listas persistidas antes de uma nova execução do Modo 6,
 # para evitar reutilização de estado antigo na sessão.
 # ============================================================
-def v16h57CN_clear_mode6_packet_state():
+def v16h57CO_clear_mode6_packet_state():
     removed = []
     keys = [
         "modo6_listas",
@@ -708,9 +708,43 @@ def v16h57CN_clear_mode6_packet_state():
                 del st.session_state[k]
     except Exception:
         pass
-    st.session_state["v16h57CN_fresh_packet_removed_keys"] = removed
-    st.session_state["v16h57CN_fresh_packet_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state["v16h57CO_fresh_packet_removed_keys"] = removed
+    st.session_state["v16h57CO_fresh_packet_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return removed
+
+def v16h57CO_store_fresh_mode6_packet(listas_totais, listas_top10=None):
+    """Força precedência do pacote recém-gerado do Modo 6 sobre qualquer reuso de sessão."""
+    try:
+        def _copy_pkt(src):
+            out = []
+            for lst in (src or []):
+                try:
+                    li = [int(x) for x in list(lst)[:6]]
+                    if len(li) >= 6:
+                        out.append(li[:6])
+                except Exception:
+                    pass
+            return out
+
+        fresh_totais = _copy_pkt(listas_totais)
+        fresh_top10 = _copy_pkt(listas_top10) if isinstance(listas_top10, list) and listas_top10 else fresh_totais[:10]
+
+        st.session_state["modo6_listas_totais"] = list(fresh_totais)
+        st.session_state["modo6_listas_top10"] = list(fresh_top10)
+        st.session_state["modo6_listas"] = list(fresh_totais)
+        st.session_state["pacote_listas_atual"] = list(fresh_top10 if fresh_top10 else fresh_totais)
+        st.session_state["pacote_listas_origem"] = "Modo 6 (Fresh Generator Priority)"
+        st.session_state["v16h57CO_skip_session_resanity"] = True
+        st.session_state["v16h57CO_fresh_packet_hash"] = hash(str(fresh_totais)) if fresh_totais else None
+        st.session_state["v16h57CO_fresh_packet_qtd"] = len(fresh_totais)
+        return {
+            "stored": True,
+            "totais_qtd": len(fresh_totais),
+            "top10_qtd": len(fresh_top10),
+            "hash": st.session_state.get("v16h57CO_fresh_packet_hash"),
+        }
+    except Exception as e:
+        return {"stored": False, "erro": str(e)}
 
 # ============================================================
 # V16 — POSTURA OPERACIONAL (pré-C4)
@@ -9898,9 +9932,9 @@ if painel == "🎯 Compressão do Alvo (Observacional)":
     df = st.session_state.get("historico_df")
 
     # ------------------------------------------------------------
-    # V16h57CN — SESSION STATE CONTROL (FORCE FRESH PACKET)
+    # V16h57CO — FORCE GENERATOR PRIORITY (IGNORE SESSION OVERRIDE)
     # ------------------------------------------------------------
-    _removed_fresh_keys = v16h57CN_clear_mode6_packet_state()
+    _removed_fresh_keys = v16h57CO_clear_mode6_packet_state()
     if _removed_fresh_keys:
         st.caption("🧹 Session State limpo para pacote fresco do Modo 6: " + ", ".join(_removed_fresh_keys))
     else:
@@ -16198,9 +16232,14 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     else:
         st.success("🟢 Postura: ESTÁVEL (execução normal do P0)")
 
-    st.session_state["modo6_listas_totais"] = listas_totais
-    st.session_state["modo6_listas_top10"] = listas_top10
-    st.session_state["modo6_listas"] = listas_totais
+    _co_store_info = v16h57CO_store_fresh_mode6_packet(listas_totais, listas_top10)
+    try:
+        if isinstance(_co_store_info, dict) and _co_store_info.get("stored"):
+            st.caption(f"🧷 Prioridade do gerador aplicada: pacote fresco gravado (qtd={_co_store_info.get('totais_qtd', 0)} · hash={_co_store_info.get('hash')})")
+        else:
+            st.caption("🧷 Prioridade do gerador: falha ao gravar pacote fresco na sessão.")
+    except Exception:
+        pass
 
     # ------------------------------------------------------------
     # REGISTRO AUTOMÁTICO DO PACOTE ATUAL (Backtest Rápido N=60)
@@ -16947,9 +16986,15 @@ def sanidade_final_listas(listas):
 
 # Sanear listas do Modo 6 (V15.7)
 if "modo6_listas" in st.session_state:
-    st.session_state["modo6_listas"] = sanidade_final_listas(
-        st.session_state.get("modo6_listas", []),
-    )
+    if bool(st.session_state.get("v16h57CO_skip_session_resanity", False)):
+        try:
+            st.caption("🛡️ Re-sanity por session ignorada: pacote fresco do gerador tem precedência nesta execução.")
+        except Exception:
+            pass
+    else:
+        st.session_state["modo6_listas"] = sanidade_final_listas(
+            st.session_state.get("modo6_listas", []),
+        )
 
 # Sanear Execução V16 (se existir)
 if "v16_execucao" in st.session_state:
