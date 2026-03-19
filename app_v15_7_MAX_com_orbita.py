@@ -255,78 +255,126 @@ def packet_cohesion_controller(listas, intensidade=0.5):
                 "sobreposicao_media": round(sum(inter) / len(inter), 2) if inter else 0
             }
 
-        before = _stats(listas)
+        pkt = []
+        for l in (listas or []):
+            try:
+                li = [int(x) for x in list(l)[:6]]
+                if len(li) >= 6:
+                    pkt.append(li[:6])
+            except Exception:
+                pass
+        if not pkt:
+            return listas
+
+        before = _stats(pkt)
         print("\n🔎 POST MODO6 BEFORE CONTROLLER")
         print(before)
 
         from collections import Counter
-        flat = [x for l in listas for x in l]
+        intensidade = float(intensidade if intensidade is not None else 0.5)
+        intensidade = max(0.0, min(1.0, intensidade))
+
+        flat = [x for l in pkt for x in l]
         freq = Counter(flat)
 
-        intensidade = float(intensidade if intensidade is not None else 0.5)
-        if intensidade < 0.34:
-            core_n = 6
-            top_anchor = 1
-            rest_anchor = 0
-            top_k = 4
-        elif intensidade < 0.67:
-            core_n = 8
-            top_anchor = 2
-            rest_anchor = 1
-            top_k = 5
-        else:
-            core_n = 10
-            top_anchor = 3
-            rest_anchor = 2
-            top_k = 6
+        dominant_rank = [p for p, _ in freq.most_common(max(6, min(12, len(freq))))]
+        rare_rank = [p for p, _ in sorted(freq.items(), key=lambda kv: (kv[1], kv[0]))]
 
-        core = [p for p, _ in freq.most_common(core_n)]
-        if not core:
-            return listas
+        dominant_cut = max(4, int(round(4 + 4 * intensidade)))
+        dominant_set = set(dominant_rank[:dominant_cut])
+        rare_pool = [p for p in rare_rank if p not in dominant_set]
+        if not rare_pool:
+            rare_pool = list(rare_rank)
+
+        if intensidade < 0.34:
+            early_keep = 5
+            tail_replace = 1
+            tail_start = 6
+        elif intensidade < 0.67:
+            early_keep = 4
+            tail_replace = 2
+            tail_start = 4
+        else:
+            early_keep = 3
+            tail_replace = 3
+            tail_start = 3
 
         novas = []
-        for idx, l in enumerate(listas):
+        rot = 0
+        for idx, l in enumerate(pkt):
             orig = [int(x) for x in l[:6]]
-            anchor_n = top_anchor if idx < min(top_k, len(listas)) else rest_anchor
 
-            anchor = [p for p in core if p in orig][:anchor_n]
-            for p in core:
-                if len(anchor) >= anchor_n:
+            preserved = []
+            for p in sorted(orig, key=lambda v: (freq.get(v, 0), v)):
+                if p not in preserved:
+                    preserved.append(p)
+                if len(preserved) >= early_keep:
                     break
-                if p not in anchor:
-                    anchor.append(p)
 
-            rest_pool = [p for p in orig if p not in anchor]
-            global_pool = [p for p in core if p not in anchor and p not in rest_pool]
+            nl = list(preserved)
 
-            nl = anchor + rest_pool
+            while len(nl) < 6 and rare_pool:
+                cand = rare_pool[rot % len(rare_pool)]
+                rot += 1
+                if cand not in nl and cand not in orig:
+                    nl.append(int(cand))
+                if len(nl) >= 6:
+                    break
+
+            if len(nl) < 6:
+                for p in sorted(orig, key=lambda v: (v in dominant_set, freq.get(v, 0), v)):
+                    if p not in nl:
+                        nl.append(int(p))
+                    if len(nl) >= 6:
+                        break
+
+            replace_budget = 0 if idx < tail_start else tail_replace
+            replaced = 0
+            if replace_budget > 0 and rare_pool:
+                for pos, val in enumerate(list(nl)):
+                    if replaced >= replace_budget:
+                        break
+                    if val in dominant_set:
+                        for cand in rare_pool:
+                            if cand not in nl:
+                                old = nl[pos]
+                                nl[pos] = int(cand)
+                                if len(set(nl)) == 6:
+                                    replaced += 1
+                                    break
+                                nl[pos] = old
+
             dedup = []
             for p in nl:
                 if p not in dedup:
-                    dedup.append(p)
+                    dedup.append(int(p))
             nl = dedup[:6]
 
-            for p in global_pool:
-                if len(nl) >= 6:
-                    break
-                if p not in nl:
-                    nl.append(p)
-
-            for p in orig:
-                if len(nl) >= 6:
-                    break
-                if p not in nl:
-                    nl.append(p)
+            if len(nl) < 6:
+                for p in sorted(orig + rare_pool, key=lambda v: (v in nl, freq.get(v, 0), v)):
+                    if p not in nl:
+                        nl.append(int(p))
+                    if len(nl) >= 6:
+                        break
 
             novas.append(sorted(nl[:6]))
 
         after = _stats(novas)
         print("\n🔎 POST MODO6 AFTER CONTROLLER")
         print(after)
+        try:
+            pc_exec_trace("AFTER packet_cohesion_controller_structural_break", {
+                "intensidade": float(intensidade),
+                "before_unique": int(before.get("passageiros_unicos", 0)),
+                "after_unique": int(after.get("passageiros_unicos", 0)),
+                "before_overlap": float(before.get("sobreposicao_media", 0)),
+                "after_overlap": float(after.get("sobreposicao_media", 0)),
+            })
+        except Exception:
+            pass
         return novas
     except Exception:
         return listas
-
 
 # ============================================================
 # V16h57CG — GENERATOR OPENING CONTROL (anti-compression at source)
@@ -493,8 +541,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CQ — COHESION AUTO-TUNE (INTENSIFIED CONTROL) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CQ_COHESION_AUTO_TUNE_PLUGAVEL_REAL.py"
+BUILD_TAG = "v16h57CR — COHESION STRUCTURAL BREAK (CONTROLLED) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CR_COHESION_AUTO_TUNE_PLUGAVEL_REAL.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -515,7 +563,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57CQ — COHESION AUTO-TUNE (INTENSIFIED CONTROL) + BANNER OK<br>
+        <b>BUILD:</b> v16h57CR — COHESION STRUCTURAL BREAK (CONTROLLED) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
