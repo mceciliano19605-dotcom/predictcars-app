@@ -519,8 +519,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CS — GENERATOR DIVERSITY BREAK (PRE-SELECTION CONTROL) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CS_COHESION_AUTO_TUNE_PLUGAVEL_REAL.py"
+BUILD_TAG = "v16h57CT — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CT_COHESION_AUTO_TUNE_PLUGAVEL_REAL.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -541,7 +541,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57CS — GENERATOR DIVERSITY BREAK (PRE-SELECTION CONTROL) + BANNER OK<br>
+        <b>BUILD:</b> v16h57CT — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -645,6 +645,103 @@ def pc_v16_apply_cooccurrence(ranking, co_matrix):
         return ranking
 
 
+
+# ============================================================
+# V16h57CT — CONVERSION PRESSURE (pré-MODO 6 · auditável)
+# Usa memória ex-post recente para reponderar o ranking com
+# pressão de conversão: números que aparecem em listas "quase"
+# (best_hit >= 3) e particularmente em listas com best_hit >= 4.
+# Não altera Camada 4.
+# ============================================================
+def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
+    try:
+        if not isinstance(snapshot_p0_canonic, dict) or not snapshot_p0_canonic:
+            return {"ok": False, "scores": {}, "motivo": "sem_snapshots"}
+
+        ks = []
+        for k in snapshot_p0_canonic.keys():
+            try:
+                ks.append(int(k))
+            except Exception:
+                pass
+        ks = sorted(ks)[-int(max(1, lookback)):]
+        if not ks:
+            return {"ok": False, "scores": {}, "motivo": "ks_vazios"}
+
+        scores = {}
+        usados = 0
+        for k in ks:
+            snap = snapshot_p0_canonic.get(k) or {}
+            listas = snap.get("listas_top10") or snap.get("listas") or []
+            evals = snap.get("eval_top10") or snap.get("best_hits_top10") or []
+
+            if not isinstance(listas, list) or not listas:
+                continue
+
+            local_weights = []
+            if isinstance(evals, list) and len(evals) == len(listas):
+                for bh in evals:
+                    try:
+                        b = int(bh)
+                    except Exception:
+                        b = 0
+                    if b >= 4:
+                        local_weights.append(2.0)
+                    elif b >= 3:
+                        local_weights.append(1.0)
+                    else:
+                        local_weights.append(0.0)
+            else:
+                core = set()
+                quase = set()
+                try:
+                    core = {int(x) for x in (snap.get("snap_v8", {}) or {}).get("core", [])}
+                except Exception:
+                    core = set()
+                try:
+                    quase = {int(x) for x in (snap.get("snap_v8", {}) or {}).get("quase_core", [])}
+                except Exception:
+                    quase = set()
+                for lst in listas:
+                    w = 0.0
+                    try:
+                        li = [int(x) for x in list(lst)[:6]]
+                    except Exception:
+                        li = []
+                    if any(x in core for x in li):
+                        w += 0.5
+                    if any(x in quase for x in li):
+                        w += 0.25
+                    local_weights.append(w)
+
+            for lst, w in zip(listas, local_weights):
+                if float(w) <= 0.0:
+                    continue
+                usados += 1
+                try:
+                    li = [int(x) for x in list(lst)[:6]]
+                except Exception:
+                    li = []
+                for x in li:
+                    scores[int(x)] = float(scores.get(int(x), 0.0)) + float(w)
+
+        if not scores:
+            return {"ok": False, "scores": {}, "motivo": "scores_vazios"}
+
+        mx = max(scores.values()) if scores else 1.0
+        norm = {int(k): float(v) / float(mx if mx else 1.0) for k, v in scores.items()}
+        top = sorted(norm.items(), key=lambda kv: (-kv[1], kv[0]))[:12]
+        return {
+            "ok": True,
+            "scores": norm,
+            "top": [{"p": int(k), "score": round(float(v), 4)} for k, v in top],
+            "snapshots_usados": int(len(ks)),
+            "listas_ponderadas": int(usados),
+            "motivo": "ok",
+        }
+    except Exception as e:
+        return {"ok": False, "scores": {}, "motivo": f"conversion_pressure_erro: {e}"}
+
 # ============================================================
 # V16h57AT — NEW PACKET GENERATOR (pré-C4 · auditável)
 # Atua no gerador REAL do Modo 6.
@@ -708,6 +805,23 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             return listas_totais, {"active": False, "applied": False, "reason": "ranking_vazio", "listas_regeneradas_qtd": 0}
 
         ranking2 = pc_v16_apply_cooccurrence(ranking, co) if co else list(ranking)
+        try:
+            cp_info = pc_v16_conversion_pressure_scores(st.session_state.get("snapshot_p0_canonic", {}), lookback=60)
+            cp_scores = cp_info.get("scores", {}) if isinstance(cp_info, dict) and cp_info.get("ok") else {}
+            if cp_scores:
+                _base_idx = {int(v): i for i, v in enumerate(ranking2)}
+                ranking2 = sorted(
+                    [int(v) for v in ranking2],
+                    key=lambda v: (
+                        -(cp_scores.get(int(v), 0.0) * 0.35 + max(0.0, 1.0 - (_base_idx.get(int(v), 9999) / max(1, len(ranking2))))),
+                        _base_idx.get(int(v), 9999),
+                        int(v),
+                    )
+                )
+            else:
+                cp_info = {"ok": False, "motivo": "sem_cp"}
+        except Exception as _e:
+            cp_info = {"ok": False, "motivo": f"cp_apply_erro: {_e}"}
 
         geradas = pc_v16_generate_lists_cooccurrence(
             ranking2,
@@ -766,6 +880,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "listas_regeneradas_qtd": int(min(len(geradas), len(base))),
             "co_pairs_qtd": int(len(co)),
             "ranking_base_qtd": int(len(ranking2)),
+            "conversion_pressure": cp_info,
         }
     except Exception as e:
         return listas_totais, {"active": False, "applied": False, "reason": f"new_packet_generator_erro: {e}", "listas_regeneradas_qtd": 0}
