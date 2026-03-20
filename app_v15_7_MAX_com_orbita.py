@@ -519,8 +519,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CX — CT AUDIT TRACE + SNAPSHOT READ + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CX_CT_AUDIT_TRACE_SNAPSHOT_READ_BANNER_OK.py"
+BUILD_TAG = "v16h57CY — CT ACTIVATION FALLBACK + SNAPSHOT READ + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CY_CT_ACTIVATION_FALLBACK_SNAPSHOT_READ_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -815,6 +815,17 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             )
             cp_info = pc_v16_conversion_pressure_scores(snapshot_p0_map, lookback=60)
             cp_scores = cp_info.get("scores", {}) if isinstance(cp_info, dict) and cp_info.get("ok") else {}
+            # Fallback: derive minimal scores from snapshot core to ensure observable activation
+            if not cp_scores and isinstance(snapshot_p0_map, dict) and snapshot_p0_map:
+                try:
+                    core = snapshot_p0_map.get("snap_v8", {}).get("core", []) if isinstance(snapshot_p0_map.get("snap_v8", {}), dict) else []
+                    cp_scores = {int(v): 1.0 for v in core} if core else {}
+                    if cp_scores:
+                        cp_info = dict(cp_info or {})
+                        cp_info["ok"] = True
+                        cp_info["motivo"] = "fallback_core"
+                except Exception:
+                    pass
             if cp_scores:
                 _base_idx = {int(v): i for i, v in enumerate(ranking2)}
                 ranking2 = sorted(
