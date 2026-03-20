@@ -520,7 +520,7 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # ============================================================
 
 BUILD_TAG = "v16h57CZ — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DA_CT_HOOK_REAL_GENERATOR_PATH_BANNER_OK.py"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DA_CT_BASELINE_SAFE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -541,7 +541,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57DA — CT HOOK REAL GENERATOR PATH + BANNER OK<br>
+        <b>BUILD:</b> v16h57DA — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -1352,17 +1352,6 @@ def pc_v16_aplicar_resp_no_pacote(*, pacote_atual, k_reg, universo_min=1, univer
             _cap_pct = float(cap_pct) if cap_pct is not None else (0.35 if (I2_val >= 0.65) else 0.45)
             new_tot, new_top10, resp_info = pc_resp_aplicar_diversificacao(
                 listas_totais=pacote_store,
-
-# >>> CT HOOK REAL (POST GENERATOR, PRE SANIDADE)
-try:
-    if 'snapshot_p0_map' in locals() and snapshot_p0_map:
-        ct_real_active = True
-        ct_real_reason = "real_generator_hook"
-    else:
-        ct_real_active = False
-except Exception:
-    ct_real_active = False
-
                 listas_top10=top10_resp,
                 universo=universo_resp,
                 seed=int(k_reg),
