@@ -14557,15 +14557,7 @@ def v16_avaliar_pre_eco_eco():
 # Válido para V15.7 MAX e V16 Premium
 # ============================================================
 
-def # >>> CT HOOK (FORCED EXECUTION - PRE SANIDADE)
-try:
-    if 'snapshot_p0_map' in locals() and snapshot_p0_map:
-        ct_forced_active = True
-        ct_forced_reason = "hook_pre_sanidade"
-except Exception:
-    ct_forced_active = False
-
-sanidade_final_listas(listas):
+def sanidade_final_listas(listas):
     pc_exec_trace("ENTER sanidade_final_listas", {"arg_n": len(listas or [])})
     pc_list_source_detector("BEFORE sanidade_final_listas", listas, {"arg_n": len(listas or [])})
     """
@@ -16221,15 +16213,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # ------------------------------------------------------------
     # SANIDADE FINAL — SOMENTE ESTRUTURAL (ORIGINAL)
     # ------------------------------------------------------------
-    listas_totais = # >>> CT HOOK (FORCED EXECUTION - PRE SANIDADE)
-try:
-    if 'snapshot_p0_map' in locals() and snapshot_p0_map:
-        ct_forced_active = True
-        ct_forced_reason = "hook_pre_sanidade"
-except Exception:
-    ct_forced_active = False
-
-sanidade_final_listas(listas_brutas)
+    listas_totais = sanidade_final_listas(listas_brutas)
 
     # ------------------------------------------------------------
     # FIX6 TAILSTAB — garante mínimo determinístico de 10 listas totais
@@ -17222,15 +17206,7 @@ if painel == "🧪 Testes de Confiabilidade REAL":
 # Válido para V15.7 MAX e V16 Premium
 # ============================================================
 
-def # >>> CT HOOK (FORCED EXECUTION - PRE SANIDADE)
-try:
-    if 'snapshot_p0_map' in locals() and snapshot_p0_map:
-        ct_forced_active = True
-        ct_forced_reason = "hook_pre_sanidade"
-except Exception:
-    ct_forced_active = False
-
-sanidade_final_listas(listas):
+def sanidade_final_listas(listas):
     pc_exec_trace("ENTER sanidade_final_listas", {"arg_n": len(listas or [])})
     pc_list_source_detector("BEFORE sanidade_final_listas", listas, {"arg_n": len(listas or [])})
     """
@@ -17281,15 +17257,7 @@ if "modo6_listas" in st.session_state:
     if bool(st.session_state.get("pc_force_fresh_packet_active", False)):
         st.caption("🛡️ Re-sanity por session ignorada: pacote fresco do gerador tem precedência nesta execução.")
     else:
-        st.session_state["modo6_listas"] = # >>> CT HOOK (FORCED EXECUTION - PRE SANIDADE)
-try:
-    if 'snapshot_p0_map' in locals() and snapshot_p0_map:
-        ct_forced_active = True
-        ct_forced_reason = "hook_pre_sanidade"
-except Exception:
-    ct_forced_active = False
-
-sanidade_final_listas(
+        st.session_state["modo6_listas"] = sanidade_final_listas(
             st.session_state.get("modo6_listas", []),
         )
 
@@ -17299,15 +17267,7 @@ if "v16_execucao" in st.session_state:
 
     for chave in ["C2", "C3", "todas_listas"]:
         if chave in exec_v16:
-            exec_v16[chave] = # >>> CT HOOK (FORCED EXECUTION - PRE SANIDADE)
-try:
-    if 'snapshot_p0_map' in locals() and snapshot_p0_map:
-        ct_forced_active = True
-        ct_forced_reason = "hook_pre_sanidade"
-except Exception:
-    ct_forced_active = False
-
-sanidade_final_listas(
+            exec_v16[chave] = sanidade_final_listas(
                 exec_v16.get(chave, []),
             )
 
