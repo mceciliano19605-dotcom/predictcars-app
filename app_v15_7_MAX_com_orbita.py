@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CU — CT AUDIT VISUAL (CONVERSION PRESSURE TRACE) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CU_CT_AUDIT_VISUAL.py"
+BUILD_TAG = "v16h57CT — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CT_COHESION_AUTO_TUNE_PLUGAVEL_REAL.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CU — BUILD AUDITÁVEL (CT audit visual)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CN — BUILD AUDITÁVEL (session state control force fresh packet)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -805,13 +805,8 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             return listas_totais, {"active": False, "applied": False, "reason": "ranking_vazio", "listas_regeneradas_qtd": 0}
 
         ranking2 = pc_v16_apply_cooccurrence(ranking, co) if co else list(ranking)
-        _ranking_before_ct = [int(v) for v in ranking2]
-        _ranking_before_hash = hash(str(_ranking_before_ct))
-        _top10_before_ct = [int(v) for v in _ranking_before_ct[:10]]
         try:
-            _snap_map = st.session_state.get("snapshot_p0_canonic", {})
-            _snap_keys = list(_snap_map.keys()) if isinstance(_snap_map, dict) else []
-            cp_info = pc_v16_conversion_pressure_scores(_snap_map, lookback=60)
+            cp_info = pc_v16_conversion_pressure_scores(st.session_state.get("snapshot_p0_canonic", {}), lookback=60)
             cp_scores = cp_info.get("scores", {}) if isinstance(cp_info, dict) and cp_info.get("ok") else {}
             if cp_scores:
                 _base_idx = {int(v): i for i, v in enumerate(ranking2)}
@@ -823,35 +818,10 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                         int(v),
                     )
                 )
-                cp_info = dict(cp_info)
-                cp_info["snapshot_disponivel"] = bool(_snap_keys)
-                cp_info["qtd_snapshots"] = int(len(_snap_keys))
-                cp_info["cp_ativo"] = True
-                cp_info["ranking_antes_hash"] = int(_ranking_before_hash)
-                cp_info["ranking_depois_hash"] = int(hash(str(ranking2)))
-                cp_info["ranking_mudou"] = bool(_ranking_before_ct != [int(v) for v in ranking2])
-                cp_info["top10_antes"] = _top10_before_ct
-                cp_info["top10_depois"] = [int(v) for v in ranking2[:10]]
-                try:
-                    cp_info["dif_posicoes_top10"] = int(sum(1 for a, b in zip(_top10_before_ct, cp_info["top10_depois"]) if int(a) != int(b)))
-                except Exception:
-                    cp_info["dif_posicoes_top10"] = 0
             else:
-                cp_info = {
-                    "ok": False,
-                    "motivo": "sem_cp",
-                    "snapshot_disponivel": bool(_snap_keys),
-                    "qtd_snapshots": int(len(_snap_keys)),
-                    "cp_ativo": False,
-                    "ranking_antes_hash": int(_ranking_before_hash),
-                    "ranking_depois_hash": int(hash(str(ranking2))),
-                    "ranking_mudou": False,
-                    "top10_antes": _top10_before_ct,
-                    "top10_depois": [int(v) for v in ranking2[:10]],
-                    "dif_posicoes_top10": 0,
-                }
+                cp_info = {"ok": False, "motivo": "sem_cp"}
         except Exception as _e:
-            cp_info = {"ok": False, "motivo": f"cp_apply_erro: {_e}", "cp_ativo": False, "ranking_antes_hash": int(_ranking_before_hash), "ranking_depois_hash": int(hash(str(ranking2))), "ranking_mudou": False, "top10_antes": _top10_before_ct, "top10_depois": [int(v) for v in ranking2[:10]], "dif_posicoes_top10": 0}
+            cp_info = {"ok": False, "motivo": f"cp_apply_erro: {_e}"}
 
         geradas = pc_v16_generate_lists_cooccurrence(
             ranking2,
@@ -903,8 +873,6 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
-        _base_hash = int(hash(str(base)))
-        _out_hash = int(hash(str(out)))
         return out, {
             "active": True,
             "applied": bool(out != base),
@@ -912,9 +880,6 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "listas_regeneradas_qtd": int(min(len(geradas), len(base))),
             "co_pairs_qtd": int(len(co)),
             "ranking_base_qtd": int(len(ranking2)),
-            "listas_antes_gerador_hash": _base_hash,
-            "listas_finais_hash": _out_hash,
-            "mudou_no_pacote_final": bool(_out_hash != _base_hash),
             "conversion_pressure": cp_info,
         }
     except Exception as e:
@@ -16492,7 +16457,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     st.session_state["modo6_listas"] = listas_totais
     st.session_state["pc_force_fresh_packet_active"] = True
     st.session_state["pc_force_fresh_packet_hash"] = hash(str(listas_totais)) if isinstance(listas_totais, list) else None
-    st.caption("🧷 Prioridade do gerador aplicada: auditoria visual do CT / conversion pressure no pacote fresco desta execução.")
+    st.caption("🧷 Prioridade do gerador aplicada: auto-tune de coesão ativo no pacote fresco desta execução.")
 
     # ------------------------------------------------------------
     # REGISTRO AUTOMÁTICO DO PACOTE ATUAL (Backtest Rápido N=60)
@@ -21928,32 +21893,6 @@ try:
                 st.json(_item)
         else:
             st.warning("Nenhum trace de origem das listas foi capturado nesta execução.")
-
-        st.markdown("#### 🧪 AUDITORIA DO CT (CONVERSION PRESSURE)")
-        try:
-            _last_calib = st.session_state.get("v16_calib_leve_last_summary", {})
-            _npgen = (_last_calib.get("new_packet_generator") or {}) if isinstance(_last_calib, dict) else {}
-            _cp = (_npgen.get("conversion_pressure") or {}) if isinstance(_npgen, dict) else {}
-            st.json({
-                "snapshot_disponivel": bool(_cp.get("snapshot_disponivel", False)),
-                "qtd_snapshots": int(_cp.get("qtd_snapshots", 0) or 0),
-                "cp_ativo": bool(_cp.get("cp_ativo", False) and _cp.get("ok", False)),
-                "motivo": str(_cp.get("motivo", "N/D")),
-                "ranking_antes_hash": _cp.get("ranking_antes_hash", "N/D"),
-                "ranking_depois_hash": _cp.get("ranking_depois_hash", "N/D"),
-                "ranking_mudou": bool(_cp.get("ranking_mudou", False)),
-                "top10_antes": _cp.get("top10_antes", []),
-                "top10_depois": _cp.get("top10_depois", []),
-                "dif_posicoes_top10": int(_cp.get("dif_posicoes_top10", 0) or 0),
-                "listas_antes_gerador_hash": _npgen.get("listas_antes_gerador_hash", "N/D"),
-                "listas_finais_hash": _npgen.get("listas_finais_hash", "N/D"),
-                "mudou_no_pacote_final": bool(_npgen.get("mudou_no_pacote_final", False)),
-                "new_packet_generator_active": bool(_npgen.get("active", False)),
-                "new_packet_generator_applied": bool(_npgen.get("applied", False)),
-                "new_packet_generator_reason": str(_npgen.get("reason", "N/D")),
-            })
-        except Exception as e:
-            st.warning(f"AUDITORIA_CT_ERROR: {e}")
 
         st.markdown("#### FINAL (TOP10 APÓS CAMADAS DO MODO 6)")
         st.json({
