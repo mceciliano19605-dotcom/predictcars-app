@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CW — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CW_COHESION_AUTO_TUNE_PLUGAVEL_REAL.py"
+BUILD_TAG = "v16h57CX — CT AUDIT TRACE + SNAPSHOT READ + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CX_CT_AUDIT_TRACE_SNAPSHOT_READ_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CN — BUILD AUDITÁVEL (session state control force fresh packet)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CX — BUILD AUDITÁVEL (CT audit trace + snapshot read)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -805,8 +805,15 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             return listas_totais, {"active": False, "applied": False, "reason": "ranking_vazio", "listas_regeneradas_qtd": 0}
 
         ranking2 = pc_v16_apply_cooccurrence(ranking, co) if co else list(ranking)
+        ranking_before_cp = [int(v) for v in ranking2]
         try:
-            cp_info = pc_v16_conversion_pressure_scores(st.session_state.get("snapshot_p0_canonic", {}), lookback=60)
+            snapshot_p0_map = (
+                st.session_state.get("snapshot_p0_canonic")
+                or st.session_state.get("snapshot_p0")
+                or st.session_state.get("snapshot_p0_replay")
+                or {}
+            )
+            cp_info = pc_v16_conversion_pressure_scores(snapshot_p0_map, lookback=60)
             cp_scores = cp_info.get("scores", {}) if isinstance(cp_info, dict) and cp_info.get("ok") else {}
             if cp_scores:
                 _base_idx = {int(v): i for i, v in enumerate(ranking2)}
@@ -818,8 +825,28 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                         int(v),
                     )
                 )
+                cp_info = dict(cp_info)
+                cp_info["snapshot_disponivel"] = bool(isinstance(snapshot_p0_map, dict) and len(snapshot_p0_map) > 0)
+                cp_info["qtd_snapshots"] = int(len(snapshot_p0_map) if isinstance(snapshot_p0_map, dict) else 0)
+                cp_info["ranking_antes_hash"] = hash(str(ranking_before_cp))
+                cp_info["ranking_depois_hash"] = hash(str(ranking2))
+                cp_info["ranking_mudou"] = bool(ranking_before_cp != ranking2)
+                cp_info["top10_antes"] = ranking_before_cp[:10]
+                cp_info["top10_depois"] = [int(v) for v in ranking2[:10]]
+                cp_info["dif_posicoes_top10"] = int(sum(1 for a, b in zip(ranking_before_cp[:10], ranking2[:10]) if a != b))
             else:
-                cp_info = {"ok": False, "motivo": "sem_cp"}
+                cp_info = {
+                    "ok": False,
+                    "motivo": "sem_cp",
+                    "snapshot_disponivel": bool(isinstance(snapshot_p0_map, dict) and len(snapshot_p0_map) > 0),
+                    "qtd_snapshots": int(len(snapshot_p0_map) if isinstance(snapshot_p0_map, dict) else 0),
+                    "ranking_antes_hash": hash(str(ranking_before_cp)),
+                    "ranking_depois_hash": hash(str(ranking2)),
+                    "ranking_mudou": False,
+                    "top10_antes": ranking_before_cp[:10],
+                    "top10_depois": [int(v) for v in ranking2[:10]],
+                    "dif_posicoes_top10": 0,
+                }
         except Exception as _e:
             cp_info = {"ok": False, "motivo": f"cp_apply_erro: {_e}"}
 
@@ -880,6 +907,9 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "listas_regeneradas_qtd": int(min(len(geradas), len(base))),
             "co_pairs_qtd": int(len(co)),
             "ranking_base_qtd": int(len(ranking2)),
+            "listas_antes_gerador_hash": hash(str(base)),
+            "listas_finais_hash": hash(str(out)),
+            "mudou_no_pacote_final": bool(out != base),
             "conversion_pressure": cp_info,
         }
     except Exception as e:
@@ -21894,6 +21924,38 @@ try:
                 st.json(_item)
         else:
             st.warning("Nenhum trace de origem das listas foi capturado nesta execução.")
+
+        st.markdown("#### 🧪 AUDITORIA DO CT (CONVERSION PRESSURE)")
+        try:
+            _calib_last = st.session_state.get("v16_calib_leve_last_summary") or {}
+            _npg = (_calib_last.get("new_packet_generator") or {}) if isinstance(_calib_last, dict) else {}
+            _cp = (_npg.get("conversion_pressure") or {}) if isinstance(_npg, dict) else {}
+            _snap_map = (
+                st.session_state.get("snapshot_p0_canonic")
+                or st.session_state.get("snapshot_p0")
+                or st.session_state.get("snapshot_p0_replay")
+                or {}
+            )
+            st.json({
+                "snapshot_disponivel": bool(isinstance(_snap_map, dict) and len(_snap_map) > 0),
+                "qtd_snapshots": int(len(_snap_map) if isinstance(_snap_map, dict) else 0),
+                "cp_ativo": bool(isinstance(_cp, dict) and _cp.get("ok")),
+                "motivo": (_cp.get("motivo") if isinstance(_cp, dict) else "N/D") or "N/D",
+                "ranking_antes_hash": (_cp.get("ranking_antes_hash") if isinstance(_cp, dict) else "N/D") or "N/D",
+                "ranking_depois_hash": (_cp.get("ranking_depois_hash") if isinstance(_cp, dict) else "N/D") or "N/D",
+                "ranking_mudou": bool((_cp.get("ranking_mudou") if isinstance(_cp, dict) else False)),
+                "top10_antes": (_cp.get("top10_antes") if isinstance(_cp, dict) else []) or [],
+                "top10_depois": (_cp.get("top10_depois") if isinstance(_cp, dict) else []) or [],
+                "dif_posicoes_top10": int((_cp.get("dif_posicoes_top10") if isinstance(_cp, dict) else 0) or 0),
+                "listas_antes_gerador_hash": (_npg.get("listas_antes_gerador_hash") if isinstance(_npg, dict) else "N/D") or "N/D",
+                "listas_finais_hash": (_npg.get("listas_finais_hash") if isinstance(_npg, dict) else "N/D") or "N/D",
+                "mudou_no_pacote_final": bool((_npg.get("mudou_no_pacote_final") if isinstance(_npg, dict) else False)),
+                "new_packet_generator_active": bool((_npg.get("active") if isinstance(_npg, dict) else False)),
+                "new_packet_generator_applied": bool((_npg.get("applied") if isinstance(_npg, dict) else False)),
+                "new_packet_generator_reason": (_npg.get("reason") if isinstance(_npg, dict) else "N/D") or "N/D",
+            })
+        except Exception as _e_ct_audit:
+            st.error(f"CT_AUDIT_ERROR: {_e_ct_audit}")
 
         st.markdown("#### FINAL (TOP10 APÓS CAMADAS DO MODO 6)")
         st.json({
