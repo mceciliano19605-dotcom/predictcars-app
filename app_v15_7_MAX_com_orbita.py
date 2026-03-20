@@ -761,7 +761,14 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             except Exception:
                 pass
         if not base:
-            return listas_totais, {"active": False, "applied": False, "reason": "base_vazia", "listas_regeneradas_qtd": 0}
+            
+    # --- CT FORCE EXECUTION HOOK ---
+    try:
+        st.session_state["ct_force_marker"] = True
+    except:
+        pass
+    
+    return listas_totais, {"active": False, "applied": False, "reason": "base_vazia", "listas_regeneradas_qtd": 0}
 
         max_lists = int(max_lists or len(base) or 0)
         if max_lists <= 0:
