@@ -519,8 +519,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57CZ — CT HOOK MODE6 PATH + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CZ_CT_HOOK_MODE6_PATH_BANNER_OK.py"
+BUILD_TAG = "v16h57CZ — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57CZ_CT_BASELINE_SAFE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -3720,15 +3720,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             except Exception:
                 pass
 
-        listas_totais = # >>> CT HOOK (FORCED EXECUTION - PRE SANIDADE)
-try:
-    if 'snapshot_p0_map' in locals() and snapshot_p0_map:
-        ct_forced_active = True
-        ct_forced_reason = "hook_pre_sanidade"
-except Exception:
-    ct_forced_active = False
-
-sanidade_final_listas(listas_filtradas)
+        listas_totais = sanidade_final_listas(listas_filtradas)
         pc_exec_trace("AFTER sanidade_final_listas", pc_packet_audit_dict(listas_totais, "after_sanidade"))
         try:
             pc_trace_store("pc_trace_after_sanidade", listas_totais, "1) POST SANIDADE FINAL LISTAS")
