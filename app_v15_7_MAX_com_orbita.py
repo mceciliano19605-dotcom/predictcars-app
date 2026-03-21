@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57DM — CT MODE6 GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DM_CT_MODE6_GENERATOR_PRE_SANIDADE_REAL_HOOK_BANNER_OK.py"
+BUILD_TAG = "v16h57DM — CT MODE6 GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DM_CT_REAL_GENERATOR_ENABLED_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DM — CT MODE6 GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DM — BUILD AUDITÁVEL (CT real generator enabled)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -537,11 +537,11 @@ st.markdown(
                 border-radius:12px;
                 margin-bottom:14px;">
         <h2 style="color:#ff4b4b;margin:0;">
-        EXECUTANDO AGORA (BUILD REAL): app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DM_CT_MODE6_GENERATOR_PRE_SANIDADE_REAL_HOOK_BANNER_OK.py
+        EXECUTANDO AGORA (BUILD REAL): app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DM_FIX_CT_MODE6_GENERATOR_PRE_SANIDADE_REAL_HOOK_BANNER_OK.py
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57DM — CT MODE6 GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+        <b>BUILD:</b> v16h57DM — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -550,7 +550,7 @@ st.markdown(
 )
 
 st.sidebar.warning(
-    f"EXECUTANDO AGORA (BUILD REAL): app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DM_CT_MODE6_GENERATOR_PRE_SANIDADE_REAL_HOOK_BANNER_OK.py
+    f"EXECUTANDO AGORA (BUILD REAL): app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DM_FIX_CT_MODE6_GENERATOR_PRE_SANIDADE_REAL_HOOK_BANNER_OK.py
     f"Arquivo canônico no GitHub/Streamlit: {BUILD_CANONICAL_FILE}\n"
     f"BUILD: {BUILD_TAG}\n"
     f"TIMESTAMP: {BUILD_TIME}\n"
@@ -21986,7 +21986,7 @@ except Exception as e:
 
 
 # ============================================================
-# BUILD v16h57DM — CT MODE6 GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57DM — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
 # CT REAL GENERATOR HOOK (PRE SANIDADE)
 # ============================================================
 try:
@@ -22002,7 +22002,7 @@ except Exception:
 
 
 # ============================================================
-# BUILD v16h57DM — CT MODE6 GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57DM — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
 # CT REAL HOOK INSIDE GENERATOR (PRE SANIDADE)
 # ============================================================
 try:
