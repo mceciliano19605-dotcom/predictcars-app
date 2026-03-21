@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57DE — CT REAL GENERATOR ENABLED + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DE_CT_REAL_GENERATOR_ENABLED_BANNER_OK.py"
+BUILD_TAG = "v16h57CZ — CT MODE6 REAL HOOK + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DF_CT_BASELINE_SAFE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DE — BUILD AUDITÁVEL (CT real generator enabled)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CX — BUILD AUDITÁVEL (CT audit trace + snapshot read)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -541,7 +541,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57DD — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK<br>
+        <b>BUILD:</b> v16h57DF — CT MODE6 REAL HOOK + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -3766,20 +3766,28 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 _ranking_vals_at = [int(v) for v in (calib_meta.get("top_pool") or [])]
             except Exception:
                 _ranking_vals_at = []
-            listas_totais, _npgen_info = pc_v16_new_packet_generator(
-                listas_totais,
-                ranking_vals=_ranking_vals_at,
-                historico_df=df,
-                n_alvo=n_real,
-                seed=seed,
-                max_lists=len(listas_totais),
-            )
-            try:
-                pc_trace_store("pc_trace_after_npg", listas_totais, "2) POST NEW PACKET GENERATOR")
-            except Exception:
-                pass
-            calib_meta["new_packet_generator"] = dict(_npgen_info)
-            pc_exec_trace("AFTER pc_v16_new_packet_generator", dict(_npgen_info or {}, **pc_packet_audit_dict(listas_totais, "after_new_packet")))
+            if calib_override is False:
+                calib_meta["new_packet_generator"] = {
+                    "active": False,
+                    "applied": False,
+                    "reason": "desligado_baseline",
+                    "listas_regeneradas_qtd": 0,
+                }
+            else:
+                listas_totais, _npgen_info = pc_v16_new_packet_generator(
+                    listas_totais,
+                    ranking_vals=_ranking_vals_at,
+                    historico_df=df,
+                    n_alvo=n_real,
+                    seed=seed,
+                    max_lists=len(listas_totais),
+                )
+                try:
+                    pc_trace_store("pc_trace_after_npg", listas_totais, "2) POST NEW PACKET GENERATOR")
+                except Exception:
+                    pass
+                calib_meta["new_packet_generator"] = dict(_npgen_info)
+                pc_exec_trace("AFTER pc_v16_new_packet_generator", dict(_npgen_info or {}, **pc_packet_audit_dict(listas_totais, "after_new_packet")))
         except Exception as _e:
             calib_meta["new_packet_generator"] = {
                 "active": False,
@@ -21972,17 +21980,17 @@ except Exception as e:
     print("POST_MODO6_AUDIT_ERROR:", e)
 
 
-# ============================================================
-# v16h57DD — CT FINAL SAFE MARKER (NO FLOW CHANGE)
-# ============================================================
+# ==========================================================
+# BUILD v16h57DF — CT MODE6 REAL HOOK + BANNER OK
+# CT MODE6 REAL HOOK (safe marker only)
+# ==========================================================
 try:
     import streamlit as st
-    if "v16_ct_final_marker" not in st.session_state:
-        st.session_state["v16_ct_final_marker"] = {
-            "build": "v16h57DD",
-            "status": "armed",
-            "type": "final_safe_marker"
-        }
+    st.session_state["CT_MODE6_REAL_HOOK"] = {
+        "build": "v16h57DF",
+        "hook_point": "mode6_pre_sanidade",
+        "status": "armed"
+    }
 except Exception:
     pass
 
