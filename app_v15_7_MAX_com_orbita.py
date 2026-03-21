@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57DG — CT REAL MODE6 PRE-SANIDADE + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DG_CT_REAL_MODE6_PRE_SANIDADE_BANNER_OK.py"
+BUILD_TAG = "v16h57DH — CT REAL MODE6 PRE-SANIDADE + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DH_CT_REAL_MODE6_PRE_SANIDADE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DG — BUILD AUDITÁVEL (CT real mode6 pre-sanidade)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DH — BUILD AUDITÁVEL (CT real mode6 pre-sanidade)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -541,7 +541,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57DA — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK<br>
+        <b>BUILD:</b> v16h57DH — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -21983,3 +21983,19 @@ try:
         })
 except Exception as e:
     print("POST_MODO6_AUDIT_ERROR:", e)
+
+
+# ============================================================
+# BUILD v16h57DH — CT PRE SANIDADE MODE6 HOOK + BANNER OK
+# CT PRE SANIDADE MODE6 HOOK (SAFE INSERT)
+# ============================================================
+try:
+    import streamlit as st
+    st.session_state["CT_PRE_SANIDADE_MODE6"] = {
+        "build": "v16h57DH",
+        "hook_point": "before_sanidade_final_listas",
+        "status": "armed"
+    }
+except Exception:
+    pass
+
