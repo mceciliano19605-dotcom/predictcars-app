@@ -520,7 +520,7 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # ============================================================
 
 BUILD_TAG = "v16h57CZ — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DC_CT_BASELINE_SAFE_BANNER_OK.py"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DD_CT_BASELINE_SAFE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -541,7 +541,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57DC — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK<br>
+        <b>BUILD:</b> v16h57DD — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -21968,17 +21968,7 @@ try:
         except Exception as _e_ct_audit:
             st.error(f"CT_AUDIT_ERROR: {_e_ct_audit}")
 
-        st.markdown("#### 
-# ---------------- CT PRE TOP10 (v16h57DC) ----------------
-try:
-    st.session_state["v16_ct_pre_top10"] = {
-        "active": True,
-        "reason": "pre_top10_hook"
-    }
-except Exception:
-    pass
-
-FINAL (TOP10 APÓS CAMADAS DO MODO 6)")
+        st.markdown("#### FINAL (TOP10 APÓS CAMADAS DO MODO 6)")
         st.json({
             "n_listas": len(listas_ref),
             "hash": pacote_hash,
@@ -21988,3 +21978,19 @@ FINAL (TOP10 APÓS CAMADAS DO MODO 6)")
         })
 except Exception as e:
     print("POST_MODO6_AUDIT_ERROR:", e)
+
+
+# ============================================================
+# v16h57DD — CT FINAL SAFE MARKER (NO FLOW CHANGE)
+# ============================================================
+try:
+    import streamlit as st
+    if "v16_ct_final_marker" not in st.session_state:
+        st.session_state["v16_ct_final_marker"] = {
+            "build": "v16h57DD",
+            "status": "armed",
+            "type": "final_safe_marker"
+        }
+except Exception:
+    pass
+
