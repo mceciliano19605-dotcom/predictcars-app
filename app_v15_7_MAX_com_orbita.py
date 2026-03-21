@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57DB — CT PRE-SANIDADE REAL PATH + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DB_CT_PRE_SANIDADE_REAL_PATH_BANNER_OK.py"
+BUILD_TAG = "v16h57CZ — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DC_CT_BASELINE_SAFE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DB — BUILD AUDITÁVEL (CT pre-sanidade real path)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57CX — BUILD AUDITÁVEL (CT audit trace + snapshot read)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -541,7 +541,7 @@ st.markdown(
         </h2>
         <p style="color:white;margin:8px 0 0 0; font-size: 15px;">
         <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57DA — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK<br>
+        <b>BUILD:</b> v16h57DC — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK<br>
         <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
@@ -3720,53 +3720,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             except Exception:
                 pass
 
-        # ------------------------------------------------------------
-        # CT PRE-SANIDADE (DB)
-        # - Atua no caminho real, antes da sanidade final do pacote
-        # - Não mexe em Camada 4
-        # ------------------------------------------------------------
-        try:
-            _ranking_vals_db = []
-            try:
-                _ranking_vals_db = [int(v) for v in (calib_meta.get("top_pool") or [])]
-            except Exception:
-                _ranking_vals_db = []
-            if calib_override is False:
-                _db_info = {
-                    "active": False,
-                    "applied": False,
-                    "reason": "desligado_baseline",
-                    "listas_regeneradas_qtd": 0,
-                }
-                _listas_pre_sanidade = list(listas_filtradas)
-            else:
-                _listas_pre_sanidade, _db_info = pc_v16_new_packet_generator(
-                    listas_filtradas,
-                    ranking_vals=_ranking_vals_db,
-                    historico_df=df,
-                    n_alvo=n_real,
-                    seed=seed,
-                    max_lists=len(listas_filtradas),
-                )
-            calib_meta["new_packet_generator_pre_sanidade"] = dict(_db_info or {})
-            try:
-                st.session_state["v16_ct_last_pre_sanidade"] = dict(_db_info or {})
-            except Exception:
-                pass
-        except Exception as _e_db:
-            _listas_pre_sanidade = list(listas_filtradas)
-            calib_meta["new_packet_generator_pre_sanidade"] = {
-                "active": False,
-                "applied": False,
-                "reason": f"pre_sanidade_erro: {_e_db}",
-                "listas_regeneradas_qtd": 0,
-            }
-            try:
-                st.session_state["v16_ct_last_pre_sanidade"] = dict(calib_meta["new_packet_generator_pre_sanidade"])
-            except Exception:
-                pass
-
-        listas_totais = sanidade_final_listas(_listas_pre_sanidade)
+        listas_totais = sanidade_final_listas(listas_filtradas)
         pc_exec_trace("AFTER sanidade_final_listas", pc_packet_audit_dict(listas_totais, "after_sanidade"))
         try:
             pc_trace_store("pc_trace_after_sanidade", listas_totais, "1) POST SANIDADE FINAL LISTAS")
@@ -21985,7 +21939,7 @@ try:
         st.markdown("#### 🧪 AUDITORIA DO CT (CONVERSION PRESSURE)")
         try:
             _calib_last = st.session_state.get("v16_calib_leve_last_summary") or {}
-            _npg = (_calib_last.get("new_packet_generator_pre_sanidade") or _calib_last.get("new_packet_generator") or st.session_state.get("v16_ct_last_pre_sanidade") or {}) if isinstance(_calib_last, dict) else (st.session_state.get("v16_ct_last_pre_sanidade") or {})
+            _npg = (_calib_last.get("new_packet_generator") or {}) if isinstance(_calib_last, dict) else {}
             _cp = (_npg.get("conversion_pressure") or {}) if isinstance(_npg, dict) else {}
             _snap_map = (
                 st.session_state.get("snapshot_p0_canonic")
@@ -22014,7 +21968,17 @@ try:
         except Exception as _e_ct_audit:
             st.error(f"CT_AUDIT_ERROR: {_e_ct_audit}")
 
-        st.markdown("#### FINAL (TOP10 APÓS CAMADAS DO MODO 6)")
+        st.markdown("#### 
+# ---------------- CT PRE TOP10 (v16h57DC) ----------------
+try:
+    st.session_state["v16_ct_pre_top10"] = {
+        "active": True,
+        "reason": "pre_top10_hook"
+    }
+except Exception:
+    pass
+
+FINAL (TOP10 APÓS CAMADAS DO MODO 6)")
         st.json({
             "n_listas": len(listas_ref),
             "hash": pacote_hash,
