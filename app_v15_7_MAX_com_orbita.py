@@ -519,28 +519,26 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57DO — CT REAL GENERATOR PRE-SANIDADE HOOK + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DN_CT_REAL_GENERATOR_ENABLED_BANNER_OK.py"""
-BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"""
+BUILD_TAG = "v16h57DQ — CT REAL GENERATOR PRE-SANIDADE CANONICAL + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DQ_CT_REAL_GENERATOR_PRE_SANIDADE_CANONICAL_BANNER_OK.py"
+BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DN — BUILD AUDITÁVEL (CT real generator enabled)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DQ — BUILD AUDITÁVEL (CT real generator pre-sanidade canonical)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
     f"""
-    <div style="background-color:#111;
-                border:3px solid #ff4b4b;
-                padding:18px;
-                border-radius:12px;
-                margin-bottom:14px;">
-        <h2 style="color:#ff4b4b;margin:0;">
-        EXECUTANDO AGORA (BUILD REAL): app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DO_CT_REAL_GENERATOR_PRE_SANIDADE_HOOK_BANNER_OK.py"color:white;margin:8px 0 0 0; font-size: 15px;">
-        <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
-        <b>BUILD:</b> v16h57DN — CONVERSION PRESSURE (PRE-MODO 6) + BANNER OK<br>
-        <b>TIMESTAMP:</b> {BUILD_TIME}<br>
+    <div style="background-color:#111; border:3px solid #ff4b4b; padding:18px; border-radius:12px; margin-bottom:14px;">
+        <h2 style="color:#ff4b4b; margin:0;">
+            EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE}
+        </h2>
+        <p style="color:white; margin:8px 0 0 0; font-size:15px;">
+            <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
+            <b>BUILD:</b> {BUILD_TAG}<br>
+            <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
     """,
@@ -548,7 +546,7 @@ st.markdown(
 )
 
 st.sidebar.warning(
-    f"""EXECUTANDO AGORA (BUILD REAL): app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DO_CT_REAL_GENERATOR_PRE_SANIDADE_HOOK_BANNER_OK.py"""
+    f"EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE}\n"
     f"Arquivo canônico no GitHub/Streamlit: {BUILD_CANONICAL_FILE}\n"
     f"BUILD: {BUILD_TAG}\n"
     f"TIMESTAMP: {BUILD_TIME}\n"
@@ -3718,33 +3716,30 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             except Exception:
                 pass
 
-        listas_totais = sanidade_final_listas(listas_filtradas)
-        pc_exec_trace("AFTER sanidade_final_listas", pc_packet_audit_dict(listas_totais, "after_sanidade"))
-        try:
-            pc_trace_store("pc_trace_after_sanidade", listas_totais, "1) POST SANIDADE FINAL LISTAS")
-        except Exception:
-            pass
         # ------------------------------------------------------------
-        # GENERATOR OPENING CONTROL (CG)
-        # - Atua na origem do pacote, antes das camadas de coesão
-        # - Objetivo: reduzir anti-compressão estrutural nativa do Modo 6
+        # CT / GENERATOR PATH CANÔNICO (DQ)
+        # - Atua ANTES da sanidade final
+        # - Não altera replay
+        # - Não altera pipeline
         # ------------------------------------------------------------
+        _listas_pre_sanidade = list(listas_filtradas)
+
         try:
             _opening_ranking_vals = []
             try:
                 _opening_ranking_vals = [int(v) for v in (calib_meta.get("top_pool") or [])]
             except Exception:
                 _opening_ranking_vals = []
-            listas_totais, _opening_info = pc_v16_generator_opening_control(
-                listas_totais,
+            _listas_pre_sanidade, _opening_info = pc_v16_generator_opening_control(
+                _listas_pre_sanidade,
                 ranking_vals=_opening_ranking_vals,
                 n_alvo=n_real,
                 target_unique_min=28,
                 max_replace_per_list=4,
             )
-            calib_meta["generator_opening_control"] = dict(_opening_info)
+            calib_meta["generator_opening_control"] = dict(_opening_info or {})
             try:
-                pc_trace_store("pc_trace_after_generator_opening", listas_totais, "1.5) POST GENERATOR OPENING CONTROL")
+                pc_trace_store("pc_trace_after_generator_opening", _listas_pre_sanidade, "1.0) PRE SANIDADE GENERATOR OPENING CONTROL")
             except Exception:
                 pass
         except Exception as _e:
@@ -3753,11 +3748,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 "applied": False,
                 "reason": f"generator_opening_control_erro: {_e}",
             }
-        # ------------------------------------------------------------
-        # NEW PACKET GENERATOR (AT)
-        # - Atua no gerador REAL do Modo 6
-        # - Mantém baseline intacto quando calib_override=False
-        # ------------------------------------------------------------
+
         try:
             _ranking_vals_at = []
             try:
@@ -3765,17 +3756,16 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             except Exception:
                 _ranking_vals_at = []
 
-            # DI: habilita o CT no caminho real do gerador do Modo 6
-            listas_totais, _npgen_info = pc_v16_new_packet_generator(
-                listas_totais,
+            _listas_pre_sanidade, _npgen_info = pc_v16_new_packet_generator(
+                _listas_pre_sanidade,
                 ranking_vals=_ranking_vals_at,
                 historico_df=df,
                 n_alvo=n_real,
                 seed=seed,
-                max_lists=len(listas_totais),
+                max_lists=len(_listas_pre_sanidade),
             )
             try:
-                pc_trace_store("pc_trace_after_npg", listas_totais, "2) POST NEW PACKET GENERATOR")
+                pc_trace_store("pc_trace_after_npg", _listas_pre_sanidade, "1.5) PRE SANIDADE NEW PACKET GENERATOR")
             except Exception:
                 pass
             calib_meta["new_packet_generator"] = dict(_npgen_info or {})
@@ -3784,8 +3774,8 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             except Exception:
                 pass
             pc_exec_trace(
-                "AFTER pc_v16_new_packet_generator",
-                dict(_npgen_info or {}, **pc_packet_audit_dict(listas_totais, "after_new_packet"))
+                "AFTER pc_v16_new_packet_generator_PRE_SANIDADE",
+                dict(_npgen_info or {}, **pc_packet_audit_dict(_listas_pre_sanidade, "after_new_packet_pre_sanidade"))
             )
         except Exception as _e:
             calib_meta["new_packet_generator"] = {
@@ -3798,6 +3788,13 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 st.session_state["v16_ct_last_real_generator"] = dict(calib_meta["new_packet_generator"])
             except Exception:
                 pass
+
+        listas_totais = sanidade_final_listas(_listas_pre_sanidade)
+        pc_exec_trace("AFTER sanidade_final_listas", pc_packet_audit_dict(listas_totais, "after_sanidade"))
+        try:
+            pc_trace_store("pc_trace_after_sanidade", listas_totais, "2) POST SANIDADE FINAL LISTAS")
+        except Exception:
+            pass
         # ------------------------------------------------------------
                 # TOP COHESION DO PACOTE (AN)
         # - Pré-C4 · auditável · não altera volume
@@ -21984,13 +21981,13 @@ except Exception as e:
 
 
 # ============================================================
-# BUILD v16h57DN — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
+# BUILD v16h57DK — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
 # CT REAL GENERATOR HOOK (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_REAL_GENERATOR_PRE_SANIDADE"] = {
-        "build": "v16h57DN",
+        "build": "v16h57DK",
         "hook": "before_sanidade_final_listas",
         "status": "armed"
     }
@@ -22000,13 +21997,13 @@ except Exception:
 
 
 # ============================================================
-# BUILD v16h57DN — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57DK — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
 # CT REAL HOOK INSIDE GENERATOR (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_GENERATOR_PRE_SANIDADE_REAL"] = {
-        "build": "v16h57DN",
+        "build": "v16h57DK",
         "hook_point": "generator_before_sanidade",
         "status": "armed"
     }
