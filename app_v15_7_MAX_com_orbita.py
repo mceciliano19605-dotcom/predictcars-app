@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57DU — CT MODE6 BASE NO-TRY HOOK + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DU_CT_MODE6_BASE_NO_TRY_HOOK_BANNER_OK.py"
+BUILD_TAG = "v16h57DV — CT LISTAS_PRE_SANIDADE REAL HOOK + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DV_CT_LISTAS_PRE_SANIDADE_REAL_HOOK_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DU — BUILD AUDITÁVEL (CT mode6 base no-try hook)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DV — BUILD AUDITÁVEL (CT listas_pre_sanidade real hook)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -3738,6 +3738,23 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             pc_trace_store("pc_trace_after_npg_base", _listas_pre_sanidade, "1.25) PRE SANIDADE BASE GENERATOR")
         except Exception:
             pass
+        
+        # ------------------------------------------------------------
+        # v16h57DV — CT aplicado diretamente em listas_pre_sanidade
+        # fluxo real Mode6 — antes da sanidade
+        # ------------------------------------------------------------
+        _ranking_vals_dv = [int(v) for v in (calib_meta.get("top_pool") or [])]
+        _listas_pre_sanidade, _npgen_dv_info = pc_v16_new_packet_generator(
+            _listas_pre_sanidade,
+            ranking_vals=_ranking_vals_dv,
+            historico_df=df,
+            n_alvo=n_real,
+            seed=seed,
+            max_lists=len(_listas_pre_sanidade),
+        )
+        calib_meta["new_packet_generator"] = dict(_npgen_dv_info or {})
+        st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dv_info or {})
+
         listas_totais = sanidade_final_listas(_listas_pre_sanidade)
         pc_exec_trace("AFTER sanidade_final_listas", pc_packet_audit_dict(listas_totais, "after_sanidade"))
         try:
