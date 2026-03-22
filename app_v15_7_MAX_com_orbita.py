@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57DS — CT MODE6 BASE GENERATOR HOOK + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DS_CT_MODE6_BASE_GENERATOR_HOOK_BANNER_OK.py"
+BUILD_TAG = "v16h57DT — CT MODE6 BASE SAFE HOOK + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DT_CT_MODE6_BASE_SAFE_HOOK_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DS — BUILD AUDITÁVEL (CT base generator hook)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DR — BUILD AUDITÁVEL (CT internal mode6 generator pre-sanidade)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -3708,33 +3708,40 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             nova = [int(valor_por_idx[i]) for i in nova_idx]
             listas_brutas.append(nova)
 
-        # --- CT BASE GENERATOR HOOK (DS) ---
+        
+# ------------------------------------------------------------
+# v16h57DT — CT MODE6 BASE SAFE HOOK (antes de listas_filtradas)
+# ------------------------------------------------------------
 try:
-    _ranking_vals_ds = []
+    _ranking_vals_dt = []
     try:
-        _ranking_vals_ds = [int(v) for v in (calib_meta.get("top_pool") or [])]
+        _ranking_vals_dt = [int(v) for v in (calib_meta.get("top_pool") or [])]
     except Exception:
-        _ranking_vals_ds = []
-    listas_base_ct, _npgen_ds = pc_v16_new_packet_generator(
+        _ranking_vals_dt = []
+
+    _listas_ct_dt, _info_dt = pc_v16_new_packet_generator(
         listas_base,
-        ranking_vals=_ranking_vals_ds,
+        ranking_vals=_ranking_vals_dt,
         historico_df=df,
         n_alvo=n_real,
         seed=seed,
         max_lists=len(listas_base),
     )
-    listas_base = list(listas_base_ct)
-    calib_meta["new_packet_generator"] = dict(_npgen_ds or {})
+
+    listas_base = list(_listas_ct_dt)
+    calib_meta["new_packet_generator"] = dict(_info_dt or {})
     try:
-        st.session_state["v16_ct_last_real_generator"] = dict(_npgen_ds or {})
+        st.session_state["v16_ct_last_real_generator"] = dict(_info_dt or {})
     except Exception:
         pass
-except Exception as _e_ds:
+
+except Exception as _e_dt:
     calib_meta["new_packet_generator"] = {
         "active": False,
         "applied": False,
-        "reason": f"ds_hook_error: {_e_ds}",
+        "reason": f"dt_hook_error: {_e_dt}",
     }
+
 
 listas_filtradas = []
         for lista in listas_brutas:
