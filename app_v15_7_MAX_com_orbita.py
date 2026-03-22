@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57DQ — CT REAL GENERATOR PRE-SANIDADE CANONICAL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DQ_CT_REAL_GENERATOR_PRE_SANIDADE_CANONICAL_BANNER_OK.py"
+BUILD_TAG = "v16h57DR — CT INTERNAL MODE6 GENERATOR PRE-SANIDADE + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DR_CT_INTERNAL_MODE6_GENERATOR_PRE_SANIDADE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DQ — BUILD AUDITÁVEL (CT real generator pre-sanidade canonical)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DR — BUILD AUDITÁVEL (CT internal mode6 generator pre-sanidade)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -3782,6 +3782,44 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 "active": False,
                 "applied": False,
                 "reason": f"new_packet_generator_erro: {_e}",
+                "listas_regeneradas_qtd": 0,
+            }
+            try:
+                st.session_state["v16_ct_last_real_generator"] = dict(calib_meta["new_packet_generator"])
+            except Exception:
+                pass
+
+        # ------------------------------------------------------------
+        # DR — CT no gerador INTERNO do Mode6, antes da sanidade
+        # ------------------------------------------------------------
+        try:
+            _ranking_vals_internal = []
+            try:
+                _ranking_vals_internal = [int(v) for v in (calib_meta.get("top_pool") or [])]
+            except Exception:
+                _ranking_vals_internal = []
+            _listas_pre_sanidade, _npgen_internal_info = pc_v16_new_packet_generator(
+                _listas_pre_sanidade,
+                ranking_vals=_ranking_vals_internal,
+                historico_df=df,
+                n_alvo=n_real,
+                seed=seed,
+                max_lists=len(_listas_pre_sanidade),
+            )
+            calib_meta["new_packet_generator"] = dict(_npgen_internal_info or {})
+            try:
+                st.session_state["v16_ct_last_real_generator"] = dict(_npgen_internal_info or {})
+            except Exception:
+                pass
+            try:
+                pc_trace_store("pc_trace_after_npg_internal", _listas_pre_sanidade, "1.75) PRE SANIDADE INTERNAL NEW PACKET GENERATOR")
+            except Exception:
+                pass
+        except Exception as _e_internal:
+            calib_meta["new_packet_generator"] = {
+                "active": False,
+                "applied": False,
+                "reason": f"new_packet_generator_internal_erro: {_e_internal}",
                 "listas_regeneradas_qtd": 0,
             }
             try:
