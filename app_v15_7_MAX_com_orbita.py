@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57DW — CT LISTAS_FILTRADAS PRE-SANIDADE HOOK + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DW_CT_LISTAS_FILTRADAS_PRE_SANIDADE_HOOK_BANNER_OK.py"
+BUILD_TAG = "v16h57DX — CT REAL FLOW PRE-SANIDADE DIRECT RANKING + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DX_CT_REAL_FLOW_PRE_SANIDADE_DIRECT_RANKING_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DW — BUILD AUDITÁVEL (CT listas_filtradas pre-sanidade hook)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DX — BUILD AUDITÁVEL (CT real flow pre-sanidade direct ranking)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -16240,21 +16240,40 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_brutas = listas_filtradas
 
     # ------------------------------------------------------------
-    # v16h57DW — CT aplicado em listas_filtradas antes da sanidade
+    # v16h57DX — CT no fluxo real, antes da sanidade, sem calib_meta
     # ------------------------------------------------------------
-    _ranking_vals_dw = [int(v) for v in (calib_meta.get("top_pool") or [])]
-    listas_brutas, _npgen_dw_info = pc_v16_new_packet_generator(
+    _ranking_vals_dx = []
+    if "ranking2" in locals() and ranking2 is not None:
+        try:
+            _ranking_vals_dx = [int(v) for v in list(ranking2)]
+        except Exception:
+            _ranking_vals_dx = []
+    if (not _ranking_vals_dx) and "ranking" in locals() and ranking is not None:
+        try:
+            _ranking_vals_dx = [int(v) for v in list(ranking)]
+        except Exception:
+            _ranking_vals_dx = []
+    if (not _ranking_vals_dx) and "top_nums" in locals() and top_nums is not None:
+        try:
+            _ranking_vals_dx = [int(v) for v in list(top_nums)]
+        except Exception:
+            _ranking_vals_dx = []
+
+    listas_brutas, _npgen_dx_info = pc_v16_new_packet_generator(
         listas_brutas,
-        ranking_vals=_ranking_vals_dw,
+        ranking_vals=_ranking_vals_dx,
         historico_df=df,
         n_alvo=n_real,
         seed=seed,
         max_lists=len(listas_brutas),
     )
-    calib_meta["new_packet_generator"] = dict(_npgen_dw_info or {})
-    st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dw_info or {})
     try:
-        pc_trace_store("pc_trace_after_npg_dw", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
+        calib_meta["new_packet_generator"] = dict(_npgen_dx_info or {})
+    except Exception:
+        pass
+    st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
+    try:
+        pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
         pass
 
