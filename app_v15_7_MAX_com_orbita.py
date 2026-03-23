@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57DY — CT CALIB LEVE WEIGHT BOOST NO RANKING2 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DY_CT_CALIB_LEVE_WEIGHT_BOOST_BANNER_OK.py"
+BUILD_TAG = "v16h57DZ — CT CALIB MODERADO WEIGHT BOOST NO RANKING2 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57DZ_CT_CALIB_LEVE_WEIGHT_BOOST_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DY — BUILD AUDITÁVEL (CT calib leve weight boost no ranking2)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57DZ — BUILD AUDITÁVEL (CT calib leve weight boost no ranking2)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1845,7 +1845,7 @@ def _parab_auto_eps(dE, C):
         mdE = float(np.median(np.abs(dE))) if len(dE) else 0.0
         mC = float(np.median(np.abs(C))) if len(C) else 0.0
         # piso mínimo evita “tremedeira” quando valores são pequenos
-        return max(0.05, 0.15 * mdE + 0.05 * mC)
+        return max(0.05, 0.22 * mdE + 0.05 * mC)
     except Exception:
         return 0.05
 
@@ -2992,7 +2992,7 @@ def pc_sentinelas_kstar_silent(df: pd.DataFrame) -> float | None:
         k_medio = _media_movel(k_vals, janela_media)
         k_longo = _media_movel(k_vals, janela_longa)
 
-        k_star = (0.50 * k_curto + 0.35 * k_medio + 0.15 * k_longo)
+        k_star = (0.50 * k_curto + 0.35 * k_medio + 0.22 * k_longo)
 
         st.session_state["sentinela_kstar"] = float(k_star)
         # alias canônico
@@ -5094,7 +5094,7 @@ def v16_calcular_gradiente_E1(info_orbita):
         # ge2: quanto maior, melhor (até 0.85)
         ge2_score = min(1.0, ge2 / 0.85)
         # ge3: penaliza explosão de iguais
-        ge3_pen = min(1.0, max(0.0, (ge3 - 0.15) / 0.35))
+        ge3_pen = min(1.0, max(0.0, (ge3 - 0.22) / 0.35))
 
         score = (0.35*f_score + 0.35*r_score + 0.30*ge2_score) * (1.0 - 0.35*ge3_pen)
         score = float(round(max(0.0, min(1.0, score)), 4))
@@ -5135,7 +5135,7 @@ def v16_calcular_N_extra(estado_orbita, gradiente, n_base, eco_forca=None, eco_a
         if gradiente == "G3":
             return int(max(2, min(6, round(0.3 * n_base))))
         if gradiente == "G2":
-            return int(max(1, min(4, round(0.2 * n_base))))
+            return int(max(1, min(4, round(0.28 * n_base))))
         return 0
     except Exception:
         return 0
@@ -7966,7 +7966,7 @@ def v16_diagnosticar_eco_estado():
     sinais = 0
     motivos = []
 
-    if isinstance(k_star, (int, float)) and k_star < 0.15:
+    if isinstance(k_star, (int, float)) and k_star < 0.22:
         sinais += 1
         motivos.append("k* favorável")
 
@@ -8727,7 +8727,7 @@ def avaliar_gatilho_eco(
     # --------------------------------------------------------
     # Critérios técnicos (LEGADOS)
     # --------------------------------------------------------
-    if k_star_atual < 0.15:
+    if k_star_atual < 0.22:
         motivos.append("k* favorável")
 
     if nr_pct < 0.30:
@@ -11277,7 +11277,7 @@ if painel == "🛰️ Sentinelas — k* (Ambiente de Risco)":
             k_star = (
                 0.50 * k_curto
                 + 0.35 * k_medio
-                + 0.15 * k_longo
+                + 0.22 * k_longo
             )
 
         except Exception as erro:
@@ -11295,7 +11295,7 @@ if painel == "🛰️ Sentinelas — k* (Ambiente de Risco)":
         st.markdown(f"### 🌡️ k* calculado: **{k_star:.4f}**")
 
         # Diagnóstico de regime
-        if k_star < 0.15:
+        if k_star < 0.22:
             regime = "🟢 Ambiente Estável (Regime de Padrão)"
         elif k_star < 0.30:
             regime = "🟡 Pré-Ruptura (Atenção)"
@@ -13353,7 +13353,7 @@ def orquestrar_tentativa_v16(
     # Ideia: confiabilidade cai com ruído, risco, k* alto e divergência alta.
     # (Não é promessa, é régua de orientação de intensidade.)
     if confiabilidade_estimada is None:
-        penal = 0.40 * nr_norm + 0.25 * risco_norm + 0.20 * div_norm + 0.15 * k_norm
+        penal = 0.40 * nr_norm + 0.25 * risco_norm + 0.20 * div_norm + 0.22 * k_norm
         conf = 1.0 - _clamp_v16(penal, 0.0, 1.0)
     else:
         conf = _clamp_v16(_safe_float_v16(confiabilidade_estimada, 0.0), 0.0, 1.0)
