@@ -519,8 +519,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57EB — CT FORTE CONTROLADO WEIGHT BOOST NO RANKING2 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EB_CT_FORTE_CONTROLADO_WEIGHT_BOOST_BANNER_OK.py"
+BUILD_TAG = "v16h57EC — CT FORTE + PRESSAO BORDA-PERTO NO RANKING2 + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EC_CT_FORTE_BORDA_PERTO_WEIGHT_BOOST_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -827,7 +827,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 ranking2 = sorted(
                     [int(v) for v in ranking2],
                     key=lambda v: (
-                        -(cp_scores.get(int(v), 0.0) * 0.95 + max(0.0, 1.0 - (_base_idx.get(int(v), 9999) / max(1, len(ranking2))))),
+                        -(cp_scores.get(int(v), 0.0) * 1.05 + max(0.0, 1.0 - (_base_idx.get(int(v), 9999) / max(1, len(ranking2))))),
                         _base_idx.get(int(v), 9999),
                         int(v),
                     )
@@ -841,7 +841,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 cp_info["top10_antes"] = ranking_before_cp[:10]
                 cp_info["top10_depois"] = [int(v) for v in ranking2[:10]]
                 cp_info["dif_posicoes_top10"] = int(sum(1 for a, b in zip(ranking_before_cp[:10], ranking2[:10]) if a != b))
-                cp_info["cp_weight"] = 0.95
+                cp_info["cp_weight"] = 1.05
             else:
                 cp_info = {
                     "ok": False,
@@ -854,7 +854,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     "top10_antes": ranking_before_cp[:10],
                     "top10_depois": [int(v) for v in ranking2[:10]],
                     "dif_posicoes_top10": 0,
-                    "cp_weight": 0.95,
+                    "cp_weight": 1.05,
                 }
         except Exception as _e:
             cp_info = {"ok": False, "motivo": f"cp_apply_erro: {_e}"}
@@ -8192,7 +8192,7 @@ def v16_estimativa_confiabilidade_por_volume(
         # Ganho marginal decrescente
         ganho = 1.0 - (1.0 / max(1.0, np.log(v + 1)))
         conf = base * fator * ganho
-        estimativas[v] = round(max(0.05, min(0.95, conf)), 3)
+        estimativas[v] = round(max(0.05, min(1.05, conf)), 3)
 
     return estimativas
 
@@ -9666,11 +9666,11 @@ def v16_painel_mc_observacional_pacote_pre_c4():
         rates4[i] = float(np.mean(sample >= 4))
         avgs[i] = float(np.mean(sample))
 
-    def _ci(x, lo=0.05, hi=0.95):
+    def _ci(x, lo=0.05, hi=1.05):
         return float(np.quantile(x, lo)), float(np.quantile(x, hi))
 
-    r4_lo, r4_hi = _ci(rates4, 0.05, 0.95)
-    av_lo, av_hi = _ci(avgs, 0.05, 0.95)
+    r4_lo, r4_hi = _ci(rates4, 0.05, 1.05)
+    av_lo, av_hi = _ci(avgs, 0.05, 1.05)
 
     st.markdown("**Intervalos (90%) na janela** — quanto isso pode oscilar só por variação amostral:")
     st.json({
@@ -13398,8 +13398,8 @@ def orquestrar_tentativa_v16(
         aviso_curto = "🟢 Exploração intensa: mandar bala com critério (janela favorável)."
 
     elif modo == "tentativa_controlada":
-        # Escala suave com conf (0.30..0.55) -> multiplicador (0.95..1.20)
-        mult = 0.95 + 0.25 * _clamp_v16((conf - 0.30) / 0.25, 0.0, 1.0)
+        # Escala suave com conf (0.30..0.55) -> multiplicador (1.05..1.20)
+        mult = 1.05 + 0.25 * _clamp_v16((conf - 0.30) / 0.25, 0.0, 1.0)
         vol_rec = int(max(vol_rec, round(vol_rec * mult)))
         vol_max = int(max(vol_max, round(vol_max * mult)))
 
@@ -13462,8 +13462,8 @@ def orquestrar_tentativa_v16(
     vol_rec = max(vol_min, int(vol_rec))
     vol_max = max(vol_rec, int(vol_max))
 
-    diversidade = _clamp_v16(diversidade, 0.10, 0.95)
-    variacao_interna = _clamp_v16(variacao_interna, 0.10, 0.95)
+    diversidade = _clamp_v16(diversidade, 0.10, 1.05)
+    variacao_interna = _clamp_v16(variacao_interna, 0.10, 1.05)
 
     return {
         "modo_tentativa": modo,
