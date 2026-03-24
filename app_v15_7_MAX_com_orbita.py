@@ -519,8 +519,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57ED — CT FORTE + BORDA DIRETA NO RANKING2 + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57ED_CT_FORTE_BORDA_DIRETA_WEIGHT_BOOST_BANNER_OK.py"
+BUILD_TAG = "v16h57EE — CT FORTE + INJECAO BORDA-PERTO + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EE_CT_FORTE_BORDA_DIRETA_WEIGHT_BOOST_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -827,7 +827,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 ranking2 = sorted(
                     [int(v) for v in ranking2],
                     key=lambda v: (
-                        -(cp_scores.get(int(v), 0.0) * 1.15 + max(0.0, 1.0 - (_base_idx.get(int(v), 9999) / max(1, len(ranking2))))),
+                        -(cp_scores.get(int(v), 0.0) * 1.30 + max(0.0, 1.0 - (_base_idx.get(int(v), 9999) / max(1, len(ranking2))))),
                         _base_idx.get(int(v), 9999),
                         int(v),
                     )
@@ -841,7 +841,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 cp_info["top10_antes"] = ranking_before_cp[:10]
                 cp_info["top10_depois"] = [int(v) for v in ranking2[:10]]
                 cp_info["dif_posicoes_top10"] = int(sum(1 for a, b in zip(ranking_before_cp[:10], ranking2[:10]) if a != b))
-                cp_info["cp_weight"] = 1.15
+                cp_info["cp_weight"] = 1.30
             else:
                 cp_info = {
                     "ok": False,
@@ -854,7 +854,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     "top10_antes": ranking_before_cp[:10],
                     "top10_depois": [int(v) for v in ranking2[:10]],
                     "dif_posicoes_top10": 0,
-                    "cp_weight": 1.15,
+                    "cp_weight": 1.30,
                 }
         except Exception as _e:
             cp_info = {"ok": False, "motivo": f"cp_apply_erro: {_e}"}
