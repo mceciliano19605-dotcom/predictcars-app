@@ -519,8 +519,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57EE — CT FORTE + INJECAO BORDA-PERTO + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EE_CT_FORTE_BORDA_DIRETA_WEIGHT_BOOST_BANNER_OK.py"
+BUILD_TAG = "v16h57EF — CT FORTE + INJECAO BORDA-PERTO REAL + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EF_CT_FORTE_BORDA_DIRETA_WEIGHT_BOOST_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -827,11 +827,59 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 ranking2 = sorted(
                     [int(v) for v in ranking2],
                     key=lambda v: (
-                        -(cp_scores.get(int(v), 0.0) * 1.30 + max(0.0, 1.0 - (_base_idx.get(int(v), 9999) / max(1, len(ranking2))))),
+                        -(cp_scores.get(int(v), 0.0) * 1.45 + max(0.0, 1.0 - (_base_idx.get(int(v), 9999) / max(1, len(ranking2))))),
                         _base_idx.get(int(v), 9999),
                         int(v),
                     )
                 )
+
+                # v16h57EF — INJECAO BORDA-PERTO REAL
+                # objetivo: trazer alguns candidatos da borda util para o topo operativo,
+                # sem inventar motor novo e sem quebrar o ranking base.
+                try:
+                    top_cut = ranking2[:10]
+                    border_pool = ranking2[10:18]
+                    border_pool = sorted(
+                        [int(v) for v in border_pool],
+                        key=lambda v: (-float(cp_scores.get(int(v), 0.0)), _base_idx.get(int(v), 9999), int(v))
+                    )
+                    inj_candidates = []
+                    for cand in border_pool:
+                        if cand not in top_cut and cand not in inj_candidates:
+                            inj_candidates.append(int(cand))
+                        if len(inj_candidates) >= 2:
+                            break
+
+                    if inj_candidates:
+                        replace_positions = [8, 9]
+                        ranking2_mod = list(ranking2)
+                        injected = []
+                        for pos, cand in zip(replace_positions, inj_candidates):
+                            if pos < len(ranking2_mod):
+                                old_v = int(ranking2_mod[pos])
+                                if cand != old_v and cand not in ranking2_mod[:10]:
+                                    ranking2_mod.remove(cand)
+                                    ranking2_mod.insert(pos, int(cand))
+                                    injected.append({"pos": int(pos), "entrou": int(cand), "saiu": int(old_v)})
+                        if injected:
+                            ranking2 = ranking2_mod
+                            cp_info = dict(cp_info or {})
+                            cp_info["borda_perto_injetada"] = True
+                            cp_info["borda_injetada_qtd"] = int(len(injected))
+                            cp_info["borda_injetada_eventos"] = injected
+                        else:
+                            cp_info = dict(cp_info or {})
+                            cp_info["borda_perto_injetada"] = False
+                            cp_info["borda_injetada_qtd"] = 0
+                    else:
+                        cp_info = dict(cp_info or {})
+                        cp_info["borda_perto_injetada"] = False
+                        cp_info["borda_injetada_qtd"] = 0
+                except Exception as _inj_e:
+                    cp_info = dict(cp_info or {})
+                    cp_info["borda_perto_injetada"] = False
+                    cp_info["borda_injecao_erro"] = str(_inj_e)
+
                 cp_info = dict(cp_info)
                 cp_info["snapshot_disponivel"] = bool(isinstance(snapshot_p0_map, dict) and len(snapshot_p0_map) > 0)
                 cp_info["qtd_snapshots"] = int(len(snapshot_p0_map) if isinstance(snapshot_p0_map, dict) else 0)
@@ -841,7 +889,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 cp_info["top10_antes"] = ranking_before_cp[:10]
                 cp_info["top10_depois"] = [int(v) for v in ranking2[:10]]
                 cp_info["dif_posicoes_top10"] = int(sum(1 for a, b in zip(ranking_before_cp[:10], ranking2[:10]) if a != b))
-                cp_info["cp_weight"] = 1.30
+                cp_info["cp_weight"] = 1.45
             else:
                 cp_info = {
                     "ok": False,
@@ -854,7 +902,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     "top10_antes": ranking_before_cp[:10],
                     "top10_depois": [int(v) for v in ranking2[:10]],
                     "dif_posicoes_top10": 0,
-                    "cp_weight": 1.30,
+                    "cp_weight": 1.45,
                 }
         except Exception as _e:
             cp_info = {"ok": False, "motivo": f"cp_apply_erro: {_e}"}
