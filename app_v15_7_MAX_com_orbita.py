@@ -519,8 +519,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57EI — CT FORTE + INJECAO DIRETA MAIS PROFUNDA NO PACOTE + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EI_CT_FORTE_BORDA_DIRETA_WEIGHT_BOOST_BANNER_OK.py"
+BUILD_TAG = "v16h57EJ — CT FORTE + REORGANIZACAO DIRETA DO PACOTE + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EJ_CT_FORTE_BORDA_DIRETA_WEIGHT_BOOST_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -827,13 +827,13 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 ranking2 = sorted(
                     [int(v) for v in ranking2],
                     key=lambda v: (
-                        -(cp_scores.get(int(v), 0.0) * 1.95 + max(0.0, 1.0 - (_base_idx.get(int(v), 9999) / max(1, len(ranking2))))),
+                        -(cp_scores.get(int(v), 0.0) * 2.10 + max(0.0, 1.0 - (_base_idx.get(int(v), 9999) / max(1, len(ranking2))))),
                         _base_idx.get(int(v), 9999),
                         int(v),
                     )
                 )
 
-                # v16h57EI — INJECAO BORDA-PERTO REAL
+                # v16h57EJ — INJECAO BORDA-PERTO REAL
                 # objetivo: trazer alguns candidatos da borda util para o topo operativo,
                 # sem inventar motor novo e sem quebrar o ranking base.
                 try:
@@ -851,7 +851,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                             break
 
                     if inj_candidates:
-                        # v16h57EI — injecao mais agressiva: até 3 candidatos subindo até a posição 7
+                        # v16h57EJ — injecao mais agressiva: até 3 candidatos subindo até a posição 7
                         extra_pool = ranking2[18:22]
                         extra_pool = sorted(
                             [int(v) for v in extra_pool],
@@ -901,7 +901,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 cp_info["top10_antes"] = ranking_before_cp[:10]
                 cp_info["top10_depois"] = [int(v) for v in ranking2[:10]]
                 cp_info["dif_posicoes_top10"] = int(sum(1 for a, b in zip(ranking_before_cp[:10], ranking2[:10]) if a != b))
-                cp_info["cp_weight"] = 1.95
+                cp_info["cp_weight"] = 2.10
             else:
                 cp_info = {
                     "ok": False,
@@ -914,7 +914,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     "top10_antes": ranking_before_cp[:10],
                     "top10_depois": [int(v) for v in ranking2[:10]],
                     "dif_posicoes_top10": 0,
-                    "cp_weight": 1.95,
+                    "cp_weight": 2.10,
                 }
         except Exception as _e:
             cp_info = {"ok": False, "motivo": f"cp_apply_erro: {_e}"}
