@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57EK — CT FORTE + REORGANIZACAO PARA CONVERSAO DIRETA + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EK_CT_FORTE_BORDA_DIRETA_WEIGHT_BOOST_BANNER_OK.py"
+BUILD_TAG = "v16h57EL — CT FORTE + MONTAGEM FINAL PROFUNDA PARA CONVERSAO + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EL_CT_FORTE_MONTAGEM_FINAL_PROFUNDA_CONVERSAO_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57EB — BUILD AUDITÁVEL (CT forte controlado weight boost no ranking2)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57EL — BUILD AUDITÁVEL (CT forte + montagem final profunda para conversão)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -737,6 +737,137 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
         }
     except Exception as e:
         return {"ok": False, "scores": {}, "motivo": f"conversion_pressure_erro: {e}"}
+
+
+# ============================================================
+# V16h57EL — FINAL PACKET MOUNT (deep conversion-oriented)
+# Atua APENAS na montagem final do pacote já gerado.
+# Não cria motor novo. Não altera Camada 4. Não aumenta volume.
+# ============================================================
+def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
+    try:
+        pkt = []
+        for lst in (listas_packet or []):
+            try:
+                li = sorted(dict.fromkeys(int(x) for x in list(lst)[:int(n_alvo)]))
+                if len(li) >= int(n_alvo):
+                    pkt.append(li[:int(n_alvo)])
+            except Exception:
+                pass
+        if not pkt:
+            return listas_packet, {"active": False, "applied": False, "reason": "pacote_vazio"}
+
+        top_k = int(max(1, min(int(top_k), len(pkt))))
+        top = [list(x) for x in pkt[:top_k]]
+        tail = [list(x) for x in pkt[top_k:]]
+
+        # frequência local do pacote
+        freq = {}
+        for lst in top:
+            for v in lst:
+                freq[int(v)] = freq.get(int(v), 0) + 1
+
+        ranking = []
+        for v in (ranking_vals or []):
+            try:
+                iv = int(v)
+                if iv not in ranking:
+                    ranking.append(iv)
+            except Exception:
+                pass
+
+        if not ranking:
+            ranking = [v for v, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+        cp_scores = cp_scores if isinstance(cp_scores, dict) else {}
+        co_matrix = co_matrix if isinstance(co_matrix, dict) else {}
+
+        # pool operativo: topo do ranking + elementos já presentes no pacote
+        pool = []
+        for v in ranking[:18]:
+            if int(v) not in pool:
+                pool.append(int(v))
+        for v in sorted(freq.keys(), key=lambda x: (-freq.get(x, 0), x)):
+            if int(v) not in pool:
+                pool.append(int(v))
+
+        def pair_score(cand, base_now):
+            score = float(cp_scores.get(int(cand), 0.0)) * 3.0
+            for b in base_now:
+                pair = tuple(sorted((int(cand), int(b))))
+                score += float(co_matrix.get(pair, 0)) * 0.05
+            # leve preferência por candidatos já "na borda" do pacote
+            score += float(freq.get(int(cand), 0)) * 0.15
+            return score
+
+        new_top = []
+        changed = 0
+        for idx, lst in enumerate(top):
+            base = list(lst)
+
+            # preserva 3 elementos mais fortes da lista atual
+            preserved = sorted(
+                base,
+                key=lambda v: (
+                    -(float(cp_scores.get(int(v), 0.0)) * 3.0 + float(freq.get(int(v), 0))),
+                    ranking.index(int(v)) if int(v) in ranking else 9999,
+                    int(v),
+                )
+            )[:3]
+
+            # força montagem mais profunda nas primeiras listas
+            fill = list(dict.fromkeys(int(x) for x in preserved))
+            candidates = [int(v) for v in pool if int(v) not in fill]
+
+            while len(fill) < int(n_alvo) and candidates:
+                best = sorted(
+                    candidates,
+                    key=lambda c: (-pair_score(int(c), fill), ranking.index(int(c)) if int(c) in ranking else 9999, int(c))
+                )[0]
+                fill.append(int(best))
+                candidates = [c for c in candidates if int(c) != int(best)]
+
+            nova = sorted(dict.fromkeys(fill))[:int(n_alvo)]
+            if len(nova) < int(n_alvo):
+                for v in base:
+                    if int(v) not in nova:
+                        nova.append(int(v))
+                    if len(nova) >= int(n_alvo):
+                        break
+            nova = sorted(dict.fromkeys(nova))[:int(n_alvo)]
+
+            if nova != sorted(lst):
+                changed += 1
+            new_top.append(nova)
+
+        # dedup + recomposição mantendo volume
+        out = []
+        seen = set()
+        for lst in new_top + tail:
+            t = tuple(sorted(int(x) for x in lst[:int(n_alvo)]))
+            if len(t) >= int(n_alvo) and t not in seen:
+                seen.add(t)
+                out.append(list(t))
+        for lst in pkt:
+            t = tuple(sorted(int(x) for x in lst[:int(n_alvo)]))
+            if len(out) >= len(pkt):
+                break
+            if t not in seen:
+                seen.add(t)
+                out.append(list(t))
+
+        out = out[:len(pkt)]
+        return out, {
+            "active": True,
+            "applied": bool(out != pkt),
+            "reason": "ok" if out != pkt else "sem_mudanca",
+            "top_k_montado": int(top_k),
+            "changed_lists": int(changed),
+            "hash_antes": hash(str(pkt)),
+            "hash_depois": hash(str(out)),
+        }
+    except Exception as e:
+        return listas_packet, {"active": False, "applied": False, "reason": f"final_mount_erro: {e}"}
 
 # ============================================================
 # V16h57AT — NEW PACKET GENERATOR (pré-C4 · auditável)
@@ -969,6 +1100,18 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
+        # v16h57EL — montagem final profunda para conversão
+        out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
+            out,
+            ranking_vals=ranking2,
+            cp_scores=(cp_info.get("scores", {}) if isinstance(cp_info, dict) else {}),
+            co_matrix=co,
+            n_alvo=int(n_alvo),
+            top_k=min(10, len(out)),
+        )
+        if isinstance(out_mounted, list) and out_mounted:
+            out = out_mounted
+
         return out, {
             "active": True,
             "applied": bool(out != base),
@@ -980,6 +1123,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "listas_finais_hash": hash(str(out)),
             "mudou_no_pacote_final": bool(out != base),
             "conversion_pressure": cp_info,
+            "final_mount_info": final_mount_info,
         }
     except Exception as e:
         return listas_totais, {"active": False, "applied": False, "reason": f"new_packet_generator_erro: {e}", "listas_regeneradas_qtd": 0}
