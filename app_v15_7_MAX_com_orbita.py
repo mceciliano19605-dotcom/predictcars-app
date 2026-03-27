@@ -519,8 +519,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57EM — CT FORTE + MONTAGEM FINAL COM MICRO-QUEBRA CONTROLADA + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EM_CT_FORTE_MONTAGEM_FINAL_MICRO_QUEBRA_CONTROLADA_BANNER_OK.py"
+BUILD_TAG = "v16h57EN — CT FORTE + MONTAGEM FINAL REFINADA PARA CONVERSAO + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EN_CT_FORTE_MONTAGEM_FINAL_REFINADA_CONVERSAO_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -782,14 +782,14 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         co_matrix = co_matrix if isinstance(co_matrix, dict) else {}
 
         def pair_score(cand, base_now):
-            score = float(cp_scores.get(int(cand), 0.0)) * 2.6
+            score = float(cp_scores.get(int(cand), 0.0)) * 3.4
             for b in base_now:
                 pair = tuple(sorted((int(cand), int(b))))
-                score += float(co_matrix.get(pair, 0)) * 0.05
+                score += float(co_matrix.get(pair, 0)) * 0.12
             score += float(freq.get(int(cand), 0)) * 0.10
             return score
 
-        core_thr = max(3, int(round(top_k * 0.50)))
+        core_thr = max(2, int(round(top_k * 0.40)))
         core_vals = {int(v) for v, c in freq.items() if int(c) >= int(core_thr)}
 
         pool = []
@@ -9058,7 +9058,7 @@ def _m5_leitura_regime_light(df_cut, universo_min, universo_max):
     """
     try:
         # janela curta para captar irregularidade recente
-        w = min(120, max(30, int(len(df_cut) * 0.05)))
+        w = min(120, max(30, int(len(df_cut) * 0.12)))
         dfw = df_cut.tail(w)
         # tenta extrair colunas numéricas de passageiros
         cols_num = [c for c in dfw.columns if str(c).strip().isdigit()]
