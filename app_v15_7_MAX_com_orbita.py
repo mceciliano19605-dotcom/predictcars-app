@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57B — CALIB LEVE (pré-C4) + baseline interno + FIX calib_applied + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57EN — CT FORTE + MONTAGEM FINAL REFINADA PARA CONVERSAO + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EN_CT_FORTE_MONTAGEM_FINAL_REFINADA_CONVERSAO_BANNER_OK.py"
+BUILD_TAG = "v16h57EL — CT FORTE + MONTAGEM FINAL PROFUNDA PARA CONVERSAO + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EO_CT_FORTE_MONTAGEM_FINAL_REFINADA_TRAVA_ANTICOLAPSO_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57EM — BUILD AUDITÁVEL (CT forte + montagem final com micro-quebra controlada)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57EL — BUILD AUDITÁVEL (CT forte + montagem final profunda para conversão)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -744,7 +744,6 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 # Atua APENAS na montagem final do pacote já gerado.
 # Não cria motor novo. Não altera Camada 4. Não aumenta volume.
 # ============================================================
-
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     try:
         pkt = []
@@ -762,6 +761,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         top = [list(x) for x in pkt[:top_k]]
         tail = [list(x) for x in pkt[top_k:]]
 
+        # frequência local do pacote
         freq = {}
         for lst in top:
             for v in lst:
@@ -775,108 +775,59 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     ranking.append(iv)
             except Exception:
                 pass
+
         if not ranking:
             ranking = [v for v, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))]
 
         cp_scores = cp_scores if isinstance(cp_scores, dict) else {}
         co_matrix = co_matrix if isinstance(co_matrix, dict) else {}
 
-        def pair_score(cand, base_now):
-            score = float(cp_scores.get(int(cand), 0.0)) * 3.4
-            for b in base_now:
-                pair = tuple(sorted((int(cand), int(b))))
-                score += float(co_matrix.get(pair, 0)) * 0.12
-            score += float(freq.get(int(cand), 0)) * 0.10
-            return score
-
-        core_thr = max(2, int(round(top_k * 0.40)))
-        core_vals = {int(v) for v, c in freq.items() if int(c) >= int(core_thr)}
-
+        # pool operativo: topo do ranking + elementos já presentes no pacote
         pool = []
-        for v in ranking[:20]:
+        for v in ranking[:18]:
+            if int(v) not in pool:
+                pool.append(int(v))
+        for v in sorted(freq.keys(), key=lambda x: (-freq.get(x, 0), x)):
             if int(v) not in pool:
                 pool.append(int(v))
 
-        tail_pool = []
-        for lst in tail:
-            for v in lst:
-                if int(v) not in tail_pool:
-                    tail_pool.append(int(v))
+        def pair_score(cand, base_now):
+            score = float(cp_scores.get(int(cand), 0.0)) * 3.0
+            for b in base_now:
+                pair = tuple(sorted((int(cand), int(b))))
+                score += float(co_matrix.get(pair, 0)) * 0.09
+            # leve preferência por candidatos já "na borda" do pacote
+            score += float(freq.get(int(cand), 0)) * 0.15
+            return score
 
         new_top = []
         changed = 0
-        micro_break_lists = 0
-
         for idx, lst in enumerate(top):
             base = list(lst)
 
-            base_sorted = sorted(
+            # preserva 3 elementos mais fortes da lista atual
+            preserved = sorted(
                 base,
                 key=lambda v: (
-                    -(float(cp_scores.get(int(v), 0.0)) * 2.0 + float(freq.get(int(v), 0))),
+                    -(float(cp_scores.get(int(v), 0.0)) * 3.0 + float(freq.get(int(v), 0))),
                     ranking.index(int(v)) if int(v) in ranking else 9999,
                     int(v),
                 )
-            )
-            preserved = base_sorted[:2]
+            )[:3]
 
-            median_candidates = sorted(
-                [int(v) for v in base if int(v) not in preserved],
-                key=lambda v: (
-                    abs(float(freq.get(int(v), 0)) - (top_k / 3.0)),
-                    ranking.index(int(v)) if int(v) in ranking else 9999,
-                    int(v),
-                )
-            )
-            if median_candidates:
-                preserved.append(int(median_candidates[0]))
-
+            # força montagem mais profunda nas primeiras listas
             fill = list(dict.fromkeys(int(x) for x in preserved))
             candidates = [int(v) for v in pool if int(v) not in fill]
 
-            if idx < min(6, top_k) and tail_pool:
-                tail_cands = [int(v) for v in tail_pool if int(v) not in fill]
-                tail_cands = sorted(
-                    tail_cands,
-                    key=lambda c: (-pair_score(int(c), fill), abs(float(freq.get(int(c), 0)) - 2.0), int(c))
-                )
-                for cand in tail_cands[:4]:
-                    if int(cand) not in fill:
-                        fill.append(int(cand))
-                        micro_break_lists += 1
-                        break
-
             while len(fill) < int(n_alvo) and candidates:
-                cand_sorted = sorted(
+                best = sorted(
                     candidates,
-                    key=lambda c: (
-                        -pair_score(int(c), fill),
-                        (int(c) in core_vals),
-                        ranking.index(int(c)) if int(c) in ranking else 9999,
-                        int(c),
-                    )
-                )
-                best = int(cand_sorted[0])
-                fill.append(best)
+                    key=lambda c: (-pair_score(int(c), fill), ranking.index(int(c)) if int(c) in ranking else 9999, int(c))
+                )[0]
+                fill.append(int(best))
                 candidates = [c for c in candidates if int(c) != int(best)]
 
             nova = sorted(dict.fromkeys(fill))[:int(n_alvo)]
-
-            overlap_core = sum(1 for x in nova if int(x) in core_vals)
-            if overlap_core >= 4 and tail_pool:
-                for cand in tail_pool:
-                    cand = int(cand)
-                    if cand in nova:
-                        continue
-                    drop_candidates = [v for v in nova if int(v) in core_vals]
-                    if not drop_candidates:
-                        break
-                    drop = sorted(drop_candidates, key=lambda v: (-freq.get(int(v), 0), int(v)))[0]
-                    trial = sorted(dict.fromkeys([v for v in nova if int(v) != int(drop)] + [int(cand)]))[:int(n_alvo)]
-                    if len(trial) == int(n_alvo):
-                        nova = trial
-                        break
-
             if len(nova) < int(n_alvo):
                 for v in base:
                     if int(v) not in nova:
@@ -889,6 +840,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 changed += 1
             new_top.append(nova)
 
+        # dedup + recomposição mantendo volume
         out = []
         seen = set()
         for lst in new_top + tail:
@@ -911,9 +863,6 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "reason": "ok" if out != pkt else "sem_mudanca",
             "top_k_montado": int(top_k),
             "changed_lists": int(changed),
-            "micro_break_lists": int(micro_break_lists),
-            "core_thr": int(core_thr),
-            "core_sz": int(len(core_vals)),
             "hash_antes": hash(str(pkt)),
             "hash_depois": hash(str(out)),
         }
@@ -9058,7 +9007,7 @@ def _m5_leitura_regime_light(df_cut, universo_min, universo_max):
     """
     try:
         # janela curta para captar irregularidade recente
-        w = min(120, max(30, int(len(df_cut) * 0.12)))
+        w = min(120, max(30, int(len(df_cut) * 0.09)))
         dfw = df_cut.tail(w)
         # tenta extrair colunas numéricas de passageiros
         cols_num = [c for c in dfw.columns if str(c).strip().isdigit()]
