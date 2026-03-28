@@ -520,7 +520,7 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # ============================================================
 
 BUILD_TAG = "v16h57EL — CT FORTE + MONTAGEM FINAL PROFUNDA PARA CONVERSAO + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EO_CT_FORTE_MONTAGEM_FINAL_REFINADA_TRAVA_ANTICOLAPSO_BANNER_OK.py"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EP_CT_FORTE_SELECAO_FAMILIA_COMBINATORIA_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -795,7 +795,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             score = float(cp_scores.get(int(cand), 0.0)) * 3.0
             for b in base_now:
                 pair = tuple(sorted((int(cand), int(b))))
-                score += float(co_matrix.get(pair, 0)) * 0.09
+                score += float(co_matrix.get(pair, 0)) * 0.13
             # leve preferência por candidatos já "na borda" do pacote
             score += float(freq.get(int(cand), 0)) * 0.15
             return score
@@ -9007,7 +9007,7 @@ def _m5_leitura_regime_light(df_cut, universo_min, universo_max):
     """
     try:
         # janela curta para captar irregularidade recente
-        w = min(120, max(30, int(len(df_cut) * 0.09)))
+        w = min(120, max(30, int(len(df_cut) * 0.13)))
         dfw = df_cut.tail(w)
         # tenta extrair colunas numéricas de passageiros
         cols_num = [c for c in dfw.columns if str(c).strip().isdigit()]
