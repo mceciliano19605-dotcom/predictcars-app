@@ -516,17 +516,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57ET — CT FORTE + FAMÍLIA ESTÁVEL + FLEXIBILIZAÇÃO CONTROLADA DE CONVERSÃO + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57EU — CT FORTE + CONVERGÊNCIA DE FAMÍLIA + AJUSTE FINO DE COESÃO + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57ET — CT FORTE + FAMÍLIA ESTÁVEL + FLEXIBILIZAÇÃO CONTROLADA DE CONVERSÃO + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57ET_CT_FORTE_SELECAO_FAMILIA_COMBINATORIA_BANNER_OK.py"
+BUILD_TAG = "v16h57EU — CT FORTE + CONVERGÊNCIA DE FAMÍLIA + AJUSTE FINO DE COESÃO + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57EU_CT_FORTE_SELECAO_FAMILIA_COMBINATORIA_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57ET — BUILD AUDITÁVEL (CT forte + seleção de família combinatória)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57EU — BUILD AUDITÁVEL (CT forte + seleção de família combinatória)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -795,7 +795,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             score = float(cp_scores.get(int(cand), 0.0)) * 3.0
             for b in base_now:
                 pair = tuple(sorted((int(cand), int(b))))
-                score += float(co_matrix.get(pair, 0)) * 0.158
+                score += float(co_matrix.get(pair, 0)) * 0.162
             # leve preferência por candidatos já "na borda" do pacote
             score += float(freq.get(int(cand), 0)) * 0.15
             return score
@@ -9007,7 +9007,7 @@ def _m5_leitura_regime_light(df_cut, universo_min, universo_max):
     """
     try:
         # janela curta para captar irregularidade recente
-        w = min(120, max(30, int(len(df_cut) * 0.158)))
+        w = min(120, max(30, int(len(df_cut) * 0.162)))
         dfw = df_cut.tail(w)
         # tenta extrair colunas numéricas de passageiros
         cols_num = [c for c in dfw.columns if str(c).strip().isdigit()]
