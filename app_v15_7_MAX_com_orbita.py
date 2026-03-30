@@ -516,17 +516,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FB — CT FORTE + CONVERGÊNCIA PROGRESSIVA DE FAMÍLIA + ESTABILIZAÇÃO FINAL DO ENVELOPE + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FC — CT FORTE + CONVERGÊNCIA ESTRUTURAL DE FAMÍLIA + PRESSÃO FINAL DE CONVERSÃO CONTROLADA + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57FB — CT FORTE + CONVERGÊNCIA PROGRESSIVA DE FAMÍLIA + ESTABILIZAÇÃO FINAL DO ENVELOPE + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FB_CT_FORTE_CONVERGENCIA_PROGRESSIVA_FAMILIA_ESTABILIZACAO_FINAL_ENVELOPE_BANNER_OK.py"
+BUILD_TAG = "v16h57FC — CT FORTE + CONVERGÊNCIA ESTRUTURAL DE FAMÍLIA + PRESSÃO FINAL DE CONVERSÃO CONTROLADA + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FC_CT_FORTE_CONVERGENCIA_ESTRUTURAL_FAMILIA_PRESSAO_FINAL_CONVERSAO_CONTROLADA_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FB — BUILD AUDITÁVEL (CT forte + seleção de família combinatória)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FC — BUILD AUDITÁVEL (CT forte + seleção de família combinatória)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -964,7 +964,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     )
                 )
 
-                # v16h57FB — INJECAO BORDA-PERTO REAL
+                # v16h57FC — INJECAO BORDA-PERTO REAL
                 # objetivo: trazer alguns candidatos da borda util para o topo operativo,
                 # sem inventar motor novo e sem quebrar o ranking base.
                 try:
@@ -982,7 +982,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                             break
 
                     if inj_candidates:
-                        # v16h57FB — injecao mais agressiva: até 3 candidatos subindo até a posição 7
+                        # v16h57FC — injecao mais agressiva: até 3 candidatos subindo até a posição 7
                         extra_pool = ranking2[18:22]
                         extra_pool = sorted(
                             [int(v) for v in extra_pool],
@@ -1100,7 +1100,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
-        # v16h57FB — montagem final profunda para conversão
+        # v16h57FC — montagem final profunda para conversão
         out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
             out,
             ranking_vals=ranking2,
