@@ -63,7 +63,7 @@ def pc_packet_audit_dict(listas, label=""):
 
 def pc_exec_trace(step, payload=None):
     try:
-        key = "v16h57CJ_exec_trace"
+        key = "v16h57FD_exec_trace"
         arr = st.session_state.get(key)
         if not isinstance(arr, list):
             arr = []
@@ -79,7 +79,7 @@ def pc_exec_trace(step, payload=None):
 def pc_list_source_detector(step, listas=None, extra=None):
     try:
         import inspect
-        key = "v16h57CM_source_detector"
+        key = "v16h57FD_source_detector"
         arr = st.session_state.get(key)
         if not isinstance(arr, list):
             arr = []
@@ -516,17 +516,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FC — CT FORTE + CONVERGÊNCIA ESTRUTURAL DE FAMÍLIA + PRESSÃO FINAL DE CONVERSÃO CONTROLADA + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FD — CT FORTE + CONSOLIDAÇÃO DE FAMÍLIA + AJUSTE FINAL DO ENVELOPE + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57FC — CT FORTE + CONVERGÊNCIA ESTRUTURAL DE FAMÍLIA + PRESSÃO FINAL DE CONVERSÃO CONTROLADA + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FC_CT_FORTE_CONVERGENCIA_ESTRUTURAL_FAMILIA_PRESSAO_FINAL_CONVERSAO_CONTROLADA_BANNER_OK.py"
+BUILD_TAG = "v16h57FD — CT FORTE + CONSOLIDAÇÃO DE FAMÍLIA + AJUSTE FINAL DO ENVELOPE + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FD_CT_FORTE_CONSOLIDACAO_FAMILIA_AJUSTE_FINAL_ENVELOPE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FC — BUILD AUDITÁVEL (CT forte + seleção de família combinatória)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FD — BUILD AUDITÁVEL (CT forte + seleção de família combinatória)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -964,7 +964,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     )
                 )
 
-                # v16h57FC — INJECAO BORDA-PERTO REAL
+                # v16h57FD — INJECAO BORDA-PERTO REAL
                 # objetivo: trazer alguns candidatos da borda util para o topo operativo,
                 # sem inventar motor novo e sem quebrar o ranking base.
                 try:
@@ -982,7 +982,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                             break
 
                     if inj_candidates:
-                        # v16h57FC — injecao mais agressiva: até 3 candidatos subindo até a posição 7
+                        # v16h57FD — injecao mais agressiva: até 3 candidatos subindo até a posição 7
                         extra_pool = ranking2[18:22]
                         extra_pool = sorted(
                             [int(v) for v in extra_pool],
@@ -1100,7 +1100,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
-        # v16h57FC — montagem final profunda para conversão
+        # v16h57FD — montagem final profunda para conversão
         out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
             out,
             ranking_vals=ranking2,
@@ -1145,7 +1145,7 @@ except Exception:
 # Limpa pacotes/listas persistidas antes de uma nova execução do Modo 6,
 # para evitar reutilização de estado antigo na sessão.
 # ============================================================
-def v16h57CN_clear_mode6_packet_state():
+def v16h57FD_clear_mode6_packet_state():
     removed = []
     keys = [
         "modo6_listas",
@@ -1169,8 +1169,8 @@ def v16h57CN_clear_mode6_packet_state():
                 del st.session_state[k]
     except Exception:
         pass
-    st.session_state["v16h57CN_fresh_packet_removed_keys"] = removed
-    st.session_state["v16h57CN_fresh_packet_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state["v16h57FD_fresh_packet_removed_keys"] = removed
+    st.session_state["v16h57FD_fresh_packet_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return removed
 
 # ============================================================
@@ -1406,7 +1406,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        # fallback v16h57AB: se nada mudou, força 1 troca mínima na 1a lista do top
+        # fallback v16h57FD: se nada mudou, força 1 troca mínima na 1a lista do top
         if trocas == 0 and new_top10:
             try:
                 base = list(new_top10[0])
@@ -1427,7 +1427,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                 pass
 
         
-        # v16h57AB safety: guarantee at least one minimal swap if calibration active
+        # v16h57FD safety: guarantee at least one minimal swap if calibration active
         try:
             if trocas == 0 and new_top10:
                 base = list(new_top10[0])
@@ -3663,7 +3663,7 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
 def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) -> Tuple[List[List[int]], Dict[str, Any]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
-    v16h57AK:
+    v16h57FD:
     - aceita calib_override (compatível com SAFE/CAP)
     - sempre retorna (pacote, calib_meta)
     - protege o SAFE contra abortos por assinatura/estado mínimo
@@ -10439,7 +10439,7 @@ if painel == "🎯 Compressão do Alvo (Observacional)":
     # ------------------------------------------------------------
     # V16h57CN — SESSION STATE CONTROL (FORCE FRESH PACKET)
     # ------------------------------------------------------------
-    _removed_fresh_keys = v16h57CN_clear_mode6_packet_state()
+    _removed_fresh_keys = v16h57FD_clear_mode6_packet_state()
     if _removed_fresh_keys:
         st.caption("🧹 Session State limpo para pacote fresco do Modo 6: " + ", ".join(_removed_fresh_keys))
     else:
@@ -16116,7 +16116,7 @@ def v16_sanidade_universo_listas(listas, historico_df):
 
 if painel == "🎯 Modo 6 Acertos — Execução":
 
-    st.session_state["v16h57CJ_exec_trace"] = []
+    st.session_state["v16h57FD_exec_trace"] = []
     st.markdown("## 🎯 Modo 6 Acertos — Execução")
 
     df = st.session_state.get("historico_df")
@@ -16446,7 +16446,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_brutas = listas_filtradas
 
     # ------------------------------------------------------------
-    # v16h57DX — CT no fluxo real, antes da sanidade, sem calib_meta
+    # v16h57FD — CT no fluxo real, antes da sanidade, sem calib_meta
     # ------------------------------------------------------------
     _ranking_vals_dx = []
     if "ranking2" in locals() and ranking2 is not None:
@@ -22181,7 +22181,7 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 # ============================================================
-# POST MODO6 AUDIT (v16h57BT)
+# POST MODO6 AUDIT (v16h57FD)
 # ============================================================
 try:
     import itertools
@@ -22201,7 +22201,7 @@ try:
         pacote_hash = hash(str(listas_ref))
 
         st.markdown("### 🔎 Auditoria do Pacote (POST MODO6)")
-        _trace_exec = st.session_state.get("v16h57CJ_exec_trace", [])
+        _trace_exec = st.session_state.get("v16h57FD_exec_trace", [])
         if isinstance(_trace_exec, list) and len(_trace_exec) > 0:
             st.markdown("#### 🧭 TRACE — CAMINHO REAL DE EXECUÇÃO DO MODO 6")
             for _item in _trace_exec:
@@ -22209,7 +22209,7 @@ try:
         else:
             st.warning("Nenhum trace de função do Modo 6 foi capturado nesta execução.")
 
-        _src_trace = st.session_state.get("v16h57CM_source_detector", [])
+        _src_trace = st.session_state.get("v16h57FD_source_detector", [])
         st.markdown("#### 🧪 TRACE — DETECTOR DE ORIGEM DAS LISTAS")
         if isinstance(_src_trace, list) and len(_src_trace) > 0:
             for _item in _src_trace:
@@ -22262,13 +22262,13 @@ except Exception as e:
 
 
 # ============================================================
-# BUILD v16h57DK — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
+# BUILD v16h57FD — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
 # CT REAL GENERATOR HOOK (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_REAL_GENERATOR_PRE_SANIDADE"] = {
-        "build": "v16h57DK",
+        "build": "v16h57FD",
         "hook": "before_sanidade_final_listas",
         "status": "armed"
     }
@@ -22278,13 +22278,13 @@ except Exception:
 
 
 # ============================================================
-# BUILD v16h57DK — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57FD — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
 # CT REAL HOOK INSIDE GENERATOR (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_GENERATOR_PRE_SANIDADE_REAL"] = {
-        "build": "v16h57DK",
+        "build": "v16h57FD",
         "hook_point": "generator_before_sanidade",
         "status": "armed"
     }
