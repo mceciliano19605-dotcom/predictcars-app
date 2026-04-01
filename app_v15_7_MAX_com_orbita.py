@@ -516,17 +516,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FF — PRESSAO DE CONVERSAO INTERNA + FAMILIA ESTAVEL + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FF — FF REAL + PRESSÃO DE CONVERSÃO INTERNA + FAMÍLIA ESTÁVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57FF — PRESSAO DE CONVERSAO INTERNA + FAMILIA ESTAVEL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FF_CT_FORTE_NUCLEO_ESTAVEL_ALIVIO_SELETIVO_TOP10_BANNER_OK.py"
+BUILD_TAG = "v16h57FF — FF REAL + PRESSÃO DE CONVERSÃO INTERNA + FAMÍLIA ESTÁVEL + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FF_REAL_PRESSAO_CONVERSAO_INTERNA_FAMILIA_ESTAVEL_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FF — BUILD AUDITÁVEL (CT forte + núcleo estável + alívio seletivo do Top10)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FF REAL — BUILD AUDITÁVEL (pressão de conversão interna + família estável)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -932,6 +932,73 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_relief = _packet_metrics(new_top)
 
+        # v16h57FF REAL — pressão de conversão interna da família
+        # Objetivo: aumentar interseção útil dentro da família já estável, sem colapsar o envelope.
+        internal_conv_applied = False
+        internal_conv_swaps = 0
+        top_metrics_before_internal = dict(top_metrics_after_relief)
+
+        if (
+            len(new_top) >= 8
+            and int(top_metrics_after_relief.get("passageiros_unicos", 0)) >= 17
+            and float(top_metrics_after_relief.get("sobreposicao_media", 0.0)) <= 2.30
+        ):
+            family_freq = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    family_freq[int(v)] = family_freq.get(int(v), 0) + 1
+
+            recurring_candidates = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                )
+                if c >= 3
+            ]
+
+            def _score_val(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.0
+                    + float(freq.get(int(v), 0)) * 0.25
+                    + max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking_pos) or 1)))
+                )
+
+            if recurring_candidates:
+                for idx in range(3, len(new_top)):
+                    lst = list(new_top[idx])
+                    preserved = sorted(lst, key=lambda v: (-_score_val(int(v)), int(v)))[:2]
+                    weak_candidates = [
+                        int(v) for v in sorted(
+                            lst,
+                            key=lambda v: (_score_val(int(v)), family_freq.get(int(v), 0), int(v))
+                        )
+                        if int(v) not in preserved
+                    ]
+                    if not weak_candidates:
+                        continue
+
+                    add = None
+                    for cand in recurring_candidates:
+                        if int(cand) not in lst:
+                            score_now = pair_score(int(cand), preserved + [x for x in lst if x in preserved])
+                            if score_now >= 1.0:
+                                add = int(cand)
+                                break
+                    if add is None:
+                        continue
+
+                    drop = int(weak_candidates[0])
+                    nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(add)]))[:int(n_alvo)]
+                    if len(nova) >= int(n_alvo) and sorted(nova) != sorted(lst):
+                        new_top[idx] = sorted(nova)
+                        internal_conv_applied = True
+                        internal_conv_swaps += 1
+
+                    if internal_conv_swaps >= 2:
+                        break
+
+        top_metrics_after_internal = _packet_metrics(new_top)
+
         # dedup + recomposição mantendo volume
         out = []
         seen = set()
@@ -962,6 +1029,12 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "top_overlap_before_relief": float(top_metrics_before_relief.get("sobreposicao_media", 0.0)),
             "top_unique_after_relief": int(top_metrics_after_relief.get("passageiros_unicos", 0)),
             "top_overlap_after_relief": float(top_metrics_after_relief.get("sobreposicao_media", 0.0)),
+            "internal_conv_applied": bool(internal_conv_applied),
+            "internal_conv_swaps": int(internal_conv_swaps),
+            "top_unique_before_internal": int(top_metrics_before_internal.get("passageiros_unicos", 0)),
+            "top_overlap_before_internal": float(top_metrics_before_internal.get("sobreposicao_media", 0.0)),
+            "top_unique_after_internal": int(top_metrics_after_internal.get("passageiros_unicos", 0)),
+            "top_overlap_after_internal": float(top_metrics_after_internal.get("sobreposicao_media", 0.0)),
             "hash_antes": hash(str(pkt)),
             "hash_depois": hash(str(out)),
         }
