@@ -63,7 +63,7 @@ def pc_packet_audit_dict(listas, label=""):
 
 def pc_exec_trace(step, payload=None):
     try:
-        key = "v16h57FF_exec_trace"
+        key = "v16h57FG_exec_trace"
         arr = st.session_state.get(key)
         if not isinstance(arr, list):
             arr = []
@@ -79,7 +79,7 @@ def pc_exec_trace(step, payload=None):
 def pc_list_source_detector(step, listas=None, extra=None):
     try:
         import inspect
-        key = "v16h57FF_source_detector"
+        key = "v16h57FG_source_detector"
         arr = st.session_state.get(key)
         if not isinstance(arr, list):
             arr = []
@@ -516,17 +516,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FF — FF REAL + PRESSÃO DE CONVERSÃO INTERNA + FAMÍLIA ESTÁVEL + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FG — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57FF — FF REAL + PRESSÃO DE CONVERSÃO INTERNA + FAMÍLIA ESTÁVEL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FF_REAL_PRESSAO_CONVERSAO_INTERNA_FAMILIA_ESTAVEL_BANNER_OK.py"
+BUILD_TAG = "v16h57FG — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FG_PRESSAO_FINAL_CONVERSAO_FAMILIA_ESTAVEL_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FF REAL — BUILD AUDITÁVEL (pressão de conversão interna + família estável)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FG — BUILD AUDITÁVEL (pressão final de conversão + família estável)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -831,7 +831,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
             fill = list(dict.fromkeys(int(x) for x in preserved))
 
-            # v16h57FF — alívio seletivo: em parte do Top10, preserva 1 elemento de borda do pacote original
+            # v16h57FG — alívio seletivo: em parte do Top10, preserva 1 elemento de borda do pacote original
             border_anchor = None
             if idx >= 4:
                 border_candidates_from_base = sorted(
@@ -893,7 +893,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_before_relief = _packet_metrics(new_top)
 
-        # v16h57FF — alívio cirúrgico do Top10 só quando a compressão estiver elevada
+        # v16h57FG — alívio cirúrgico do Top10 só quando a compressão estiver elevada
         relief_applied = False
         relief_swaps = 0
         if (
@@ -932,7 +932,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_relief = _packet_metrics(new_top)
 
-        # v16h57FF REAL — pressão de conversão interna da família
+        # v16h57FG REAL — pressão de conversão interna da família
         # Objetivo: aumentar interseção útil dentro da família já estável, sem colapsar o envelope.
         internal_conv_applied = False
         internal_conv_swaps = 0
@@ -999,6 +999,67 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_internal = _packet_metrics(new_top)
 
+        # v16h57FG — pressão final de conversão
+        # Objetivo: dar um último empurrão em 1-2 listas do Top10, sem recompactar o pacote inteiro.
+        final_push_applied = False
+        final_push_swaps = 0
+        top_metrics_before_final_push = dict(top_metrics_after_internal)
+
+        if (
+            len(new_top) >= 8
+            and int(top_metrics_after_internal.get("passageiros_unicos", 0)) >= 16
+            and float(top_metrics_after_internal.get("sobreposicao_media", 0.0)) <= 2.60
+        ):
+            family_freq = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    family_freq[int(v)] = family_freq.get(int(v), 0) + 1
+
+            strong_family = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 4
+            ]
+
+            def _val_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.2
+                    + float(freq.get(int(v), 0)) * 0.35
+                    + float(family_freq.get(int(v), 0)) * 0.45
+                    + max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking_pos) or 1)))
+                )
+
+            if strong_family:
+                for idx in range(2, min(len(new_top), 8)):
+                    lst = list(new_top[idx])
+                    preserve = sorted(lst, key=lambda v: (-_val_score(int(v)), int(v)))[:3]
+                    weak = [
+                        int(v) for v in sorted(
+                            lst,
+                            key=lambda v: (_val_score(int(v)), family_freq.get(int(v), 0), int(v))
+                        ) if int(v) not in preserve
+                    ]
+                    add = None
+                    for cand in strong_family:
+                        if int(cand) not in lst:
+                            local_score = pair_score(int(cand), preserve)
+                            if local_score >= 1.0:
+                                add = int(cand)
+                                break
+                    if not weak or add is None:
+                        continue
+                    drop = int(weak[0])
+                    nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(add)]))[:int(n_alvo)]
+                    if len(nova) >= int(n_alvo) and sorted(nova) != sorted(lst):
+                        new_top[idx] = sorted(nova)
+                        final_push_applied = True
+                        final_push_swaps += 1
+                    if final_push_swaps >= 2:
+                        break
+
+        top_metrics_after_final_push = _packet_metrics(new_top)
+
         # dedup + recomposição mantendo volume
         out = []
         seen = set()
@@ -1035,6 +1096,12 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "top_overlap_before_internal": float(top_metrics_before_internal.get("sobreposicao_media", 0.0)),
             "top_unique_after_internal": int(top_metrics_after_internal.get("passageiros_unicos", 0)),
             "top_overlap_after_internal": float(top_metrics_after_internal.get("sobreposicao_media", 0.0)),
+            "final_push_applied": bool(final_push_applied),
+            "final_push_swaps": int(final_push_swaps),
+            "top_unique_before_final_push": int(top_metrics_before_final_push.get("passageiros_unicos", 0)),
+            "top_overlap_before_final_push": float(top_metrics_before_final_push.get("sobreposicao_media", 0.0)),
+            "top_unique_after_final_push": int(top_metrics_after_final_push.get("passageiros_unicos", 0)),
+            "top_overlap_after_final_push": float(top_metrics_after_final_push.get("sobreposicao_media", 0.0)),
             "hash_antes": hash(str(pkt)),
             "hash_depois": hash(str(out)),
         }
@@ -1136,7 +1203,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     )
                 )
 
-                # v16h57FF — INJECAO BORDA-PERTO REAL
+                # v16h57FG — INJECAO BORDA-PERTO REAL
                 # objetivo: trazer alguns candidatos da borda util para o topo operativo,
                 # sem inventar motor novo e sem quebrar o ranking base.
                 try:
@@ -1154,7 +1221,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                             break
 
                     if inj_candidates:
-                        # v16h57FF — injecao mais agressiva: até 3 candidatos subindo até a posição 7
+                        # v16h57FG — injecao mais agressiva: até 3 candidatos subindo até a posição 7
                         extra_pool = ranking2[18:22]
                         extra_pool = sorted(
                             [int(v) for v in extra_pool],
@@ -1272,7 +1339,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
-        # v16h57FF — montagem final profunda para conversão
+        # v16h57FG — montagem final profunda para conversão
         out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
             out,
             ranking_vals=ranking2,
@@ -1317,7 +1384,7 @@ except Exception:
 # Limpa pacotes/listas persistidas antes de uma nova execução do Modo 6,
 # para evitar reutilização de estado antigo na sessão.
 # ============================================================
-def v16h57FF_clear_mode6_packet_state():
+def v16h57FG_clear_mode6_packet_state():
     removed = []
     keys = [
         "modo6_listas",
@@ -1341,8 +1408,8 @@ def v16h57FF_clear_mode6_packet_state():
                 del st.session_state[k]
     except Exception:
         pass
-    st.session_state["v16h57FF_fresh_packet_removed_keys"] = removed
-    st.session_state["v16h57FF_fresh_packet_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state["v16h57FG_fresh_packet_removed_keys"] = removed
+    st.session_state["v16h57FG_fresh_packet_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return removed
 
 # ============================================================
@@ -1578,7 +1645,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        # fallback v16h57FF: se nada mudou, força 1 troca mínima na 1a lista do top
+        # fallback v16h57FG: se nada mudou, força 1 troca mínima na 1a lista do top
         if trocas == 0 and new_top10:
             try:
                 base = list(new_top10[0])
@@ -1599,7 +1666,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                 pass
 
         
-        # v16h57FF safety: guarantee at least one minimal swap if calibration active
+        # v16h57FG safety: guarantee at least one minimal swap if calibration active
         try:
             if trocas == 0 and new_top10:
                 base = list(new_top10[0])
@@ -3835,7 +3902,7 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
 def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) -> Tuple[List[List[int]], Dict[str, Any]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
-    v16h57FF:
+    v16h57FG:
     - aceita calib_override (compatível com SAFE/CAP)
     - sempre retorna (pacote, calib_meta)
     - protege o SAFE contra abortos por assinatura/estado mínimo
@@ -10611,7 +10678,7 @@ if painel == "🎯 Compressão do Alvo (Observacional)":
     # ------------------------------------------------------------
     # V16h57CN — SESSION STATE CONTROL (FORCE FRESH PACKET)
     # ------------------------------------------------------------
-    _removed_fresh_keys = v16h57FF_clear_mode6_packet_state()
+    _removed_fresh_keys = v16h57FG_clear_mode6_packet_state()
     if _removed_fresh_keys:
         st.caption("🧹 Session State limpo para pacote fresco do Modo 6: " + ", ".join(_removed_fresh_keys))
     else:
@@ -16288,7 +16355,7 @@ def v16_sanidade_universo_listas(listas, historico_df):
 
 if painel == "🎯 Modo 6 Acertos — Execução":
 
-    st.session_state["v16h57FF_exec_trace"] = []
+    st.session_state["v16h57FG_exec_trace"] = []
     st.markdown("## 🎯 Modo 6 Acertos — Execução")
 
     df = st.session_state.get("historico_df")
@@ -16618,7 +16685,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_brutas = listas_filtradas
 
     # ------------------------------------------------------------
-    # v16h57FF — CT no fluxo real, antes da sanidade, sem calib_meta
+    # v16h57FG — CT no fluxo real, antes da sanidade, sem calib_meta
     # ------------------------------------------------------------
     _ranking_vals_dx = []
     if "ranking2" in locals() and ranking2 is not None:
@@ -22353,7 +22420,7 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 # ============================================================
-# POST MODO6 AUDIT (v16h57FF)
+# POST MODO6 AUDIT (v16h57FG)
 # ============================================================
 try:
     import itertools
@@ -22373,7 +22440,7 @@ try:
         pacote_hash = hash(str(listas_ref))
 
         st.markdown("### 🔎 Auditoria do Pacote (POST MODO6)")
-        _trace_exec = st.session_state.get("v16h57FF_exec_trace", [])
+        _trace_exec = st.session_state.get("v16h57FG_exec_trace", [])
         if isinstance(_trace_exec, list) and len(_trace_exec) > 0:
             st.markdown("#### 🧭 TRACE — CAMINHO REAL DE EXECUÇÃO DO MODO 6")
             for _item in _trace_exec:
@@ -22381,7 +22448,7 @@ try:
         else:
             st.warning("Nenhum trace de função do Modo 6 foi capturado nesta execução.")
 
-        _src_trace = st.session_state.get("v16h57FF_source_detector", [])
+        _src_trace = st.session_state.get("v16h57FG_source_detector", [])
         st.markdown("#### 🧪 TRACE — DETECTOR DE ORIGEM DAS LISTAS")
         if isinstance(_src_trace, list) and len(_src_trace) > 0:
             for _item in _src_trace:
@@ -22434,13 +22501,13 @@ except Exception as e:
 
 
 # ============================================================
-# BUILD v16h57FF — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
+# BUILD v16h57FG — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
 # CT REAL GENERATOR HOOK (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_REAL_GENERATOR_PRE_SANIDADE"] = {
-        "build": "v16h57FF",
+        "build": "v16h57FG",
         "hook": "before_sanidade_final_listas",
         "status": "armed"
     }
@@ -22450,13 +22517,13 @@ except Exception:
 
 
 # ============================================================
-# BUILD v16h57FF — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57FG — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
 # CT REAL HOOK INSIDE GENERATOR (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_GENERATOR_PRE_SANIDADE_REAL"] = {
-        "build": "v16h57FF",
+        "build": "v16h57FG",
         "hook_point": "generator_before_sanidade",
         "status": "armed"
     }
