@@ -519,7 +519,7 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57FP — MICRO AJUSTE PONTO OTIMO CONVERSAO FAMILIA ESTAVEL + BANNER OK"
+BUILD_TAG = "v16h57FP — MICRO ENCAIXE FINAL CONVERSAO FAMILIA ESTAVEL + BANNER OK"
 BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FP_MICRO_AJUSTE_PONTO_OTIMO_CONVERSAO_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -538,7 +538,7 @@ st.markdown(
         <p style="color:white; margin:8px 0 0 0; font-size:15px;">
             <b>Arquivo canônico no GitHub/Streamlit:</b> {BUILD_CANONICAL_FILE}<br>
             <b>BUILD:</b> {BUILD_TAG}<br>
-            <b>TIMESTAMP: 2026-04-03 20:38:18
+            <b>TIMESTAMP:</b> {BUILD_TIME}<br>
         </p>
     </div>
     """,
@@ -549,7 +549,7 @@ st.sidebar.warning(
     f"EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE}\n"
     f"Arquivo canônico no GitHub/Streamlit: {BUILD_CANONICAL_FILE}\n"
     f"BUILD: {BUILD_TAG}\n"
-    f"TIMESTAMP: 2026-04-03 20:38:18
+    f"TIMESTAMP: {BUILD_TIME}\n"
     f"WATERMARK: {WATERMARK}"
 )
 
