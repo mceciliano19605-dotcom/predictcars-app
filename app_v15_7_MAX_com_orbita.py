@@ -63,7 +63,7 @@ def pc_packet_audit_dict(listas, label=""):
 
 def pc_exec_trace(step, payload=None):
     try:
-        key = "v16h57FQ_exec_trace"
+        key = "v16h57FR_exec_trace"
         arr = st.session_state.get(key)
         if not isinstance(arr, list):
             arr = []
@@ -79,7 +79,7 @@ def pc_exec_trace(step, payload=None):
 def pc_list_source_detector(step, listas=None, extra=None):
     try:
         import inspect
-        key = "v16h57FQ_source_detector"
+        key = "v16h57FR_source_detector"
         arr = st.session_state.get(key)
         if not isinstance(arr, list):
             arr = []
@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57FQ — MICRO ROTACAO BORDA CONVERSAO FAMILIA ESTAVEL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FQ_MICRO_AJUSTE_PONTO_OTIMO_CONVERSAO_BANNER_OK.py"
+BUILD_TAG = "v16h57FR — RECOMPRESSAO LEVE POS ROTACAO FAMILIA ESTAVEL + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FR_MICRO_AJUSTE_PONTO_OTIMO_CONVERSAO_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FQ — BUILD AUDITÁVEL (micro encaixe de conversão + família estável)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FR — BUILD AUDITÁVEL (micro encaixe de conversão + família estável)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -549,7 +549,7 @@ st.sidebar.warning(
     f"EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE}\n"
     f"Arquivo canônico no GitHub/Streamlit: {BUILD_CANONICAL_FILE}\n"
     f"BUILD: {BUILD_TAG}\n"
-    f"TIMESTAMP: {BUILD_TIME}\n"
+    f"TIMESTAMP: 2026-04-04 00:04:51
     f"WATERMARK: {WATERMARK}"
 )
 
@@ -1384,7 +1384,7 @@ except Exception:
 # Limpa pacotes/listas persistidas antes de uma nova execução do Modo 6,
 # para evitar reutilização de estado antigo na sessão.
 # ============================================================
-def v16h57FQ_clear_mode6_packet_state():
+def v16h57FR_clear_mode6_packet_state():
     removed = []
     keys = [
         "modo6_listas",
@@ -1408,8 +1408,8 @@ def v16h57FQ_clear_mode6_packet_state():
                 del st.session_state[k]
     except Exception:
         pass
-    st.session_state["v16h57FQ_fresh_packet_removed_keys"] = removed
-    st.session_state["v16h57FQ_fresh_packet_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state["v16h57FR_fresh_packet_removed_keys"] = removed
+    st.session_state["v16h57FR_fresh_packet_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return removed
 
 # ============================================================
@@ -10678,7 +10678,7 @@ if painel == "🎯 Compressão do Alvo (Observacional)":
     # ------------------------------------------------------------
     # V16h57CN — SESSION STATE CONTROL (FORCE FRESH PACKET)
     # ------------------------------------------------------------
-    _removed_fresh_keys = v16h57FQ_clear_mode6_packet_state()
+    _removed_fresh_keys = v16h57FR_clear_mode6_packet_state()
     if _removed_fresh_keys:
         st.caption("🧹 Session State limpo para pacote fresco do Modo 6: " + ", ".join(_removed_fresh_keys))
     else:
@@ -16355,7 +16355,7 @@ def v16_sanidade_universo_listas(listas, historico_df):
 
 if painel == "🎯 Modo 6 Acertos — Execução":
 
-    st.session_state["v16h57FQ_exec_trace"] = []
+    st.session_state["v16h57FR_exec_trace"] = []
     st.markdown("## 🎯 Modo 6 Acertos — Execução")
 
     df = st.session_state.get("historico_df")
@@ -22440,7 +22440,7 @@ try:
         pacote_hash = hash(str(listas_ref))
 
         st.markdown("### 🔎 Auditoria do Pacote (POST MODO6)")
-        _trace_exec = st.session_state.get("v16h57FQ_exec_trace", [])
+        _trace_exec = st.session_state.get("v16h57FR_exec_trace", [])
         if isinstance(_trace_exec, list) and len(_trace_exec) > 0:
             st.markdown("#### 🧭 TRACE — CAMINHO REAL DE EXECUÇÃO DO MODO 6")
             for _item in _trace_exec:
@@ -22448,7 +22448,7 @@ try:
         else:
             st.warning("Nenhum trace de função do Modo 6 foi capturado nesta execução.")
 
-        _src_trace = st.session_state.get("v16h57FQ_source_detector", [])
+        _src_trace = st.session_state.get("v16h57FR_source_detector", [])
         st.markdown("#### 🧪 TRACE — DETECTOR DE ORIGEM DAS LISTAS")
         if isinstance(_src_trace, list) and len(_src_trace) > 0:
             for _item in _src_trace:
