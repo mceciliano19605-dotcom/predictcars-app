@@ -520,13 +520,13 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # ============================================================
 
 BUILD_TAG = "v16h57FR — RECOMPRESSAO LEVE POS ROTACAO FAMILIA ESTAVEL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FR_MICRO_AJUSTE_PONTO_OTIMO_CONVERSAO_BANNER_OK.py"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FR_RECOMPRESSAO_LEVE_POS_ROTACAO_FAMILIA_ESTAVEL_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FR — BUILD AUDITÁVEL (micro encaixe de conversão + família estável)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FR — BUILD AUDITÁVEL (recompressao leve pos-rotacao)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -549,7 +549,7 @@ st.sidebar.warning(
     f"EXECUTANDO AGORA (BUILD REAL): {BUILD_REAL_FILE}\n"
     f"Arquivo canônico no GitHub/Streamlit: {BUILD_CANONICAL_FILE}\n"
     f"BUILD: {BUILD_TAG}\n"
-    f"TIMESTAMP: 2026-04-04 00:04:51
+    f"TIMESTAMP: {BUILD_TIME}\n"
     f"WATERMARK: {WATERMARK}"
 )
 
@@ -1060,6 +1060,78 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_final_push = _packet_metrics(new_top)
 
+        # v16h57FR — recompressão leve pós-rotação
+        # Objetivo: recuperar pressão interna depois da abertura da borda,
+        # sem voltar ao excesso de compressão.
+        recompress_applied = False
+        recompress_swaps = 0
+        top_metrics_before_recompress = dict(top_metrics_after_final_push)
+
+        if (
+            len(new_top) >= 8
+            and int(top_metrics_after_final_push.get("passageiros_unicos", 0)) >= 18
+            and float(top_metrics_after_final_push.get("sobreposicao_media", 0.0)) <= 2.35
+        ):
+            family_freq = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    family_freq[int(v)] = family_freq.get(int(v), 0) + 1
+
+            recurring_vals = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 3
+            ]
+
+            def _recompress_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 2.8
+                    + float(freq.get(int(v), 0)) * 0.30
+                    + float(family_freq.get(int(v), 0)) * 0.55
+                    + max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking_pos) or 1)))
+                )
+
+            if recurring_vals:
+                for idx in range(4, len(new_top)):
+                    lst = list(new_top[idx])
+
+                    preserve = sorted(
+                        lst,
+                        key=lambda v: (-_recompress_score(int(v)), int(v))
+                    )[:3]
+
+                    weak = [
+                        int(v) for v in sorted(
+                            lst,
+                            key=lambda v: (_recompress_score(int(v)), family_freq.get(int(v), 0), int(v))
+                        )
+                        if int(v) not in preserve
+                    ]
+
+                    add = None
+                    for cand in recurring_vals:
+                        if int(cand) not in lst:
+                            local_pair = pair_score(int(cand), preserve)
+                            if local_pair >= 0.90:
+                                add = int(cand)
+                                break
+
+                    if not weak or add is None:
+                        continue
+
+                    drop = int(weak[0])
+                    nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(add)]))[:int(n_alvo)]
+                    if len(nova) >= int(n_alvo) and sorted(nova) != sorted(lst):
+                        new_top[idx] = sorted(nova)
+                        recompress_applied = True
+                        recompress_swaps += 1
+
+                    if recompress_swaps >= 2:
+                        break
+
+        top_metrics_after_recompress = _packet_metrics(new_top)
+
         # dedup + recomposição mantendo volume
         out = []
         seen = set()
@@ -1102,6 +1174,12 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "top_overlap_before_final_push": float(top_metrics_before_final_push.get("sobreposicao_media", 0.0)),
             "top_unique_after_final_push": int(top_metrics_after_final_push.get("passageiros_unicos", 0)),
             "top_overlap_after_final_push": float(top_metrics_after_final_push.get("sobreposicao_media", 0.0)),
+            "recompress_applied": bool(recompress_applied),
+            "recompress_swaps": int(recompress_swaps),
+            "top_unique_before_recompress": int(top_metrics_before_recompress.get("passageiros_unicos", 0)),
+            "top_overlap_before_recompress": float(top_metrics_before_recompress.get("sobreposicao_media", 0.0)),
+            "top_unique_after_recompress": int(top_metrics_after_recompress.get("passageiros_unicos", 0)),
+            "top_overlap_after_recompress": float(top_metrics_after_recompress.get("sobreposicao_media", 0.0)),
             "hash_antes": hash(str(pkt)),
             "hash_depois": hash(str(out)),
         }
