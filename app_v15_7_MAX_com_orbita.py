@@ -63,7 +63,7 @@ def pc_packet_audit_dict(listas, label=""):
 
 def pc_exec_trace(step, payload=None):
     try:
-        key = "v16h57FR_exec_trace"
+        key = "v16h57FS_exec_trace"
         arr = st.session_state.get(key)
         if not isinstance(arr, list):
             arr = []
@@ -79,7 +79,7 @@ def pc_exec_trace(step, payload=None):
 def pc_list_source_detector(step, listas=None, extra=None):
     try:
         import inspect
-        key = "v16h57FR_source_detector"
+        key = "v16h57FS_source_detector"
         arr = st.session_state.get(key)
         if not isinstance(arr, list):
             arr = []
@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57FR — RECOMPRESSAO LEVE POS ROTACAO FAMILIA ESTAVEL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FR_RECOMPRESSAO_LEVE_POS_ROTACAO_FAMILIA_ESTAVEL_BANNER_OK.py"
+BUILD_TAG = "v16h57FS — AJUSTE FINO PRESSAO INTERNA POS RECOMPRESSAO + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FS_AJUSTE_FINO_PRESSAO_INTERNA_POS_RECOMPRESSAO_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FR — BUILD AUDITÁVEL (recompressao leve pos-rotacao)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FS — BUILD AUDITÁVEL (ajuste fino de pressao interna pos-recompressao)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1069,8 +1069,8 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         if (
             len(new_top) >= 8
-            and int(top_metrics_after_final_push.get("passageiros_unicos", 0)) >= 18
-            and float(top_metrics_after_final_push.get("sobreposicao_media", 0.0)) <= 2.35
+            and int(top_metrics_after_final_push.get("passageiros_unicos", 0)) >= 17
+            and float(top_metrics_after_final_push.get("sobreposicao_media", 0.0)) <= 2.60
         ):
             family_freq = {}
             for lst in new_top:
@@ -1095,12 +1095,10 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             if recurring_vals:
                 for idx in range(4, len(new_top)):
                     lst = list(new_top[idx])
-
                     preserve = sorted(
                         lst,
                         key=lambda v: (-_recompress_score(int(v)), int(v))
                     )[:3]
-
                     weak = [
                         int(v) for v in sorted(
                             lst,
@@ -1111,11 +1109,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
                     add = None
                     for cand in recurring_vals:
-                        if int(cand) not in lst:
-                            local_pair = pair_score(int(cand), preserve)
-                            if local_pair >= 0.90:
-                                add = int(cand)
-                                break
+                        if int(cand) not in lst and pair_score(int(cand), preserve) >= 0.90:
+                            add = int(cand)
+                            break
 
                     if not weak or add is None:
                         continue
@@ -1131,6 +1127,68 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         break
 
         top_metrics_after_recompress = _packet_metrics(new_top)
+
+        # v16h57FS — ajuste fino de pressão interna pós-recompressão
+        # Objetivo: aumentar levemente a coesão útil da família dominante
+        # sem voltar ao excesso de compressão.
+        fs_applied = False
+        fs_swaps = 0
+        top_metrics_before_fs = dict(top_metrics_after_recompress)
+
+        if (
+            len(new_top) >= 8
+            and int(top_metrics_after_recompress.get("passageiros_unicos", 0)) >= 17
+            and float(top_metrics_after_recompress.get("sobreposicao_media", 0.0)) <= 2.60
+        ):
+            family_freq = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    family_freq[int(v)] = family_freq.get(int(v), 0) + 1
+
+            family_core = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 3
+            ]
+
+            def _fs_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.0
+                    + float(freq.get(int(v), 0)) * 0.30
+                    + float(family_freq.get(int(v), 0)) * 0.55
+                    + max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking_pos) or 1)))
+                )
+
+            if family_core:
+                for idx in range(3, min(len(new_top), 9)):
+                    lst = list(new_top[idx])
+                    preserve = sorted(lst, key=lambda v: (-_fs_score(int(v)), int(v)))[:3]
+                    weak = [
+                        int(v) for v in sorted(
+                            lst,
+                            key=lambda v: (_fs_score(int(v)), family_freq.get(int(v), 0), int(v))
+                        ) if int(v) not in preserve
+                    ]
+
+                    add = None
+                    for cand in family_core:
+                        if int(cand) not in lst and pair_score(int(cand), preserve) >= 0.95:
+                            add = int(cand)
+                            break
+
+                    if not weak or add is None:
+                        continue
+
+                    drop = int(weak[0])
+                    nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(add)]))[:int(n_alvo)]
+                    if len(nova) >= int(n_alvo) and sorted(nova) != sorted(lst):
+                        new_top[idx] = sorted(nova)
+                        fs_applied = True
+                        fs_swaps += 1
+                        break
+
+        top_metrics_after_fs = _packet_metrics(new_top)
 
         # dedup + recomposição mantendo volume
         out = []
@@ -1180,6 +1238,12 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "top_overlap_before_recompress": float(top_metrics_before_recompress.get("sobreposicao_media", 0.0)),
             "top_unique_after_recompress": int(top_metrics_after_recompress.get("passageiros_unicos", 0)),
             "top_overlap_after_recompress": float(top_metrics_after_recompress.get("sobreposicao_media", 0.0)),
+            "fs_applied": bool(fs_applied),
+            "fs_swaps": int(fs_swaps),
+            "top_unique_before_fs": int(top_metrics_before_fs.get("passageiros_unicos", 0)),
+            "top_overlap_before_fs": float(top_metrics_before_fs.get("sobreposicao_media", 0.0)),
+            "top_unique_after_fs": int(top_metrics_after_fs.get("passageiros_unicos", 0)),
+            "top_overlap_after_fs": float(top_metrics_after_fs.get("sobreposicao_media", 0.0)),
             "hash_antes": hash(str(pkt)),
             "hash_depois": hash(str(out)),
         }
@@ -1462,7 +1526,7 @@ except Exception:
 # Limpa pacotes/listas persistidas antes de uma nova execução do Modo 6,
 # para evitar reutilização de estado antigo na sessão.
 # ============================================================
-def v16h57FR_clear_mode6_packet_state():
+def v16h57FS_clear_mode6_packet_state():
     removed = []
     keys = [
         "modo6_listas",
@@ -1486,8 +1550,8 @@ def v16h57FR_clear_mode6_packet_state():
                 del st.session_state[k]
     except Exception:
         pass
-    st.session_state["v16h57FR_fresh_packet_removed_keys"] = removed
-    st.session_state["v16h57FR_fresh_packet_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state["v16h57FS_fresh_packet_removed_keys"] = removed
+    st.session_state["v16h57FS_fresh_packet_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return removed
 
 # ============================================================
@@ -10756,7 +10820,7 @@ if painel == "🎯 Compressão do Alvo (Observacional)":
     # ------------------------------------------------------------
     # V16h57CN — SESSION STATE CONTROL (FORCE FRESH PACKET)
     # ------------------------------------------------------------
-    _removed_fresh_keys = v16h57FR_clear_mode6_packet_state()
+    _removed_fresh_keys = v16h57FS_clear_mode6_packet_state()
     if _removed_fresh_keys:
         st.caption("🧹 Session State limpo para pacote fresco do Modo 6: " + ", ".join(_removed_fresh_keys))
     else:
@@ -16433,7 +16497,7 @@ def v16_sanidade_universo_listas(listas, historico_df):
 
 if painel == "🎯 Modo 6 Acertos — Execução":
 
-    st.session_state["v16h57FR_exec_trace"] = []
+    st.session_state["v16h57FS_exec_trace"] = []
     st.markdown("## 🎯 Modo 6 Acertos — Execução")
 
     df = st.session_state.get("historico_df")
@@ -22518,7 +22582,7 @@ try:
         pacote_hash = hash(str(listas_ref))
 
         st.markdown("### 🔎 Auditoria do Pacote (POST MODO6)")
-        _trace_exec = st.session_state.get("v16h57FR_exec_trace", [])
+        _trace_exec = st.session_state.get("v16h57FS_exec_trace", [])
         if isinstance(_trace_exec, list) and len(_trace_exec) > 0:
             st.markdown("#### 🧭 TRACE — CAMINHO REAL DE EXECUÇÃO DO MODO 6")
             for _item in _trace_exec:
@@ -22526,7 +22590,7 @@ try:
         else:
             st.warning("Nenhum trace de função do Modo 6 foi capturado nesta execução.")
 
-        _src_trace = st.session_state.get("v16h57FR_source_detector", [])
+        _src_trace = st.session_state.get("v16h57FS_source_detector", [])
         st.markdown("#### 🧪 TRACE — DETECTOR DE ORIGEM DAS LISTAS")
         if isinstance(_src_trace, list) and len(_src_trace) > 0:
             for _item in _src_trace:
