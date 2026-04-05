@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57FY — FINAL MICRO CONVERSION LOCK + ROTATION SLOT ALIGN + FAMILY PRESERVED + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FY_FINAL_MICRO_CONVERSION_LOCK_ROTATION_SLOT_ALIGN_FAMILY_PRESERVED_BANNER_OK.py"
+BUILD_TAG = "v16h57FZ — FINAL CONVERSION PRESSURE ALIGN + ROTATION SLOT MICRO LOCK + FAMILY PRESERVED + NO ARCH CHANGE + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57FZ_FINAL_CONVERSION_PRESSURE_ALIGN_ROTATION_SLOT_MICRO_LOCK_FAMILY_PRESERVED_NO_ARCH_CHANGE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FY — BUILD AUDITÁVEL (final micro conversion lock)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57FZ — BUILD AUDITÁVEL (final conversion pressure align)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1570,6 +1570,101 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         top_metrics_after_fy = _packet_metrics(new_top)
 
 
+        # v16h57FZ — final conversion pressure align + rotation slot micro lock
+        # Objetivo: aplicar um último micro-travamento no slot rotativo sem abrir a família
+        # e sem aumentar a dispersão do pacote.
+        fz_applied = False
+        fz_swaps = 0
+        top_metrics_before_fz = dict(top_metrics_after_fy)
+
+        if (
+            len(new_top) >= 8
+            and 16 <= int(top_metrics_after_fy.get("passageiros_unicos", 0)) <= 18
+            and 2.35 <= float(top_metrics_after_fy.get("sobreposicao_media", 0.0)) <= 2.70
+        ):
+            family_freq = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    family_freq[int(v)] = family_freq.get(int(v), 0) + 1
+
+            family_core = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 4
+            ]
+
+            rotation_lock = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-float(cp_scores.get(int(kv[0]), 0.0)), -kv[1], ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 2
+            ]
+
+            def _fz_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.38
+                    + float(freq.get(int(v), 0)) * 0.42
+                    + float(family_freq.get(int(v), 0)) * 1.02
+                    + max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking_pos) or 1)))
+                )
+
+            if family_core and rotation_lock:
+                for idx in range(1, min(len(new_top), 5)):
+                    lst = list(new_top[idx])
+
+                    preserve = sorted(lst, key=lambda v: (-_fz_score(int(v)), int(v)))[:5]
+                    core_in_preserve = sum(1 for v in preserve if int(v) in family_core)
+                    if core_in_preserve < 3:
+                        continue
+
+                    weak = [
+                        int(v) for v in sorted(
+                            lst,
+                            key=lambda v: (_fz_score(int(v)), family_freq.get(int(v), 0), int(v))
+                        ) if int(v) not in preserve
+                    ]
+                    if not weak:
+                        continue
+
+                    add = None
+                    for cand in rotation_lock:
+                        if int(cand) in lst:
+                            continue
+                        local_pair = pair_score(int(cand), preserve[:4])
+                        if local_pair >= 1.01:
+                            add = int(cand)
+                            break
+                    if add is None:
+                        continue
+
+                    drop = int(weak[0])
+                    nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(add)]))[:int(n_alvo)]
+                    if len(nova) < int(n_alvo):
+                        continue
+
+                    trial_top = [list(x) for x in new_top]
+                    trial_top[idx] = sorted(nova)
+                    trial_metrics = _packet_metrics(trial_top)
+
+                    unique_after_trial = int(trial_metrics.get("passageiros_unicos", 0))
+                    overlap_after_trial = float(trial_metrics.get("sobreposicao_media", 0.0))
+
+                    if unique_after_trial > int(top_metrics_after_fy.get("passageiros_unicos", 0)):
+                        continue
+                    if overlap_after_trial < float(top_metrics_after_fy.get("sobreposicao_media", 0.0)):
+                        continue
+                    if overlap_after_trial > float(top_metrics_after_fy.get("sobreposicao_media", 0.0)) + 0.04:
+                        continue
+
+                    new_top[idx] = sorted(nova)
+                    fz_applied = True
+                    fz_swaps += 1
+                    break
+
+        top_metrics_after_fz = _packet_metrics(new_top)
+
+
         # dedup + recomposição mantendo volume
         out = []
         seen = set()
@@ -1649,6 +1744,13 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "top_overlap_before_fy": float(top_metrics_before_fy.get("sobreposicao_media", 0.0)),
             "top_unique_after_fy": int(top_metrics_after_fy.get("passageiros_unicos", 0)),
             "top_overlap_after_fy": float(top_metrics_after_fy.get("sobreposicao_media", 0.0)),
+
+            "fz_applied": bool(fz_applied),
+            "fz_swaps": int(fz_swaps),
+            "top_unique_before_fz": int(top_metrics_before_fz.get("passageiros_unicos", 0)),
+            "top_overlap_before_fz": float(top_metrics_before_fz.get("sobreposicao_media", 0.0)),
+            "top_unique_after_fz": int(top_metrics_after_fz.get("passageiros_unicos", 0)),
+            "top_overlap_after_fz": float(top_metrics_after_fz.get("sobreposicao_media", 0.0)),
 
             "hash_antes": hash(str(pkt)),
             "hash_depois": hash(str(out)),
