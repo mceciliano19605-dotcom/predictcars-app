@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57GC — FINAL CONVERSION PUSH + MICRO ALIGN + FAMILY LOCK PRESERVED + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GC_FINAL_CONVERSION_PUSH_MICRO_ALIGN_FAMILY_LOCK_PRESERVED_BANNER_OK.py"
+BUILD_TAG = "v16h57GD — FINAL MICRO CONVERSION ALIGN + FAMILY LOCK PRESERVED + POST GC + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GD_FINAL_MICRO_CONVERSION_ALIGN_FAMILY_LOCK_PRESERVED_POST_GC_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GC — BUILD AUDITÁVEL (final conversion push micro align family lock preserved)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GD — BUILD AUDITÁVEL (final micro conversion align family lock preserved post gc)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1757,6 +1757,99 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_gb = _packet_metrics(new_top)
 
+        # v16h57GD — final micro conversion align + family lock preserved + post GC
+        # Objetivo: partir do GC com um alinhamento final ainda mais conservador,
+        # mexendo em no máximo 1 slot de 1 lista e preservando a família dominante.
+        gd_applied = False
+        gd_swaps = 0
+        top_metrics_before_gd = dict(top_metrics_after_gb)
+
+        if (
+            len(new_top) >= 8
+            and 16 <= int(top_metrics_after_gb.get("passageiros_unicos", 0)) <= 18
+            and 2.35 <= float(top_metrics_after_gb.get("sobreposicao_media", 0.0)) <= 2.95
+        ):
+            family_freq = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    family_freq[int(v)] = family_freq.get(int(v), 0) + 1
+
+            family_core = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 4
+            ]
+
+            gd_rotation = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-float(cp_scores.get(int(kv[0]), 0.0)), -kv[1], ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 2
+            ]
+
+            def _gd_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.38
+                    + float(freq.get(int(v), 0)) * 0.42
+                    + float(family_freq.get(int(v), 0)) * 1.02
+                    + max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking_pos) or 1)))
+                )
+
+            if family_core and gd_rotation:
+                for idx in range(1, min(len(new_top), 5)):
+                    lst = list(new_top[idx])
+                    preserve = sorted(lst, key=lambda v: (-_gd_score(int(v)), int(v)))[:5]
+                    core_in_preserve = sum(1 for v in preserve if int(v) in family_core)
+                    if core_in_preserve < 3:
+                        continue
+
+                    weak = [
+                        int(v) for v in sorted(
+                            lst,
+                            key=lambda v: (_gd_score(int(v)), family_freq.get(int(v), 0), int(v))
+                        ) if int(v) not in preserve
+                    ]
+                    if not weak:
+                        continue
+
+                    add = None
+                    for cand in gd_rotation:
+                        if int(cand) in lst:
+                            continue
+                        local_pair = pair_score(int(cand), preserve[:4])
+                        if local_pair >= 1.00:
+                            add = int(cand)
+                            break
+                    if add is None:
+                        continue
+
+                    drop = int(weak[0])
+                    nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(add)]))[:int(n_alvo)]
+                    if len(nova) < int(n_alvo):
+                        continue
+
+                    trial_top = [list(x) for x in new_top]
+                    trial_top[idx] = sorted(nova)
+                    trial_metrics = _packet_metrics(trial_top)
+
+                    unique_after_trial = int(trial_metrics.get("passageiros_unicos", 0))
+                    overlap_after_trial = float(trial_metrics.get("sobreposicao_media", 0.0))
+
+                    if unique_after_trial > int(top_metrics_after_gb.get("passageiros_unicos", 0)):
+                        continue
+                    if overlap_after_trial < float(top_metrics_after_gb.get("sobreposicao_media", 0.0)):
+                        continue
+                    if overlap_after_trial > float(top_metrics_after_gb.get("sobreposicao_media", 0.0)) + 0.04:
+                        continue
+
+                    new_top[idx] = sorted(nova)
+                    gd_applied = True
+                    gd_swaps += 1
+                    break
+
+        top_metrics_after_gd = _packet_metrics(new_top)
+
 
         # dedup + recomposição mantendo volume
         out = []
@@ -1851,6 +1944,13 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "top_overlap_before_gb": float(top_metrics_before_gb.get("sobreposicao_media", 0.0)),
             "top_unique_after_gb": int(top_metrics_after_gb.get("passageiros_unicos", 0)),
             "top_overlap_after_gb": float(top_metrics_after_gb.get("sobreposicao_media", 0.0)),
+
+            "gd_applied": bool(gd_applied),
+            "gd_swaps": int(gd_swaps),
+            "top_unique_before_gd": int(top_metrics_before_gd.get("passageiros_unicos", 0)),
+            "top_overlap_before_gd": float(top_metrics_before_gd.get("sobreposicao_media", 0.0)),
+            "top_unique_after_gd": int(top_metrics_after_gd.get("passageiros_unicos", 0)),
+            "top_overlap_after_gd": float(top_metrics_after_gd.get("sobreposicao_media", 0.0)),
 
             "hash_antes": hash(str(pkt)),
             "hash_depois": hash(str(out)),
