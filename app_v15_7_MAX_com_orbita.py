@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57GH — FINAL CONVERSION MICRO REPRESSURE + POST CT FAMILY LOCK PRESERVED + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GH_FINAL_CONVERSION_MICRO_REPRESSURE_POST_CT_FAMILY_LOCK_PRESERVED_BANNER_OK.py"
+BUILD_TAG = "v16h57GI — FINAL CONVERSION MICRO BALANCE + POST CT FAMILY LOCK PRESERVED + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GI_FINAL_CONVERSION_MICRO_BALANCE_POST_CT_FAMILY_LOCK_PRESERVED_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GH — BUILD AUDITÁVEL (final conversion micro repressure post ct family lock preserved)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GI — BUILD AUDITÁVEL (final conversion micro balance post ct family lock preserved)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1349,7 +1349,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         if int(cand) in lst:
                             continue
                         local_pair = pair_score(int(cand), preserve[:3])
-                        if local_pair >= 0.98:
+                        if local_pair >= 1.00:
                             add = int(cand)
                             break
                     if add is None:
@@ -2036,17 +2036,17 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_gf = _packet_metrics(new_top)
 
-        # v16h57GH — final conversion micro repressure + post CT family lock preserved
-        # Objetivo: recuperar uma fração da pressão interna após o CT
-        # sem voltar ao excesso de compressão e sem abrir a família dominante.
+        # v16h57GI — final conversion micro balance + post CT family lock preserved
+        # Objetivo: reequilibrar a pressão interna após o CT
+        # preservando a família dominante sem reabrir nem recomprimir em excesso.
         gh_applied = False
         gh_swaps = 0
         top_metrics_before_gh = dict(top_metrics_after_gf)
 
         if (
             len(new_top) >= 8
-            and 17 <= int(top_metrics_after_gf.get("passageiros_unicos", 0)) <= 19
-            and 2.20 <= float(top_metrics_after_gf.get("sobreposicao_media", 0.0)) <= 2.55
+            and 17 <= int(top_metrics_after_gf.get("passageiros_unicos", 0)) <= 18
+            and 2.20 <= float(top_metrics_after_gf.get("sobreposicao_media", 0.0)) <= 2.45
         ):
             family_freq = {}
             for lst in new_top:
@@ -2069,9 +2069,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
             def _gh_score(v):
                 return (
-                    float(cp_scores.get(int(v), 0.0)) * 3.42
-                    + float(freq.get(int(v), 0)) * 0.40
-                    + float(family_freq.get(int(v), 0)) * 1.02
+                    float(cp_scores.get(int(v), 0.0)) * 3.38
+                    + float(freq.get(int(v), 0)) * 0.38
+                    + float(family_freq.get(int(v), 0)) * 0.96
                     + max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking_pos) or 1)))
                 )
 
@@ -2097,7 +2097,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         if int(cand) in lst:
                             continue
                         local_pair = pair_score(int(cand), preserve[:3])
-                        if local_pair >= 0.98:
+                        if local_pair >= 1.00:
                             add = int(cand)
                             break
                     if add is None:
@@ -2119,7 +2119,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         continue
                     if overlap_after_trial < float(top_metrics_after_gf.get("sobreposicao_media", 0.0)):
                         continue
-                    if overlap_after_trial > float(top_metrics_after_gf.get("sobreposicao_media", 0.0)) + 0.18:
+                    if overlap_after_trial > float(top_metrics_after_gf.get("sobreposicao_media", 0.0)) + 0.10:
                         continue
 
                     new_top[idx] = sorted(nova)
