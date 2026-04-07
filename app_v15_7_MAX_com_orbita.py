@@ -519,14 +519,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57GI — FINAL CONVERSION MICRO BALANCE + POST CT FAMILY LOCK PRESERVED + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GI_FINAL_CONVERSION_MICRO_BALANCE_POST_CT_FAMILY_LOCK_PRESERVED_BANNER_OK.py"
+BUILD_TAG = "v16h57GJ — FINAL CONVERSION MICRO FIT + POST CT FAMILY LOCK PRESERVED + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GJ_FINAL_CONVERSION_MICRO_FIT_POST_CT_FAMILY_LOCK_PRESERVED_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GI — BUILD AUDITÁVEL (final conversion micro balance post ct family lock preserved)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GJ — BUILD AUDITÁVEL (final conversion micro fit post ct family lock preserved)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1081,7 +1081,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 int(v) for v, c in sorted(
                     family_freq.items(),
                     key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
-                ) if c >= 3
+                ) if c >= 4
             ]
 
             def _recompress_score(v):
@@ -1349,7 +1349,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         if int(cand) in lst:
                             continue
                         local_pair = pair_score(int(cand), preserve[:3])
-                        if local_pair >= 1.00:
+                        if local_pair >= 1.03:
                             add = int(cand)
                             break
                     if add is None:
@@ -1537,7 +1537,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         if int(cand) in lst:
                             continue
                         local_pair = pair_score(int(cand), preserve[:4])
-                        if local_pair >= 1.00:
+                        if local_pair >= 1.03:
                             add = int(cand)
                             break
                     if add is None:
@@ -1723,7 +1723,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         if int(cand) in lst:
                             continue
                         local_pair = pair_score(int(cand), preserve[:3])
-                        if local_pair >= 1.00:
+                        if local_pair >= 1.03:
                             add = int(cand)
                             break
                     if add is None:
@@ -1818,7 +1818,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         if int(cand) in lst:
                             continue
                         local_pair = pair_score(int(cand), preserve[:4])
-                        if local_pair >= 1.00:
+                        if local_pair >= 1.03:
                             add = int(cand)
                             break
                     if add is None:
@@ -2036,18 +2036,19 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_gf = _packet_metrics(new_top)
 
-        # v16h57GI — final conversion micro balance + post CT family lock preserved
-        # Objetivo: reequilibrar a pressão interna após o CT
-        # preservando a família dominante sem reabrir nem recomprimir em excesso.
-        gh_applied = False
-        gh_swaps = 0
-        top_metrics_before_gh = dict(top_metrics_after_gf)
+        # v16h57GJ — final conversion micro fit + post CT family lock preserved
+        # Objetivo: encaixar melhor o slot de conversão após o CT,
+        # preservando a família dominante e evitando qualquer reabertura do envelope.
+        gj_applied = False
+        gj_swaps = 0
+        top_metrics_before_gj = dict(top_metrics_after_gf)
 
         if (
             len(new_top) >= 8
-            and 17 <= int(top_metrics_after_gf.get("passageiros_unicos", 0)) <= 18
-            and 2.20 <= float(top_metrics_after_gf.get("sobreposicao_media", 0.0)) <= 2.45
+            and 17 <= int(top_metrics_after_gf.get("passageiros_unicos", 0)) <= 19
+            and 2.25 <= float(top_metrics_after_gf.get("sobreposicao_media", 0.0)) <= 2.65
         ):
+
             family_freq = {}
             for lst in new_top:
                 for v in lst[:int(n_alvo)]:
@@ -2067,7 +2068,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 ) if c >= 2
             ]
 
-            def _gh_score(v):
+            def _gj_score(v):
                 return (
                     float(cp_scores.get(int(v), 0.0)) * 3.38
                     + float(freq.get(int(v), 0)) * 0.38
@@ -2078,7 +2079,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             if family_core and repress_candidates:
                 for idx in range(2, min(len(new_top), 7)):
                     lst = list(new_top[idx])
-                    preserve = sorted(lst, key=lambda v: (-_gh_score(int(v)), int(v)))[:4]
+                    preserve = sorted(lst, key=lambda v: (-_gj_score(int(v)), int(v)))[:4]
                     core_in_preserve = sum(1 for v in preserve if int(v) in family_core)
                     if core_in_preserve < 2:
                         continue
@@ -2086,7 +2087,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     weak = [
                         int(v) for v in sorted(
                             lst,
-                            key=lambda v: (_gh_score(int(v)), family_freq.get(int(v), 0), int(v))
+                            key=lambda v: (_gj_score(int(v)), family_freq.get(int(v), 0), int(v))
                         ) if int(v) not in preserve
                     ]
                     if not weak:
@@ -2097,7 +2098,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         if int(cand) in lst:
                             continue
                         local_pair = pair_score(int(cand), preserve[:3])
-                        if local_pair >= 1.00:
+                        if local_pair >= 1.03:
                             add = int(cand)
                             break
                     if add is None:
@@ -2119,15 +2120,15 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         continue
                     if overlap_after_trial < float(top_metrics_after_gf.get("sobreposicao_media", 0.0)):
                         continue
-                    if overlap_after_trial > float(top_metrics_after_gf.get("sobreposicao_media", 0.0)) + 0.10:
+                    if overlap_after_trial > float(top_metrics_after_gf.get("sobreposicao_media", 0.0)) + 0.08:
                         continue
 
                     new_top[idx] = sorted(nova)
-                    gh_applied = True
-                    gh_swaps += 1
+                    gj_applied = True
+                    gj_swaps += 1
                     break
 
-        top_metrics_after_gh = _packet_metrics(new_top)
+        top_metrics_after_gj = _packet_metrics(new_top)
 
 
         # dedup + recomposição mantendo volume
@@ -2245,12 +2246,12 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "top_unique_after_gf": int(top_metrics_after_gf.get("passageiros_unicos", 0)),
             "top_overlap_after_gf": float(top_metrics_after_gf.get("sobreposicao_media", 0.0)),
 
-            "gh_applied": bool(gh_applied),
-            "gh_swaps": int(gh_swaps),
-            "top_unique_before_gh": int(top_metrics_before_gh.get("passageiros_unicos", 0)),
-            "top_overlap_before_gh": float(top_metrics_before_gh.get("sobreposicao_media", 0.0)),
-            "top_unique_after_gh": int(top_metrics_after_gh.get("passageiros_unicos", 0)),
-            "top_overlap_after_gh": float(top_metrics_after_gh.get("sobreposicao_media", 0.0)),
+            "gj_applied": bool(gj_applied),
+            "gj_swaps": int(gj_swaps),
+            "top_unique_before_gh": int(top_metrics_before_gj.get("passageiros_unicos", 0)),
+            "top_overlap_before_gh": float(top_metrics_before_gj.get("sobreposicao_media", 0.0)),
+            "top_unique_after_gj": int(top_metrics_after_gj.get("passageiros_unicos", 0)),
+            "top_overlap_after_gj": float(top_metrics_after_gj.get("sobreposicao_media", 0.0)),
 
             "hash_antes": hash(str(pkt)),
             "hash_depois": hash(str(out)),
