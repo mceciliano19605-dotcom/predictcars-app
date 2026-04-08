@@ -520,8 +520,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57GR — POST GQ + CONVERSION MICRO LOCK + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GR_POST_GQ_CONVERSION_MICRO_LOCK_BANNER_OK.py"
+BUILD_TAG = "v16h57GS — POST GR + MICRO DAMPING + CONVERSION STABILIZER + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GS_POST_GR_MICRO_DAMPING_CONVERSION_STABILIZER_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -1575,6 +1575,48 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 break
 
         top_metrics_after_gr = _packet_metrics(new_top)
+
+
+
+
+        # v16h57GS — POST GR MICRO DAMPING CONVERSION STABILIZER
+        gs_applied = False
+        gs_adjust = 0
+        top_metrics_before_gs = dict(top_metrics_after_gr)
+
+        if (
+            len(new_top) >= 8
+            and 15 <= int(top_metrics_after_gr.get("passageiros_unicos", 0)) <= 19
+        ):
+            fam = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    fam[int(v)] = fam.get(int(v), 0) + 1
+
+            fam_sorted = sorted(fam.keys(), key=lambda v:(-fam[v], int(v)))[:6]
+
+            for idx in range(2, min(len(new_top), 9)):
+                lst = list(new_top[idx])
+
+                weak = sorted(lst, key=lambda v:(fam.get(int(v),0), int(v)))
+                strong = [x for x in fam_sorted if x not in lst]
+
+                if not weak or not strong:
+                    continue
+
+                drop = int(weak[0])
+                add = int(strong[0])
+
+                trial = sorted([v for v in lst if int(v)!=drop] + [add])[:int(n_alvo)]
+                if len(trial) != int(n_alvo):
+                    continue
+
+                new_top[idx] = trial
+                gs_applied = True
+                gs_adjust += 1
+                break
+
+        top_metrics_after_gs = _packet_metrics(new_top)
 
 
 # v16h57FY — final micro conversion lock + rotation slot align + family preserved
