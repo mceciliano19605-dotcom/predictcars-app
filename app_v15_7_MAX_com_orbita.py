@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57GQ — POST GP + MICRO CONVERSION TUNE + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GQ_POST_GP_MICRO_CONVERSION_TUNE_BANNER_OK.py"
+BUILD_TAG = "v16h57GR — POST GQ + CONVERSION MICRO LOCK + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GR_POST_GQ_CONVERSION_MICRO_LOCK_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GP — BUILD AUDITÁVEL (post GP micro conversion tune)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GP — BUILD AUDITÁVEL (post GQ conversion micro lock)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1524,6 +1524,57 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     break
 
         top_metrics_after_gq = _packet_metrics(new_top)
+
+
+
+
+        # v16h57GR — POST GQ CONVERSION MICRO LOCK
+        gr_applied = False
+        gr_swaps = 0
+        top_metrics_before_gr = dict(top_metrics_after_gq)
+
+        if (
+            len(new_top) >= 8
+            and 16 <= int(top_metrics_after_gq.get("passageiros_unicos", 0)) <= 18
+            and 2.45 <= float(top_metrics_after_gq.get("sobreposicao_media", 0.0)) <= 2.75
+        ):
+            fam = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    fam[int(v)] = fam.get(int(v), 0) + 1
+
+            fam_lock = sorted(fam.keys(), key=lambda v: (-fam[v], int(v)))[:6]
+
+            for idx in range(2, min(len(new_top), 8)):
+                lst = list(new_top[idx])
+                weak = sorted(lst, key=lambda v: (fam.get(int(v), 0), int(v)))
+
+                drop = None
+                add = None
+
+                for w in weak:
+                    if fam.get(int(w), 0) <= 2:
+                        drop = int(w)
+                        break
+
+                for s in fam_lock:
+                    if int(s) not in lst:
+                        add = int(s)
+                        break
+
+                if drop is None or add is None:
+                    continue
+
+                nova = sorted([v for v in lst if int(v) != drop] + [int(add)])[:int(n_alvo)]
+                if len(nova) != int(n_alvo):
+                    continue
+
+                new_top[idx] = sorted(nova)
+                gr_applied = True
+                gr_swaps += 1
+                break
+
+        top_metrics_after_gr = _packet_metrics(new_top)
 
 
 # v16h57FY — final micro conversion lock + rotation slot align + family preserved
