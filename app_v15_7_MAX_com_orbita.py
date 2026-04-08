@@ -520,8 +520,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57GT — POST GS + MICRO STABILITY + CONVERSION ALIGN + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GT_POST_GS_MICRO_STABILITY_CONVERSION_ALIGN_BANNER_OK.py"
+BUILD_TAG = "v16h57GU — POST GT + MICRO CONVERSION CENTER + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GU_POST_GT_MICRO_CONVERSION_CENTER_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -1692,6 +1692,94 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 break
 
         top_metrics_after_gt = _packet_metrics(new_top)
+
+
+
+        # v16h57GU — POST GT MICRO CONVERSION CENTER
+        gu_applied = False
+        gu_swaps = 0
+        top_metrics_before_gu = dict(top_metrics_after_gt)
+
+        if (
+            len(new_top) >= 8
+            and 15 <= int(top_metrics_after_gt.get("passageiros_unicos", 0)) <= 19
+            and 2.35 <= float(top_metrics_after_gt.get("sobreposicao_media", 0.0)) <= 2.95
+        ):
+            fam = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    fam[int(v)] = fam.get(int(v), 0) + 1
+
+            fam_center = sorted(fam.keys(), key=lambda v: (-fam[v], int(v)))[:6]
+
+            def _gu_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.1
+                    + float(freq.get(int(v), 0)) * 0.30
+                    + float(fam.get(int(v), 0)) * 0.85
+                )
+
+            for idx in range(3, min(len(new_top), 9)):
+                lst = list(new_top[idx])
+                keep = sorted(lst, key=lambda v: (-_gu_score(int(v)), int(v)))[:4]
+
+                weak = [
+                    int(v)
+                    for v in sorted(
+                        lst,
+                        key=lambda v: (
+                            _gu_score(int(v)),
+                            fam.get(int(v), 0),
+                            int(v),
+                        ),
+                    )
+                    if int(v) not in keep
+                ]
+
+                add = None
+                for cand in fam_center:
+                    ic = int(cand)
+                    if ic not in lst:
+                        add = ic
+                        break
+
+                if not weak or add is None:
+                    continue
+
+                drop = int(weak[0])
+                trial = sorted(
+                    dict.fromkeys(
+                        [int(v) for v in lst if int(v) != drop] + [int(add)]
+                    )
+                )[: int(n_alvo)]
+
+                if len(trial) < int(n_alvo):
+                    continue
+
+                trial_top = [list(x) for x in new_top]
+                trial_top[idx] = sorted(trial)
+                tm = _packet_metrics(trial_top)
+
+                unique_after = int(tm.get("passageiros_unicos", 0))
+                overlap_after = float(tm.get("sobreposicao_media", 0.0))
+                unique_before = int(top_metrics_after_gt.get("passageiros_unicos", 0))
+                overlap_before = float(top_metrics_after_gt.get("sobreposicao_media", 0.0))
+
+                if unique_after < unique_before - 1:
+                    continue
+                if unique_after > unique_before:
+                    continue
+                if overlap_after < overlap_before:
+                    continue
+                if overlap_after > overlap_before + 0.08:
+                    continue
+
+                new_top[idx] = sorted(trial)
+                gu_applied = True
+                gu_swaps += 1
+                break
+
+        top_metrics_after_gu = _packet_metrics(new_top)
 
 
 # v16h57FY — final micro conversion lock + rotation slot align + family preserved
