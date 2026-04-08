@@ -1,3 +1,4 @@
+# --- v16h57GN ULTRA MICRO RELIEF (post GM) ---
 from __future__ import annotations
 
 # ============================================================
@@ -519,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57GM — MICRO RELIEF POST GL + FAMILY LOCK PRESERVED + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GM_MICRO_RELIEF_POST_GL_FAMILY_LOCK_PRESERVED_BANNER_OK.py"
+BUILD_TAG = "v16h57GN — ULTRA MICRO RELIEF POST GM + FAMILY LOCK PRESERVED + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GN_MICRO_RELIEF_POST_GL_FAMILY_LOCK_PRESERVED_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GM — BUILD AUDITÁVEL (micro relief post GL family lock preserved)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GN — BUILD AUDITÁVEL (micro relief post GL family lock preserved)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2316,7 +2317,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_gl = _packet_metrics(new_top)
 
-        # v16h57GM — micro relief post GL + family lock preserved
+        # v16h57GN — micro relief post GL + family lock preserved
         # Objetivo: aliviar levemente a compressão excessiva criada pelo GL,
         # preservando a família dominante e sem reabrir o envelope.
         gm_applied = False
