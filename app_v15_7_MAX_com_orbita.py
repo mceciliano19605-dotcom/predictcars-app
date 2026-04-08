@@ -1,4 +1,4 @@
-# --- v16h57GO MICRO ROTATION INTERNAL (post GN) ---
+# --- v16h57GP POST GO MICRO LOCK CONVERSION STABILIZER ---
 from __future__ import annotations
 
 # ============================================================
@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57GO — MICRO ROTATION INTERNAL POST GN + CONVERSION PUSH CONTROLLED + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GO_MICRO_ROTATION_INTERNAL_POST_GN_CONVERSION_PUSH_CONTROLLED_BANNER_OK.py"
+BUILD_TAG = "v16h57GP — POST GO + MICRO LOCK + CONVERSION STABILIZER + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GP_POST_GO_MICRO_LOCK_CONVERSION_STABILIZER_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GO — BUILD AUDITÁVEL (micro rotation internal post GN conversion push controlled)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GP — BUILD AUDITÁVEL (post GO micro lock conversion stabilizer)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2513,6 +2513,103 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         top_metrics_after_go = _packet_metrics(new_top)
 
 
+        # v16h57GP — post GO micro lock + conversion stabilizer
+        # Objetivo: estabilizar a rotação interna criada pelo GO, sem reabrir o envelope
+        # e sem voltar à compressão excessiva.
+        gp_applied = False
+        gp_swaps = 0
+        top_metrics_before_gp = dict(top_metrics_after_go)
+
+        if (
+            len(new_top) >= 8
+            and 16 <= int(top_metrics_after_go.get("passageiros_unicos", 0)) <= 18
+            and 2.40 <= float(top_metrics_after_go.get("sobreposicao_media", 0.0)) <= 2.75
+        ):
+            family_freq = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    family_freq[int(v)] = family_freq.get(int(v), 0) + 1
+
+            family_core = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 4
+            ]
+
+            family_lock = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-float(cp_scores.get(int(kv[0]), 0.0)), -kv[1], ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 3
+            ]
+
+            def _gp_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.08
+                    + float(freq.get(int(v), 0)) * 0.31
+                    + float(family_freq.get(int(v), 0)) * 0.66
+                    + max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking_pos) or 1)))
+                )
+
+            if family_core and family_lock:
+                for idx in range(2, min(len(new_top), 8)):
+                    lst = list(new_top[idx])
+                    preserve = sorted(lst, key=lambda v: (-_gp_score(int(v)), int(v)))[:4]
+                    core_in_preserve = sum(1 for v in preserve if int(v) in family_core)
+                    if core_in_preserve < 3:
+                        continue
+
+                    weak = [
+                        int(v) for v in sorted(
+                            lst,
+                            key=lambda v: (_gp_score(int(v)), family_freq.get(int(v), 0), int(v))
+                        ) if int(v) not in preserve
+                    ]
+                    if not weak:
+                        continue
+
+                    add = None
+                    for cand in family_lock:
+                        ic = int(cand)
+                        if ic in lst:
+                            continue
+                        local_pair = pair_score(ic, preserve[:3])
+                        if local_pair >= 0.98:
+                            add = ic
+                            break
+                    if add is None:
+                        continue
+
+                    drop = int(weak[0])
+                    nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(add)]))[:int(n_alvo)]
+                    if len(nova) < int(n_alvo):
+                        continue
+
+                    trial_top = [list(x) for x in new_top]
+                    trial_top[idx] = sorted(nova)
+                    trial_metrics = _packet_metrics(trial_top)
+
+                    unique_after_trial = int(trial_metrics.get("passageiros_unicos", 0))
+                    overlap_after_trial = float(trial_metrics.get("sobreposicao_media", 0.0))
+
+                    if unique_after_trial < int(top_metrics_after_go.get("passageiros_unicos", 0)) - 1:
+                        continue
+                    if unique_after_trial > int(top_metrics_after_go.get("passageiros_unicos", 0)):
+                        continue
+                    if overlap_after_trial < float(top_metrics_after_go.get("sobreposicao_media", 0.0)):
+                        continue
+                    if overlap_after_trial > float(top_metrics_after_go.get("sobreposicao_media", 0.0)) + 0.12:
+                        continue
+
+                    new_top[idx] = sorted(nova)
+                    gp_applied = True
+                    gp_swaps += 1
+                    break
+
+        top_metrics_after_gp = _packet_metrics(new_top)
+
+
         # dedup + recomposição mantendo volume
         out = []
         seen = set()
@@ -2555,6 +2652,12 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "top_overlap_before_go": float(top_metrics_before_go.get("sobreposicao_media", 0.0)),
             "top_unique_after_go": int(top_metrics_after_go.get("passageiros_unicos", 0)),
             "top_overlap_after_go": float(top_metrics_after_go.get("sobreposicao_media", 0.0)),
+            "gp_applied": bool(gp_applied),
+            "gp_swaps": int(gp_swaps),
+            "top_unique_before_gp": int(top_metrics_before_gp.get("passageiros_unicos", 0)),
+            "top_overlap_before_gp": float(top_metrics_before_gp.get("sobreposicao_media", 0.0)),
+            "top_unique_after_gp": int(top_metrics_after_gp.get("passageiros_unicos", 0)),
+            "top_overlap_after_gp": float(top_metrics_after_gp.get("sobreposicao_media", 0.0)),
             "internal_conv_applied": bool(internal_conv_applied),
             "internal_conv_swaps": int(internal_conv_swaps),
             "top_unique_before_internal": int(top_metrics_before_internal.get("passageiros_unicos", 0)),
