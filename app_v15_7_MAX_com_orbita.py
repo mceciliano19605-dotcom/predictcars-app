@@ -520,8 +520,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HA — POST GZ + MICRO CONVERSION FOCUS + INTERNAL PRESSURE ALIGN + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HA_POST_GZ_MICRO_CONVERSION_FOCUS_INTERNAL_PRESSURE_ALIGN_BANNER_OK.py"
+BUILD_TAG = "v16h57HB — POST HA + MICRO CONVERSION NARROW + INTERNAL LOCK STEP + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HB_POST_HA_MICRO_CONVERSION_NARROW_INTERNAL_LOCK_STEP_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -1685,6 +1685,86 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 break
 
         top_metrics_after_ha = _packet_metrics(new_top)
+        # v16h57HB — POST HA MICRO CONVERSION NARROW + INTERNAL LOCK STEP
+        hb_applied = False
+        hb_swaps = 0
+        top_metrics_before_hb = dict(top_metrics_after_ha)
+
+        if (
+            len(new_top) >= 8
+            and int(top_metrics_after_ha.get("passageiros_unicos", 0)) >= 19
+            and float(top_metrics_after_ha.get("sobreposicao_media", 0.0)) <= 1.90
+        ):
+            freq_local = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    freq_local[int(v)] = freq_local.get(int(v), 0) + 1
+
+            def _hb_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.55
+                    + float(freq.get(int(v), 0)) * 0.28
+                    + float(freq_local.get(int(v), 0)) * 0.95
+                    - (ranking_pos.get(int(v), 9999) * 0.00012)
+                )
+
+            focus_family = [
+                int(v) for v, c in sorted(
+                    freq_local.items(),
+                    key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), int(kv[0]))
+                ) if c >= 2
+            ]
+
+            for idx in range(1, min(len(new_top), 6)):
+                lst = list(new_top[idx])
+
+                preserve = sorted(lst, key=lambda v: (-_hb_score(int(v)), int(v)))[:4]
+                weak = [
+                    int(v) for v in sorted(
+                        lst,
+                        key=lambda v: (_hb_score(int(v)), freq_local.get(int(v), 0), int(v))
+                    ) if int(v) not in preserve
+                ]
+
+                add = None
+                for cand in focus_family[:6]:
+                    if int(cand) not in lst:
+                        add = int(cand)
+                        break
+
+                if not weak or add is None:
+                    continue
+
+                drop = int(weak[0])
+                nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(add)]))[:int(n_alvo)]
+                if len(nova) != int(n_alvo):
+                    continue
+
+                trial_top = [list(x) for x in new_top]
+                trial_top[idx] = sorted(nova)
+                m = _packet_metrics(trial_top)
+
+                u_before = int(top_metrics_after_ha.get("passageiros_unicos", 0))
+                o_before = float(top_metrics_after_ha.get("sobreposicao_media", 0.0))
+                u_after = int(m.get("passageiros_unicos", 0))
+                o_after = float(m.get("sobreposicao_media", 0.0))
+
+                if u_after > u_before:
+                    continue
+                if u_after < u_before - 2:
+                    continue
+                if o_after < o_before:
+                    continue
+                if o_after > o_before + 0.10:
+                    continue
+
+                new_top[idx] = sorted(nova)
+                hb_applied = True
+                hb_swaps += 1
+                break
+
+        top_metrics_after_hb = _packet_metrics(new_top)
+
 
 
 
