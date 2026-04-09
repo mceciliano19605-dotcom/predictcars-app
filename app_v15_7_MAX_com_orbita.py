@@ -520,8 +520,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57GU — POST GT + MICRO CONVERSION CENTER + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GU_POST_GT_MICRO_CONVERSION_CENTER_BANNER_OK.py"
+BUILD_TAG = "v16h57GV — POST GU + MICRO PRESSURE BALANCE + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GV_POST_GU_MICRO_PRESSURE_BALANCE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -1478,7 +1478,87 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         
 
-        # v16h57GQ — POST GP MICRO CONVERSION TUNE
+        # v16h57GQ
+
+        # v16h57GV — POST GU MICRO PRESSURE BALANCE
+        gv_applied = False
+        gv_swaps = 0
+        top_metrics_before_gv = dict(top_metrics_after_gq)
+
+        if (
+            len(new_top) >= 8
+            and 16 <= int(top_metrics_after_gq.get("passageiros_unicos", 0)) <= 19
+            and 2.40 <= float(top_metrics_after_gq.get("sobreposicao_media", 0.0)) <= 2.85
+        ):
+            fam = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    fam[int(v)] = fam.get(int(v), 0) + 1
+
+            fam_sorted = sorted(fam.keys(), key=lambda v: (-fam[v], int(v)))
+
+            def _gv_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.0
+                    + float(freq.get(int(v), 0)) * 0.25
+                    + float(fam.get(int(v), 0)) * 0.9
+                )
+
+            for idx in range(2, min(len(new_top), 8)):
+                lst = list(new_top[idx])
+
+                weakest = sorted(
+                    lst,
+                    key=lambda v: (
+                        _gv_score(int(v)),
+                        fam.get(int(v), 0),
+                        int(v),
+                    ),
+                )
+
+                for cand in fam_sorted[:6]:
+                    ic = int(cand)
+                    if ic in lst:
+                        continue
+
+                    drop = int(weakest[0])
+                    trial = sorted(
+                        dict.fromkeys(
+                            [int(v) for v in lst if int(v) != drop] + [ic]
+                        )
+                    )[: int(n_alvo)]
+
+                    if len(trial) < int(n_alvo):
+                        continue
+
+                    trial_top = [list(x) for x in new_top]
+                    trial_top[idx] = sorted(trial)
+                    tm = _packet_metrics(trial_top)
+
+                    u_after = int(tm.get("passageiros_unicos", 0))
+                    o_after = float(tm.get("sobreposicao_media", 0.0))
+                    u_before = int(top_metrics_after_gq.get("passageiros_unicos", 0))
+                    o_before = float(top_metrics_after_gq.get("sobreposicao_media", 0.0))
+
+                    if u_after < u_before - 1:
+                        continue
+                    if u_after > u_before:
+                        continue
+                    if o_after < o_before:
+                        continue
+                    if o_after > o_before + 0.06:
+                        continue
+
+                    new_top[idx] = sorted(trial)
+                    gv_applied = True
+                    gv_swaps += 1
+                    break
+
+                if gv_applied:
+                    break
+
+        top_metrics_after_gv = _packet_metrics(new_top)
+ — POST GP MICRO CONVERSION TUNE
         # micro ajuste probabilístico interno — não abre envelope
         gq_applied = False
         gq_swaps = 0
