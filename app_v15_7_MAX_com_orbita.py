@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57GW — POST GV + MICRO INTERNAL ALIGN + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GW_POST_GV_MICRO_INTERNAL_ALIGN_BANNER_OK.py"
+BUILD_TAG = "v16h57GX — POST GW + MICRO CONVERSION ALIGN + PRESSURE STABILIZED + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GX_POST_GW_MICRO_CONVERSION_ALIGN_PRESSURE_STABILIZED_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GP — BUILD AUDITÁVEL (post GS micro stability conversion align)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GP — BUILD AUDITÁVEL (post GW micro conversion align pressure stabilized)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1474,6 +1474,86 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     break
 
         top_metrics_after_fw = _packet_metrics(new_top)
+        # v16h57GX — POST GW MICRO CONVERSION ALIGN + PRESSURE STABILIZED
+        gx_applied = False
+        gx_swaps = 0
+        top_metrics_before_gx = dict(top_metrics_after_fw)
+
+        if (
+            len(new_top) >= 8
+            and int(top_metrics_after_fw.get("passageiros_unicos", 0)) >= 18
+            and float(top_metrics_after_fw.get("sobreposicao_media", 0.0)) <= 2.25
+        ):
+            family_freq = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    family_freq[int(v)] = family_freq.get(int(v), 0) + 1
+
+            family_core = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 3
+            ]
+
+            def _gx_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.10
+                    + float(freq.get(int(v), 0)) * 0.32
+                    + float(family_freq.get(int(v), 0)) * 0.62
+                    + max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking_pos) or 1)))
+                )
+
+            if family_core:
+                for idx in range(3, min(len(new_top), 9)):
+                    lst = list(new_top[idx])
+                    preserve = sorted(lst, key=lambda v: (-_gx_score(int(v)), int(v)))[:3]
+                    weak = [
+                        int(v) for v in sorted(
+                            lst,
+                            key=lambda v: (_gx_score(int(v)), family_freq.get(int(v), 0), int(v))
+                        ) if int(v) not in preserve
+                    ]
+
+                    add = None
+                    for cand in family_core:
+                        if int(cand) not in lst and pair_score(int(cand), preserve) >= 0.92:
+                            add = int(cand)
+                            break
+
+                    if not weak or add is None:
+                        continue
+
+                    drop = int(weak[0])
+                    nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(add)]))[:int(n_alvo)]
+                    if len(nova) < int(n_alvo):
+                        continue
+
+                    trial_top = [list(x) for x in new_top]
+                    trial_top[idx] = sorted(nova)
+                    trial_metrics = _packet_metrics(trial_top)
+
+                    unique_after = int(trial_metrics.get("passageiros_unicos", 0))
+                    overlap_after = float(trial_metrics.get("sobreposicao_media", 0.0))
+                    unique_before = int(top_metrics_after_fw.get("passageiros_unicos", 0))
+                    overlap_before = float(top_metrics_after_fw.get("sobreposicao_media", 0.0))
+
+                    if unique_after > unique_before:
+                        continue
+                    if unique_after < unique_before - 2:
+                        continue
+                    if overlap_after < overlap_before:
+                        continue
+                    if overlap_after > overlap_before + 0.18:
+                        continue
+
+                    new_top[idx] = sorted(nova)
+                    gx_applied = True
+                    gx_swaps += 1
+                    break
+
+        top_metrics_after_gx = _packet_metrics(new_top)
+
         # v16h57GW — MICRO INTERNAL ALIGN (real build)
         gw_applied = False
         gw_swaps = 0
