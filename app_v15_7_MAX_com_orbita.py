@@ -520,8 +520,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57GV — POST GU + MICRO PRESSURE BALANCE + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GV_POST_GU_MICRO_PRESSURE_BALANCE_BANNER_OK.py"
+BUILD_TAG = "v16h57GW — POST GV + MICRO INTERNAL ALIGN + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GW_POST_GV_MICRO_INTERNAL_ALIGN_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -1474,12 +1474,50 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     break
 
         top_metrics_after_fw = _packet_metrics(new_top)
+        # v16h57GW — MICRO INTERNAL ALIGN (real build)
+        gw_applied = False
+        gw_swaps = 0
+        top_metrics_before_gw = dict(top_metrics_after_fw)
+
+        if (
+            len(new_top) >= 8
+            and 16 <= int(top_metrics_after_fw.get("passageiros_unicos", 0)) <= 20
+        ):
+            fam = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    fam[int(v)] = fam.get(int(v), 0) + 1
+
+            fam_sorted = sorted(fam.keys(), key=lambda v: (-fam[v], v))
+
+            for idx in range(3, min(len(new_top), 8)):
+                lst = list(new_top[idx])
+                weakest = sorted(lst, key=lambda v: (fam.get(int(v),0), v))
+
+                for cand in fam_sorted[:5]:
+                    if cand in lst:
+                        continue
+
+                    drop = weakest[0]
+                    trial = sorted(dict.fromkeys([x for x in lst if x != drop] + [cand]))[:int(n_alvo)]
+                    if len(trial) < int(n_alvo):
+                        continue
+
+                    new_top[idx] = trial
+                    gw_applied = True
+                    gw_swaps += 1
+                    break
+
+                if gw_applied:
+                    break
+
+        top_metrics_after_gw = _packet_metrics(new_top)
+
 
 
         
 
         
-
 # v16h57GR — POST GQ CONVERSION MICRO LOCK
         gr_applied = False
         gr_swaps = 0
