@@ -520,8 +520,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57GY — POST GX + MICRO FINAL ALIGNMENT + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GY_POST_GX_MICRO_FINAL_ALIGNMENT_BANNER_OK.py"
+BUILD_TAG = "v16h57GZ — POST GX + MICRO CONVERSION LOCK + FINAL INTERNAL ALIGN + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57GZ_POST_GX_MICRO_CONVERSION_LOCK_FINAL_INTERNAL_ALIGN_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -1553,6 +1553,60 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     break
 
         top_metrics_after_gx = _packet_metrics(new_top)
+        # v16h57GZ — MICRO CONVERSION LOCK (final internal align)
+        gz_applied = False
+        gz_swaps = 0
+
+        top_metrics_before_gz = dict(top_metrics_after_gx)
+
+        if (
+            len(new_top) >= 8
+            and int(top_metrics_after_gx.get("passageiros_unicos", 0)) >= 18
+        ):
+            freq_local = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    freq_local[int(v)] = freq_local.get(int(v), 0) + 1
+
+            core_local = [v for v,c in sorted(freq_local.items(), key=lambda x:(-x[1],x[0])) if c>=3]
+
+            for idx in range(3, min(len(new_top), 8)):
+                lst = list(new_top[idx])
+
+                weak = sorted(lst, key=lambda v:(freq_local.get(v,0), v))
+                strong = sorted(lst, key=lambda v:(-freq_local.get(v,0), v))
+
+                if not weak or not core_local:
+                    continue
+
+                drop = weak[0]
+
+                add = None
+                for c in core_local:
+                    if c not in lst:
+                        add = c
+                        break
+
+                if add is None:
+                    continue
+
+                nova = sorted(dict.fromkeys([x for x in lst if x!=drop] + [add]))[:int(n_alvo)]
+                if len(nova) != int(n_alvo):
+                    continue
+
+                trial = [list(x) for x in new_top]
+                trial[idx] = nova
+
+                m = _packet_metrics(trial)
+
+                if m.get("passageiros_unicos",0) <= top_metrics_after_gx.get("passageiros_unicos",0):
+                    new_top[idx] = nova
+                    gz_applied = True
+                    gz_swaps += 1
+                    break
+
+        top_metrics_after_gz = _packet_metrics(new_top)
+
 
         # v16h57GW — MICRO INTERNAL ALIGN (real build)
         gw_applied = False
