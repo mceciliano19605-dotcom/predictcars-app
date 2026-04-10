@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HD — POST HC + MICRO CONVERSION FOCUS TIGHTENING + INTERNAL PRESSURE LIFT + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HD_POST_HC_MICRO_CONVERSION_FOCUS_TIGHTENING_INTERNAL_PRESSURE_LIFT_BANNER_OK.py"
+BUILD_TAG = "v16h57HE — POST HD + MICRO PIVOT STABILIZATION + INTERNAL PRESSURE FINE + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HE_POST_HC_MICRO_CONVERSION_FOCUS_TIGHTENING_INTERNAL_PRESSURE_LIFT_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HD — BUILD AUDITÁVEL (post HC micro conversion focus tightening internal pressure lift)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HE — BUILD AUDITÁVEL (post HC micro conversion focus tightening internal pressure lift)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1844,7 +1844,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_hc = _packet_metrics(new_top)
 
-        # v16h57HD — POST HC MICRO CONVERSION FOCUS TIGHTENING + INTERNAL PRESSURE LIFT
+        # v16h57HE — POST HC MICRO CONVERSION FOCUS TIGHTENING + INTERNAL PRESSURE LIFT
         # Objetivo: aumentar levemente a pressão interna quando o pacote permanece aberto
         # após o HC, preservando o núcleo estreito, a borda viva e a mobilidade.
         hd_applied = False
