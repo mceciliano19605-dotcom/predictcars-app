@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HC — POST HB + MICRO CONVERSION SHIFT + INTERNAL PRESSURE FOCUS + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HC_POST_HB_MICRO_CONVERSION_SHIFT_INTERNAL_PRESSURE_FOCUS_BANNER_OK.py"
+BUILD_TAG = "v16h57HD — POST HC + MICRO CONVERSION FOCUS TIGHTENING + INTERNAL PRESSURE LIFT + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HD_POST_HC_MICRO_CONVERSION_FOCUS_TIGHTENING_INTERNAL_PRESSURE_LIFT_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57GP — BUILD AUDITÁVEL (post HB micro conversion shift internal pressure focus)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HD — BUILD AUDITÁVEL (post HC micro conversion focus tightening internal pressure lift)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1844,7 +1844,97 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_hc = _packet_metrics(new_top)
 
+        # v16h57HD — POST HC MICRO CONVERSION FOCUS TIGHTENING + INTERNAL PRESSURE LIFT
+        # Objetivo: aumentar levemente a pressão interna quando o pacote permanece aberto
+        # após o HC, preservando o núcleo estreito, a borda viva e a mobilidade.
+        hd_applied = False
+        hd_swaps = 0
+        top_metrics_before_hd = dict(top_metrics_after_hc)
 
+        if (
+            len(new_top) >= 8
+            and 19 <= int(top_metrics_after_hc.get("passageiros_unicos", 0)) <= 20
+            and 1.72 <= float(top_metrics_after_hc.get("sobreposicao_media", 0.0)) <= 1.90
+        ):
+            freq_local = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    freq_local[int(v)] = freq_local.get(int(v), 0) + 1
+
+            focus_family = [
+                int(v) for v, c in sorted(
+                    freq_local.items(),
+                    key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 2
+            ]
+
+            def _hd_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.52
+                    + float(freq.get(int(v), 0)) * 0.29
+                    + float(freq_local.get(int(v), 0)) * 0.98
+                    - (ranking_pos.get(int(v), 9999) * 0.00010)
+                )
+
+            if focus_family:
+                for idx in range(2, min(len(new_top), 8)):
+                    lst = list(new_top[idx])
+                    preserve = sorted(lst, key=lambda v: (-_hd_score(int(v)), int(v)))[:4]
+                    core_in_preserve = sum(1 for v in preserve if int(v) in focus_family[:5])
+                    if core_in_preserve < 2:
+                        continue
+
+                    weak = [
+                        int(v) for v in sorted(
+                            lst,
+                            key=lambda v: (_hd_score(int(v)), freq_local.get(int(v), 0), int(v))
+                        ) if int(v) not in preserve
+                    ]
+                    if not weak:
+                        continue
+
+                    add = None
+                    for cand in focus_family[:8]:
+                        ic = int(cand)
+                        if ic in lst:
+                            continue
+                        local_pair = pair_score(int(ic), preserve[:3])
+                        if local_pair >= 0.92:
+                            add = int(ic)
+                            break
+                    if add is None:
+                        continue
+
+                    drop = int(weak[0])
+                    trial = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(add)]))[:int(n_alvo)]
+                    if len(trial) != int(n_alvo):
+                        continue
+
+                    trial_top = [list(x) for x in new_top]
+                    trial_top[idx] = sorted(trial)
+                    tm = _packet_metrics(trial_top)
+
+                    unique_before = int(top_metrics_after_hc.get("passageiros_unicos", 0))
+                    overlap_before = float(top_metrics_after_hc.get("sobreposicao_media", 0.0))
+                    unique_after = int(tm.get("passageiros_unicos", 0))
+                    overlap_after = float(tm.get("sobreposicao_media", 0.0))
+
+                    # tightening suave: reduz no máximo 1 passageiro único e sobe um pouco a sobreposição
+                    if unique_after > unique_before:
+                        continue
+                    if unique_after < unique_before - 1:
+                        continue
+                    if overlap_after < overlap_before + 0.02:
+                        continue
+                    if overlap_after > overlap_before + 0.18:
+                        continue
+
+                    new_top[idx] = sorted(trial)
+                    hd_applied = True
+                    hd_swaps += 1
+                    break
+
+        top_metrics_after_hd = _packet_metrics(new_top)
 
 
 
