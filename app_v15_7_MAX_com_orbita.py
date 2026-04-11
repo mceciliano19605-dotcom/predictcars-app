@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HE — POST HD + MICRO PIVOT STABILIZATION + INTERNAL PRESSURE FINE + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HE_POST_HC_MICRO_CONVERSION_FOCUS_TIGHTENING_INTERNAL_PRESSURE_LIFT_BANNER_OK.py"
+BUILD_TAG = "v16h57HF — POST HD + PIVOT LOCK + FINE CONVERGENCE + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HF_POST_HC_MICRO_CONVERSION_FOCUS_TIGHTENING_INTERNAL_PRESSURE_LIFT_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HE — BUILD AUDITÁVEL (post HC micro conversion focus tightening internal pressure lift)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HF — BUILD AUDITÁVEL (post HD pivot lock fine convergence)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1544,7 +1544,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         continue
                     if overlap_after < overlap_before:
                         continue
-                    if overlap_after > overlap_before + 0.18:
+                    if overlap_after > overlap_before + 0.14:
                         continue
 
                     new_top[idx] = sorted(nova)
@@ -1844,9 +1844,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_hc = _packet_metrics(new_top)
 
-        # v16h57HE — POST HC MICRO CONVERSION FOCUS TIGHTENING + INTERNAL PRESSURE LIFT
-        # Objetivo: aumentar levemente a pressão interna quando o pacote permanece aberto
-        # após o HC, preservando o núcleo estreito, a borda viva e a mobilidade.
+        # v16h57HF — POST HD PIVOT LOCK + FINE CONVERGENCE
+        # Objetivo: partir da base correta do HD e segurar melhor o pivô secundário,
+        # aumentando levemente a coesão interna sem abrir o envelope e sem compressão forte.
         hd_applied = False
         hd_swaps = 0
         top_metrics_before_hd = dict(top_metrics_after_hc)
@@ -1854,7 +1854,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         if (
             len(new_top) >= 8
             and 19 <= int(top_metrics_after_hc.get("passageiros_unicos", 0)) <= 20
-            and 1.72 <= float(top_metrics_after_hc.get("sobreposicao_media", 0.0)) <= 1.90
+            and 1.76 <= float(top_metrics_after_hc.get("sobreposicao_media", 0.0)) <= 1.92
         ):
             freq_local = {}
             for lst in new_top:
@@ -1870,9 +1870,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
             def _hd_score(v):
                 return (
-                    float(cp_scores.get(int(v), 0.0)) * 3.52
-                    + float(freq.get(int(v), 0)) * 0.29
-                    + float(freq_local.get(int(v), 0)) * 0.98
+                    float(cp_scores.get(int(v), 0.0)) * 3.58
+                    + float(freq.get(int(v), 0)) * 0.31
+                    + float(freq_local.get(int(v), 0)) * 1.04
                     - (ranking_pos.get(int(v), 9999) * 0.00010)
                 )
 
@@ -1899,7 +1899,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         if ic in lst:
                             continue
                         local_pair = pair_score(int(ic), preserve[:3])
-                        if local_pair >= 0.92:
+                        if local_pair >= 0.95:
                             add = int(ic)
                             break
                     if add is None:
@@ -1924,9 +1924,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         continue
                     if unique_after < unique_before - 1:
                         continue
-                    if overlap_after < overlap_before + 0.02:
+                    if overlap_after < overlap_before + 0.03:
                         continue
-                    if overlap_after > overlap_before + 0.18:
+                    if overlap_after > overlap_before + 0.14:
                         continue
 
                     new_top[idx] = sorted(trial)
