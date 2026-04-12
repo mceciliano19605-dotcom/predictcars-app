@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HI — POST HG + MICRO CONVERSION LOCK FOCAL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HI_POST_HG_MICRO_CONVERSION_LOCK_FOCAL_BANNER_OK.py"
+BUILD_TAG = "v16h57HJ — POST HI + INTERNAL LIST MICRO ROTATION + FINAL FIT ADJUST + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HJ_POST_HI_INTERNAL_LIST_MICRO_ROTATION_FINAL_FIT_ADJUST_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HI — BUILD AUDITÁVEL (post HG micro conversion lock focal)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HJ — BUILD AUDITÁVEL (post HI internal list micro rotation final fit adjust)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2026,6 +2026,105 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                         break
 
         top_metrics_after_hi = _packet_metrics(new_top)
+
+        # v16h57HJ — POST HI INTERNAL LIST MICRO ROTATION + FINAL FIT ADJUST
+        hj_applied = False
+        hj_swaps = 0
+        top_metrics_before_hj = dict(top_metrics_after_hi)
+
+        if (
+            len(new_top) >= 8
+            and 18 <= int(top_metrics_after_hi.get("passageiros_unicos", 0)) <= 21
+            and 1.55 <= float(top_metrics_after_hi.get("sobreposicao_media", 0.0)) <= 1.95
+        ):
+            freq_local = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    freq_local[int(v)] = freq_local.get(int(v), 0) + 1
+
+            rank_base = []
+            for v in (ranking_vals or []):
+                try:
+                    iv = int(v)
+                    if iv not in rank_base:
+                        rank_base.append(iv)
+                except Exception:
+                    pass
+            if not rank_base:
+                rank_base = [int(v) for v, _ in sorted(freq_local.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+            focus_candidates = [int(v) for v in rank_base[:15]]
+
+            def _hj_score(lst):
+                s = 0.0
+                for x in lst[:int(n_alvo)]:
+                    s += float(cp_scores.get(int(x), 0.0)) * 2.0
+                    s += float(freq_local.get(int(x), 0)) * 0.8
+                    if int(x) in rank_base:
+                        s += max(0.0, (len(rank_base) - rank_base.index(int(x))) * 0.03)
+                return float(s)
+
+            for idx in range(3, min(len(new_top), 8)):
+                base_lst = list(new_top[idx])
+                best_lst = list(base_lst)
+                best_score = _hj_score(best_lst)
+
+                weak_positions = sorted(
+                    range(len(base_lst)),
+                    key=lambda p: (
+                        float(cp_scores.get(int(base_lst[p]), 0.0)),
+                        freq_local.get(int(base_lst[p]), 0),
+                        int(base_lst[p])
+                    )
+                )
+
+                improved = False
+                for pos in weak_positions:
+                    for cand in focus_candidates:
+                        if int(cand) in base_lst:
+                            continue
+                        trial = list(base_lst)
+                        trial[pos] = int(cand)
+                        if len(set(trial)) != int(n_alvo):
+                            continue
+
+                        trial_sorted = sorted(trial)
+                        trial_top = [list(x) for x in new_top]
+                        trial_top[idx] = trial_sorted
+                        m = _packet_metrics(trial_top)
+
+                        u_before = int(top_metrics_after_hi.get("passageiros_unicos", 0))
+                        o_before = float(top_metrics_after_hi.get("sobreposicao_media", 0.0))
+                        u_after = int(m.get("passageiros_unicos", 0))
+                        o_after = float(m.get("sobreposicao_media", 0.0))
+
+                        trial_score = _hj_score(trial_sorted)
+
+                        if trial_score <= best_score:
+                            continue
+                        if u_after > u_before:
+                            continue
+                        if u_after < u_before - 1:
+                            continue
+                        if o_after < o_before - 0.02:
+                            continue
+                        if o_after > o_before + 0.10:
+                            continue
+
+                        best_lst = trial_sorted
+                        best_score = trial_score
+                        improved = True
+                        break
+                    if improved:
+                        break
+
+                if improved and sorted(best_lst) != sorted(base_lst):
+                    new_top[idx] = sorted(best_lst)
+                    hj_applied = True
+                    hj_swaps += 1
+                    break
+
+        top_metrics_after_hj = _packet_metrics(new_top)
 
 
 
