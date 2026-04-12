@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HK — POST HJ + CONTROLLED FINAL CONVERSION VARIATION + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HK_POST_HJ_CONTROLLED_FINAL_CONVERSION_VARIATION_BANNER_OK.py"
+BUILD_TAG = "v16h57HL — POST HJ + DIRECTIONAL ERROR CORRECTION + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HL_POST_HJ_CONTROLLED_FINAL_CONVERSION_VARIATION_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HK — BUILD AUDITÁVEL (post HJ controlled final conversion variation)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HL — BUILD AUDITÁVEL (post HJ controlled final conversion variation)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2126,7 +2126,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_hj = _packet_metrics(new_top)
 
-        # v16h57HK — POST HJ CONTROLLED FINAL CONVERSION VARIATION
+        # v16h57HL — POST HJ DIRECTIONAL ERROR CORRECTION
         # Objetivo: manter a família e introduzir micro-variação controlada
         # em poucas listas do miolo, para quebrar o padrão de erro repetido
         # sem abrir o envelope e sem desmontar a pressão já conquistada.
@@ -2238,6 +2238,35 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     continue
 
         top_metrics_after_hk = _packet_metrics(new_top)
+
+        # v16h57HL — DIRECTIONAL ERROR CORRECTION
+        hl_applied = False
+        hl_swaps = 0
+
+        if len(new_top) >= 8:
+            for idx in [2, 4, 6]:
+                if idx >= len(new_top) or hl_swaps >= 3:
+                    continue
+
+                lst = list(new_top[idx])
+                base = lst[:]
+
+                weak = sorted(base, key=lambda v: (freq.get(int(v),0), int(v)))[0]
+
+                for cand in ranking_vals[:20]:
+                    cand = int(cand)
+                    if cand in base:
+                        continue
+
+                    trial = sorted(list(set([v for v in base if v != weak] + [cand])))[:int(n_alvo)]
+                    if len(trial) != int(n_alvo):
+                        continue
+
+                    new_top[idx] = trial
+                    hl_applied = True
+                    hl_swaps += 1
+                    break
+
 
 
 
