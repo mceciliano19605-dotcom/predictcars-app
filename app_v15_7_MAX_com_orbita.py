@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HG — POST HD + MICRO PIVOT LOCK PRESSURE + FINAL CONVERSION ALIGN + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HG_POST_HC_MICRO_CONVERSION_FOCUS_TIGHTENING_INTERNAL_PRESSURE_LIFT_BANNER_OK.py"
+BUILD_TAG = "v16h57HI — POST HG + MICRO CONVERSION LOCK FOCAL + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HI_POST_HG_MICRO_CONVERSION_LOCK_FOCAL_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HG — BUILD AUDITÁVEL (post HD pivot lock fine convergence)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HI — BUILD AUDITÁVEL (post HG micro conversion lock focal)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1934,7 +1934,98 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     hd_swaps += 1
                     break
 
+
         top_metrics_after_hd = _packet_metrics(new_top)
+
+        # v16h57HI — POST HG MICRO CONVERSION LOCK FOCAL
+        # Objetivo: sustentar pressão local em 1-2 listas do miolo do Top10,
+        # sem compressão forte e sem abrir o envelope.
+        hi_applied = False
+        hi_swaps = 0
+        top_metrics_before_hi = dict(top_metrics_after_hd)
+
+        if (
+            len(new_top) >= 8
+            and 19 <= int(top_metrics_after_hd.get("passageiros_unicos", 0)) <= 21
+            and 1.70 <= float(top_metrics_after_hd.get("sobreposicao_media", 0.0)) <= 2.05
+        ):
+            freq_local = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    freq_local[int(v)] = freq_local.get(int(v), 0) + 1
+
+            focus_family = [
+                int(v) for v, c in sorted(
+                    freq_local.items(),
+                    key=lambda kv: (
+                        -kv[1],
+                        -float(cp_scores.get(int(kv[0]), 0.0)),
+                        ranking_pos.get(int(kv[0]), 9999),
+                        int(kv[0]),
+                    )
+                ) if c >= 2
+            ]
+
+            def _hi_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.62
+                    + float(freq.get(int(v), 0)) * 0.30
+                    + float(freq_local.get(int(v), 0)) * 1.08
+                    - (ranking_pos.get(int(v), 9999) * 0.00010)
+                )
+
+            if focus_family:
+                for idx in range(3, min(len(new_top), 8)):
+                    lst = list(new_top[idx])
+
+                    preserve = sorted(lst, key=lambda v: (-_hi_score(int(v)), int(v)))[:4]
+                    weak = [
+                        int(v) for v in sorted(
+                            lst,
+                            key=lambda v: (_hi_score(int(v)), freq_local.get(int(v), 0), int(v))
+                        ) if int(v) not in preserve
+                    ]
+                    if not weak:
+                        continue
+
+                    add = None
+                    for cand in focus_family[:7]:
+                        if int(cand) not in lst and pair_score(int(cand), preserve[:3]) >= 0.92:
+                            add = int(cand)
+                            break
+                    if add is None:
+                        continue
+
+                    drop = int(weak[0])
+                    trial = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(add)]))[:int(n_alvo)]
+                    if len(trial) != int(n_alvo):
+                        continue
+
+                    trial_top = [list(x) for x in new_top]
+                    trial_top[idx] = sorted(trial)
+                    m = _packet_metrics(trial_top)
+
+                    u_before = int(top_metrics_after_hd.get("passageiros_unicos", 0))
+                    o_before = float(top_metrics_after_hd.get("sobreposicao_media", 0.0))
+                    u_after = int(m.get("passageiros_unicos", 0))
+                    o_after = float(m.get("sobreposicao_media", 0.0))
+
+                    if u_after > u_before:
+                        continue
+                    if u_after < u_before - 1:
+                        continue
+                    if o_after < o_before:
+                        continue
+                    if o_after > o_before + 0.10:
+                        continue
+
+                    new_top[idx] = sorted(trial)
+                    hi_applied = True
+                    hi_swaps += 1
+                    if hi_swaps >= 1:
+                        break
+
+        top_metrics_after_hi = _packet_metrics(new_top)
 
 
 
