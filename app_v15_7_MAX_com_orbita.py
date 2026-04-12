@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HF — POST HD + PIVOT LOCK + FINE CONVERGENCE + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HF_POST_HC_MICRO_CONVERSION_FOCUS_TIGHTENING_INTERNAL_PRESSURE_LIFT_BANNER_OK.py"
+BUILD_TAG = "v16h57HG — POST HD + MICRO PIVOT LOCK PRESSURE + FINAL CONVERSION ALIGN + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HG_POST_HC_MICRO_CONVERSION_FOCUS_TIGHTENING_INTERNAL_PRESSURE_LIFT_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HF — BUILD AUDITÁVEL (post HD pivot lock fine convergence)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HG — BUILD AUDITÁVEL (post HD pivot lock fine convergence)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1844,7 +1844,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         top_metrics_after_hc = _packet_metrics(new_top)
 
-        # v16h57HF — POST HD PIVOT LOCK + FINE CONVERGENCE
+        # v16h57HG — POST HD PIVOT LOCK + FINE CONVERGENCE
         # Objetivo: partir da base correta do HD e segurar melhor o pivô secundário,
         # aumentando levemente a coesão interna sem abrir o envelope e sem compressão forte.
         hd_applied = False
