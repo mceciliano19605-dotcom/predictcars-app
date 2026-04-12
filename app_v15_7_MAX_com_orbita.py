@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HJ — POST HI + INTERNAL LIST MICRO ROTATION + FINAL FIT ADJUST + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HJ_POST_HI_INTERNAL_LIST_MICRO_ROTATION_FINAL_FIT_ADJUST_BANNER_OK.py"
+BUILD_TAG = "v16h57HK — POST HJ + CONTROLLED FINAL CONVERSION VARIATION + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HK_POST_HJ_CONTROLLED_FINAL_CONVERSION_VARIATION_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HJ — BUILD AUDITÁVEL (post HI internal list micro rotation final fit adjust)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HK — BUILD AUDITÁVEL (post HJ controlled final conversion variation)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2125,6 +2125,119 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     break
 
         top_metrics_after_hj = _packet_metrics(new_top)
+
+        # v16h57HK — POST HJ CONTROLLED FINAL CONVERSION VARIATION
+        # Objetivo: manter a família e introduzir micro-variação controlada
+        # em poucas listas do miolo, para quebrar o padrão de erro repetido
+        # sem abrir o envelope e sem desmontar a pressão já conquistada.
+        hk_applied = False
+        hk_swaps = 0
+        top_metrics_before_hk = dict(top_metrics_after_hj)
+
+        if (
+            len(new_top) >= 8
+            and 19 <= int(top_metrics_after_hj.get("passageiros_unicos", 0)) <= 21
+            and 1.60 <= float(top_metrics_after_hj.get("sobreposicao_media", 0.0)) <= 1.95
+        ):
+            family_freq = {}
+            for lst in new_top:
+                for v in lst[:int(n_alvo)]:
+                    family_freq[int(v)] = family_freq.get(int(v), 0) + 1
+
+            rank_base = []
+            for v in (ranking_vals or []):
+                try:
+                    iv = int(v)
+                    if iv not in rank_base:
+                        rank_base.append(iv)
+                except Exception:
+                    pass
+            if not rank_base:
+                rank_base = [int(v) for v, _ in sorted(family_freq.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+            family_core = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 3
+            ]
+
+            alt_pool = []
+            for v in rank_base[:18]:
+                iv = int(v)
+                if iv not in alt_pool and iv not in family_core:
+                    alt_pool.append(iv)
+            for v, c in sorted(family_freq.items(), key=lambda kv: (kv[1], kv[0])):
+                iv = int(v)
+                if iv not in alt_pool and iv not in family_core and c <= 2:
+                    alt_pool.append(iv)
+
+            def _hk_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 2.7
+                    + float(freq.get(int(v), 0)) * 0.20
+                    + float(family_freq.get(int(v), 0)) * 0.55
+                    + max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking_pos) or 1)))
+                )
+
+            target_idxs = [3, 5, 7]
+            for idx in target_idxs:
+                if idx >= len(new_top) or hk_swaps >= 3:
+                    continue
+
+                base_lst = list(new_top[idx])
+                preserve = sorted(base_lst, key=lambda v: (-_hk_score(int(v)), int(v)))[:4]
+                weak = [
+                    int(v) for v in sorted(
+                        base_lst,
+                        key=lambda v: (_hk_score(int(v)), family_freq.get(int(v), 0), int(v))
+                    ) if int(v) not in preserve
+                ]
+                if not weak:
+                    continue
+
+                improved = False
+                for cand in alt_pool:
+                    if int(cand) in base_lst:
+                        continue
+                    local_pair = pair_score(int(cand), preserve[:3])
+                    if local_pair < 0.65:
+                        continue
+
+                    drop = int(weak[0])
+                    trial = sorted(dict.fromkeys([int(v) for v in base_lst if int(v) != drop] + [int(cand)]))[:int(n_alvo)]
+                    if len(trial) != int(n_alvo):
+                        continue
+
+                    trial_top = [list(x) for x in new_top]
+                    trial_top[idx] = trial
+                    m = _packet_metrics(trial_top)
+
+                    u_before = int(top_metrics_after_hj.get("passageiros_unicos", 0))
+                    o_before = float(top_metrics_after_hj.get("sobreposicao_media", 0.0))
+                    u_after = int(m.get("passageiros_unicos", 0))
+                    o_after = float(m.get("sobreposicao_media", 0.0))
+
+                    # Variação controlada: aceita pequena oscilação, sem abrir demais
+                    if u_after > u_before + 1:
+                        continue
+                    if u_after < u_before - 1:
+                        continue
+                    if o_after < o_before - 0.10:
+                        continue
+                    if o_after > o_before + 0.08:
+                        continue
+
+                    new_top[idx] = trial
+                    hk_applied = True
+                    hk_swaps += 1
+                    improved = True
+                    break
+
+                if improved:
+                    continue
+
+        top_metrics_after_hk = _packet_metrics(new_top)
 
 
 
