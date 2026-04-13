@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HM — STRUCTURAL COMBINATION BREAK + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HM_STRUCTURAL_COMBINATION_BREAK_BANNER_OK.py"
+BUILD_TAG = "v16h57HN — INTERNAL COMBINATION CONTROL + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HN_INTERNAL_COMBINATION_CONTROL_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HL — BUILD AUDITÁVEL (post HJ controlled final conversion variation)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HN — BUILD AUDITÁVEL (internal combination control)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2238,6 +2238,131 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     continue
 
         top_metrics_after_hk = _packet_metrics(new_top)
+
+        # v16h57HN — INTERNAL COMBINATION CONTROL
+        # Atua no pacote vivo antes da sanidade final, controlando quem entra com quem
+        # em poucas listas. Mantém a família dominante e evita pares fracos recorrentes.
+        hn_applied = False
+        hn_swaps = 0
+        top_metrics_before_hn = dict(top_metrics_after_hk)
+
+        if len(new_top) >= 8:
+            family_freq = {}
+            pair_freq = {}
+            for lst in new_top:
+                vals = [int(v) for v in lst[:int(n_alvo)]]
+                for v in vals:
+                    family_freq[int(v)] = family_freq.get(int(v), 0) + 1
+                for i in range(len(vals)):
+                    for j in range(i + 1, len(vals)):
+                        pair = tuple(sorted((int(vals[i]), int(vals[j]))))
+                        pair_freq[pair] = pair_freq.get(pair, 0) + 1
+
+            def _hn_val_score(v):
+                return (
+                    float(cp_scores.get(int(v), 0.0)) * 3.0
+                    + float(freq.get(int(v), 0)) * 0.25
+                    + float(family_freq.get(int(v), 0)) * 0.55
+                    + max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking_pos) or 1)))
+                )
+
+            def _hn_pair_strength(lst):
+                vals = [int(v) for v in lst[:int(n_alvo)]]
+                score = 0.0
+                count = 0
+                for i in range(len(vals)):
+                    for j in range(i + 1, len(vals)):
+                        pair = tuple(sorted((int(vals[i]), int(vals[j]))))
+                        score += float(pair_freq.get(pair, 0))
+                        count += 1
+                return (score / count) if count else 0.0
+
+            family_core = [
+                int(v) for v, c in sorted(
+                    family_freq.items(),
+                    key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
+                ) if c >= 3
+            ]
+
+            candidate_pool = []
+            for v in family_core:
+                if int(v) not in candidate_pool:
+                    candidate_pool.append(int(v))
+            for v in (ranking_vals or [])[:18]:
+                try:
+                    iv = int(v)
+                    if iv not in candidate_pool:
+                        candidate_pool.append(iv)
+                except Exception:
+                    pass
+
+            target_idxs = [2, 4, 6]
+            for idx in target_idxs:
+                if idx >= len(new_top) or hn_swaps >= 3:
+                    continue
+
+                base_lst = list(new_top[idx])
+                base_strength = _hn_pair_strength(base_lst)
+                preserve = sorted(base_lst, key=lambda v: (-_hn_val_score(int(v)), int(v)))[:3]
+                weak = [
+                    int(v) for v in sorted(
+                        base_lst,
+                        key=lambda v: (
+                            sum(pair_freq.get(tuple(sorted((int(v), int(o)))), 0) for o in base_lst if int(o) != int(v)),
+                            family_freq.get(int(v), 0),
+                            _hn_val_score(int(v)),
+                            int(v),
+                        )
+                    ) if int(v) not in preserve
+                ]
+                if not weak:
+                    continue
+
+                improved = False
+                for cand in candidate_pool:
+                    if int(cand) in base_lst:
+                        continue
+                    if int(cand) not in family_core and float(cp_scores.get(int(cand), 0.0)) < 0.15:
+                        continue
+
+                    drop = int(weak[0])
+                    trial = sorted(dict.fromkeys([int(v) for v in base_lst if int(v) != drop] + [int(cand)]))[:int(n_alvo)]
+                    if len(trial) != int(n_alvo):
+                        continue
+
+                    trial_strength = _hn_pair_strength(trial)
+                    if trial_strength < base_strength:
+                        continue
+
+                    trial_top = [list(x) for x in new_top]
+                    trial_top[idx] = trial
+                    m = _packet_metrics(trial_top)
+
+                    u_before = int(top_metrics_after_hk.get("passageiros_unicos", 0))
+                    o_before = float(top_metrics_after_hk.get("sobreposicao_media", 0.0))
+                    u_after = int(m.get("passageiros_unicos", 0))
+                    o_after = float(m.get("sobreposicao_media", 0.0))
+
+                    # Mantém envelope estável e melhora convivência interna.
+                    if u_after > u_before + 1:
+                        continue
+                    if u_after < u_before - 1:
+                        continue
+                    if o_after < o_before - 0.06:
+                        continue
+                    if o_after > o_before + 0.12:
+                        continue
+
+                    new_top[idx] = trial
+                    hn_applied = True
+                    hn_swaps += 1
+                    improved = True
+                    break
+
+                if improved:
+                    continue
+
+        top_metrics_after_hn = _packet_metrics(new_top)
 
         # v16h57HL — DIRECTIONAL ERROR CORRECTION
         hl_applied = False
