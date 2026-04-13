@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HN — INTERNAL COMBINATION CONTROL + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HN_INTERNAL_COMBINATION_CONTROL_BANNER_OK.py"
+BUILD_TAG = "v16h57HO — INTERNAL COMBINATION + FINAL PRESSURE LOCK + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO_INTERNAL_COMBINATION_FINAL_PRESSURE_LOCK_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HN — BUILD AUDITÁVEL (internal combination control)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO — BUILD AUDITÁVEL (internal combination + final pressure lock)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2363,6 +2363,115 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     continue
 
         top_metrics_after_hn = _packet_metrics(new_top)
+
+        # v16h57HO — INTERNAL COMBINATION + FINAL PRESSURE LOCK
+        # Continuação direta do HN: preserva convivência interna,
+        # mas recoloca leve pressão final se o pacote abrir demais.
+        ho_applied = False
+        ho_swaps = 0
+        top_metrics_before_ho = dict(top_metrics_after_hn)
+
+        try:
+            ho_u_before = int(top_metrics_after_hn.get("passageiros_unicos", 0))
+            ho_o_before = float(top_metrics_after_hn.get("sobreposicao_media", 0.0))
+
+            if len(new_top) >= 8 and (ho_u_before >= 20 and ho_o_before <= 1.70):
+                ho_freq = {}
+                for _lst in new_top:
+                    for _v in [int(x) for x in _lst[:int(n_alvo)]]:
+                        ho_freq[int(_v)] = ho_freq.get(int(_v), 0) + 1
+
+                def _ho_local_pair_sum(lst, v):
+                    vals = [int(x) for x in lst[:int(n_alvo)] if int(x) != int(v)]
+                    s = 0.0
+                    for o in vals:
+                        pair = tuple(sorted((int(v), int(o))))
+                        s += float(pair_freq.get(pair, 0)) if 'pair_freq' in locals() else 0.0
+                    return s
+
+                dominant_pool = []
+                try:
+                    for v, c in sorted(ho_freq.items(), key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))):
+                        if c >= 2 and int(v) not in dominant_pool:
+                            dominant_pool.append(int(v))
+                    for v in (ranking_vals or [])[:15]:
+                        iv = int(v)
+                        if iv not in dominant_pool:
+                            dominant_pool.append(iv)
+                except Exception:
+                    pass
+
+                target_idxs = [2, 4]
+                for idx in target_idxs:
+                    if idx >= len(new_top) or ho_swaps >= 2:
+                        continue
+
+                    base_lst = list(new_top[idx])
+                    preserve = sorted(
+                        base_lst,
+                        key=lambda v: (
+                            -float(cp_scores.get(int(v), 0.0)),
+                            -ho_freq.get(int(v), 0),
+                            ranking_pos.get(int(v), 9999),
+                            int(v),
+                        )
+                    )[:3]
+
+                    removable = [
+                        int(v) for v in sorted(
+                            base_lst,
+                            key=lambda v: (
+                                _ho_local_pair_sum(base_lst, int(v)),
+                                ho_freq.get(int(v), 0),
+                                float(cp_scores.get(int(v), 0.0)),
+                                int(v),
+                            )
+                        ) if int(v) not in preserve
+                    ]
+                    if not removable:
+                        continue
+
+                    base_metrics = _packet_metrics(new_top)
+                    improved = False
+                    for cand in dominant_pool:
+                        cand = int(cand)
+                        if cand in base_lst:
+                            continue
+                        if float(cp_scores.get(cand, 0.0)) <= 0.0 and ho_freq.get(cand, 0) < 2:
+                            continue
+
+                        drop = int(removable[0])
+                        trial = sorted(dict.fromkeys([int(v) for v in base_lst if int(v) != drop] + [cand]))[:int(n_alvo)]
+                        if len(trial) != int(n_alvo):
+                            continue
+
+                        trial_top = [list(x) for x in new_top]
+                        trial_top[idx] = trial
+                        m = _packet_metrics(trial_top)
+
+                        u_after = int(m.get("passageiros_unicos", 0))
+                        o_after = float(m.get("sobreposicao_media", 0.0))
+
+                        # trava leve: não sufoca, mas exige recompressão útil
+                        if u_after > ho_u_before:
+                            continue
+                        if o_after < ho_o_before:
+                            continue
+                        if o_after > ho_o_before + 0.12:
+                            continue
+
+                        new_top[idx] = trial
+                        ho_applied = True
+                        ho_swaps += 1
+                        improved = True
+                        break
+
+                    if improved:
+                        continue
+        except Exception:
+            pass
+
+        top_metrics_after_ho = _packet_metrics(new_top)
 
         # v16h57HL — DIRECTIONAL ERROR CORRECTION
         hl_applied = False
