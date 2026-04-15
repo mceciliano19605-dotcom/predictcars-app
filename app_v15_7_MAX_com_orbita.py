@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO4 — DIRECTED FINAL PRESSURE LOCK + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO4_DIRECTED_FINAL_PRESSURE_LOCK_BANNER_OK.py"
+BUILD_TAG = "v16h57HO5 — INTERNAL COMBINATION TUNING + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO5_INTERNAL_COMBINATION_TUNING_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HOc — BUILD AUDITÁVEL (single final pressure lock)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO5 — BUILD AUDITÁVEL (internal combination tuning)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -747,10 +747,9 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 # ============================================================
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO corrigido — intervenção única e limpa.
-    Objetivo único: preservar a convivência interna já conquistada e
-    recolocar uma trava leve de pressão final no Top10, sem cadeia de
-    microblocos sequenciais e sem alterar arquitetura/CT/SAFE/C4.
+    HO5 — intervenção única e limpa.
+    Objetivo único: micro-ajuste de combinação interna dentro da família já estável,
+    sem aumentar pressão global e sem alterar arquitetura/CT/SAFE/C4.
     """
     try:
         pkt = []
@@ -822,80 +821,96 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "active": True,
                 "applied": False,
                 "reason": "sem_familia_recorrente",
-                "mode": "single_final_pressure_lock",
+                "mode": "internal_combination_tuning",
                 "before_metrics": before_metrics,
                 "after_metrics": before_metrics,
                 "swaps": 0,
                 "listas_alteradas": 0,
             }
 
-        def pair_score(cand, base_now):
-            score = float(cp_scores.get(int(cand), 0.0)) * 3.0
-            score += float(freq.get(int(cand), 0)) * 0.25
-            score += float(family_freq.get(int(cand), 0)) * 0.55
-            for b in (base_now or []):
-                pair = tuple(sorted((int(cand), int(b))))
-                score += float(co_matrix.get(pair, 0)) * 0.16
-            score += max(0.0, 1.0 - (ranking_pos.get(int(cand), 9999) / max(1, len(ranking_pos) or 1)))
-            return score
+        def pair_score(a, b):
+            pair = tuple(sorted((int(a), int(b))))
+            return float(co_matrix.get(pair, 0))
+
+        def list_internal_score(lst):
+            vals = [int(x) for x in lst[:int(n_alvo)]]
+            score = 0.0
+            for i in range(len(vals)):
+                va = int(vals[i])
+                score += float(cp_scores.get(va, 0.0)) * 0.35
+                score += float(freq.get(va, 0)) * 0.10
+                score += float(family_freq.get(va, 0)) * 0.20
+                for j in range(i + 1, len(vals)):
+                    score += pair_score(va, vals[j]) * 0.18
+            return float(score)
+
+        def candidate_gain(base_lst, drop_v, add_v):
+            kept = [int(v) for v in base_lst if int(v) != int(drop_v)]
+            gain = float(cp_scores.get(int(add_v), 0.0) - cp_scores.get(int(drop_v), 0.0)) * 0.30
+            gain += float(freq.get(int(add_v), 0) - freq.get(int(drop_v), 0)) * 0.08
+            gain += float(family_freq.get(int(add_v), 0) - family_freq.get(int(drop_v), 0)) * 0.18
+            for v in kept:
+                gain += (pair_score(int(add_v), int(v)) - pair_score(int(drop_v), int(v))) * 0.22
+            return float(gain)
 
         new_top = [list(x) for x in top]
         swaps = 0
         changed_indices = []
         candidates_used = []
 
-        # intervenção única: até 2 microtrocas em listas posteriores do Top10
-        # para recolocar pressão final sem colapsar o envelope.
-        for idx in range(3, len(new_top)):
-            # HO4 directed pressure: apply only to lists with low overlap vs top[0]
-            base_ref = set(new_top[0]) if new_top else set()
-            current = set(new_top[idx])
-            overlap = len(base_ref.intersection(current))
-            if overlap >= 3:
-                continue
-            if swaps >= 2:
+        target_indices = sorted(
+            list(range(3, len(new_top))),
+            key=lambda idx: (list_internal_score(new_top[idx]), idx)
+        )[:2]
+
+        for idx in target_indices:
+            if swaps >= 1:
                 break
+
             lst = list(new_top[idx])
 
             preserved = sorted(
                 lst,
                 key=lambda v: (
-                    -(float(cp_scores.get(int(v), 0.0)) * 3.0 + float(family_freq.get(int(v), 0)) * 0.6 + float(freq.get(int(v), 0)) * 0.2),
+                    -(float(cp_scores.get(int(v), 0.0)) * 2.5 + float(family_freq.get(int(v), 0)) * 0.8),
                     ranking_pos.get(int(v), 9999),
                     int(v),
                 )
             )[:3]
 
-            weak = [
+            weak_candidates = [
                 int(v) for v in sorted(
                     lst,
                     key=lambda v: (
-                        float(cp_scores.get(int(v), 0.0)) * 3.0 + float(family_freq.get(int(v), 0)) * 0.6 + float(freq.get(int(v), 0)) * 0.2,
+                        float(cp_scores.get(int(v), 0.0)) * 2.2
+                        + float(family_freq.get(int(v), 0)) * 0.9
+                        + sum(pair_score(int(v), int(o)) for o in lst if int(o) != int(v)) * 0.20,
                         family_freq.get(int(v), 0),
                         ranking_pos.get(int(v), 9999),
                         int(v),
                     )
                 ) if int(v) not in preserved
             ]
-            if not weak:
+            if not weak_candidates:
                 continue
 
-            add = None
-            best_local = None
+            drop = int(weak_candidates[0])
+
+            best_add = None
+            best_gain = None
             for cand in recurring_family:
                 ic = int(cand)
                 if ic in lst:
                     continue
-                local = pair_score(ic, preserved)
-                if best_local is None or local > best_local:
-                    best_local = local
-                    add = ic
+                gain = candidate_gain(lst, drop, ic)
+                if best_gain is None or gain > best_gain:
+                    best_gain = gain
+                    best_add = ic
 
-            if add is None or best_local is None or best_local < 0.95:
+            if best_add is None or best_gain is None or best_gain <= 0.0:
                 continue
 
-            drop = int(weak[0])
-            nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(add)]))[:int(n_alvo)]
+            nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(best_add)]))[:int(n_alvo)]
             if len(nova) != int(n_alvo):
                 continue
 
@@ -908,21 +923,32 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             unique_after = int(trial_metrics.get("passageiros_unicos", 0))
             overlap_after = float(trial_metrics.get("sobreposicao_media", 0.0))
 
-            # trava leve: não abrir mais o pacote e não piorar pressão média.
             if unique_after > unique_before:
                 continue
             if unique_after < max(0, unique_before - 1):
                 continue
-            if overlap_after < overlap_before:
+            if overlap_after < overlap_before - 0.06:
                 continue
-            if overlap_after > overlap_before + 0.18:
+            if overlap_after > overlap_before + 0.12:
+                continue
+
+            old_score = list_internal_score(lst)
+            new_score = list_internal_score(nova)
+            if new_score <= old_score:
                 continue
 
             new_top[idx] = list(nova)
             before_metrics = trial_metrics
             swaps += 1
             changed_indices.append(int(idx))
-            candidates_used.append({"idx": int(idx), "drop": int(drop), "add": int(add), "local_score": round(float(best_local), 4)})
+            candidates_used.append({
+                "idx": int(idx),
+                "drop": int(drop),
+                "add": int(best_add),
+                "gain": round(float(best_gain), 4),
+                "old_internal_score": round(float(old_score), 4),
+                "new_internal_score": round(float(new_score), 4),
+            })
 
         final_packet = new_top + tail
         after_metrics = _packet_metrics(new_top)
@@ -931,7 +957,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "active": True,
             "applied": bool(swaps > 0 and final_packet != pkt),
             "reason": "ok" if swaps > 0 else "sem_swap_elegivel",
-            "mode": "single_final_pressure_lock",
+            "mode": "internal_combination_tuning",
             "before_metrics": _packet_metrics(top),
             "after_metrics": after_metrics,
             "swaps": int(swaps),
