@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO5 — INTERNAL COMBINATION TUNING + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO5_INTERNAL_COMBINATION_TUNING_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6 — COUPLED PRESSURE + COMBINATION + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6_COUPLED_PRESSURE_COMBINATION_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO5 — BUILD AUDITÁVEL (internal combination tuning)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6 — BUILD AUDITÁVEL (coupled pressure + combination)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -747,9 +747,9 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 # ============================================================
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO5 — intervenção única e limpa.
-    Objetivo único: micro-ajuste de combinação interna dentro da família já estável,
-    sem aumentar pressão global e sem alterar arquitetura/CT/SAFE/C4.
+    HO6 — intervenção única e limpa.
+    Objetivo único: acoplar micro-ajuste de combinação interna com pressão mínima local,
+    no mesmo ponto do fluxo, sem alterar arquitetura/CT/SAFE/C4.
     """
     try:
         pkt = []
@@ -821,7 +821,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "active": True,
                 "applied": False,
                 "reason": "sem_familia_recorrente",
-                "mode": "internal_combination_tuning",
+                "mode": "coupled_pressure_combination",
                 "before_metrics": before_metrics,
                 "after_metrics": before_metrics,
                 "swaps": 0,
@@ -842,6 +842,15 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 score += float(family_freq.get(va, 0)) * 0.20
                 for j in range(i + 1, len(vals)):
                     score += pair_score(va, vals[j]) * 0.18
+            return float(score)
+
+        def local_pressure_score(lst):
+            vals = [int(x) for x in lst[:int(n_alvo)]]
+            score = 0.0
+            for v in vals:
+                score += float(cp_scores.get(int(v), 0.0)) * 0.80
+                score += float(freq.get(int(v), 0)) * 0.12
+                score += float(family_freq.get(int(v), 0)) * 0.16
             return float(score)
 
         def candidate_gain(base_lst, drop_v, add_v):
@@ -897,17 +906,27 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             drop = int(weak_candidates[0])
 
             best_add = None
+            best_total = None
             best_gain = None
             for cand in recurring_family:
                 ic = int(cand)
                 if ic in lst:
                     continue
-                gain = candidate_gain(lst, drop, ic)
-                if best_gain is None or gain > best_gain:
-                    best_gain = gain
+
+                comb_gain = candidate_gain(lst, drop, ic)
+                trial_list = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(ic)]))[:int(n_alvo)]
+                if len(trial_list) != int(n_alvo):
+                    continue
+                pressure_gain = local_pressure_score(trial_list) - local_pressure_score(lst)
+
+                total = float(comb_gain) + float(pressure_gain) * 0.35
+
+                if best_total is None or total > best_total:
+                    best_total = total
+                    best_gain = comb_gain
                     best_add = ic
 
-            if best_add is None or best_gain is None or best_gain <= 0.0:
+            if best_add is None or best_total is None or best_total <= 0.0:
                 continue
 
             nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(best_add)]))[:int(n_alvo)]
@@ -927,14 +946,19 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 continue
             if unique_after < max(0, unique_before - 1):
                 continue
-            if overlap_after < overlap_before - 0.06:
+            if overlap_after < overlap_before - 0.05:
                 continue
             if overlap_after > overlap_before + 0.12:
                 continue
 
-            old_score = list_internal_score(lst)
-            new_score = list_internal_score(nova)
-            if new_score <= old_score:
+            old_internal = list_internal_score(lst)
+            new_internal = list_internal_score(nova)
+            old_pressure = local_pressure_score(lst)
+            new_pressure = local_pressure_score(nova)
+
+            if new_internal <= old_internal:
+                continue
+            if new_pressure < old_pressure:
                 continue
 
             new_top[idx] = list(nova)
@@ -945,9 +969,12 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "idx": int(idx),
                 "drop": int(drop),
                 "add": int(best_add),
-                "gain": round(float(best_gain), 4),
-                "old_internal_score": round(float(old_score), 4),
-                "new_internal_score": round(float(new_score), 4),
+                "total_gain": round(float(best_total), 4),
+                "comb_gain": round(float(best_gain), 4),
+                "old_internal_score": round(float(old_internal), 4),
+                "new_internal_score": round(float(new_internal), 4),
+                "old_pressure_score": round(float(old_pressure), 4),
+                "new_pressure_score": round(float(new_pressure), 4),
             })
 
         final_packet = new_top + tail
@@ -957,7 +984,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "active": True,
             "applied": bool(swaps > 0 and final_packet != pkt),
             "reason": "ok" if swaps > 0 else "sem_swap_elegivel",
-            "mode": "internal_combination_tuning",
+            "mode": "coupled_pressure_combination",
             "before_metrics": _packet_metrics(top),
             "after_metrics": after_metrics,
             "swaps": int(swaps),
