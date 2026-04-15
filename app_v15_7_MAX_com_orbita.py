@@ -520,8 +520,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HOc — SINGLE FINAL PRESSURE LOCK + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HOc_SINGLE_FINAL_PRESSURE_LOCK_BANNER_OK.py"
+BUILD_TAG = "v16h57HO2 — TUNED FINAL PRESSURE LOCK + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO2_TUNED_FINAL_PRESSURE_LOCK_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -846,8 +846,8 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         # intervenção única: até 2 microtrocas em listas posteriores do Top10
         # para recolocar pressão final sem colapsar o envelope.
-        for idx in range(4, len(new_top)):
-            if swaps >= 2:
+        for idx in range(3, len(new_top)):
+            if swaps >= 3:
                 break
             lst = list(new_top[idx])
 
@@ -885,7 +885,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     best_local = local
                     add = ic
 
-            if add is None or best_local is None or best_local < 1.00:
+            if add is None or best_local is None or best_local < 0.92:
                 continue
 
             drop = int(weak[0])
