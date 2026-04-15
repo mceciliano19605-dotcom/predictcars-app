@@ -520,8 +520,8 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO3 — SELECTIVE FINAL PRESSURE LOCK + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO3_SELECTIVE_FINAL_PRESSURE_LOCK_BANNER_OK.py"
+BUILD_TAG = "v16h57HO4 — DIRECTED FINAL PRESSURE LOCK + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO4_DIRECTED_FINAL_PRESSURE_LOCK_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
@@ -847,8 +847,11 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         # intervenção única: até 2 microtrocas em listas posteriores do Top10
         # para recolocar pressão final sem colapsar o envelope.
         for idx in range(3, len(new_top)):
-            # HO3 selective pressure: apply only to some lists
-            if idx % 2 != 0:
+            # HO4 directed pressure: apply only to lists with low overlap vs top[0]
+            base_ref = set(new_top[0]) if new_top else set()
+            current = set(new_top[idx])
+            overlap = len(base_ref.intersection(current))
+            if overlap >= 3:
                 continue
             if swaps >= 2:
                 break
