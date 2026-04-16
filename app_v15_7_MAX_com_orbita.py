@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6D — PAIR FIT LOCK + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6D_PAIR_FIT_LOCK_AUDITOR_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6D_FIX — PAIR FIT LOCK + AUDITOR FIX + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6D_FIX_PAIR_FIT_LOCK_AUDITOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6D — BUILD AUDITÁVEL (pair fit lock)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6D_FIX — BUILD AUDITÁVEL (pair fit lock + auditor fix)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -17076,7 +17076,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         st.session_state["v16h57HO6D_post_sanidade_top10"] = []
 
     try:
-        _auditor_ho6 = pc_v16_build_auditor_ho6c(
+        _auditor_ho6 = pc_v16_build_auditor_ho6d(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
             pre_sanidade_top10=st.session_state.get("v16h57HO6D_pre_sanidade_top10") or [],
             post_sanidade_top10=st.session_state.get("v16h57HO6D_post_sanidade_top10") or [],
