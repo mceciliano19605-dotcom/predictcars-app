@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6B — BRIDGE COUPLED PRESSURE + COMBINATION + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6B_BRIDGE_COUPLED_PRESSURE_COMBINATION_AUDITOR_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6C — PAIR COHESION REINFORCED + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6C_PAIR_COHESION_REINFORCED_AUDITOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6B — BUILD AUDITÁVEL (bridge coupled micro-fit)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6C — BUILD AUDITÁVEL (pair cohesion reinforced)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -747,9 +747,9 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 # ============================================================
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6B — micro-ajuste de ponte combinatória com pressão mínima local.
-    Objetivo único: manter o mesmo ponto do HO6A e reforçar o encaixe interno
-    por afinidade de ponte (bridge fit), sem alterar arquitetura/CT/SAFE/C4.
+    HO6C — reforço de coesão de pares no mesmo ponto do HO6B.
+    Objetivo único: priorizar o encaixe específico de pares recorrentes dentro do
+    pacote, sem alterar arquitetura/CT/SAFE/C4.
     """
     try:
         pkt = []
@@ -805,10 +805,15 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         before_metrics = _packet_metrics(top)
 
         family_freq = {}
+        pair_packet_freq = {}
         for lst in top:
-            for v in lst[:int(n_alvo)]:
-                iv = int(v)
-                family_freq[iv] = family_freq.get(iv, 0) + 1
+            vals = [int(v) for v in lst[:int(n_alvo)]]
+            for v in vals:
+                family_freq[v] = family_freq.get(v, 0) + 1
+            for i in range(len(vals)):
+                for j in range(i + 1, len(vals)):
+                    pair = tuple(sorted((int(vals[i]), int(vals[j]))))
+                    pair_packet_freq[pair] = pair_packet_freq.get(pair, 0) + 1
 
         family_thr = 3 if has_cp else 2
         recurring_family = [
@@ -828,51 +833,41 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "after_metrics": before_metrics,
                 "swaps": 0,
                 "listas_alteradas": 0,
-                "bridge_mode": True,
+                "pair_cohesion_mode": True,
             }
 
-        def pair_score(a, b):
+        def pair_strength(a, b):
             pair = tuple(sorted((int(a), int(b))))
-            return float(co_matrix.get(pair, 0))
+            return float(co_matrix.get(pair, 0)) * 0.55 + float(pair_packet_freq.get(pair, 0)) * 1.0
 
         def list_internal_score(lst):
             vals = [int(x) for x in lst[:int(n_alvo)]]
             score = 0.0
             for i in range(len(vals)):
                 va = int(vals[i])
-                score += float(cp_scores.get(va, 0.0)) * 0.28
+                score += float(cp_scores.get(va, 0.0)) * 0.20
                 score += float(freq.get(va, 0)) * 0.12
-                score += float(family_freq.get(va, 0)) * 0.24
+                score += float(family_freq.get(va, 0)) * 0.22
                 for j in range(i + 1, len(vals)):
-                    score += pair_score(va, vals[j]) * 0.22
+                    score += pair_strength(va, vals[j]) * 0.30
             return float(score)
 
         def local_pressure_score(lst):
             vals = [int(x) for x in lst[:int(n_alvo)]]
             score = 0.0
             for v in vals:
-                score += float(cp_scores.get(int(v), 0.0)) * 0.70
-                score += float(freq.get(int(v), 0)) * 0.14
+                score += float(cp_scores.get(int(v), 0.0)) * 0.55
+                score += float(freq.get(int(v), 0)) * 0.16
                 score += float(family_freq.get(int(v), 0)) * 0.18
             return float(score)
 
-        def candidate_gain(base_lst, drop_v, add_v):
+        def pair_gain(base_lst, drop_v, add_v):
             kept = [int(v) for v in base_lst if int(v) != int(drop_v)]
-            gain = float(cp_scores.get(int(add_v), 0.0) - cp_scores.get(int(drop_v), 0.0)) * 0.24
-            gain += float(freq.get(int(add_v), 0) - freq.get(int(drop_v), 0)) * 0.09
-            gain += float(family_freq.get(int(add_v), 0) - family_freq.get(int(drop_v), 0)) * 0.22
+            gain = float(cp_scores.get(int(add_v), 0.0) - cp_scores.get(int(drop_v), 0.0)) * 0.14
+            gain += float(freq.get(int(add_v), 0) - freq.get(int(drop_v), 0)) * 0.08
+            gain += float(family_freq.get(int(add_v), 0) - family_freq.get(int(drop_v), 0)) * 0.18
             for v in kept:
-                gain += (pair_score(int(add_v), int(v)) - pair_score(int(drop_v), int(v))) * 0.24
-            return float(gain)
-
-        def anchor_bridge_gain(base_lst, drop_v, add_v, anchors):
-            kept = [int(v) for v in base_lst if int(v) != int(drop_v)]
-            anchor_set = [int(v) for v in anchors if int(v) in kept]
-            gain = 0.0
-            for v in anchor_set:
-                gain += (pair_score(int(add_v), int(v)) - pair_score(int(drop_v), int(v))) * 0.34
-            if int(add_v) in recurring_family:
-                gain += 0.10 + 0.04 * float(family_freq.get(int(add_v), 0))
+                gain += (pair_strength(int(add_v), int(v)) - pair_strength(int(drop_v), int(v))) * 0.34
             return float(gain)
 
         new_top = [list(x) for x in top]
@@ -896,7 +891,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             preserved = sorted(
                 lst,
                 key=lambda v: (
-                    -(float(cp_scores.get(int(v), 0.0)) * 2.2 + float(family_freq.get(int(v), 0)) * 0.95 + sum(pair_score(int(v), int(o)) for o in lst if int(o) != int(v)) * 0.12),
+                    -(sum(pair_strength(int(v), int(o)) for o in lst if int(o) != int(v)) * 0.60
+                      + float(family_freq.get(int(v), 0)) * 0.95
+                      + float(cp_scores.get(int(v), 0.0)) * 1.40),
                     ranking_pos.get(int(v), 9999),
                     int(v),
                 )
@@ -906,9 +903,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 int(v) for v in sorted(
                     lst,
                     key=lambda v: (
-                        float(cp_scores.get(int(v), 0.0)) * 2.0
-                        + float(family_freq.get(int(v), 0)) * 0.85
-                        + sum(pair_score(int(v), int(o)) for o in lst if int(o) != int(v)) * 0.24,
+                        sum(pair_strength(int(v), int(o)) for o in lst if int(o) != int(v)) * 0.70
+                        + float(family_freq.get(int(v), 0)) * 0.70
+                        + float(cp_scores.get(int(v), 0.0)) * 0.80,
                         family_freq.get(int(v), 0),
                         ranking_pos.get(int(v), 9999),
                         int(v),
@@ -920,39 +917,37 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
             drop = int(weak_candidates[0])
             anchor_core = list(preserved[:min(3, len(preserved))])
-            bridge_ranking = []
-            for cand in ranking[:16]:
-                ic = int(cand)
-                if ic in lst or ic in bridge_ranking:
-                    continue
-                bridge_fit = sum(pair_score(ic, a) for a in anchor_core)
-                if bridge_fit > 0 or family_freq.get(ic, 0) >= 2:
-                    bridge_ranking.append(ic)
+
             candidate_pool = []
-            for cand in recurring_family + bridge_ranking:
+            for cand in recurring_family + ranking[:18]:
                 ic = int(cand)
-                if ic not in candidate_pool and ic not in lst:
+                if ic in lst or ic in candidate_pool:
+                    continue
+                pair_fit = sum(pair_strength(ic, a) for a in anchor_core)
+                if pair_fit > 0 or family_freq.get(ic, 0) >= 2:
                     candidate_pool.append(ic)
 
             best_add = None
             best_total = None
             best_gain = None
-            best_bridge = None
+            best_pairfit = None
             for cand in candidate_pool:
                 ic = int(cand)
                 if ic in lst:
                     continue
-                comb_gain = candidate_gain(lst, drop, ic)
-                bridge_gain = anchor_bridge_gain(lst, drop, ic, anchor_core)
+                base_pairfit = sum(pair_strength(drop, a) for a in anchor_core)
+                new_pairfit = sum(pair_strength(ic, a) for a in anchor_core)
+                pairfit_gain = float(new_pairfit - base_pairfit)
+                comb_gain = pair_gain(lst, drop, ic)
                 trial_list = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(ic)]))[:int(n_alvo)]
                 if len(trial_list) != int(n_alvo):
                     continue
                 pressure_gain = local_pressure_score(trial_list) - local_pressure_score(lst)
-                total = float(comb_gain) + float(pressure_gain) * 0.30 + float(bridge_gain) * 0.28
+                total = float(comb_gain) + float(pairfit_gain) * 0.34 + float(pressure_gain) * 0.18
                 if best_total is None or total > best_total:
                     best_total = total
                     best_gain = comb_gain
-                    best_bridge = bridge_gain
+                    best_pairfit = pairfit_gain
                     best_add = ic
 
             if best_add is None or best_total is None or best_total <= 0.0:
@@ -975,7 +970,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 continue
             if unique_after < max(0, unique_before - 1):
                 continue
-            if overlap_after < overlap_before - 0.06:
+            if overlap_after < overlap_before - 0.05:
                 continue
             if overlap_after > overlap_before + 0.10:
                 continue
@@ -1000,7 +995,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "add": int(best_add),
                 "total_gain": round(float(best_total), 4),
                 "comb_gain": round(float(best_gain), 4),
-                "bridge_gain": round(float(best_bridge if best_bridge is not None else 0.0), 4),
+                "pairfit_gain": round(float(best_pairfit if best_pairfit is not None else 0.0), 4),
                 "old_internal_score": round(float(old_internal), 4),
                 "new_internal_score": round(float(new_internal), 4),
                 "old_pressure_score": round(float(old_pressure), 4),
@@ -1025,7 +1020,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "family_size": int(len(recurring_family)),
             "family_preview": recurring_family[:8],
             "top_k": int(top_k),
-            "bridge_mode": True,
+            "pair_cohesion_mode": True,
             "has_cp": bool(has_cp),
         }
     except Exception as e:
@@ -1035,12 +1030,12 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
     try:
         pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
         try:
-            st.session_state["v16h57HO6B_generator_call_count"] = int(st.session_state.get("v16h57HO6B_generator_call_count", 0)) + 1
-            _steps = st.session_state.get("v16h57HO6B_generator_call_steps")
+            st.session_state["v16h57HO6C_generator_call_count"] = int(st.session_state.get("v16h57HO6C_generator_call_count", 0)) + 1
+            _steps = st.session_state.get("v16h57HO6C_generator_call_steps")
             if not isinstance(_steps, list):
                 _steps = []
-            _steps.append({"count": int(st.session_state.get("v16h57HO6B_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
-            st.session_state["v16h57HO6B_generator_call_steps"] = _steps
+            _steps.append({"count": int(st.session_state.get("v16h57HO6C_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
+            st.session_state["v16h57HO6C_generator_call_steps"] = _steps
         except Exception:
             pass
         base = []
@@ -1327,11 +1322,11 @@ def v16h57FS_clear_mode6_packet_state():
         "bloco_c_info",
         "postura_respiravel_info",
         "postura_respiravel_memoria",
-        "v16h57HO6B_auditor",
-        "v16h57HO6B_generator_call_count",
-        "v16h57HO6B_generator_call_steps",
-        "v16h57HO6B_pre_sanidade_top10",
-        "v16h57HO6B_post_sanidade_top10",
+        "v16h57HO6C_auditor",
+        "v16h57HO6C_generator_call_count",
+        "v16h57HO6C_generator_call_steps",
+        "v16h57HO6C_pre_sanidade_top10",
+        "v16h57HO6C_post_sanidade_top10",
     ]
     try:
         for k in keys:
@@ -1348,13 +1343,13 @@ def v16h57FS_clear_mode6_packet_state():
 # V16h57HO6A — AUDITOR AUTOMÁTICO DO BUILD
 # Valida unicidade, ponto vivo, pré-sanidade, mudança real e consistência
 # ============================================================
-def pc_v16_build_auditor_ho6b(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
+def pc_v16_build_auditor_ho6c(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
     try:
         npgen_info = npgen_info if isinstance(npgen_info, dict) else {}
         fm = npgen_info.get("final_mount_info") if isinstance(npgen_info.get("final_mount_info"), dict) else {}
         cp = npgen_info.get("conversion_pressure") if isinstance(npgen_info.get("conversion_pressure"), dict) else {}
 
-        gen_calls = int(st.session_state.get("v16h57HO6B_generator_call_count", 0) or 0)
+        gen_calls = int(st.session_state.get("v16h57HO6C_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
         fm_mode_ok = str(fm.get("mode", "")) == "coupled_pressure_combination"
@@ -1410,14 +1405,14 @@ def pc_v16_build_auditor_ho6b(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_nao_detectada_no_top10"
 
-        st.session_state["v16h57HO6B_auditor"] = auditor
+        st.session_state["v16h57HO6C_auditor"] = auditor
         return auditor
     except Exception as e:
         auditor = {
             "status": "INVALIDO",
             "motivo": f"auditor_erro: {e}",
             "unicidade": "FALHA",
-            "generator_call_count": int(st.session_state.get("v16h57HO6B_generator_call_count", 0) or 0),
+            "generator_call_count": int(st.session_state.get("v16h57HO6C_generator_call_count", 0) or 0),
             "ponto_fluxo": "FALHA",
             "antes_sanidade": "OK",
             "mudou_pacote": "NAO",
@@ -1425,7 +1420,7 @@ def pc_v16_build_auditor_ho6b(*, npgen_info=None, pre_sanidade_top10=None, post_
             "consistencia_intervencao": "FALHA",
         }
         try:
-            st.session_state["v16h57HO6B_auditor"] = auditor
+            st.session_state["v16h57HO6C_auditor"] = auditor
         except Exception:
             pass
         return auditor
@@ -16703,9 +16698,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
     st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
     try:
-        st.session_state["v16h57HO6B_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
+        st.session_state["v16h57HO6C_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6B_pre_sanidade_top10"] = []
+        st.session_state["v16h57HO6C_pre_sanidade_top10"] = []
     try:
         pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
@@ -17046,20 +17041,20 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     try:
-        st.session_state["v16h57HO6B_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
+        st.session_state["v16h57HO6C_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6B_post_sanidade_top10"] = []
+        st.session_state["v16h57HO6C_post_sanidade_top10"] = []
 
     try:
-        _auditor_ho6 = pc_v16_build_auditor_ho6b(
+        _auditor_ho6 = pc_v16_build_auditor_ho6c(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
-            pre_sanidade_top10=st.session_state.get("v16h57HO6B_pre_sanidade_top10") or [],
-            post_sanidade_top10=st.session_state.get("v16h57HO6B_post_sanidade_top10") or [],
+            pre_sanidade_top10=st.session_state.get("v16h57HO6C_pre_sanidade_top10") or [],
+            post_sanidade_top10=st.session_state.get("v16h57HO6C_post_sanidade_top10") or [],
         )
     except Exception as _aud_e:
         _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
 
-    st.markdown("### 🔎 AUDITOR HO6B")
+    st.markdown("### 🔎 AUDITOR HO6C")
     if str((_auditor_ho6 or {}).get("status", "")) == "OK":
         st.success("status: OK")
     else:
