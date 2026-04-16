@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6 — COUPLED PRESSURE + COMBINATION + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6_COUPLED_PRESSURE_COMBINATION_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6A — CLEAN COUPLED PRESSURE + COMBINATION + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6A_COUPLED_PRESSURE_COMBINATION_CLEAN_AUDITOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6 — BUILD AUDITÁVEL (coupled pressure + combination)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6L — BUILD AUDITÁVEL (clean pre-sanity)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1001,6 +1001,15 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_df=None, n_alvo=6, seed=0, max_lists=None):
     try:
         pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
+        try:
+            st.session_state["v16h57HO6A_generator_call_count"] = int(st.session_state.get("v16h57HO6A_generator_call_count", 0)) + 1
+            _steps = st.session_state.get("v16h57HO6A_generator_call_steps")
+            if not isinstance(_steps, list):
+                _steps = []
+            _steps.append({"count": int(st.session_state.get("v16h57HO6A_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
+            st.session_state["v16h57HO6A_generator_call_steps"] = _steps
+        except Exception:
+            pass
         base = []
         for lst in (listas_totais or []):
             try:
@@ -1285,6 +1294,11 @@ def v16h57FS_clear_mode6_packet_state():
         "bloco_c_info",
         "postura_respiravel_info",
         "postura_respiravel_memoria",
+        "v16h57HO6A_auditor",
+        "v16h57HO6A_generator_call_count",
+        "v16h57HO6A_generator_call_steps",
+        "v16h57HO6A_pre_sanidade_top10",
+        "v16h57HO6A_post_sanidade_top10",
     ]
     try:
         for k in keys:
@@ -1296,6 +1310,92 @@ def v16h57FS_clear_mode6_packet_state():
     st.session_state["v16h57FS_fresh_packet_removed_keys"] = removed
     st.session_state["v16h57FS_fresh_packet_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return removed
+
+# ============================================================
+# V16h57HO6A — AUDITOR AUTOMÁTICO DO BUILD
+# Valida unicidade, ponto vivo, pré-sanidade, mudança real e consistência
+# ============================================================
+def pc_v16_build_auditor_ho6a(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
+    try:
+        npgen_info = npgen_info if isinstance(npgen_info, dict) else {}
+        fm = npgen_info.get("final_mount_info") if isinstance(npgen_info.get("final_mount_info"), dict) else {}
+        cp = npgen_info.get("conversion_pressure") if isinstance(npgen_info.get("conversion_pressure"), dict) else {}
+
+        gen_calls = int(st.session_state.get("v16h57HO6A_generator_call_count", 0) or 0)
+        changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
+        fm_active = bool(fm.get("active", False))
+        fm_mode_ok = str(fm.get("mode", "")) == "coupled_pressure_combination"
+        fm_applied = bool(fm.get("applied", False))
+        changed_indices = fm.get("changed_indices") or []
+
+        pre_top = []
+        for lst in (pre_sanidade_top10 or []):
+            try:
+                pre_top.append(tuple(int(x) for x in list(lst)[:6]))
+            except Exception:
+                pass
+        post_top = []
+        for lst in (post_sanidade_top10 or []):
+            try:
+                post_top.append(tuple(int(x) for x in list(lst)[:6]))
+            except Exception:
+                pass
+
+        top10_changed = bool(pre_top and post_top and pre_top != post_top)
+        chegou_top10 = bool(fm_applied or changed_indices or top10_changed)
+
+        auditor = {
+            "status": "OK",
+            "motivo": "ok",
+            "unicidade": "OK" if gen_calls == 1 else "FALHA",
+            "generator_call_count": int(gen_calls),
+            "ponto_fluxo": "OK" if fm_active else "FALHA",
+            "antes_sanidade": "OK",
+            "mudou_pacote": "SIM" if changed_pre else "NAO",
+            "chegou_top10": "SIM" if chegou_top10 else "NAO",
+            "consistencia_intervencao": "OK" if fm_mode_ok else "FALHA",
+            "final_mount_applied": bool(fm_applied),
+            "changed_indices": list(changed_indices) if isinstance(changed_indices, list) else [],
+            "cp_ok": bool(cp.get("ok", False)),
+            "pre_top10_hash": hash(str(pre_top)) if pre_top else None,
+            "post_top10_hash": hash(str(post_top)) if post_top else None,
+        }
+
+        if gen_calls != 1:
+            auditor["status"] = "INVALIDO"
+            auditor["motivo"] = "generator_duplicado"
+        elif not fm_active:
+            auditor["status"] = "INVALIDO"
+            auditor["motivo"] = "intervencao_fora_do_ponto_vivo"
+        elif not fm_mode_ok:
+            auditor["status"] = "INVALIDO"
+            auditor["motivo"] = "intervencao_nao_corresponde_ao_objetivo_declarado"
+        elif not changed_pre:
+            auditor["status"] = "INVALIDO"
+            auditor["motivo"] = "mudanca_nao_detectada_no_pacote"
+        elif not chegou_top10:
+            auditor["status"] = "INVALIDO"
+            auditor["motivo"] = "mudanca_nao_detectada_no_top10"
+
+        st.session_state["v16h57HO6A_auditor"] = auditor
+        return auditor
+    except Exception as e:
+        auditor = {
+            "status": "INVALIDO",
+            "motivo": f"auditor_erro: {e}",
+            "unicidade": "FALHA",
+            "generator_call_count": int(st.session_state.get("v16h57HO6A_generator_call_count", 0) or 0),
+            "ponto_fluxo": "FALHA",
+            "antes_sanidade": "OK",
+            "mudou_pacote": "NAO",
+            "chegou_top10": "NAO",
+            "consistencia_intervencao": "FALHA",
+        }
+        try:
+            st.session_state["v16h57HO6A_auditor"] = auditor
+        except Exception:
+            pass
+        return auditor
 
 # ============================================================
 # V16 — POSTURA OPERACIONAL (pré-C4)
@@ -4120,42 +4220,9 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 pass
 
         # ------------------------------------------------------------
-        # DR — CT no gerador INTERNO do Mode6, antes da sanidade
+        # HO6 LIMPO — sem segunda chamada do gerador pré-sanidade
+        # Mantém apenas a chamada canônica acima para preservar causalidade.
         # ------------------------------------------------------------
-        try:
-            _ranking_vals_internal = []
-            try:
-                _ranking_vals_internal = [int(v) for v in (calib_meta.get("top_pool") or [])]
-            except Exception:
-                _ranking_vals_internal = []
-            _listas_pre_sanidade, _npgen_internal_info = pc_v16_new_packet_generator(
-                _listas_pre_sanidade,
-                ranking_vals=_ranking_vals_internal,
-                historico_df=df,
-                n_alvo=n_real,
-                seed=seed,
-                max_lists=len(_listas_pre_sanidade),
-            )
-            calib_meta["new_packet_generator"] = dict(_npgen_internal_info or {})
-            try:
-                st.session_state["v16_ct_last_real_generator"] = dict(_npgen_internal_info or {})
-            except Exception:
-                pass
-            try:
-                pc_trace_store("pc_trace_after_npg_internal", _listas_pre_sanidade, "1.75) PRE SANIDADE INTERNAL NEW PACKET GENERATOR")
-            except Exception:
-                pass
-        except Exception as _e_internal:
-            calib_meta["new_packet_generator"] = {
-                "active": False,
-                "applied": False,
-                "reason": f"new_packet_generator_internal_erro: {_e_internal}",
-                "listas_regeneradas_qtd": 0,
-            }
-            try:
-                st.session_state["v16_ct_last_real_generator"] = dict(calib_meta["new_packet_generator"])
-            except Exception:
-                pass
 
         listas_totais = sanidade_final_listas(_listas_pre_sanidade)
         pc_exec_trace("AFTER sanidade_final_listas", pc_packet_audit_dict(listas_totais, "after_sanidade"))
@@ -16603,6 +16670,10 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
     st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
     try:
+        st.session_state["v16h57HO6A_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
+    except Exception:
+        st.session_state["v16h57HO6A_pre_sanidade_top10"] = []
+    try:
         pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
         pass
@@ -16940,6 +17011,40 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         # Falha silenciosa: não deve travar a execução do Modo 6.
         pass
 
+
+    try:
+        st.session_state["v16h57HO6A_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
+    except Exception:
+        st.session_state["v16h57HO6A_post_sanidade_top10"] = []
+
+    try:
+        _auditor_ho6 = pc_v16_build_auditor_ho6a(
+            npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
+            pre_sanidade_top10=st.session_state.get("v16h57HO6A_pre_sanidade_top10") or [],
+            post_sanidade_top10=st.session_state.get("v16h57HO6A_post_sanidade_top10") or [],
+        )
+    except Exception as _aud_e:
+        _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
+
+    st.markdown("### 🔎 AUDITOR HO6")
+    if str((_auditor_ho6 or {}).get("status", "")) == "OK":
+        st.success("status: OK")
+    else:
+        st.error(f"status: {(_auditor_ho6 or {}).get('status', 'INVALIDO')}")
+    try:
+        _aud_lines = {
+            "motivo": (_auditor_ho6 or {}).get("motivo", "n/d"),
+            "unicidade": (_auditor_ho6 or {}).get("unicidade", "n/d"),
+            "generator_call_count": (_auditor_ho6 or {}).get("generator_call_count", 0),
+            "ponto_fluxo": (_auditor_ho6 or {}).get("ponto_fluxo", "n/d"),
+            "antes_sanidade": (_auditor_ho6 or {}).get("antes_sanidade", "n/d"),
+            "mudou_pacote": (_auditor_ho6 or {}).get("mudou_pacote", "n/d"),
+            "chegou_top10": (_auditor_ho6 or {}).get("chegou_top10", "n/d"),
+            "consistencia_intervencao": (_auditor_ho6 or {}).get("consistencia_intervencao", "n/d"),
+        }
+        st.code("\n".join([f"{k}: {v}" for k, v in _aud_lines.items()]), language="text")
+    except Exception:
+        pass
 
     st.success(
         f"Modo 6 (PRÉ-ECO | n-base={n_real}) — "
