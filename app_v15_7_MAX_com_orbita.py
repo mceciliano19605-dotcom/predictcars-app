@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6D_FIX — PAIR FIT LOCK + AUDITOR FIX + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6D_FIX_PAIR_FIT_LOCK_AUDITOR_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6E — PAIR FIT LOCK + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6E_DENSE_PAIR_BRIDGE_LOCK_AUDITOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-03-02_01 (UNI50_60_AUDIT_FIX)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6D_FIX — BUILD AUDITÁVEL (pair fit lock + auditor fix)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6E — BUILD AUDITÁVEL (dense pair bridge lock)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -747,7 +747,7 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 # ============================================================
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6D — pair fit lock no mesmo ponto do HO6C.
+    HO6D — dense pair bridge lock no mesmo ponto do HO6C.
     Objetivo único: preservar o equilíbrio estrutural do HO6C e reforçar o encaixe
     específico dos pares mais densos do pacote, sem alterar arquitetura/CT/SAFE/C4.
     """
@@ -833,10 +833,11 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "after_metrics": before_metrics,
                 "swaps": 0,
                 "listas_alteradas": 0,
-                "pair_fit_lock": True,
+                "dense_pair_bridge_lock": True,
             }
 
         strong_pairs = [pair for pair, c in sorted(pair_freq.items(), key=lambda kv: (-kv[1], kv[0])) if c >= (3 if has_cp else 2)]
+        dense_pair_set = set(strong_pairs[:max(8, min(16, len(strong_pairs)))])
 
         def pair_score(a, b):
             pair = tuple(sorted((int(a), int(b))))
@@ -848,8 +849,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             for i in range(len(vals)):
                 for j in range(i + 1, len(vals)):
                     pair = tuple(sorted((int(vals[i]), int(vals[j]))))
-                    dens += float(pair_freq.get(pair, 0)) * 0.28
-                    dens += pair_score(vals[i], vals[j]) * 0.22
+                    dens += float(pair_freq.get(pair, 0)) * 0.30
+                    dens += pair_score(vals[i], vals[j]) * 0.20
+                    dens += (0.18 if pair in dense_pair_set else 0.0)
             return float(dens)
 
         def list_internal_score(lst):
@@ -861,8 +863,10 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 score += float(freq.get(va, 0)) * 0.10
                 score += float(family_freq.get(va, 0)) * 0.24
                 for j in range(i + 1, len(vals)):
-                    score += pair_score(va, vals[j]) * 0.20
-                    score += float(pair_freq.get(tuple(sorted((va, int(vals[j])))), 0)) * 0.24
+                    score += pair_score(va, vals[j]) * 0.18
+                    _pair_cur = tuple(sorted((va, int(vals[j]))))
+                    score += float(pair_freq.get(_pair_cur, 0)) * 0.26
+                    score += (0.10 if _pair_cur in dense_pair_set else 0.0)
             return float(score)
 
         def local_pressure_score(lst):
@@ -882,8 +886,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             for v in kept:
                 pair = tuple(sorted((int(add_v), int(v))))
                 pair_old = tuple(sorted((int(drop_v), int(v))))
-                gain += (pair_score(int(add_v), int(v)) - pair_score(int(drop_v), int(v))) * 0.18
-                gain += (float(pair_freq.get(pair, 0)) - float(pair_freq.get(pair_old, 0))) * 0.26
+                gain += (pair_score(int(add_v), int(v)) - pair_score(int(drop_v), int(v))) * 0.16
+                gain += (float(pair_freq.get(pair, 0)) - float(pair_freq.get(pair_old, 0))) * 0.28
+                gain += (0.10 if pair in dense_pair_set else 0.0) - (0.10 if pair_old in dense_pair_set else 0.0)
             return float(gain)
 
         def anchor_pair_lock_gain(base_lst, drop_v, add_v, anchors):
@@ -893,8 +898,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             for v in lock_vals:
                 new_pair = tuple(sorted((int(add_v), int(v))))
                 old_pair = tuple(sorted((int(drop_v), int(v))))
-                gain += (float(pair_freq.get(new_pair, 0)) - float(pair_freq.get(old_pair, 0))) * 0.40
-                gain += (pair_score(int(add_v), int(v)) - pair_score(int(drop_v), int(v))) * 0.20
+                gain += (float(pair_freq.get(new_pair, 0)) - float(pair_freq.get(old_pair, 0))) * 0.42
+                gain += (pair_score(int(add_v), int(v)) - pair_score(int(drop_v), int(v))) * 0.18
+                gain += (0.12 if new_pair in dense_pair_set else 0.0) - (0.12 if old_pair in dense_pair_set else 0.0)
             return float(gain)
 
         new_top = [list(x) for x in top]
@@ -919,7 +925,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     ranking_pos.get(int(v), 9999),
                     int(v),
                 )
-            )[:3]
+            )[:(4 if not has_cp else 3)]
 
             weak_candidates = [
                 int(v) for v in sorted(
@@ -941,7 +947,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             anchor_core = list(preserved[:min(3, len(preserved))])
             candidate_pool = []
             for pair in strong_pairs:
-                if any(int(a) in anchor_core for a in pair):
+                if sum(1 for a in pair if int(a) in anchor_core) >= 1:
                     for member in pair:
                         im = int(member)
                         if im not in lst and im not in candidate_pool:
@@ -966,7 +972,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     continue
                 pressure_gain = local_pressure_score(trial_list) - local_pressure_score(lst)
                 density_gain = packet_pair_density(trial_list) - packet_pair_density(lst)
-                total = float(comb_gain) + float(lock_gain) * 0.34 + float(density_gain) * 0.24 + float(pressure_gain) * 0.18
+                total = float(comb_gain) + float(lock_gain) * 0.36 + float(density_gain) * 0.26 + float(pressure_gain) * 0.14
                 if best_total is None or total > best_total:
                     best_total = total
                     best_gain = comb_gain
@@ -993,9 +999,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 continue
             if unique_after < max(0, unique_before - 1):
                 continue
-            if overlap_after < overlap_before - 0.03:
+            if overlap_after < overlap_before - 0.02:
                 continue
-            if overlap_after > overlap_before + 0.08:
+            if overlap_after > overlap_before + 0.06:
                 continue
 
             old_internal = list_internal_score(lst)
@@ -1049,7 +1055,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "family_size": int(len(recurring_family)),
             "family_preview": recurring_family[:8],
             "top_k": int(top_k),
-            "pair_fit_lock": True,
+            "dense_pair_bridge_lock": True,
             "has_cp": bool(has_cp),
         }
     except Exception as e:
@@ -1060,12 +1066,12 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
     try:
         pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
         try:
-            st.session_state["v16h57HO6D_generator_call_count"] = int(st.session_state.get("v16h57HO6D_generator_call_count", 0)) + 1
-            _steps = st.session_state.get("v16h57HO6D_generator_call_steps")
+            st.session_state["v16h57HO6E_generator_call_count"] = int(st.session_state.get("v16h57HO6E_generator_call_count", 0)) + 1
+            _steps = st.session_state.get("v16h57HO6E_generator_call_steps")
             if not isinstance(_steps, list):
                 _steps = []
-            _steps.append({"count": int(st.session_state.get("v16h57HO6D_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
-            st.session_state["v16h57HO6D_generator_call_steps"] = _steps
+            _steps.append({"count": int(st.session_state.get("v16h57HO6E_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
+            st.session_state["v16h57HO6E_generator_call_steps"] = _steps
         except Exception:
             pass
         base = []
@@ -1352,11 +1358,11 @@ def v16h57FS_clear_mode6_packet_state():
         "bloco_c_info",
         "postura_respiravel_info",
         "postura_respiravel_memoria",
-        "v16h57HO6D_auditor",
-        "v16h57HO6D_generator_call_count",
-        "v16h57HO6D_generator_call_steps",
-        "v16h57HO6D_pre_sanidade_top10",
-        "v16h57HO6D_post_sanidade_top10",
+        "v16h57HO6E_auditor",
+        "v16h57HO6E_generator_call_count",
+        "v16h57HO6E_generator_call_steps",
+        "v16h57HO6E_pre_sanidade_top10",
+        "v16h57HO6E_post_sanidade_top10",
     ]
     try:
         for k in keys:
@@ -1373,13 +1379,13 @@ def v16h57FS_clear_mode6_packet_state():
 # V16h57HO6A — AUDITOR AUTOMÁTICO DO BUILD
 # Valida unicidade, ponto vivo, pré-sanidade, mudança real e consistência
 # ============================================================
-def pc_v16_build_auditor_ho6d(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
+def pc_v16_build_auditor_ho6e(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
     try:
         npgen_info = npgen_info if isinstance(npgen_info, dict) else {}
         fm = npgen_info.get("final_mount_info") if isinstance(npgen_info.get("final_mount_info"), dict) else {}
         cp = npgen_info.get("conversion_pressure") if isinstance(npgen_info.get("conversion_pressure"), dict) else {}
 
-        gen_calls = int(st.session_state.get("v16h57HO6D_generator_call_count", 0) or 0)
+        gen_calls = int(st.session_state.get("v16h57HO6E_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
         fm_mode_ok = str(fm.get("mode", "")) == "coupled_pressure_combination"
@@ -1435,14 +1441,14 @@ def pc_v16_build_auditor_ho6d(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_nao_detectada_no_top10"
 
-        st.session_state["v16h57HO6D_auditor"] = auditor
+        st.session_state["v16h57HO6E_auditor"] = auditor
         return auditor
     except Exception as e:
         auditor = {
             "status": "INVALIDO",
             "motivo": f"auditor_erro: {e}",
             "unicidade": "FALHA",
-            "generator_call_count": int(st.session_state.get("v16h57HO6D_generator_call_count", 0) or 0),
+            "generator_call_count": int(st.session_state.get("v16h57HO6E_generator_call_count", 0) or 0),
             "ponto_fluxo": "FALHA",
             "antes_sanidade": "OK",
             "mudou_pacote": "NAO",
@@ -1450,7 +1456,7 @@ def pc_v16_build_auditor_ho6d(*, npgen_info=None, pre_sanidade_top10=None, post_
             "consistencia_intervencao": "FALHA",
         }
         try:
-            st.session_state["v16h57HO6D_auditor"] = auditor
+            st.session_state["v16h57HO6E_auditor"] = auditor
         except Exception:
             pass
         return auditor
@@ -16728,9 +16734,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
     st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
     try:
-        st.session_state["v16h57HO6D_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
+        st.session_state["v16h57HO6E_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6D_pre_sanidade_top10"] = []
+        st.session_state["v16h57HO6E_pre_sanidade_top10"] = []
     try:
         pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
@@ -17071,20 +17077,20 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     try:
-        st.session_state["v16h57HO6D_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
+        st.session_state["v16h57HO6E_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6D_post_sanidade_top10"] = []
+        st.session_state["v16h57HO6E_post_sanidade_top10"] = []
 
     try:
-        _auditor_ho6 = pc_v16_build_auditor_ho6d(
+        _auditor_ho6 = pc_v16_build_auditor_ho6e(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
-            pre_sanidade_top10=st.session_state.get("v16h57HO6D_pre_sanidade_top10") or [],
-            post_sanidade_top10=st.session_state.get("v16h57HO6D_post_sanidade_top10") or [],
+            pre_sanidade_top10=st.session_state.get("v16h57HO6E_pre_sanidade_top10") or [],
+            post_sanidade_top10=st.session_state.get("v16h57HO6E_post_sanidade_top10") or [],
         )
     except Exception as _aud_e:
         _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
 
-    st.markdown("### 🔎 AUDITOR HO6D")
+    st.markdown("### 🔎 AUDITOR HO6E")
     if str((_auditor_ho6 or {}).get("status", "")) == "OK":
         st.success("status: OK")
     else:
