@@ -17082,7 +17082,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         st.session_state["v16h57HO6F_post_sanidade_top10"] = []
 
     try:
-        _auditor_ho6 = pc_v16_build_auditor_ho6e(
+        _auditor_ho6 = pc_v16_build_auditor_ho6f(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
             pre_sanidade_top10=st.session_state.get("v16h57HO6F_pre_sanidade_top10") or [],
             post_sanidade_top10=st.session_state.get("v16h57HO6F_post_sanidade_top10") or [],
