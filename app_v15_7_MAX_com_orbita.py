@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6H — SET COHERENCE LOCK + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6H_SET_COHERENCE_LOCK_AUDITOR_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6I — FINAL SET FIT LOCK + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6I_FINAL_SET_FIT_LOCK_AUDITOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-18_01 (HO6H_SET_COHERENCE_LOCK)"
+WATERMARK = "2026-04-18_02 (HO6I_FINAL_SET_FIT_LOCK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6H — BUILD AUDITÁVEL (set coherence lock)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6I — BUILD AUDITÁVEL (final set fit lock)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -747,9 +747,9 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 # ============================================================
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6H — set coherence lock no mesmo ponto da linha HO6.
+    HO6I — final set fit lock no mesmo ponto da linha HO6.
     Objetivo único: preservar o equilíbrio recente e impedir a separação
-    de conjuntos coerentes de 6 números dentro do pacote final, sem abrir volume.
+    do fechamento final do conjunto de 6 números dentro do pacote, sem abrir volume nem perder coerência recente.
     """
     try:
         pkt = []
@@ -954,7 +954,12 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         target_indices = sorted(
             list(range(2, len(new_top))),
-            key=lambda idx: (list_internal_score(new_top[idx]), idx)
+            key=lambda idx: (
+                list_internal_score(new_top[idx])
+                + functional_dependency_score(new_top[idx]) * 0.18
+                + set_coherence_score(new_top[idx]) * 0.42,
+                idx,
+            )
         )[:2]
 
         for idx in target_indices:
@@ -1018,7 +1023,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 density_gain = packet_pair_density(trial_list) - packet_pair_density(lst)
                 dependency_gain = functional_dependency_score(trial_list) - functional_dependency_score(lst)
                 coherence_gain = set_coherence_score(trial_list) - set_coherence_score(lst)
-                total = float(comb_gain) + float(lock_gain) * 0.28 + float(density_gain) * 0.18 + float(pressure_gain) * 0.06 + float(dependency_gain) * 0.24 + float(coherence_gain) * 0.46
+                total = float(comb_gain) + float(lock_gain) * 0.22 + float(density_gain) * 0.12 + float(pressure_gain) * 0.04 + float(dependency_gain) * 0.22 + float(coherence_gain) * 0.62
                 if best_total is None or total > best_total:
                     best_total = total
                     best_gain = comb_gain
@@ -1045,9 +1050,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 continue
             if unique_after < max(0, unique_before - 1):
                 continue
-            if overlap_after < overlap_before - 0.01:
+            if overlap_after < overlap_before - 0.015:
                 continue
-            if overlap_after > overlap_before + 0.03:
+            if overlap_after > overlap_before + 0.02:
                 continue
 
             old_internal = list_internal_score(lst)
@@ -1069,7 +1074,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 continue
             if new_dependency + 1e-9 < old_dependency:
                 continue
-            if new_coherence + 1e-9 < old_coherence:
+            if new_coherence <= old_coherence + 0.015:
                 continue
 
             new_top[idx] = list(nova)
@@ -1113,9 +1118,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "family_size": int(len(recurring_family)),
             "family_preview": recurring_family[:8],
             "top_k": int(top_k),
-            "set_coherence_lock": True,
+            "final_set_fit_lock": True,
             "dependency_pairs_preview": [list(p) for p in dependency_pairs[:6]],
-            "coherence_target": "whole_set_unit",
+            "coherence_target": "whole_set_final_fit",
             "has_cp": bool(has_cp),
         }
     except Exception as e:
@@ -1126,12 +1131,12 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
     try:
         pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
         try:
-            st.session_state["v16h57HO6H_generator_call_count"] = int(st.session_state.get("v16h57HO6H_generator_call_count", 0)) + 1
-            _steps = st.session_state.get("v16h57HO6H_generator_call_steps")
+            st.session_state["v16h57HO6I_generator_call_count"] = int(st.session_state.get("v16h57HO6I_generator_call_count", 0)) + 1
+            _steps = st.session_state.get("v16h57HO6I_generator_call_steps")
             if not isinstance(_steps, list):
                 _steps = []
-            _steps.append({"count": int(st.session_state.get("v16h57HO6H_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
-            st.session_state["v16h57HO6H_generator_call_steps"] = _steps
+            _steps.append({"count": int(st.session_state.get("v16h57HO6I_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
+            st.session_state["v16h57HO6I_generator_call_steps"] = _steps
         except Exception:
             pass
         base = []
@@ -1418,11 +1423,11 @@ def v16h57FS_clear_mode6_packet_state():
         "bloco_c_info",
         "postura_respiravel_info",
         "postura_respiravel_memoria",
-        "v16h57HO6H_auditor",
-        "v16h57HO6H_generator_call_count",
-        "v16h57HO6H_generator_call_steps",
-        "v16h57HO6H_pre_sanidade_top10",
-        "v16h57HO6H_post_sanidade_top10",
+        "v16h57HO6I_auditor",
+        "v16h57HO6I_generator_call_count",
+        "v16h57HO6I_generator_call_steps",
+        "v16h57HO6I_pre_sanidade_top10",
+        "v16h57HO6I_post_sanidade_top10",
     ]
     try:
         for k in keys:
@@ -1439,13 +1444,13 @@ def v16h57FS_clear_mode6_packet_state():
 # V16h57HO6A — AUDITOR AUTOMÁTICO DO BUILD
 # Valida unicidade, ponto vivo, pré-sanidade, mudança real e consistência
 # ============================================================
-def pc_v16_build_auditor_ho6h(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
+def pc_v16_build_auditor_ho6i(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
     try:
         npgen_info = npgen_info if isinstance(npgen_info, dict) else {}
         fm = npgen_info.get("final_mount_info") if isinstance(npgen_info.get("final_mount_info"), dict) else {}
         cp = npgen_info.get("conversion_pressure") if isinstance(npgen_info.get("conversion_pressure"), dict) else {}
 
-        gen_calls = int(st.session_state.get("v16h57HO6H_generator_call_count", 0) or 0)
+        gen_calls = int(st.session_state.get("v16h57HO6I_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
         fm_mode_ok = str(fm.get("mode", "")) == "coupled_pressure_combination"
@@ -1501,14 +1506,14 @@ def pc_v16_build_auditor_ho6h(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_nao_detectada_no_top10"
 
-        st.session_state["v16h57HO6H_auditor"] = auditor
+        st.session_state["v16h57HO6I_auditor"] = auditor
         return auditor
     except Exception as e:
         auditor = {
             "status": "INVALIDO",
             "motivo": f"auditor_erro: {e}",
             "unicidade": "FALHA",
-            "generator_call_count": int(st.session_state.get("v16h57HO6H_generator_call_count", 0) or 0),
+            "generator_call_count": int(st.session_state.get("v16h57HO6I_generator_call_count", 0) or 0),
             "ponto_fluxo": "FALHA",
             "antes_sanidade": "OK",
             "mudou_pacote": "NAO",
@@ -1516,7 +1521,7 @@ def pc_v16_build_auditor_ho6h(*, npgen_info=None, pre_sanidade_top10=None, post_
             "consistencia_intervencao": "FALHA",
         }
         try:
-            st.session_state["v16h57HO6H_auditor"] = auditor
+            st.session_state["v16h57HO6I_auditor"] = auditor
         except Exception:
             pass
         return auditor
@@ -16794,9 +16799,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
     st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
     try:
-        st.session_state["v16h57HO6H_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
+        st.session_state["v16h57HO6I_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6H_pre_sanidade_top10"] = []
+        st.session_state["v16h57HO6I_pre_sanidade_top10"] = []
     try:
         pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
@@ -17137,20 +17142,20 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     try:
-        st.session_state["v16h57HO6H_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
+        st.session_state["v16h57HO6I_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6H_post_sanidade_top10"] = []
+        st.session_state["v16h57HO6I_post_sanidade_top10"] = []
 
     try:
-        _auditor_ho6 = pc_v16_build_auditor_ho6h(
+        _auditor_ho6 = pc_v16_build_auditor_ho6i(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
-            pre_sanidade_top10=st.session_state.get("v16h57HO6H_pre_sanidade_top10") or [],
-            post_sanidade_top10=st.session_state.get("v16h57HO6H_post_sanidade_top10") or [],
+            pre_sanidade_top10=st.session_state.get("v16h57HO6I_pre_sanidade_top10") or [],
+            post_sanidade_top10=st.session_state.get("v16h57HO6I_post_sanidade_top10") or [],
         )
     except Exception as _aud_e:
         _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
 
-    st.markdown("### 🔎 AUDITOR HO6H")
+    st.markdown("### 🔎 AUDITOR HO6I")
     if str((_auditor_ho6 or {}).get("status", "")) == "OK":
         st.success("status: OK")
     else:
