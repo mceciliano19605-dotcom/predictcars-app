@@ -1,4 +1,4 @@
-# --- v16h57HO6P_CLEAN_REAL ROLE BASED INTERNAL REBALANCE AUDITOR BANNER OK ---
+# --- v16h57HO6Q_CLEAN_REAL PACKET COVERAGE REBALANCE AUDITOR BANNER OK ---
 from __future__ import annotations
 
 # ============================================================
@@ -519,17 +519,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6P_CLEAN_REAL — ROLE-BASED INTERNAL REBALANCE + AUDITOR + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6Q_CLEAN_REAL — PACKET COVERAGE REBALANCE + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6P_CLEAN_REAL — ROLE-BASED INTERNAL REBALANCE + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6P_CLEAN_REAL_ROLE_BASED_INTERNAL_REBALANCE_AUDITOR_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6Q_CLEAN_REAL — PACKET COVERAGE REBALANCE + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6Q_CLEAN_REAL_PACKET_COVERAGE_REBALANCE_AUDITOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-19_03 (HO6P_CLEAN_REAL_ROLE_BASED_INTERNAL_REBALANCE)"
+WATERMARK = "2026-04-19_03 (HO6Q_CLEAN_REAL_PACKET_COVERAGE_REBALANCE)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6P CLEAN REAL — BUILD AUDITÁVEL (role-based internal rebalance)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6Q CLEAN REAL — BUILD AUDITÁVEL (packet coverage rebalance)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -750,10 +750,10 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6P — role-based internal rebalance no mesmo ponto da linha HO6.
-    Objetivo único: sair do teto dos swaps locais e rebalancear o papel interno dos elementos da lista
-    (âncora / ponte / estabilizador / diversidade útil) com até 2 trocas condicionais, apenas quando
-    a micro-configuração interna mostrar desequilíbrio e sem abrir o pacote.
+    HO6Q — packet coverage rebalance no mesmo ponto da linha HO6.
+    Objetivo único: preservar listas boas, mas reorganizar o PAPEL DO PACOTE,
+    reduzindo redundância entre listas e ampliando cobertura útil do conjunto.
+    Não cria motor novo. Não altera Camada 4. Não mexe no pipeline.
     """
     try:
         pkt = []
@@ -775,12 +775,6 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         co_matrix = co_matrix if isinstance(co_matrix, dict) else {}
         has_cp = bool(any(float(v) > 0.0 for v in cp_scores.values()))
 
-        freq = {}
-        for lst in top:
-            for v in lst[:int(n_alvo)]:
-                iv = int(v)
-                freq[iv] = freq.get(iv, 0) + 1
-
         ranking = []
         for v in (ranking_vals or []):
             try:
@@ -789,11 +783,26 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     ranking.append(iv)
             except Exception:
                 pass
+
+        freq = {}
+        pair_freq = {}
+        for lst in top:
+            vals = [int(v) for v in lst[:int(n_alvo)]]
+            for v in vals:
+                freq[v] = freq.get(v, 0) + 1
+            for i in range(len(vals)):
+                for j in range(i + 1, len(vals)):
+                    pair = tuple(sorted((int(vals[i]), int(vals[j]))))
+                    pair_freq[pair] = pair_freq.get(pair, 0) + 1
+
         if not ranking:
             ranking = [v for v, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))]
         ranking_pos = {int(v): i for i, v in enumerate(ranking)}
 
-        def _packet_metrics(packet_lists):
+        def pair_score(a, b):
+            return float(co_matrix.get(tuple(sorted((int(a), int(b)))), 0.0))
+
+        def packet_metrics(packet_lists):
             flat = [int(x) for lst in (packet_lists or []) for x in lst[:int(n_alvo)]]
             inter = []
             for i in range(len(packet_lists or [])):
@@ -806,301 +815,225 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "hash": hash(str(packet_lists or [])),
             }
 
-        family_freq = {}
-        pair_freq = {}
-        for lst in top:
-            vals = [int(v) for v in lst[:int(n_alvo)]]
-            for v in vals:
-                family_freq[v] = family_freq.get(v, 0) + 1
-            for i in range(len(vals)):
-                for j in range(i + 1, len(vals)):
-                    pair = tuple(sorted((int(vals[i]), int(vals[j]))))
-                    pair_freq[pair] = pair_freq.get(pair, 0) + 1
-
         family_thr = 3 if has_cp else 2
         recurring_family = [
             int(v) for v, c in sorted(
-                family_freq.items(),
+                freq.items(),
                 key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
             ) if c >= int(family_thr)
         ]
         strong_pairs = [pair for pair, c in sorted(pair_freq.items(), key=lambda kv: (-kv[1], kv[0])) if c >= (3 if has_cp else 2)]
         dense_pair_set = set(strong_pairs[:max(8, min(16, len(strong_pairs)))])
 
-        def pair_score(a, b):
-            pair = tuple(sorted((int(a), int(b))))
-            return float(co_matrix.get(pair, 0))
-
-        def packet_pair_density(lst):
-            vals = [int(x) for x in lst[:int(n_alvo)]]
-            dens = 0.0
-            for i in range(len(vals)):
-                for j in range(i + 1, len(vals)):
-                    pair = tuple(sorted((int(vals[i]), int(vals[j]))))
-                    dens += float(pair_freq.get(pair, 0)) * 0.36
-                    dens += pair_score(vals[i], vals[j]) * 0.20
-                    dens += (0.24 if pair in dense_pair_set else 0.0)
-            return float(dens)
-
         def member_support(lst, member):
             vals = [int(x) for x in lst[:int(n_alvo)]]
             m = int(member)
-            support = float(cp_scores.get(m, 0.0)) * 0.28
-            support += float(freq.get(m, 0)) * 0.16
-            support += float(family_freq.get(m, 0)) * 0.30
+            support = float(cp_scores.get(m, 0.0)) * 0.24
+            support += float(freq.get(m, 0)) * 0.22
             for other in vals:
                 if int(other) == m:
                     continue
                 pair = tuple(sorted((m, int(other))))
-                support += float(pair_freq.get(pair, 0)) * 0.52
+                support += float(pair_freq.get(pair, 0)) * 0.50
                 support += pair_score(m, int(other)) * 0.18
-                support += (0.20 if pair in dense_pair_set else 0.0)
+                support += (0.18 if pair in dense_pair_set else 0.0)
             return float(support)
 
         def list_internal_score(lst):
             vals = [int(x) for x in lst[:int(n_alvo)]]
             return sum(member_support(vals, v) for v in vals)
 
-        def role_profile(vals):
-            vals = [int(v) for v in vals[:int(n_alvo)]]
-            anchors = sorted(vals, key=lambda v: (-member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))[:2]
-            bridge = None
-            best_bridge = None
-            for v in vals:
-                if int(v) in set(anchors):
-                    continue
-                sc = 0.0
-                for a in anchors:
-                    pair = tuple(sorted((int(v), int(a))))
-                    sc += float(pair_freq.get(pair, 0)) * 0.55
-                    sc += pair_score(int(v), int(a)) * 0.20
-                    sc += (0.16 if pair in dense_pair_set else 0.0)
-                if best_bridge is None or sc > best_bridge:
-                    best_bridge = sc
-                    bridge = int(v)
-            stabilizers = [int(v) for v in vals if int(v) not in set(anchors + ([bridge] if bridge is not None else []))]
-            return anchors, bridge, stabilizers
-
-        def role_balance_score(vals):
-            vals = [int(v) for v in vals[:int(n_alvo)]]
-            anchors, bridge, stabilizers = role_profile(vals)
-            score = 0.0
-            for a in anchors:
-                score += member_support(vals, a) * 0.44
-            if bridge is not None:
-                bridge_sc = 0.0
-                for a in anchors:
-                    pair = tuple(sorted((int(bridge), int(a))))
-                    bridge_sc += float(pair_freq.get(pair, 0)) * 0.62
-                    bridge_sc += pair_score(int(bridge), int(a)) * 0.24
-                    bridge_sc += (0.18 if pair in dense_pair_set else 0.0)
-                score += bridge_sc * 0.80
-            for s in stabilizers:
-                local = member_support(vals, s) * 0.28
-                for a in anchors:
-                    local += pair_score(int(s), int(a)) * 0.10
-                score += local
-            return float(score)
-
-        def packet_role_signature(packet_lists):
-            packet_lists = [list(x) for x in (packet_lists or [])]
-            if not packet_lists:
+        def list_redundancy(idx, packet_lists):
+            base = set(int(x) for x in packet_lists[idx][:int(n_alvo)])
+            if not base:
                 return 0.0
-            sig = 0.0
-            for lst in packet_lists:
-                sig += role_balance_score(lst)
-            return float(sig / max(1, len(packet_lists)))
-
-        def build_candidate_pool(vals, anchors, banned=None, extra=20):
-            banned = set(int(x) for x in (banned or []))
-            used = set(int(v) for v in vals)
-            pool = []
-            for pair in strong_pairs:
-                if any(int(a) in pair for a in anchors):
-                    for member in pair:
-                        im = int(member)
-                        if im not in used and im not in banned and im not in pool:
-                            pool.append(im)
-            for cand in recurring_family + ranking[:extra]:
-                ic = int(cand)
-                if ic not in used and ic not in banned and ic not in pool:
-                    pool.append(ic)
-            return pool
-
-        def pick_drop_candidates(vals, anchors, bridge):
-            role_bad = []
-            for v in vals:
-                if int(v) in set(anchors):
+            score = 0.0
+            others = 0
+            for j, other in enumerate(packet_lists):
+                if j == idx:
                     continue
-                penalty = 0.0
-                if bridge is not None and int(v) == int(bridge):
-                    penalty += 0.18
-                penalty -= member_support(vals, v) * 0.38
-                for a in anchors:
-                    pair = tuple(sorted((int(v), int(a))))
-                    penalty += (0.24 if pair not in dense_pair_set else -0.12)
-                    penalty -= pair_score(int(v), int(a)) * 0.10
-                role_bad.append((penalty, int(v)))
-            role_bad = [v for _, v in sorted(role_bad, key=lambda kv: (kv[0], kv[1]))]
-            return role_bad[:3]
+                sj = set(int(x) for x in other[:int(n_alvo)])
+                inter = len(base.intersection(sj))
+                union = len(base.union(sj)) or 1
+                score += (inter / union)
+                others += 1
+            return float(score / others) if others else 0.0
 
-        def evaluate_trial(idx, trial_vals, before_packet_metrics, base_vals):
-            trial_top = [list(x) for x in new_top]
-            trial_top[idx] = list(sorted(trial_vals))
-            trial_metrics = _packet_metrics(trial_top)
-            unique_before = int(before_packet_metrics.get("passageiros_unicos", 0))
-            overlap_before = float(before_packet_metrics.get("sobreposicao_media", 0.0))
-            unique_after = int(trial_metrics.get("passageiros_unicos", 0))
-            overlap_after = float(trial_metrics.get("sobreposicao_media", 0.0))
-            if unique_after > max(20, unique_before + 1):
-                return None
-            if overlap_after < max(1.70, overlap_before - 0.07):
-                return None
-            old_internal = list_internal_score(base_vals)
-            new_internal = list_internal_score(trial_vals)
-            old_density = packet_pair_density(base_vals)
-            new_density = packet_pair_density(trial_vals)
-            if new_internal <= old_internal:
-                return None
-            if new_density + 1e-9 < old_density:
-                return None
-            old_role = role_balance_score(base_vals)
-            new_role = role_balance_score(trial_vals)
-            packet_role_before = packet_role_signature(new_top)
-            packet_role_after = packet_role_signature(trial_top)
-            total = (new_internal - old_internal) * 0.34 + (new_density - old_density) * 0.24 + (new_role - old_role) * 0.46 + (packet_role_after - packet_role_before) * 0.38
-            if total <= 0.0:
-                return None
-            return {
-                "trial": list(sorted(trial_vals)),
-                "trial_metrics": trial_metrics,
-                "total_gain": float(total),
-                "old_internal_score": float(old_internal),
-                "new_internal_score": float(new_internal),
-                "old_pair_density": float(old_density),
-                "new_pair_density": float(new_density),
-                "old_role_score": float(old_role),
-                "new_role_score": float(new_role),
-            }
+        def package_coverage_gain(packet_lists_before, idx, trial_list):
+            before = packet_metrics(packet_lists_before)
+            trial_packet = [list(x) for x in packet_lists_before]
+            trial_packet[idx] = list(trial_list)
+            after = packet_metrics(trial_packet)
+            old_list = [int(x) for x in packet_lists_before[idx][:int(n_alvo)]]
+            old_set = set(old_list)
+            new_set = set(int(x) for x in trial_list[:int(n_alvo)])
+            dropped = list(old_set - new_set)
+            added = list(new_set - old_set)
+            novelty = 0.0
+            undercovered_bonus = 0.0
+            for a in added:
+                undercovered_bonus += max(0.0, 2.4 - float(freq.get(int(a), 0))) * 0.42
+                for b in new_set:
+                    if int(a) == int(b):
+                        continue
+                    p = tuple(sorted((int(a), int(b))))
+                    novelty += (0.22 if p not in dense_pair_set else -0.08)
+                    novelty += max(0.0, 1.8 - float(pair_freq.get(p, 0))) * 0.10
+            drop_penalty = 0.0
+            for d in dropped:
+                drop_penalty += max(0.0, 2.0 - float(freq.get(int(d), 0))) * 0.18
+            overlap_delta = float(before.get("sobreposicao_media", 0.0)) - float(after.get("sobreposicao_media", 0.0))
+            unique_delta = float(after.get("passageiros_unicos", 0)) - float(before.get("passageiros_unicos", 0))
+            total = overlap_delta * 1.25 + unique_delta * 0.72 + novelty + undercovered_bonus - drop_penalty
+            return total, before, after, trial_packet
 
-        new_top = [list(x) for x in top]
-        packet_metrics_before = _packet_metrics(new_top)
+        packet_before = [list(x) for x in top]
+        metrics_before = packet_metrics(packet_before)
         swaps = 0
         changed_indices = []
         candidates_used = []
 
-        def target_priority(idx):
-            vals = [int(x) for x in new_top[idx][:int(n_alvo)]]
-            anchors, bridge, stabilizers = role_profile(vals)
-            sig = role_balance_score(vals)
-            weak = min(member_support(vals, v) for v in vals if int(v) not in set(anchors)) if len(vals) > len(anchors) else 0.0
-            return (sig, weak, idx)
-
-        target_indices = [idx for _, _, idx in sorted((target_priority(i) for i in range(len(new_top))))][:3]
+        target_indices = sorted(
+            list(range(len(packet_before))),
+            key=lambda idx: (-list_redundancy(idx, packet_before), idx)
+        )[:max(2, min(4, len(packet_before)))]
 
         for idx in target_indices:
-            if swaps >= 1:
+            if swaps >= 2:
                 break
-            vals = [int(x) for x in new_top[idx][:int(n_alvo)]]
-            anchors, bridge, stabilizers = role_profile(vals)
-            drops = pick_drop_candidates(vals, anchors, bridge)
+            current_packet = [list(x) for x in packet_before]
+            vals = [int(x) for x in current_packet[idx][:int(n_alvo)]]
+            ranked_members = sorted(vals, key=lambda v: (-member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))
+            anchors = ranked_members[:3]
+            non_anchors = [int(v) for v in vals if int(v) not in set(int(a) for a in anchors)]
+            if not non_anchors:
+                continue
+            candidate_pool = []
+            for cand in recurring_family + ranking[:24]:
+                ic = int(cand)
+                if ic not in vals and ic not in candidate_pool:
+                    candidate_pool.append(ic)
             best = None
-
-            # tentativa 1: rebalancear papel com 1 swap
-            for drop in drops:
-                pool = build_candidate_pool(vals, anchors, banned={drop}, extra=20)
-                for add in pool[:16]:
+            old_internal = list_internal_score(vals)
+            redundancy_before = list_redundancy(idx, current_packet)
+            # rebalance principal: troca 1 elemento em lista redundante para melhorar cobertura do pacote
+            for drop in sorted(non_anchors, key=lambda v: (member_support(vals, v), ranking_pos.get(int(v), 9999), int(v))):
+                for add in candidate_pool[:18]:
                     trial = sorted(dict.fromkeys([int(v) for v in vals if int(v) != int(drop)] + [int(add)]))[:int(n_alvo)]
                     if len(trial) != int(n_alvo):
                         continue
-                    ev = evaluate_trial(idx, trial, packet_metrics_before, vals)
-                    if ev is None:
+                    new_internal = list_internal_score(trial)
+                    if new_internal + 0.12 < old_internal:
                         continue
-                    meta = {
-                        "kind": "single_role_rebalance",
+                    coverage_gain, before_m, after_m, trial_packet = package_coverage_gain(current_packet, idx, trial)
+                    redundancy_after = list_redundancy(idx, trial_packet)
+                    role_gain = (redundancy_before - redundancy_after) * 1.20
+                    total = float(coverage_gain) + float(role_gain) + max(0.0, new_internal - old_internal) * 0.24
+                    if after_m.get("passageiros_unicos", 0) > max(22, metrics_before.get("passageiros_unicos", 0) + 1):
+                        continue
+                    if after_m.get("sobreposicao_media", 0.0) > metrics_before.get("sobreposicao_media", 0.0) + 0.02:
+                        continue
+                    if total <= 0.18:
+                        continue
+                    cand_info = {
+                        "kind": "packet_rebalance",
                         "drop": int(drop),
                         "add": int(add),
+                        "trial": list(trial),
+                        "trial_packet": trial_packet,
+                        "before_metrics": before_m,
+                        "after_metrics": after_m,
+                        "total_gain": float(total),
+                        "coverage_gain": float(coverage_gain),
+                        "role_gain": float(role_gain),
+                        "old_internal_score": float(old_internal),
+                        "new_internal_score": float(new_internal),
                         "anchors": [int(v) for v in anchors],
-                        "bridge": None if bridge is None else int(bridge),
                     }
-                    meta.update(ev)
-                    if best is None or meta["total_gain"] > best["total_gain"]:
-                        best = meta
-
-            # tentativa 2: até 2 swaps condicionais, apenas se o rebalanceamento simples não for forte
-            if best is None or float(best.get("total_gain", 0.0)) < 0.34:
-                for drop1 in drops[:2]:
-                    pool1 = build_candidate_pool(vals, anchors, banned={drop1}, extra=22)
-                    for add1 in pool1[:10]:
-                        once = sorted(dict.fromkeys([int(v) for v in vals if int(v) != int(drop1)] + [int(add1)]))[:int(n_alvo)]
-                        if len(once) != int(n_alvo):
-                            continue
-                        anchors2, bridge2, _ = role_profile(once)
-                        drops2 = pick_drop_candidates(once, anchors2, bridge2)
-                        for drop2 in drops2[:2]:
-                            if int(drop2) == int(add1):
+                    if best is None or cand_info["total_gain"] > best["total_gain"]:
+                        best = cand_info
+            # segundo ajuste somente se o pacote ainda estiver redundante e o ganho for claramente adicional
+            if best is not None:
+                packet_after_first = [list(x) for x in best["trial_packet"]]
+                residual_redundancy = list_redundancy(idx, packet_after_first)
+                second_best = None
+                if residual_redundancy > 0.34 and swaps == 0:
+                    vals2 = [int(x) for x in packet_after_first[idx][:int(n_alvo)]]
+                    anchors2 = sorted(vals2, key=lambda v: (-member_support(vals2, v), ranking_pos.get(int(v), 9999), int(v)))[:3]
+                    non_anchors2 = [int(v) for v in vals2 if int(v) not in set(int(a) for a in anchors2)]
+                    old_internal2 = list_internal_score(vals2)
+                    for drop2 in sorted(non_anchors2, key=lambda v: (member_support(vals2, v), ranking_pos.get(int(v), 9999), int(v))):
+                        for add2 in candidate_pool[:18]:
+                            if int(add2) in vals2:
                                 continue
-                            pool2 = build_candidate_pool(once, anchors2, banned={drop1, drop2, add1}, extra=24)
-                            for add2 in pool2[:8]:
-                                trial = sorted(dict.fromkeys([int(v) for v in once if int(v) != int(drop2)] + [int(add2)]))[:int(n_alvo)]
-                                if len(trial) != int(n_alvo):
-                                    continue
-                                ev = evaluate_trial(idx, trial, packet_metrics_before, vals)
-                                if ev is None:
-                                    continue
-                                pair_new = tuple(sorted((int(add1), int(add2))))
-                                pair_old = tuple(sorted((int(drop1), int(drop2))))
-                                ev["total_gain"] += (float(pair_freq.get(pair_new, 0)) - float(pair_freq.get(pair_old, 0))) * 0.18
-                                meta = {
-                                    "kind": "double_role_rebalance_conditional",
-                                    "drop": int(drop1),
-                                    "add": int(add1),
-                                    "drop_rel": int(drop2),
-                                    "add_rel": int(add2),
-                                    "anchors": [int(v) for v in anchors],
-                                    "bridge": None if bridge is None else int(bridge),
-                                }
-                                meta.update(ev)
-                                if best is None or meta["total_gain"] > best["total_gain"] + 0.02:
-                                    best = meta
+                            trial2 = sorted(dict.fromkeys([int(v) for v in vals2 if int(v) != int(drop2)] + [int(add2)]))[:int(n_alvo)]
+                            if len(trial2) != int(n_alvo):
+                                continue
+                            new_internal2 = list_internal_score(trial2)
+                            if new_internal2 + 0.16 < old_internal2:
+                                continue
+                            coverage_gain2, before_m2, after_m2, trial_packet2 = package_coverage_gain(packet_after_first, idx, trial2)
+                            redundancy_after2 = list_redundancy(idx, trial_packet2)
+                            role_gain2 = (residual_redundancy - redundancy_after2) * 1.16
+                            total2 = float(coverage_gain2) + float(role_gain2) + max(0.0, new_internal2 - old_internal2) * 0.20
+                            if after_m2.get("passageiros_unicos", 0) > max(22, metrics_before.get("passageiros_unicos", 0) + 1):
+                                continue
+                            if after_m2.get("sobreposicao_media", 0.0) > best["after_metrics"].get("sobreposicao_media", 0.0) + 0.01:
+                                continue
+                            if total2 <= 0.14:
+                                continue
+                            cand2 = {
+                                "drop_rel": int(drop2),
+                                "add_rel": int(add2),
+                                "trial": list(trial2),
+                                "trial_packet": trial_packet2,
+                                "before_metrics": before_m2,
+                                "after_metrics": after_m2,
+                                "total_gain": float(total2),
+                                "coverage_gain": float(coverage_gain2),
+                                "role_gain": float(role_gain2),
+                                "old_internal_score": float(old_internal2),
+                                "new_internal_score": float(new_internal2),
+                                "anchors": [int(v) for v in anchors2],
+                            }
+                            if second_best is None or cand2["total_gain"] > second_best["total_gain"]:
+                                second_best = cand2
+                chosen_packet = best["trial_packet"]
+                meta = {
+                    "idx": int(idx),
+                    "drop": int(best.get("drop")),
+                    "add": int(best.get("add")),
+                    "total_gain": round(float(best.get("total_gain", 0.0)), 4),
+                    "coverage_gain": round(float(best.get("coverage_gain", 0.0)), 4),
+                    "role_gain": round(float(best.get("role_gain", 0.0)), 4),
+                    "old_internal_score": round(float(best.get("old_internal_score", 0.0)), 4),
+                    "new_internal_score": round(float(best.get("new_internal_score", 0.0)), 4),
+                    "anchors": [int(v) for v in best.get("anchors", [])],
+                    "packet_coverage_rebalance": True,
+                    "second_swap_applied": False,
+                }
+                if second_best is not None and float(second_best.get("total_gain", 0.0)) > 0.22:
+                    chosen_packet = second_best["trial_packet"]
+                    meta["drop_rel"] = int(second_best.get("drop_rel"))
+                    meta["add_rel"] = int(second_best.get("add_rel"))
+                    meta["total_gain_2"] = round(float(second_best.get("total_gain", 0.0)), 4)
+                    meta["second_swap_applied"] = True
+                packet_before = [list(x) for x in chosen_packet]
+                metrics_before = packet_metrics(packet_before)
+                swaps += 1
+                changed_indices.append(int(idx))
+                candidates_used.append(meta)
 
-            if best is None:
-                continue
-            new_top[idx] = list(best["trial"])
-            packet_metrics_before = best["trial_metrics"]
-            swaps += 1
-            changed_indices.append(int(idx))
-            meta = {
-                "idx": int(idx),
-                "drop": int(best.get("drop")),
-                "add": int(best.get("add")),
-                "total_gain": round(float(best.get("total_gain", 0.0)), 4),
-                "old_internal_score": round(float(best.get("old_internal_score", 0.0)), 4),
-                "new_internal_score": round(float(best.get("new_internal_score", 0.0)), 4),
-                "old_pair_density": round(float(best.get("old_pair_density", 0.0)), 4),
-                "new_pair_density": round(float(best.get("new_pair_density", 0.0)), 4),
-                "old_role_score": round(float(best.get("old_role_score", 0.0)), 4),
-                "new_role_score": round(float(best.get("new_role_score", 0.0)), 4),
-                "anchors": [int(v) for v in best.get("anchors", [])],
-                "bridge": best.get("bridge"),
-                "conditional_double_swap": bool(best.get("kind") == "double_role_rebalance_conditional"),
-                "role_based_internal_rebalance": True,
-            }
-            if best.get("kind") == "double_role_rebalance_conditional":
-                meta["drop_rel"] = int(best.get("drop_rel"))
-                meta["add_rel"] = int(best.get("add_rel"))
-            candidates_used.append(meta)
-
-        final_packet = new_top + tail
-        after_metrics = _packet_metrics(new_top)
-        mode = "role_based_internal_rebalance_conditional_double" if any(bool(x.get("conditional_double_swap", False)) for x in candidates_used) else "role_based_internal_rebalance_guarded"
+        final_packet = packet_before + tail
+        after_metrics = packet_metrics(packet_before)
+        mode = "packet_coverage_role_rebalance" if any(bool(x.get("second_swap_applied", False)) for x in candidates_used) else "packet_coverage_role_rebalance_guarded"
 
         return final_packet, {
             "active": True,
             "applied": bool(swaps > 0 and final_packet != pkt),
             "reason": "ok" if swaps > 0 else "sem_rebalance_elegivel",
             "mode": mode,
-            "before_metrics": _packet_metrics(top),
+            "before_metrics": packet_metrics(top),
             "after_metrics": after_metrics,
             "swaps": int(swaps),
             "listas_alteradas": int(len(changed_indices)),
@@ -1109,24 +1042,22 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "family_size": int(len(recurring_family)),
             "family_preview": recurring_family[:8],
             "top_k": int(top_k),
-            "role_based_internal_rebalance": True,
-            "conditional_double_swap": bool(mode == "role_based_internal_rebalance_conditional_double"),
+            "packet_coverage_rebalance": True,
             "has_cp": bool(has_cp),
         }
     except Exception as e:
         return listas_packet, {"active": False, "applied": False, "reason": f"packet_final_mount_erro: {e}"}
 
-
 def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_df=None, n_alvo=6, seed=0, max_lists=None):
     try:
         pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
         try:
-            st.session_state["v16h57HO6O_generator_call_count"] = int(st.session_state.get("v16h57HO6O_generator_call_count", 0)) + 1
-            _steps = st.session_state.get("v16h57HO6O_generator_call_steps")
+            st.session_state["v16h57HO6Q_generator_call_count"] = int(st.session_state.get("v16h57HO6Q_generator_call_count", 0)) + 1
+            _steps = st.session_state.get("v16h57HO6Q_generator_call_steps")
             if not isinstance(_steps, list):
                 _steps = []
-            _steps.append({"count": int(st.session_state.get("v16h57HO6O_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
-            st.session_state["v16h57HO6O_generator_call_steps"] = _steps
+            _steps.append({"count": int(st.session_state.get("v16h57HO6Q_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
+            st.session_state["v16h57HO6Q_generator_call_steps"] = _steps
         except Exception:
             pass
         base = []
@@ -1216,7 +1147,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     )
                 )
 
-                # v16h57HO6O_CLEAN_REAL — INJECAO BORDA-PERTO REAL
+                # v16h57HO6Q_CLEAN_REAL — INJECAO BORDA-PERTO REAL
                 # objetivo: trazer alguns candidatos da borda util para o topo operativo,
                 # sem inventar motor novo e sem quebrar o ranking base.
                 try:
@@ -1234,7 +1165,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                             break
 
                     if inj_candidates:
-                        # v16h57HO6O_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
+                        # v16h57HO6Q_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
                         extra_pool = ranking2[18:22]
                         extra_pool = sorted(
                             [int(v) for v in extra_pool],
@@ -1352,7 +1283,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
-        # v16h57HO6O_CLEAN_REAL — montagem final profunda para conversão
+        # v16h57HO6Q_CLEAN_REAL — montagem final profunda para conversão
         out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
             out,
             ranking_vals=ranking2,
@@ -1413,11 +1344,11 @@ def v16h57FS_clear_mode6_packet_state():
         "bloco_c_info",
         "postura_respiravel_info",
         "postura_respiravel_memoria",
-        "v16h57HO6O_auditor",
-        "v16h57HO6O_generator_call_count",
-        "v16h57HO6O_generator_call_steps",
-        "v16h57HO6O_pre_sanidade_top10",
-        "v16h57HO6O_post_sanidade_top10",
+        "v16h57HO6Q_auditor",
+        "v16h57HO6Q_generator_call_count",
+        "v16h57HO6Q_generator_call_steps",
+        "v16h57HO6Q_pre_sanidade_top10",
+        "v16h57HO6Q_post_sanidade_top10",
     ]
     try:
         for k in keys:
@@ -1434,16 +1365,16 @@ def v16h57FS_clear_mode6_packet_state():
 # V16h57HO6A — AUDITOR AUTOMÁTICO DO BUILD
 # Valida unicidade, ponto vivo, pré-sanidade, mudança real e consistência
 # ============================================================
-def pc_v16_build_auditor_ho6o(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
+def pc_v16_build_auditor_ho6q(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
     try:
         npgen_info = npgen_info if isinstance(npgen_info, dict) else {}
         fm = npgen_info.get("final_mount_info") if isinstance(npgen_info.get("final_mount_info"), dict) else {}
         cp = npgen_info.get("conversion_pressure") if isinstance(npgen_info.get("conversion_pressure"), dict) else {}
 
-        gen_calls = int(st.session_state.get("v16h57HO6O_generator_call_count", 0) or 0)
+        gen_calls = int(st.session_state.get("v16h57HO6Q_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) in {"role_based_internal_rebalance_conditional_double", "role_based_internal_rebalance_guarded"}
+        fm_mode_ok = str(fm.get("mode", "")) in {"packet_coverage_role_rebalance", "packet_coverage_role_rebalance_guarded"}
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
 
@@ -1496,14 +1427,14 @@ def pc_v16_build_auditor_ho6o(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_nao_detectada_no_top10"
 
-        st.session_state["v16h57HO6O_auditor"] = auditor
+        st.session_state["v16h57HO6Q_auditor"] = auditor
         return auditor
     except Exception as e:
         auditor = {
             "status": "INVALIDO",
             "motivo": f"auditor_erro: {e}",
             "unicidade": "FALHA",
-            "generator_call_count": int(st.session_state.get("v16h57HO6O_generator_call_count", 0) or 0),
+            "generator_call_count": int(st.session_state.get("v16h57HO6Q_generator_call_count", 0) or 0),
             "ponto_fluxo": "FALHA",
             "antes_sanidade": "OK",
             "mudou_pacote": "NAO",
@@ -1511,7 +1442,7 @@ def pc_v16_build_auditor_ho6o(*, npgen_info=None, pre_sanidade_top10=None, post_
             "consistencia_intervencao": "FALHA",
         }
         try:
-            st.session_state["v16h57HO6O_auditor"] = auditor
+            st.session_state["v16h57HO6Q_auditor"] = auditor
         except Exception:
             pass
         return auditor
@@ -1749,7 +1680,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        # fallback v16h57HO6O_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
+        # fallback v16h57HO6Q_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
         if trocas == 0 and new_top10:
             try:
                 base = list(new_top10[0])
@@ -1770,7 +1701,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                 pass
 
         
-        # v16h57HO6O_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
+        # v16h57HO6Q_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
         try:
             if trocas == 0 and new_top10:
                 base = list(new_top10[0])
@@ -4006,7 +3937,7 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
 def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) -> Tuple[List[List[int]], Dict[str, Any]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
-    v16h57HO6O_CLEAN_REAL:
+    v16h57HO6Q_CLEAN_REAL:
     - aceita calib_override (compatível com SAFE/CAP)
     - sempre retorna (pacote, calib_meta)
     - protege o SAFE contra abortos por assinatura/estado mínimo
@@ -16756,7 +16687,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_brutas = listas_filtradas
 
     # ------------------------------------------------------------
-    # v16h57HO6O_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
+    # v16h57HO6Q_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
     # ------------------------------------------------------------
     _ranking_vals_dx = []
     if "ranking2" in locals() and ranking2 is not None:
@@ -16789,9 +16720,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
     st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
     try:
-        st.session_state["v16h57HO6O_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
+        st.session_state["v16h57HO6Q_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6O_pre_sanidade_top10"] = []
+        st.session_state["v16h57HO6Q_pre_sanidade_top10"] = []
     try:
         pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
@@ -17132,20 +17063,20 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     try:
-        st.session_state["v16h57HO6O_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
+        st.session_state["v16h57HO6Q_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6O_post_sanidade_top10"] = []
+        st.session_state["v16h57HO6Q_post_sanidade_top10"] = []
 
     try:
-        _auditor_ho6 = pc_v16_build_auditor_ho6o(
+        _auditor_ho6 = pc_v16_build_auditor_ho6q(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
-            pre_sanidade_top10=st.session_state.get("v16h57HO6O_pre_sanidade_top10") or [],
-            post_sanidade_top10=st.session_state.get("v16h57HO6O_post_sanidade_top10") or [],
+            pre_sanidade_top10=st.session_state.get("v16h57HO6Q_pre_sanidade_top10") or [],
+            post_sanidade_top10=st.session_state.get("v16h57HO6Q_post_sanidade_top10") or [],
         )
     except Exception as _aud_e:
         _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
 
-    st.markdown("### 🔎 AUDITOR HO6O")
+    st.markdown("### 🔎 AUDITOR HO6Q")
     if str((_auditor_ho6 or {}).get("status", "")) == "OK":
         st.success("status: OK")
     else:
@@ -22529,7 +22460,7 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 # ============================================================
-# POST MODO6 AUDIT (v16h57HO6O_CLEAN_REAL)
+# POST MODO6 AUDIT (v16h57HO6Q_CLEAN_REAL)
 # ============================================================
 try:
     import itertools
@@ -22610,13 +22541,13 @@ except Exception as e:
 
 
 # ============================================================
-# BUILD v16h57HO6O_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
+# BUILD v16h57HO6Q_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
 # CT REAL GENERATOR HOOK (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_REAL_GENERATOR_PRE_SANIDADE"] = {
-        "build": "v16h57HO6O_CLEAN_REAL",
+        "build": "v16h57HO6Q_CLEAN_REAL",
         "hook": "before_sanidade_final_listas",
         "status": "armed"
     }
@@ -22626,13 +22557,13 @@ except Exception:
 
 
 # ============================================================
-# BUILD v16h57HO6O_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57HO6Q_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
 # CT REAL HOOK INSIDE GENERATOR (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_GENERATOR_PRE_SANIDADE_REAL"] = {
-        "build": "v16h57HO6O_CLEAN_REAL",
+        "build": "v16h57HO6Q_CLEAN_REAL",
         "hook_point": "generator_before_sanidade",
         "status": "armed"
     }
