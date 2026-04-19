@@ -520,14 +520,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6L — FINAL SLOT ALIGNMENT + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6L_FINAL_SLOT_ALIGNMENT_AUDITOR_BANNER_OK.py"
+BUILD_TAG = "v16h57v16h57HO6M — TARGETED INTERNAL SWAP + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6M_TARGETED_INTERNAL_SWAP_AUDITOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-18_04 (HO6L_FINAL_SLOT_ALIGNMENT)"
+WATERMARK = "2026-04-18_04 (HO6M_TARGETED_INTERNAL_SWAP)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6L — BUILD AUDITÁVEL (final slot alignment)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6M — BUILD AUDITÁVEL (targeted internal swap)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -745,10 +745,12 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 # Atua APENAS na montagem final do pacote já gerado.
 # Não cria motor novo. Não altera Camada 4. Não aumenta volume.
 # ============================================================
+
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6L — final slot alignment no mesmo ponto da linha HO6.
-    Objetivo único: alinhar o encaixe final de 1 posição dentro de listas já boas, preservando a família e a combinação, sem abrir volume nem perder coerência.
+    HO6M — targeted internal swap no mesmo ponto da linha HO6.
+    Objetivo único: identificar o elemento mais fraco dentro de listas já boas e substituir apenas esse ponto,
+    preservando família, pressão local e coerência do pacote sem abrir volume.
     """
     try:
         pkt = []
@@ -821,105 +823,8 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 key=lambda kv: (-kv[1], -float(cp_scores.get(int(kv[0]), 0.0)), ranking_pos.get(int(kv[0]), 9999), int(kv[0]))
             ) if c >= int(family_thr)
         ]
-
-        if not recurring_family:
-            return pkt, {
-                "active": True,
-                "applied": False,
-                "reason": "sem_familia_recorrente",
-                "mode": "coupled_pressure_combination",
-                "before_metrics": before_metrics,
-                "after_metrics": before_metrics,
-                "swaps": 0,
-                "listas_alteradas": 0,
-                "locked_pair_core_fit": True,
-            }
-
         strong_pairs = [pair for pair, c in sorted(pair_freq.items(), key=lambda kv: (-kv[1], kv[0])) if c >= (3 if has_cp else 2)]
         dense_pair_set = set(strong_pairs[:max(8, min(16, len(strong_pairs)))])
-        dependency_pairs = list(strong_pairs[:max(6, min(12, len(strong_pairs)))])
-
-        def functional_dependency_score(lst):
-            vals = [int(x) for x in lst[:int(n_alvo)]]
-            svals = set(vals)
-            score = 0.0
-            for pair in dependency_pairs:
-                a, b = int(pair[0]), int(pair[1])
-                pair_hist = float(pair_freq.get(tuple(sorted((a, b))), 0))
-                pair_co = pair_score(a, b)
-                if a in svals and b in svals:
-                    score += pair_hist * 0.55 + pair_co * 0.22 + 0.25
-                elif (a in svals) ^ (b in svals):
-                    score -= pair_hist * 0.28 + pair_co * 0.10 + 0.12
-            return float(score)
-
-        def set_coherence_score(lst):
-            vals = [int(x) for x in lst[:int(n_alvo)]]
-            if not vals:
-                return 0.0
-            pair_vals = []
-            weak_members = 0
-            family_hits = 0
-            for i in range(len(vals)):
-                vi = int(vals[i])
-                family_hits += 1 if int(family_freq.get(vi, 0)) >= 2 else 0
-                local_pair_support = 0.0
-                local_pair_count = 0
-                for j in range(len(vals)):
-                    if i == j:
-                        continue
-                    vj = int(vals[j])
-                    pair = tuple(sorted((vi, vj)))
-                    support = float(pair_freq.get(pair, 0)) + float(co_matrix.get(pair, 0)) * 0.25
-                    local_pair_support += support
-                    if j > i:
-                        pair_vals.append(support)
-                    local_pair_count += 1
-                if local_pair_count > 0 and (local_pair_support / float(local_pair_count)) < 1.15:
-                    weak_members += 1
-            pair_avg = (sum(pair_vals) / float(len(pair_vals))) if pair_vals else 0.0
-            family_bonus = float(family_hits) / float(max(1, len(vals)))
-            weak_penalty = float(weak_members) / float(max(1, len(vals)))
-            return float(pair_avg) * 0.56 + float(family_bonus) * 0.42 - float(weak_penalty) * 0.48
-
-        def recurring_group_preservation_score(lst):
-            vals = [int(x) for x in lst[:int(n_alvo)]]
-            svals = set(vals)
-            if len(vals) < 4:
-                return 0.0
-            group_hits = 0.0
-            group_breaks = 0.0
-            # trincas e quartetos mais recorrentes do top atual
-            trip_candidates = []
-            quad_candidates = []
-            try:
-                from itertools import combinations
-                local_tri = {}
-                local_quad = {}
-                for top_lst in top:
-                    top_vals = [int(x) for x in top_lst[:int(n_alvo)]]
-                    for tri in combinations(sorted(top_vals), 3):
-                        local_tri[tri] = local_tri.get(tri, 0) + 1
-                    for quad in combinations(sorted(top_vals), 4):
-                        local_quad[quad] = local_quad.get(quad, 0) + 1
-                trip_candidates = [tri for tri, c in sorted(local_tri.items(), key=lambda kv: (-kv[1], kv[0])) if c >= 2][:8]
-                quad_candidates = [qd for qd, c in sorted(local_quad.items(), key=lambda kv: (-kv[1], kv[0])) if c >= 2][:6]
-            except Exception:
-                trip_candidates = []
-                quad_candidates = []
-            for tri in trip_candidates:
-                inter = len(svals.intersection(tri))
-                if inter == 3:
-                    group_hits += 0.55
-                elif inter == 2:
-                    group_breaks += 0.35
-            for quad in quad_candidates:
-                inter = len(svals.intersection(quad))
-                if inter == 4:
-                    group_hits += 0.85
-                elif inter == 3:
-                    group_breaks += 0.45
-            return float(group_hits) - float(group_breaks)
 
         def pair_score(a, b):
             pair = tuple(sorted((int(a), int(b))))
@@ -931,59 +836,47 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             for i in range(len(vals)):
                 for j in range(i + 1, len(vals)):
                     pair = tuple(sorted((int(vals[i]), int(vals[j]))))
-                    dens += float(pair_freq.get(pair, 0)) * 0.34
-                    dens += pair_score(vals[i], vals[j]) * 0.18
-                    dens += (0.22 if pair in dense_pair_set else 0.0)
+                    dens += float(pair_freq.get(pair, 0)) * 0.36
+                    dens += pair_score(vals[i], vals[j]) * 0.20
+                    dens += (0.24 if pair in dense_pair_set else 0.0)
             return float(dens)
+
+        def member_support(lst, member):
+            vals = [int(x) for x in lst[:int(n_alvo)]]
+            m = int(member)
+            support = float(cp_scores.get(m, 0.0)) * 0.28
+            support += float(freq.get(m, 0)) * 0.16
+            support += float(family_freq.get(m, 0)) * 0.30
+            for other in vals:
+                if int(other) == m:
+                    continue
+                pair = tuple(sorted((m, int(other))))
+                support += float(pair_freq.get(pair, 0)) * 0.52
+                support += pair_score(m, int(other)) * 0.18
+                support += (0.20 if pair in dense_pair_set else 0.0)
+            return float(support)
 
         def list_internal_score(lst):
             vals = [int(x) for x in lst[:int(n_alvo)]]
-            score = 0.0
-            for i in range(len(vals)):
-                va = int(vals[i])
-                score += float(cp_scores.get(va, 0.0)) * 0.22
-                score += float(freq.get(va, 0)) * 0.10
-                score += float(family_freq.get(va, 0)) * 0.24
-                for j in range(i + 1, len(vals)):
-                    score += pair_score(va, vals[j]) * 0.16
-                    _pair_cur = tuple(sorted((va, int(vals[j]))))
-                    score += float(pair_freq.get(_pair_cur, 0)) * 0.30
-                    score += (0.14 if _pair_cur in dense_pair_set else 0.0)
-            return float(score)
-
-        def local_pressure_score(lst):
-            vals = [int(x) for x in lst[:int(n_alvo)]]
-            score = 0.0
-            for v in vals:
-                score += float(cp_scores.get(int(v), 0.0)) * 0.62
-                score += float(freq.get(int(v), 0)) * 0.14
-                score += float(family_freq.get(int(v), 0)) * 0.18
-            return float(score)
+            return sum(member_support(vals, v) for v in vals)
 
         def candidate_gain(base_lst, drop_v, add_v):
             kept = [int(v) for v in base_lst if int(v) != int(drop_v)]
-            gain = float(cp_scores.get(int(add_v), 0.0) - cp_scores.get(int(drop_v), 0.0)) * 0.18
-            gain += float(freq.get(int(add_v), 0) - freq.get(int(drop_v), 0)) * 0.08
-            gain += float(family_freq.get(int(add_v), 0) - family_freq.get(int(drop_v), 0)) * 0.22
+            gain = float(cp_scores.get(int(add_v), 0.0) - cp_scores.get(int(drop_v), 0.0)) * 0.22
+            gain += float(freq.get(int(add_v), 0) - freq.get(int(drop_v), 0)) * 0.10
+            gain += float(family_freq.get(int(add_v), 0) - family_freq.get(int(drop_v), 0)) * 0.26
             for v in kept:
                 pair = tuple(sorted((int(add_v), int(v))))
                 pair_old = tuple(sorted((int(drop_v), int(v))))
-                gain += (pair_score(int(add_v), int(v)) - pair_score(int(drop_v), int(v))) * 0.14
-                gain += (float(pair_freq.get(pair, 0)) - float(pair_freq.get(pair_old, 0))) * 0.32
-                gain += (0.14 if pair in dense_pair_set else 0.0) - (0.14 if pair_old in dense_pair_set else 0.0)
+                gain += (float(pair_freq.get(pair, 0)) - float(pair_freq.get(pair_old, 0))) * 0.44
+                gain += (pair_score(int(add_v), int(v)) - pair_score(int(drop_v), int(v))) * 0.16
+                gain += (0.18 if pair in dense_pair_set else 0.0) - (0.18 if pair_old in dense_pair_set else 0.0)
             return float(gain)
 
-        def anchor_pair_lock_gain(base_lst, drop_v, add_v, anchors):
-            kept = [int(v) for v in base_lst if int(v) != int(drop_v)]
-            lock_vals = [int(v) for v in anchors if int(v) in kept]
-            gain = 0.0
-            for v in lock_vals:
-                new_pair = tuple(sorted((int(add_v), int(v))))
-                old_pair = tuple(sorted((int(drop_v), int(v))))
-                gain += (float(pair_freq.get(new_pair, 0)) - float(pair_freq.get(old_pair, 0))) * 0.46
-                gain += (pair_score(int(add_v), int(v)) - pair_score(int(drop_v), int(v))) * 0.16
-                gain += (0.16 if new_pair in dense_pair_set else 0.0) - (0.16 if old_pair in dense_pair_set else 0.0)
-            return float(gain)
+        def weak_signature(lst):
+            vals = [int(x) for x in lst[:int(n_alvo)]]
+            ordered = sorted(vals, key=lambda v: (member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))
+            return ordered[0], ordered[1:min(3, len(ordered))]
 
         new_top = [list(x) for x in top]
         swaps = 0
@@ -991,136 +884,87 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         candidates_used = []
 
         target_indices = sorted(
-            list(range(2, len(new_top))),
-            key=lambda idx: (
-                list_internal_score(new_top[idx])
-                + functional_dependency_score(new_top[idx]) * 0.16
-                + set_coherence_score(new_top[idx]) * 0.40
-                + recurring_group_preservation_score(new_top[idx]) * 0.62,
-                idx,
-            )
-        )[:2]
+            list(range(0, len(new_top))),
+            key=lambda idx: (weak_signature(new_top[idx])[0] in recurring_family, member_support(new_top[idx], weak_signature(new_top[idx])[0]), idx)
+        )[:3]
 
         for idx in target_indices:
             if swaps >= 1:
                 break
-
             lst = list(new_top[idx])
-            preserved = sorted(
-                lst,
-                key=lambda v: (
-                    -(float(family_freq.get(int(v), 0)) * 1.2 + packet_pair_density([x for x in lst if x == v] + [o for o in lst if o != v]) * 0.0 + sum(float(pair_freq.get(tuple(sorted((int(v), int(o)))), 0)) for o in lst if int(o) != int(v)) * 0.45),
-                    ranking_pos.get(int(v), 9999),
-                    int(v),
-                )
-            )[:(3 if not has_cp else 3)]
+            vals = [int(x) for x in lst[:int(n_alvo)]]
 
-            weak_candidates = [
-                int(v) for v in sorted(
-                    lst,
-                    key=lambda v: (
-                        sum(float(pair_freq.get(tuple(sorted((int(v), int(o)))), 0)) for o in lst if int(o) != int(v)) * 0.55
-                        + float(family_freq.get(int(v), 0)) * 0.75
-                        + float(cp_scores.get(int(v), 0.0)) * 1.4,
-                        family_freq.get(int(v), 0),
-                        ranking_pos.get(int(v), 9999),
-                        int(v),
-                    )
-                ) if int(v) not in preserved
-            ]
-            if not weak_candidates:
-                continue
+            # preserva o núcleo mais forte e escolhe explicitamente o elemento mais fraco para troca
+            ranked_members = sorted(vals, key=lambda v: (-member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))
+            anchors = ranked_members[:3]
+            drop = sorted([v for v in vals if v not in anchors], key=lambda v: (member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))[0]
 
-            drop = int(weak_candidates[0])
-            anchor_core = list(preserved[:min(3, len(preserved))])
             candidate_pool = []
             for pair in strong_pairs:
-                if sum(1 for a in pair if int(a) in anchor_core) >= 1:
+                if any(int(a) in anchors for a in pair):
                     for member in pair:
                         im = int(member)
-                        if im not in lst and im not in candidate_pool:
+                        if im not in vals and im not in candidate_pool:
                             candidate_pool.append(im)
-            for cand in recurring_family + ranking[:14]:
+            for cand in recurring_family + ranking[:18]:
                 ic = int(cand)
-                if ic not in lst and ic not in candidate_pool:
+                if ic not in vals and ic not in candidate_pool:
                     candidate_pool.append(ic)
 
             best_add = None
             best_total = None
             best_gain = None
-            best_lock = None
             for cand in candidate_pool:
                 ic = int(cand)
-                if ic in lst:
+                trial = sorted(dict.fromkeys([int(v) for v in vals if int(v) != int(drop)] + [ic]))[:int(n_alvo)]
+                if len(trial) != int(n_alvo):
                     continue
-                comb_gain = candidate_gain(lst, drop, ic)
-                lock_gain = anchor_pair_lock_gain(lst, drop, ic, anchor_core)
-                trial_list = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(ic)]))[:int(n_alvo)]
-                if len(trial_list) != int(n_alvo):
-                    continue
-                pressure_gain = local_pressure_score(trial_list) - local_pressure_score(lst)
-                density_gain = packet_pair_density(trial_list) - packet_pair_density(lst)
-                dependency_gain = functional_dependency_score(trial_list) - functional_dependency_score(lst)
-                coherence_gain = set_coherence_score(trial_list) - set_coherence_score(lst)
-                group_gain = recurring_group_preservation_score(trial_list) - recurring_group_preservation_score(lst)
-                total = float(comb_gain) + float(lock_gain) * 0.16 + float(density_gain) * 0.14 + float(pressure_gain) * 0.03 + float(dependency_gain) * 0.20 + float(coherence_gain) * 0.58 + float(group_gain) * 0.62
+                comb_gain = candidate_gain(vals, drop, ic)
+                old_internal = list_internal_score(vals)
+                new_internal = list_internal_score(trial)
+                old_density = packet_pair_density(vals)
+                new_density = packet_pair_density(trial)
+                anchor_gain = 0.0
+                for a in anchors:
+                    npair = tuple(sorted((ic, int(a))))
+                    opair = tuple(sorted((int(drop), int(a))))
+                    anchor_gain += (float(pair_freq.get(npair, 0)) - float(pair_freq.get(opair, 0))) * 0.52
+                    anchor_gain += (pair_score(ic, int(a)) - pair_score(int(drop), int(a))) * 0.18
+                    anchor_gain += (0.20 if npair in dense_pair_set else 0.0) - (0.20 if opair in dense_pair_set else 0.0)
+                total = float(comb_gain) + float(anchor_gain) + (new_internal - old_internal) * 0.44 + (new_density - old_density) * 0.28
                 if best_total is None or total > best_total:
                     best_total = total
                     best_gain = comb_gain
-                    best_lock = lock_gain
                     best_add = ic
+                    best_old_internal = old_internal
+                    best_new_internal = new_internal
+                    best_old_density = old_density
+                    best_new_density = new_density
+                    best_anchor_gain = anchor_gain
 
             if best_add is None or best_total is None or best_total <= 0.0:
                 continue
 
-            nova = sorted(dict.fromkeys([int(v) for v in lst if int(v) != drop] + [int(best_add)]))[:int(n_alvo)]
+            nova = sorted(dict.fromkeys([int(v) for v in vals if int(v) != int(drop)] + [int(best_add)]))[:int(n_alvo)]
             if len(nova) != int(n_alvo):
                 continue
 
             trial_top = [list(x) for x in new_top]
             trial_top[idx] = list(nova)
             trial_metrics = _packet_metrics(trial_top)
-
             unique_before = int(before_metrics.get("passageiros_unicos", 0))
             overlap_before = float(before_metrics.get("sobreposicao_media", 0.0))
             unique_after = int(trial_metrics.get("passageiros_unicos", 0))
             overlap_after = float(trial_metrics.get("sobreposicao_media", 0.0))
 
-            if unique_after > unique_before:
+            # HO6M: swap cirúrgico, sem abrir pacote; aceita leve oscilação de overlap desde que não rompa a coerência
+            if unique_after > max(20, unique_before):
                 continue
-            if unique_after < max(0, unique_before - 1):
+            if overlap_after < max(1.68, overlap_before - 0.08):
                 continue
-            if unique_after > 20:
+            if best_new_internal <= best_old_internal:
                 continue
-            if overlap_after < max(1.70, overlap_before - 0.005):
-                continue
-            if overlap_after > overlap_before + 0.01:
-                continue
-
-            old_internal = list_internal_score(lst)
-            new_internal = list_internal_score(nova)
-            old_pressure = local_pressure_score(lst)
-            new_pressure = local_pressure_score(nova)
-            old_density = packet_pair_density(lst)
-            new_density = packet_pair_density(nova)
-            old_dependency = functional_dependency_score(lst)
-            new_dependency = functional_dependency_score(nova)
-            old_coherence = set_coherence_score(lst)
-            new_coherence = set_coherence_score(nova)
-            old_group = recurring_group_preservation_score(lst)
-            new_group = recurring_group_preservation_score(nova)
-
-            if new_internal <= old_internal:
-                continue
-            if new_density <= old_density:
-                continue
-            if new_pressure + 1e-9 < old_pressure:
-                continue
-            if new_dependency + 1e-9 < old_dependency:
-                continue
-            if new_coherence <= old_coherence + 0.02:
-                continue
-            if new_group + 1e-9 < old_group:
+            if best_new_density + 1e-9 < best_old_density:
                 continue
 
             new_top[idx] = list(nova)
@@ -1133,20 +977,13 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "add": int(best_add),
                 "total_gain": round(float(best_total), 4),
                 "comb_gain": round(float(best_gain), 4),
-                "pair_lock_gain": round(float(best_lock if best_lock is not None else 0.0), 4),
-                "old_internal_score": round(float(old_internal), 4),
-                "new_internal_score": round(float(new_internal), 4),
-                "old_pair_density": round(float(old_density), 4),
-                "new_pair_density": round(float(new_density), 4),
-                "old_pressure_score": round(float(old_pressure), 4),
-                "new_pressure_score": round(float(new_pressure), 4),
-                "old_dependency_score": round(float(old_dependency), 4),
-                "new_dependency_score": round(float(new_dependency), 4),
-                "old_coherence_score": round(float(old_coherence), 4),
-                "new_coherence_score": round(float(new_coherence), 4),
-                "old_group_score": round(float(old_group), 4),
-                "new_group_score": round(float(new_group), 4),
-                "anchors": [int(v) for v in anchor_core],
+                "anchor_gain": round(float(best_anchor_gain), 4),
+                "old_internal_score": round(float(best_old_internal), 4),
+                "new_internal_score": round(float(best_new_internal), 4),
+                "old_pair_density": round(float(best_old_density), 4),
+                "new_pair_density": round(float(best_new_density), 4),
+                "anchors": [int(v) for v in anchors],
+                "targeted_internal_swap": True,
             })
 
         final_packet = new_top + tail
@@ -1156,7 +993,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "active": True,
             "applied": bool(swaps > 0 and final_packet != pkt),
             "reason": "ok" if swaps > 0 else "sem_swap_elegivel",
-            "mode": "coupled_pressure_combination",
+            "mode": "targeted_internal_swap",
             "before_metrics": _packet_metrics(top),
             "after_metrics": after_metrics,
             "swaps": int(swaps),
@@ -1166,9 +1003,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "family_size": int(len(recurring_family)),
             "family_preview": recurring_family[:8],
             "top_k": int(top_k),
-            "final_slot_alignment": True,
-            "dependency_pairs_preview": [list(p) for p in dependency_pairs[:6]],
-            "coherence_target": "final_slot_alignment",
+            "targeted_internal_swap": True,
             "has_cp": bool(has_cp),
         }
     except Exception as e:
@@ -1179,12 +1014,12 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
     try:
         pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
         try:
-            st.session_state["v16h57HO6L_generator_call_count"] = int(st.session_state.get("v16h57HO6L_generator_call_count", 0)) + 1
-            _steps = st.session_state.get("v16h57HO6L_generator_call_steps")
+            st.session_state["v16h57HO6M_generator_call_count"] = int(st.session_state.get("v16h57HO6M_generator_call_count", 0)) + 1
+            _steps = st.session_state.get("v16h57HO6M_generator_call_steps")
             if not isinstance(_steps, list):
                 _steps = []
-            _steps.append({"count": int(st.session_state.get("v16h57HO6L_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
-            st.session_state["v16h57HO6L_generator_call_steps"] = _steps
+            _steps.append({"count": int(st.session_state.get("v16h57HO6M_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
+            st.session_state["v16h57HO6M_generator_call_steps"] = _steps
         except Exception:
             pass
         base = []
@@ -1471,11 +1306,11 @@ def v16h57FS_clear_mode6_packet_state():
         "bloco_c_info",
         "postura_respiravel_info",
         "postura_respiravel_memoria",
-        "v16h57HO6L_auditor",
-        "v16h57HO6L_generator_call_count",
-        "v16h57HO6L_generator_call_steps",
-        "v16h57HO6L_pre_sanidade_top10",
-        "v16h57HO6L_post_sanidade_top10",
+        "v16h57HO6M_auditor",
+        "v16h57HO6M_generator_call_count",
+        "v16h57HO6M_generator_call_steps",
+        "v16h57HO6M_pre_sanidade_top10",
+        "v16h57HO6M_post_sanidade_top10",
     ]
     try:
         for k in keys:
@@ -1492,16 +1327,16 @@ def v16h57FS_clear_mode6_packet_state():
 # V16h57HO6A — AUDITOR AUTOMÁTICO DO BUILD
 # Valida unicidade, ponto vivo, pré-sanidade, mudança real e consistência
 # ============================================================
-def pc_v16_build_auditor_ho6l(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
+def pc_v16_build_auditor_ho6m(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
     try:
         npgen_info = npgen_info if isinstance(npgen_info, dict) else {}
         fm = npgen_info.get("final_mount_info") if isinstance(npgen_info.get("final_mount_info"), dict) else {}
         cp = npgen_info.get("conversion_pressure") if isinstance(npgen_info.get("conversion_pressure"), dict) else {}
 
-        gen_calls = int(st.session_state.get("v16h57HO6L_generator_call_count", 0) or 0)
+        gen_calls = int(st.session_state.get("v16h57HO6M_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) == "coupled_pressure_combination"
+        fm_mode_ok = str(fm.get("mode", "")) == "targeted_internal_swap"
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
 
@@ -1554,14 +1389,14 @@ def pc_v16_build_auditor_ho6l(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_nao_detectada_no_top10"
 
-        st.session_state["v16h57HO6L_auditor"] = auditor
+        st.session_state["v16h57HO6M_auditor"] = auditor
         return auditor
     except Exception as e:
         auditor = {
             "status": "INVALIDO",
             "motivo": f"auditor_erro: {e}",
             "unicidade": "FALHA",
-            "generator_call_count": int(st.session_state.get("v16h57HO6L_generator_call_count", 0) or 0),
+            "generator_call_count": int(st.session_state.get("v16h57HO6M_generator_call_count", 0) or 0),
             "ponto_fluxo": "FALHA",
             "antes_sanidade": "OK",
             "mudou_pacote": "NAO",
@@ -1569,7 +1404,7 @@ def pc_v16_build_auditor_ho6l(*, npgen_info=None, pre_sanidade_top10=None, post_
             "consistencia_intervencao": "FALHA",
         }
         try:
-            st.session_state["v16h57HO6L_auditor"] = auditor
+            st.session_state["v16h57HO6M_auditor"] = auditor
         except Exception:
             pass
         return auditor
@@ -16847,9 +16682,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
     st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
     try:
-        st.session_state["v16h57HO6L_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
+        st.session_state["v16h57HO6M_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6L_pre_sanidade_top10"] = []
+        st.session_state["v16h57HO6M_pre_sanidade_top10"] = []
     try:
         pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
@@ -17190,20 +17025,20 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     try:
-        st.session_state["v16h57HO6L_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
+        st.session_state["v16h57HO6M_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6L_post_sanidade_top10"] = []
+        st.session_state["v16h57HO6M_post_sanidade_top10"] = []
 
     try:
-        _auditor_ho6 = pc_v16_build_auditor_ho6l(
+        _auditor_ho6 = pc_v16_build_auditor_ho6m(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
-            pre_sanidade_top10=st.session_state.get("v16h57HO6L_pre_sanidade_top10") or [],
-            post_sanidade_top10=st.session_state.get("v16h57HO6L_post_sanidade_top10") or [],
+            pre_sanidade_top10=st.session_state.get("v16h57HO6M_pre_sanidade_top10") or [],
+            post_sanidade_top10=st.session_state.get("v16h57HO6M_post_sanidade_top10") or [],
         )
     except Exception as _aud_e:
         _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
 
-    st.markdown("### 🔎 AUDITOR HO6L")
+    st.markdown("### 🔎 AUDITOR HO6M")
     if str((_auditor_ho6 or {}).get("status", "")) == "OK":
         st.success("status: OK")
     else:
