@@ -1,4 +1,4 @@
-# --- v16h57HO6R_CLEAN_REAL PACKET COVERAGE REBALANCE AUDITOR BANNER OK ---
+# --- v16h57HO6S_CLEAN_REAL PACKET COVERAGE REBALANCE AUDITOR BANNER OK ---
 from __future__ import annotations
 
 # ============================================================
@@ -519,17 +519,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6R_CLEAN_REAL — SELECTION-AWARE RANKING REFINEMENT + AUDITOR + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6S_CLEAN_REAL — FAMILY PHASE ROTATION CONTROLLED + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6R_CLEAN_REAL — SELECTION-AWARE RANKING REFINEMENT + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6R_CLEAN_REAL_SELECTION_AWARE_RANKING_REFINEMENT_AUDITOR_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6S_CLEAN_REAL — FAMILY PHASE ROTATION CONTROLLED + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6S_CLEAN_REAL_FAMILY_PHASE_ROTATION_CONTROLLED_AUDITOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-19_04 (HO6R_CLEAN_REAL_SELECTION_AWARE_RANKING_REFINEMENT)"
+WATERMARK = "2026-04-19_05 (HO6S_CLEAN_REAL_FAMILY_PHASE_ROTATION_CONTROLLED)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6R CLEAN REAL — BUILD AUDITÁVEL (selection-aware ranking refinement)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6S CLEAN REAL — BUILD AUDITÁVEL (family phase rotation controlled)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -750,9 +750,9 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6R — selection-aware ranking refinement no mesmo ponto da linha HO6.
-    Objetivo único: manter o gerador e as listas intactos, mas refinar a SELEÇÃO do Top10,
-    priorizando listas já geradas com melhor potencial de conversão do pacote.
+    HO6S — family phase rotation controlled no mesmo ponto da linha HO6.
+    Objetivo único: manter listas e gerador intactos, mas rotacionar de forma controlada
+    qual família estrutural lidera o pacote, buscando melhor alinhamento temporal sem abrir o sistema.
     Não cria motor novo. Não altera Camada 4. Não mexe no pipeline.
     """
     try:
@@ -797,7 +797,6 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "hash": hash(str(packet_lists or [])),
             }
 
-        # stats over whole candidate packet
         freq = {}
         pair_freq = {}
         for lst in pkt:
@@ -813,53 +812,151 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             vals = [int(x) for x in lst[:int(n_alvo)]]
             score = 0.0
             for v in vals:
-                score += float(cp_scores.get(v, 0.0)) * 0.18
-                score += float(freq.get(v, 0)) * 0.16
-                score += max(0.0, 1.0 - (ranking_pos.get(v, 9999) / max(1, len(ranking) if ranking else 1))) * 0.12
+                score += float(cp_scores.get(v, 0.0)) * 0.15
+                score += float(freq.get(v, 0)) * 0.18
+                score += max(0.0, 1.0 - (ranking_pos.get(v, 9999) / max(1, len(ranking) if ranking else 1))) * 0.10
             for i in range(len(vals)):
                 for j in range(i + 1, len(vals)):
                     pair = tuple(sorted((vals[i], vals[j])))
-                    score += float(pair_freq.get(pair, 0)) * 0.46
-                    score += pair_score(vals[i], vals[j]) * 0.16
+                    score += float(pair_freq.get(pair, 0)) * 0.42
+                    score += pair_score(vals[i], vals[j]) * 0.14
             return float(score)
 
-        def marginal_gain(selected, candidate):
-            cand = [int(x) for x in candidate[:int(n_alvo)]]
-            if not selected:
-                return list_internal_score(cand)
-            cand_set = set(cand)
-            uniq_bonus = len(cand_set - set(x for lst in selected for x in lst)) * 0.55
-            overlap_penalty = 0.0
-            bridge_bonus = 0.0
-            for lst in selected:
-                s = set(int(x) for x in lst[:int(n_alvo)])
-                ov = len(cand_set.intersection(s))
-                overlap_penalty += max(0, ov - 2) * 0.62
-                # allow moderate overlap when pairs are strong and conversion-relevant
-                for a in cand:
-                    for b in s:
-                        bridge_bonus += pair_score(a, b) * 0.015
-            return float(list_internal_score(cand) + uniq_bonus + bridge_bonus - overlap_penalty)
+        # Detecta famílias a partir de pares recorrentes e vizinhança compartilhada
+        sorted_pairs = [p for p, c in sorted(pair_freq.items(), key=lambda kv: (-kv[1], kv[0])) if c >= 2]
+        family_cores = []
+        used_anchor_pairs = set()
+        for pair in sorted_pairs:
+            if len(family_cores) >= 4:
+                break
+            if pair in used_anchor_pairs:
+                continue
+            members = set(int(x) for x in pair)
+            for v, c in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0])):
+                if v in members:
+                    continue
+                link = 0.0
+                for a in pair:
+                    link += float(pair_freq.get(tuple(sorted((int(v), int(a)))), 0))
+                    link += pair_score(int(v), int(a)) * 0.35
+                if link >= 2.0:
+                    members.add(int(v))
+                if len(members) >= 4:
+                    break
+            family_cores.append(sorted(members)[:4])
+            used_anchor_pairs.add(pair)
+        if not family_cores:
+            seed_lists = pkt[:min(3, len(pkt))]
+            family_cores = [sorted(set(int(x) for x in lst[:min(4, len(lst))]))[:4] for lst in seed_lists]
+
+        def family_affinity(lst, family):
+            vals = [int(x) for x in lst[:int(n_alvo)]]
+            fam = [int(x) for x in family]
+            inter = len(set(vals).intersection(fam)) * 1.10
+            pair_aff = 0.0
+            for a in vals:
+                for b in fam:
+                    if a == b:
+                        continue
+                    pair_aff += float(pair_freq.get(tuple(sorted((int(a), int(b)))), 0)) * 0.18
+                    pair_aff += pair_score(int(a), int(b)) * 0.06
+            return float(inter + pair_aff)
+
+        list_family_scores = []
+        for idx, lst in enumerate(pkt):
+            scores = [family_affinity(lst, fam) for fam in family_cores]
+            if scores:
+                best_f = int(max(range(len(scores)), key=lambda i: scores[i]))
+                second = sorted(scores, reverse=True)[1] if len(scores) > 1 else 0.0
+                margin = float(max(scores) - second)
+            else:
+                best_f = 0
+                margin = 0.0
+                scores = [0.0]
+            list_family_scores.append({
+                "idx": int(idx),
+                "list": list(lst),
+                "family_idx": int(best_f),
+                "margin": float(margin),
+                "internal": float(list_internal_score(lst)),
+                "scores": scores,
+            })
 
         before_top = [list(x) for x in pkt[:top_k]]
         before_metrics = packet_metrics(before_top)
+        before_top_family_count = {}
+        for item in list_family_scores[:top_k]:
+            f = int(item["family_idx"])
+            before_top_family_count[f] = before_top_family_count.get(f, 0) + 1
+        all_family_count = {}
+        for item in list_family_scores:
+            f = int(item["family_idx"])
+            all_family_count[f] = all_family_count.get(f, 0) + 1
 
-        remaining = [list(x) for x in pkt]
+        dominant_family = max(all_family_count, key=lambda f: (all_family_count[f], -f)) if all_family_count else 0
+        phase_family = dominant_family
+        best_phase_gain = None
+        for f, cnt in all_family_count.items():
+            if f == dominant_family:
+                continue
+            under_repr = float(cnt) - float(before_top_family_count.get(f, 0))
+            if under_repr <= 0:
+                continue
+            support = sum(item["internal"] for item in list_family_scores if int(item["family_idx"]) == int(f)) / max(1, cnt)
+            phase_gain = under_repr * 1.0 + support * 0.02
+            if best_phase_gain is None or phase_gain > best_phase_gain:
+                best_phase_gain = phase_gain
+                phase_family = int(f)
+        if phase_family == dominant_family and len(all_family_count) > 1:
+            # fallback: pega segunda melhor família do pacote inteiro
+            phase_family = sorted(all_family_count.keys(), key=lambda f: (-all_family_count[f], f))[1]
+
+        # seleção com rotação controlada: alterna família fase e dominante no topo, sem explodir cobertura
         selected = []
-        selected_indices = []
-        # seed with strongest list by internal score, then greedy packet-aware selection
-        while remaining and len(selected) < top_k:
-            best_idx = None
-            best_gain = None
-            for i, cand in enumerate(remaining):
-                gain = marginal_gain(selected, cand)
-                if best_gain is None or gain > best_gain:
-                    best_gain = gain
-                    best_idx = i
-            selected.append(remaining.pop(best_idx))
-            selected_indices.append(int(best_idx))
+        selected_idxs = set()
+        rotation_pattern = []
+        for i in range(top_k):
+            if i < 4 and phase_family != dominant_family:
+                rotation_pattern.append(phase_family if i % 2 == 0 else dominant_family)
+            else:
+                rotation_pattern.append(dominant_family)
 
-        # append leftovers preserving order among non-selected originals
+        flat_selected = set()
+        for desired_family in rotation_pattern:
+            candidates = [item for item in list_family_scores if item["idx"] not in selected_idxs and int(item["family_idx"]) == int(desired_family)]
+            if not candidates:
+                candidates = [item for item in list_family_scores if item["idx"] not in selected_idxs]
+            best = None
+            best_score = None
+            for item in candidates:
+                vals = set(int(x) for x in item["list"])
+                coverage_gain = len(vals - flat_selected) * 0.52
+                overlap_pen = 0.0
+                for prev in selected:
+                    overlap_pen += max(0, len(vals.intersection(set(prev))) - 2) * 0.38
+                phase_bonus = 0.35 if int(item["family_idx"]) == int(phase_family) and len(selected) < 4 else 0.0
+                dom_bonus = 0.18 if int(item["family_idx"]) == int(dominant_family) else 0.0
+                score = float(item["internal"] * 0.42 + item["margin"] * 0.35 + coverage_gain + phase_bonus + dom_bonus - overlap_pen)
+                if best_score is None or score > best_score:
+                    best_score = score
+                    best = item
+            if best is None:
+                continue
+            selected.append(list(best["list"]))
+            selected_idxs.add(int(best["idx"]))
+            flat_selected.update(int(x) for x in best["list"])
+            if len(selected) >= top_k:
+                break
+
+        if len(selected) < top_k:
+            for item in list_family_scores:
+                if item["idx"] in selected_idxs:
+                    continue
+                selected.append(list(item["list"]))
+                selected_idxs.add(int(item["idx"]))
+                if len(selected) >= top_k:
+                    break
+
         sel_keys = {tuple(lst) for lst in selected}
         tail = [list(x) for x in pkt if tuple(x) not in sel_keys]
         final_packet = selected + tail
@@ -869,18 +966,24 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         return final_packet, {
             "active": True,
             "applied": applied,
-            "reason": "ok" if applied else "sem_reordenacao_elegivel",
-            "mode": "selection_aware_ranking_refinement",
+            "reason": "ok" if applied else "sem_rotacao_elegivel",
+            "mode": "family_phase_rotation_controlled",
             "before_metrics": before_metrics,
             "after_metrics": after_metrics,
             "swaps": 0,
-            "listas_alteradas": int(sum(1 for a,b in zip(before_top, selected) if a != b)),
+            "listas_alteradas": int(sum(1 for a, b in zip(before_top, selected) if a != b)),
             "changed_indices": list(range(int(min(len(before_top), len(selected))))) if applied else [],
-            "candidates_used": [{"selection_reordered": True, "selected_qtd": int(len(selected))}],
-            "family_size": 0,
-            "family_preview": [],
+            "candidates_used": [{
+                "family_phase_rotation_controlled": True,
+                "selected_qtd": int(len(selected)),
+                "dominant_family": int(dominant_family),
+                "phase_family": int(phase_family),
+                "family_cores": [list(map(int, fam)) for fam in family_cores[:4]],
+            }],
+            "family_size": int(len(family_cores)),
+            "family_preview": [list(map(int, fam)) for fam in family_cores[:3]],
             "top_k": int(top_k),
-            "selection_aware_ranking_refinement": True,
+            "family_phase_rotation_controlled": True,
             "has_cp": bool(any(float(v) > 0.0 for v in cp_scores.values())),
         }
     except Exception as e:
@@ -890,12 +993,12 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
     try:
         pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
         try:
-            st.session_state["v16h57HO6R_generator_call_count"] = int(st.session_state.get("v16h57HO6R_generator_call_count", 0)) + 1
-            _steps = st.session_state.get("v16h57HO6R_generator_call_steps")
+            st.session_state["v16h57HO6S_generator_call_count"] = int(st.session_state.get("v16h57HO6S_generator_call_count", 0)) + 1
+            _steps = st.session_state.get("v16h57HO6S_generator_call_steps")
             if not isinstance(_steps, list):
                 _steps = []
-            _steps.append({"count": int(st.session_state.get("v16h57HO6R_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
-            st.session_state["v16h57HO6R_generator_call_steps"] = _steps
+            _steps.append({"count": int(st.session_state.get("v16h57HO6S_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
+            st.session_state["v16h57HO6S_generator_call_steps"] = _steps
         except Exception:
             pass
         base = []
@@ -985,7 +1088,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     )
                 )
 
-                # v16h57HO6R_CLEAN_REAL — INJECAO BORDA-PERTO REAL
+                # v16h57HO6S_CLEAN_REAL — INJECAO BORDA-PERTO REAL
                 # objetivo: trazer alguns candidatos da borda util para o topo operativo,
                 # sem inventar motor novo e sem quebrar o ranking base.
                 try:
@@ -1003,7 +1106,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                             break
 
                     if inj_candidates:
-                        # v16h57HO6R_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
+                        # v16h57HO6S_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
                         extra_pool = ranking2[18:22]
                         extra_pool = sorted(
                             [int(v) for v in extra_pool],
@@ -1121,7 +1224,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
-        # v16h57HO6R_CLEAN_REAL — montagem final profunda para conversão
+        # v16h57HO6S_CLEAN_REAL — montagem final profunda para conversão
         out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
             out,
             ranking_vals=ranking2,
@@ -1182,11 +1285,11 @@ def v16h57FS_clear_mode6_packet_state():
         "bloco_c_info",
         "postura_respiravel_info",
         "postura_respiravel_memoria",
-        "v16h57HO6R_auditor",
-        "v16h57HO6R_generator_call_count",
-        "v16h57HO6R_generator_call_steps",
-        "v16h57HO6R_pre_sanidade_top10",
-        "v16h57HO6R_post_sanidade_top10",
+        "v16h57HO6S_auditor",
+        "v16h57HO6S_generator_call_count",
+        "v16h57HO6S_generator_call_steps",
+        "v16h57HO6S_pre_sanidade_top10",
+        "v16h57HO6S_post_sanidade_top10",
     ]
     try:
         for k in keys:
@@ -1203,16 +1306,16 @@ def v16h57FS_clear_mode6_packet_state():
 # V16h57HO6A — AUDITOR AUTOMÁTICO DO BUILD
 # Valida unicidade, ponto vivo, pré-sanidade, mudança real e consistência
 # ============================================================
-def pc_v16_build_auditor_ho6r(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
+def pc_v16_build_auditor_ho6s(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
     try:
         npgen_info = npgen_info if isinstance(npgen_info, dict) else {}
         fm = npgen_info.get("final_mount_info") if isinstance(npgen_info.get("final_mount_info"), dict) else {}
         cp = npgen_info.get("conversion_pressure") if isinstance(npgen_info.get("conversion_pressure"), dict) else {}
 
-        gen_calls = int(st.session_state.get("v16h57HO6R_generator_call_count", 0) or 0)
+        gen_calls = int(st.session_state.get("v16h57HO6S_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) in {"selection_aware_ranking_refinement", "selection_aware_ranking_refinement_guarded"}
+        fm_mode_ok = str(fm.get("mode", "")) in {"family_phase_rotation_controlled", "family_phase_rotation_controlled_guarded"}
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
 
@@ -1265,14 +1368,14 @@ def pc_v16_build_auditor_ho6r(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_nao_detectada_no_top10"
 
-        st.session_state["v16h57HO6R_auditor"] = auditor
+        st.session_state["v16h57HO6S_auditor"] = auditor
         return auditor
     except Exception as e:
         auditor = {
             "status": "INVALIDO",
             "motivo": f"auditor_erro: {e}",
             "unicidade": "FALHA",
-            "generator_call_count": int(st.session_state.get("v16h57HO6R_generator_call_count", 0) or 0),
+            "generator_call_count": int(st.session_state.get("v16h57HO6S_generator_call_count", 0) or 0),
             "ponto_fluxo": "FALHA",
             "antes_sanidade": "OK",
             "mudou_pacote": "NAO",
@@ -1280,7 +1383,7 @@ def pc_v16_build_auditor_ho6r(*, npgen_info=None, pre_sanidade_top10=None, post_
             "consistencia_intervencao": "FALHA",
         }
         try:
-            st.session_state["v16h57HO6R_auditor"] = auditor
+            st.session_state["v16h57HO6S_auditor"] = auditor
         except Exception:
             pass
         return auditor
@@ -1518,7 +1621,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        # fallback v16h57HO6R_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
+        # fallback v16h57HO6S_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
         if trocas == 0 and new_top10:
             try:
                 base = list(new_top10[0])
@@ -1539,7 +1642,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                 pass
 
         
-        # v16h57HO6R_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
+        # v16h57HO6S_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
         try:
             if trocas == 0 and new_top10:
                 base = list(new_top10[0])
@@ -3775,7 +3878,7 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
 def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) -> Tuple[List[List[int]], Dict[str, Any]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
-    v16h57HO6R_CLEAN_REAL:
+    v16h57HO6S_CLEAN_REAL:
     - aceita calib_override (compatível com SAFE/CAP)
     - sempre retorna (pacote, calib_meta)
     - protege o SAFE contra abortos por assinatura/estado mínimo
@@ -16525,7 +16628,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_brutas = listas_filtradas
 
     # ------------------------------------------------------------
-    # v16h57HO6R_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
+    # v16h57HO6S_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
     # ------------------------------------------------------------
     _ranking_vals_dx = []
     if "ranking2" in locals() and ranking2 is not None:
@@ -16558,9 +16661,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
     st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
     try:
-        st.session_state["v16h57HO6R_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
+        st.session_state["v16h57HO6S_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6R_pre_sanidade_top10"] = []
+        st.session_state["v16h57HO6S_pre_sanidade_top10"] = []
     try:
         pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
@@ -16901,20 +17004,20 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     try:
-        st.session_state["v16h57HO6R_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
+        st.session_state["v16h57HO6S_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6R_post_sanidade_top10"] = []
+        st.session_state["v16h57HO6S_post_sanidade_top10"] = []
 
     try:
         _auditor_ho6 = pc_v16_build_auditor_ho6r(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
-            pre_sanidade_top10=st.session_state.get("v16h57HO6R_pre_sanidade_top10") or [],
-            post_sanidade_top10=st.session_state.get("v16h57HO6R_post_sanidade_top10") or [],
+            pre_sanidade_top10=st.session_state.get("v16h57HO6S_pre_sanidade_top10") or [],
+            post_sanidade_top10=st.session_state.get("v16h57HO6S_post_sanidade_top10") or [],
         )
     except Exception as _aud_e:
         _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
 
-    st.markdown("### 🔎 AUDITOR HO6R")
+    st.markdown("### 🔎 AUDITOR HO6S")
     if str((_auditor_ho6 or {}).get("status", "")) == "OK":
         st.success("status: OK")
     else:
@@ -22298,7 +22401,7 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 # ============================================================
-# POST MODO6 AUDIT (v16h57HO6R_CLEAN_REAL)
+# POST MODO6 AUDIT (v16h57HO6S_CLEAN_REAL)
 # ============================================================
 try:
     import itertools
@@ -22379,13 +22482,13 @@ except Exception as e:
 
 
 # ============================================================
-# BUILD v16h57HO6R_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
+# BUILD v16h57HO6S_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
 # CT REAL GENERATOR HOOK (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_REAL_GENERATOR_PRE_SANIDADE"] = {
-        "build": "v16h57HO6R_CLEAN_REAL",
+        "build": "v16h57HO6S_CLEAN_REAL",
         "hook": "before_sanidade_final_listas",
         "status": "armed"
     }
@@ -22395,13 +22498,13 @@ except Exception:
 
 
 # ============================================================
-# BUILD v16h57HO6R_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57HO6S_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
 # CT REAL HOOK INSIDE GENERATOR (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_GENERATOR_PRE_SANIDADE_REAL"] = {
-        "build": "v16h57HO6R_CLEAN_REAL",
+        "build": "v16h57HO6S_CLEAN_REAL",
         "hook_point": "generator_before_sanidade",
         "status": "armed"
     }
