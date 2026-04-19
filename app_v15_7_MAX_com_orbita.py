@@ -1,4 +1,4 @@
-# --- v16h57HO6O_CLEAN_REAL MICRO_CONFIGURATION_CONDITIONAL_DOUBLE_SWAP AUDITOR BANNER OK ---
+# --- v16h57HO6P_CLEAN_REAL ROLE BASED INTERNAL REBALANCE AUDITOR BANNER OK ---
 from __future__ import annotations
 
 # ============================================================
@@ -519,17 +519,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6O_CLEAN_REAL — MICRO-CONFIGURATION CONDITIONAL DOUBLE SWAP + AUDITOR + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6P_CLEAN_REAL — ROLE-BASED INTERNAL REBALANCE + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6O_CLEAN_REAL — MICRO-CONFIGURATION CONDITIONAL DOUBLE SWAP + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6O_CLEAN_REAL_MICRO_CONFIGURATION_CONDITIONAL_DOUBLE_SWAP_AUDITOR_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6P_CLEAN_REAL — ROLE-BASED INTERNAL REBALANCE + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6P_CLEAN_REAL_ROLE_BASED_INTERNAL_REBALANCE_AUDITOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-19_03 (HO6O_CLEAN_REAL_MICRO_CONFIGURATION_CONDITIONAL_DOUBLE_SWAP)"
+WATERMARK = "2026-04-19_03 (HO6P_CLEAN_REAL_ROLE_BASED_INTERNAL_REBALANCE)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6O CLEAN REAL — BUILD AUDITÁVEL (micro-configuration conditional double swap)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6P CLEAN REAL — BUILD AUDITÁVEL (role-based internal rebalance)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -750,10 +750,10 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6O — micro-configuration conditional double swap no mesmo ponto da linha HO6.
-    Objetivo único: após HO6M e HO6O, ajustar a micro-configuração interna da lista,
-    preservando âncoras e família dominante, permitindo até 2 swaps condicionais apenas
-    quando o segundo swap aumenta a coerência interna sem abrir o pacote nem alterar o fluxo.
+    HO6P — role-based internal rebalance no mesmo ponto da linha HO6.
+    Objetivo único: sair do teto dos swaps locais e rebalancear o papel interno dos elementos da lista
+    (âncora / ponte / estabilizador / diversidade útil) com até 2 trocas condicionais, apenas quando
+    a micro-configuração interna mostrar desequilíbrio e sem abrir o pacote.
     """
     try:
         pkt = []
@@ -861,23 +861,127 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             vals = [int(x) for x in lst[:int(n_alvo)]]
             return sum(member_support(vals, v) for v in vals)
 
-        def candidate_gain(base_lst, drop_v, add_v):
-            kept = [int(v) for v in base_lst if int(v) != int(drop_v)]
-            gain = float(cp_scores.get(int(add_v), 0.0) - cp_scores.get(int(drop_v), 0.0)) * 0.22
-            gain += float(freq.get(int(add_v), 0) - freq.get(int(drop_v), 0)) * 0.10
-            gain += float(family_freq.get(int(add_v), 0) - family_freq.get(int(drop_v), 0)) * 0.26
-            for v in kept:
-                pair = tuple(sorted((int(add_v), int(v))))
-                pair_old = tuple(sorted((int(drop_v), int(v))))
-                gain += (float(pair_freq.get(pair, 0)) - float(pair_freq.get(pair_old, 0))) * 0.44
-                gain += (pair_score(int(add_v), int(v)) - pair_score(int(drop_v), int(v))) * 0.16
-                gain += (0.18 if pair in dense_pair_set else 0.0) - (0.18 if pair_old in dense_pair_set else 0.0)
-            return float(gain)
+        def role_profile(vals):
+            vals = [int(v) for v in vals[:int(n_alvo)]]
+            anchors = sorted(vals, key=lambda v: (-member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))[:2]
+            bridge = None
+            best_bridge = None
+            for v in vals:
+                if int(v) in set(anchors):
+                    continue
+                sc = 0.0
+                for a in anchors:
+                    pair = tuple(sorted((int(v), int(a))))
+                    sc += float(pair_freq.get(pair, 0)) * 0.55
+                    sc += pair_score(int(v), int(a)) * 0.20
+                    sc += (0.16 if pair in dense_pair_set else 0.0)
+                if best_bridge is None or sc > best_bridge:
+                    best_bridge = sc
+                    bridge = int(v)
+            stabilizers = [int(v) for v in vals if int(v) not in set(anchors + ([bridge] if bridge is not None else []))]
+            return anchors, bridge, stabilizers
 
-        def weak_signature(lst):
-            vals = [int(x) for x in lst[:int(n_alvo)]]
-            ordered = sorted(vals, key=lambda v: (member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))
-            return ordered[0], ordered[1:min(3, len(ordered))]
+        def role_balance_score(vals):
+            vals = [int(v) for v in vals[:int(n_alvo)]]
+            anchors, bridge, stabilizers = role_profile(vals)
+            score = 0.0
+            for a in anchors:
+                score += member_support(vals, a) * 0.44
+            if bridge is not None:
+                bridge_sc = 0.0
+                for a in anchors:
+                    pair = tuple(sorted((int(bridge), int(a))))
+                    bridge_sc += float(pair_freq.get(pair, 0)) * 0.62
+                    bridge_sc += pair_score(int(bridge), int(a)) * 0.24
+                    bridge_sc += (0.18 if pair in dense_pair_set else 0.0)
+                score += bridge_sc * 0.80
+            for s in stabilizers:
+                local = member_support(vals, s) * 0.28
+                for a in anchors:
+                    local += pair_score(int(s), int(a)) * 0.10
+                score += local
+            return float(score)
+
+        def packet_role_signature(packet_lists):
+            packet_lists = [list(x) for x in (packet_lists or [])]
+            if not packet_lists:
+                return 0.0
+            sig = 0.0
+            for lst in packet_lists:
+                sig += role_balance_score(lst)
+            return float(sig / max(1, len(packet_lists)))
+
+        def build_candidate_pool(vals, anchors, banned=None, extra=20):
+            banned = set(int(x) for x in (banned or []))
+            used = set(int(v) for v in vals)
+            pool = []
+            for pair in strong_pairs:
+                if any(int(a) in pair for a in anchors):
+                    for member in pair:
+                        im = int(member)
+                        if im not in used and im not in banned and im not in pool:
+                            pool.append(im)
+            for cand in recurring_family + ranking[:extra]:
+                ic = int(cand)
+                if ic not in used and ic not in banned and ic not in pool:
+                    pool.append(ic)
+            return pool
+
+        def pick_drop_candidates(vals, anchors, bridge):
+            role_bad = []
+            for v in vals:
+                if int(v) in set(anchors):
+                    continue
+                penalty = 0.0
+                if bridge is not None and int(v) == int(bridge):
+                    penalty += 0.18
+                penalty -= member_support(vals, v) * 0.38
+                for a in anchors:
+                    pair = tuple(sorted((int(v), int(a))))
+                    penalty += (0.24 if pair not in dense_pair_set else -0.12)
+                    penalty -= pair_score(int(v), int(a)) * 0.10
+                role_bad.append((penalty, int(v)))
+            role_bad = [v for _, v in sorted(role_bad, key=lambda kv: (kv[0], kv[1]))]
+            return role_bad[:3]
+
+        def evaluate_trial(idx, trial_vals, before_packet_metrics, base_vals):
+            trial_top = [list(x) for x in new_top]
+            trial_top[idx] = list(sorted(trial_vals))
+            trial_metrics = _packet_metrics(trial_top)
+            unique_before = int(before_packet_metrics.get("passageiros_unicos", 0))
+            overlap_before = float(before_packet_metrics.get("sobreposicao_media", 0.0))
+            unique_after = int(trial_metrics.get("passageiros_unicos", 0))
+            overlap_after = float(trial_metrics.get("sobreposicao_media", 0.0))
+            if unique_after > max(20, unique_before + 1):
+                return None
+            if overlap_after < max(1.70, overlap_before - 0.07):
+                return None
+            old_internal = list_internal_score(base_vals)
+            new_internal = list_internal_score(trial_vals)
+            old_density = packet_pair_density(base_vals)
+            new_density = packet_pair_density(trial_vals)
+            if new_internal <= old_internal:
+                return None
+            if new_density + 1e-9 < old_density:
+                return None
+            old_role = role_balance_score(base_vals)
+            new_role = role_balance_score(trial_vals)
+            packet_role_before = packet_role_signature(new_top)
+            packet_role_after = packet_role_signature(trial_top)
+            total = (new_internal - old_internal) * 0.34 + (new_density - old_density) * 0.24 + (new_role - old_role) * 0.46 + (packet_role_after - packet_role_before) * 0.38
+            if total <= 0.0:
+                return None
+            return {
+                "trial": list(sorted(trial_vals)),
+                "trial_metrics": trial_metrics,
+                "total_gain": float(total),
+                "old_internal_score": float(old_internal),
+                "new_internal_score": float(new_internal),
+                "old_pair_density": float(old_density),
+                "new_pair_density": float(new_density),
+                "old_role_score": float(old_role),
+                "new_role_score": float(new_role),
+            }
 
         new_top = [list(x) for x in top]
         packet_metrics_before = _packet_metrics(new_top)
@@ -885,265 +989,116 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         changed_indices = []
         candidates_used = []
 
-        target_indices = sorted(
-            list(range(0, len(new_top))),
-            key=lambda idx: (weak_signature(new_top[idx])[0] in recurring_family, member_support(new_top[idx], weak_signature(new_top[idx])[0]), idx)
-        )[:3]
+        def target_priority(idx):
+            vals = [int(x) for x in new_top[idx][:int(n_alvo)]]
+            anchors, bridge, stabilizers = role_profile(vals)
+            sig = role_balance_score(vals)
+            weak = min(member_support(vals, v) for v in vals if int(v) not in set(anchors)) if len(vals) > len(anchors) else 0.0
+            return (sig, weak, idx)
 
-        def _single_swap_candidate(vals, anchors, before_packet_metrics):
-            nonlocal dense_pair_set, strong_pairs, recurring_family
-            drop = sorted([v for v in vals if v not in anchors], key=lambda v: (member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))[0]
-            candidate_pool = []
-            for pair in strong_pairs:
-                if any(int(a) in anchors for a in pair):
-                    for member in pair:
-                        im = int(member)
-                        if im not in vals and im not in candidate_pool:
-                            candidate_pool.append(im)
-            for cand in recurring_family + ranking[:18]:
-                ic = int(cand)
-                if ic not in vals and ic not in candidate_pool:
-                    candidate_pool.append(ic)
-            best = None
-            old_internal = list_internal_score(vals)
-            old_density = packet_pair_density(vals)
-            for cand in candidate_pool:
-                ic = int(cand)
-                trial = sorted(dict.fromkeys([int(v) for v in vals if int(v) != int(drop)] + [ic]))[:int(n_alvo)]
-                if len(trial) != int(n_alvo):
-                    continue
-                comb_gain = candidate_gain(vals, drop, ic)
-                new_internal = list_internal_score(trial)
-                new_density = packet_pair_density(trial)
-                anchor_gain = 0.0
-                for a in anchors:
-                    npair = tuple(sorted((ic, int(a))))
-                    opair = tuple(sorted((int(drop), int(a))))
-                    anchor_gain += (float(pair_freq.get(npair, 0)) - float(pair_freq.get(opair, 0))) * 0.52
-                    anchor_gain += (pair_score(ic, int(a)) - pair_score(int(drop), int(a))) * 0.18
-                    anchor_gain += (0.20 if npair in dense_pair_set else 0.0) - (0.20 if opair in dense_pair_set else 0.0)
-                total = float(comb_gain) + float(anchor_gain) + (new_internal - old_internal) * 0.44 + (new_density - old_density) * 0.28
-                trial_top = [list(x) for x in new_top]
-                trial_top[idx] = list(trial)
-                trial_metrics = _packet_metrics(trial_top)
-                unique_before = int(before_packet_metrics.get("passageiros_unicos", 0))
-                overlap_before = float(before_packet_metrics.get("sobreposicao_media", 0.0))
-                unique_after = int(trial_metrics.get("passageiros_unicos", 0))
-                overlap_after = float(trial_metrics.get("sobreposicao_media", 0.0))
-                if unique_after > max(20, unique_before):
-                    continue
-                if overlap_after < max(1.68, overlap_before - 0.08):
-                    continue
-                if new_internal <= old_internal:
-                    continue
-                if new_density + 1e-9 < old_density:
-                    continue
-                cand_info = {
-                    "kind": "single",
-                    "drop": int(drop),
-                    "add": int(ic),
-                    "trial": list(trial),
-                    "trial_metrics": trial_metrics,
-                    "total_gain": float(total),
-                    "comb_gain": float(comb_gain),
-                    "anchor_gain": float(anchor_gain),
-                    "old_internal_score": float(old_internal),
-                    "new_internal_score": float(new_internal),
-                    "old_pair_density": float(old_density),
-                    "new_pair_density": float(new_density),
-                    "anchors": [int(v) for v in anchors],
-                }
-                if best is None or cand_info["total_gain"] > best["total_gain"]:
-                    best = cand_info
-            return best
-
-        def _coupled_swap_candidate(vals, anchors, before_packet_metrics):
-            # ajuste relacional mínimo: troca principal + troca relacional secundária apenas se necessária
-            non_anchor_vals = [int(v) for v in vals if int(v) not in set(int(a) for a in anchors)]
-            if len(non_anchor_vals) < 2:
-                return None
-            ordered_non_anchor = sorted(non_anchor_vals, key=lambda v: (member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))
-            primary_drop = int(ordered_non_anchor[0])
-            partner_drop = int(ordered_non_anchor[1])
-            partner_conflict = None
-            partner_penalty = None
-            for cand in ordered_non_anchor[1:]:
-                pen = 0.0
-                for a in anchors:
-                    pair = tuple(sorted((int(cand), int(a))))
-                    pen -= float(pair_freq.get(pair, 0)) * 0.52
-                    pen -= pair_score(int(cand), int(a)) * 0.18
-                    pen -= (0.20 if pair in dense_pair_set else 0.0)
-                if partner_penalty is None or pen < partner_penalty:
-                    partner_penalty = pen
-                    partner_conflict = int(cand)
-            if partner_conflict is None:
-                partner_conflict = partner_drop
-            used = set(int(v) for v in vals)
-            primary_pool = []
-            for pair in strong_pairs:
-                if any(int(a) in anchors for a in pair):
-                    for member in pair:
-                        im = int(member)
-                        if im not in used and im not in primary_pool:
-                            primary_pool.append(im)
-            for cand in recurring_family + ranking[:18]:
-                ic = int(cand)
-                if ic not in used and ic not in primary_pool:
-                    primary_pool.append(ic)
-            best = None
-            old_internal = list_internal_score(vals)
-            old_density = packet_pair_density(vals)
-            for add1 in primary_pool[:14]:
-                base_once = sorted(dict.fromkeys([int(v) for v in vals if int(v) != int(primary_drop)] + [int(add1)]))[:int(n_alvo)]
-                if len(base_once) != int(n_alvo):
-                    continue
-                secondary_pool = []
-                for pair in strong_pairs:
-                    if int(add1) in pair or any(int(a) in pair for a in anchors):
-                        for member in pair:
-                            im = int(member)
-                            if im not in set(base_once) and im not in secondary_pool:
-                                secondary_pool.append(im)
-                for cand in recurring_family + ranking[:22]:
-                    ic = int(cand)
-                    if ic not in set(base_once) and ic not in secondary_pool:
-                        secondary_pool.append(ic)
-                for add2 in secondary_pool[:12]:
-                    trial = sorted(dict.fromkeys([int(v) for v in vals if int(v) not in {int(primary_drop), int(partner_conflict)}] + [int(add1), int(add2)]))[:int(n_alvo)]
-                    if len(trial) != int(n_alvo):
-                        continue
-                    total = 0.0
-                    total += candidate_gain(vals, primary_drop, int(add1))
-                    total += candidate_gain(base_once, partner_conflict, int(add2)) * 0.72
-                    new_internal = list_internal_score(trial)
-                    new_density = packet_pair_density(trial)
-                    rel_gain = 0.0
-                    for a in anchors:
-                        rel_gain += pair_score(int(add2), int(a)) - pair_score(int(partner_conflict), int(a))
-                    pair_add = tuple(sorted((int(add1), int(add2))))
-                    pair_old = tuple(sorted((int(primary_drop), int(partner_conflict))))
-                    total += rel_gain * 0.20
-                    total += (float(pair_freq.get(pair_add, 0)) - float(pair_freq.get(pair_old, 0))) * 0.36
-                    total += (new_internal - old_internal) * 0.46 + (new_density - old_density) * 0.32
-                    trial_top = [list(x) for x in new_top]
-                    trial_top[idx] = list(trial)
-                    trial_metrics = _packet_metrics(trial_top)
-                    unique_before = int(before_packet_metrics.get("passageiros_unicos", 0))
-                    overlap_before = float(before_packet_metrics.get("sobreposicao_media", 0.0))
-                    unique_after = int(trial_metrics.get("passageiros_unicos", 0))
-                    overlap_after = float(trial_metrics.get("sobreposicao_media", 0.0))
-                    if unique_after > max(20, unique_before + 1):
-                        continue
-                    if overlap_after < max(1.69, overlap_before - 0.06):
-                        continue
-                    if new_internal <= old_internal:
-                        continue
-                    if new_density + 1e-9 < old_density:
-                        continue
-                    if total <= 0.0:
-                        continue
-                    cand_info = {
-                        "kind": "coupled",
-                        "drop": int(primary_drop),
-                        "add": int(add1),
-                        "drop_rel": int(partner_conflict),
-                        "add_rel": int(add2),
-                        "trial": list(trial),
-                        "trial_metrics": trial_metrics,
-                        "total_gain": float(total),
-                        "comb_gain": float(candidate_gain(vals, primary_drop, int(add1))),
-                        "anchor_gain": float(rel_gain),
-                        "old_internal_score": float(old_internal),
-                        "new_internal_score": float(new_internal),
-                        "old_pair_density": float(old_density),
-                        "new_pair_density": float(new_density),
-                        "anchors": [int(v) for v in anchors],
-                    }
-                    if best is None or cand_info["total_gain"] > best["total_gain"]:
-                        best = cand_info
-            return best
+        target_indices = [idx for _, _, idx in sorted((target_priority(i) for i in range(len(new_top))))][:3]
 
         for idx in target_indices:
-            if swaps >= 2:
+            if swaps >= 1:
                 break
             vals = [int(x) for x in new_top[idx][:int(n_alvo)]]
-            ranked_members = sorted(vals, key=lambda v: (-member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))
-            anchors = ranked_members[:3]
+            anchors, bridge, stabilizers = role_profile(vals)
+            drops = pick_drop_candidates(vals, anchors, bridge)
+            best = None
 
-            single_best = _single_swap_candidate(vals, anchors, packet_metrics_before)
-            coupled_best = None
-            if single_best is None or float(single_best.get("total_gain", 0.0)) <= 0.0 or float(single_best.get("total_gain", 0.0)) < 0.34:
-                coupled_best = _coupled_swap_candidate(vals, anchors, packet_metrics_before)
-            elif swaps == 0 and float(single_best.get("total_gain", 0.0)) < 0.46:
-                coupled_best = _coupled_swap_candidate(vals, anchors, packet_metrics_before)
+            # tentativa 1: rebalancear papel com 1 swap
+            for drop in drops:
+                pool = build_candidate_pool(vals, anchors, banned={drop}, extra=20)
+                for add in pool[:16]:
+                    trial = sorted(dict.fromkeys([int(v) for v in vals if int(v) != int(drop)] + [int(add)]))[:int(n_alvo)]
+                    if len(trial) != int(n_alvo):
+                        continue
+                    ev = evaluate_trial(idx, trial, packet_metrics_before, vals)
+                    if ev is None:
+                        continue
+                    meta = {
+                        "kind": "single_role_rebalance",
+                        "drop": int(drop),
+                        "add": int(add),
+                        "anchors": [int(v) for v in anchors],
+                        "bridge": None if bridge is None else int(bridge),
+                    }
+                    meta.update(ev)
+                    if best is None or meta["total_gain"] > best["total_gain"]:
+                        best = meta
 
-            chosen = single_best
-            if chosen is None or float(chosen.get("total_gain", 0.0)) <= 0.0:
-                if coupled_best is not None:
-                    chosen = coupled_best
-            elif coupled_best is not None and float(coupled_best.get("total_gain", 0.0)) > float(chosen.get("total_gain", 0.0)) + 0.07:
-                chosen = coupled_best
+            # tentativa 2: até 2 swaps condicionais, apenas se o rebalanceamento simples não for forte
+            if best is None or float(best.get("total_gain", 0.0)) < 0.34:
+                for drop1 in drops[:2]:
+                    pool1 = build_candidate_pool(vals, anchors, banned={drop1}, extra=22)
+                    for add1 in pool1[:10]:
+                        once = sorted(dict.fromkeys([int(v) for v in vals if int(v) != int(drop1)] + [int(add1)]))[:int(n_alvo)]
+                        if len(once) != int(n_alvo):
+                            continue
+                        anchors2, bridge2, _ = role_profile(once)
+                        drops2 = pick_drop_candidates(once, anchors2, bridge2)
+                        for drop2 in drops2[:2]:
+                            if int(drop2) == int(add1):
+                                continue
+                            pool2 = build_candidate_pool(once, anchors2, banned={drop1, drop2, add1}, extra=24)
+                            for add2 in pool2[:8]:
+                                trial = sorted(dict.fromkeys([int(v) for v in once if int(v) != int(drop2)] + [int(add2)]))[:int(n_alvo)]
+                                if len(trial) != int(n_alvo):
+                                    continue
+                                ev = evaluate_trial(idx, trial, packet_metrics_before, vals)
+                                if ev is None:
+                                    continue
+                                pair_new = tuple(sorted((int(add1), int(add2))))
+                                pair_old = tuple(sorted((int(drop1), int(drop2))))
+                                ev["total_gain"] += (float(pair_freq.get(pair_new, 0)) - float(pair_freq.get(pair_old, 0))) * 0.18
+                                meta = {
+                                    "kind": "double_role_rebalance_conditional",
+                                    "drop": int(drop1),
+                                    "add": int(add1),
+                                    "drop_rel": int(drop2),
+                                    "add_rel": int(add2),
+                                    "anchors": [int(v) for v in anchors],
+                                    "bridge": None if bridge is None else int(bridge),
+                                }
+                                meta.update(ev)
+                                if best is None or meta["total_gain"] > best["total_gain"] + 0.02:
+                                    best = meta
 
-            if chosen is None:
+            if best is None:
                 continue
-
-            nova = list(chosen["trial"])
-            prev_packet_metrics = dict(packet_metrics_before)
-            new_top[idx] = list(nova)
-            packet_metrics_before = chosen["trial_metrics"]
+            new_top[idx] = list(best["trial"])
+            packet_metrics_before = best["trial_metrics"]
             swaps += 1
             changed_indices.append(int(idx))
-
             meta = {
                 "idx": int(idx),
-                "drop": int(chosen.get("drop")),
-                "add": int(chosen.get("add")),
-                "total_gain": round(float(chosen.get("total_gain", 0.0)), 4),
-                "comb_gain": round(float(chosen.get("comb_gain", 0.0)), 4),
-                "anchor_gain": round(float(chosen.get("anchor_gain", 0.0)), 4),
-                "old_internal_score": round(float(chosen.get("old_internal_score", 0.0)), 4),
-                "new_internal_score": round(float(chosen.get("new_internal_score", 0.0)), 4),
-                "old_pair_density": round(float(chosen.get("old_pair_density", 0.0)), 4),
-                "new_pair_density": round(float(chosen.get("new_pair_density", 0.0)), 4),
-                "anchors": [int(v) for v in chosen.get("anchors", [])],
-                "relational_minimal_coupled_swap": bool(chosen.get("kind") == "coupled"),
-                "secondary_conditional_swap": bool(swaps >= 2),
-                "packet_unique_before": int(prev_packet_metrics.get("passageiros_unicos", 0)),
-                "packet_unique_after": int(packet_metrics_before.get("passageiros_unicos", 0)),
-                "packet_overlap_before": float(prev_packet_metrics.get("sobreposicao_media", 0.0)),
-                "packet_overlap_after": float(packet_metrics_before.get("sobreposicao_media", 0.0)),
+                "drop": int(best.get("drop")),
+                "add": int(best.get("add")),
+                "total_gain": round(float(best.get("total_gain", 0.0)), 4),
+                "old_internal_score": round(float(best.get("old_internal_score", 0.0)), 4),
+                "new_internal_score": round(float(best.get("new_internal_score", 0.0)), 4),
+                "old_pair_density": round(float(best.get("old_pair_density", 0.0)), 4),
+                "new_pair_density": round(float(best.get("new_pair_density", 0.0)), 4),
+                "old_role_score": round(float(best.get("old_role_score", 0.0)), 4),
+                "new_role_score": round(float(best.get("new_role_score", 0.0)), 4),
+                "anchors": [int(v) for v in best.get("anchors", [])],
+                "bridge": best.get("bridge"),
+                "conditional_double_swap": bool(best.get("kind") == "double_role_rebalance_conditional"),
+                "role_based_internal_rebalance": True,
             }
-            if chosen.get("kind") == "coupled":
-                meta["drop_rel"] = int(chosen.get("drop_rel"))
-                meta["add_rel"] = int(chosen.get("add_rel"))
-                meta["coupled_swap"] = True
-            else:
-                meta["coupled_swap"] = False
+            if best.get("kind") == "double_role_rebalance_conditional":
+                meta["drop_rel"] = int(best.get("drop_rel"))
+                meta["add_rel"] = int(best.get("add_rel"))
             candidates_used.append(meta)
-
-            # HO6O: permite até 2 swaps, mas o segundo só entra sob condição forte:
-            # 1) ainda estamos abaixo do limite máximo;
-            # 2) o pacote continua fechado;
-            # 3) há ganho mensurável de coerência/overlap sem abrir universo.
-            if swaps >= 1:
-                packet_unique = int(packet_metrics_before.get("passageiros_unicos", 0))
-                packet_overlap = float(packet_metrics_before.get("sobreposicao_media", 0.0))
-                if swaps >= 2:
-                    break
-                if packet_unique > 19:
-                    break
-                if packet_overlap < 1.76:
-                    break
 
         final_packet = new_top + tail
         after_metrics = _packet_metrics(new_top)
-        mode = "micro_configuration_conditional_double_swap" if swaps >= 2 else ("relational_minimal_coupled_swap" if any(bool(x.get("coupled_swap", False)) for x in candidates_used) else "targeted_internal_swap_relational_guarded")
+        mode = "role_based_internal_rebalance_conditional_double" if any(bool(x.get("conditional_double_swap", False)) for x in candidates_used) else "role_based_internal_rebalance_guarded"
 
         return final_packet, {
             "active": True,
             "applied": bool(swaps > 0 and final_packet != pkt),
-            "reason": "ok" if swaps > 0 else "sem_swap_elegivel",
+            "reason": "ok" if swaps > 0 else "sem_rebalance_elegivel",
             "mode": mode,
             "before_metrics": _packet_metrics(top),
             "after_metrics": after_metrics,
@@ -1154,13 +1109,13 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "family_size": int(len(recurring_family)),
             "family_preview": recurring_family[:8],
             "top_k": int(top_k),
-            "targeted_internal_swap": bool(mode != "relational_minimal_coupled_swap"),
-            "relational_minimal_coupled_swap": bool(mode == "relational_minimal_coupled_swap"),
-            "micro_configuration_conditional_double_swap": bool(mode == "micro_configuration_conditional_double_swap"),
+            "role_based_internal_rebalance": True,
+            "conditional_double_swap": bool(mode == "role_based_internal_rebalance_conditional_double"),
             "has_cp": bool(has_cp),
         }
     except Exception as e:
         return listas_packet, {"active": False, "applied": False, "reason": f"packet_final_mount_erro: {e}"}
+
 
 def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_df=None, n_alvo=6, seed=0, max_lists=None):
     try:
@@ -1488,7 +1443,7 @@ def pc_v16_build_auditor_ho6o(*, npgen_info=None, pre_sanidade_top10=None, post_
         gen_calls = int(st.session_state.get("v16h57HO6O_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) in {"micro_configuration_conditional_double_swap", "relational_minimal_coupled_swap", "targeted_internal_swap_relational_guarded"}
+        fm_mode_ok = str(fm.get("mode", "")) in {"role_based_internal_rebalance_conditional_double", "role_based_internal_rebalance_guarded"}
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
 
