@@ -1,4 +1,4 @@
-# --- v16h57HO6M_CLEAN_REAL TARGETED INTERNAL SWAP AUDITOR BANNER OK ---
+# --- v16h57HO6N_CLEAN_REAL TARGETED INTERNAL SWAP AUDITOR BANNER OK ---
 from __future__ import annotations
 
 # ============================================================
@@ -519,17 +519,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6M_CLEAN_REAL — TARGETED INTERNAL SWAP + AUDITOR + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6N_CLEAN_REAL — RELATIONAL MINIMAL COUPLED SWAP + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6M_CLEAN_REAL — TARGETED INTERNAL SWAP + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6M_CLEAN_REAL_TARGETED_INTERNAL_SWAP_AUDITOR_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6N_CLEAN_REAL — RELATIONAL MINIMAL COUPLED SWAP + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6N_CLEAN_REAL_RELATIONAL_MINIMAL_COUPLED_SWAP_AUDITOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-19_01 (HO6M_CLEAN_REAL_TARGETED_INTERNAL_SWAP)"
+WATERMARK = "2026-04-19_02 (HO6N_CLEAN_REAL_RELATIONAL_MINIMAL_COUPLED_SWAP)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6M CLEAN REAL — BUILD AUDITÁVEL (targeted internal swap)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6N CLEAN REAL — BUILD AUDITÁVEL (relational minimal coupled swap)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -750,9 +750,10 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6M — targeted internal swap no mesmo ponto da linha HO6.
-    Objetivo único: identificar o elemento mais fraco dentro de listas já boas e substituir apenas esse ponto,
-    preservando família, pressão local e coerência do pacote sem abrir volume.
+    HO6N — relational minimal coupled swap no mesmo ponto da linha HO6.
+    Objetivo único: após a leitura individual do HO6M, permitir um ajuste relacional mínimo
+    entre elementos não-âncora da lista, preservando família, pressão local e coerência do pacote
+    sem abrir volume nem alterar o fluxo.
     """
     try:
         pkt = []
@@ -804,8 +805,6 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "sobreposicao_media": round(sum(inter) / len(inter), 2) if inter else 0.0,
                 "hash": hash(str(packet_lists or [])),
             }
-
-        before_metrics = _packet_metrics(top)
 
         family_freq = {}
         pair_freq = {}
@@ -881,6 +880,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             return ordered[0], ordered[1:min(3, len(ordered))]
 
         new_top = [list(x) for x in top]
+        packet_metrics_before = _packet_metrics(new_top)
         swaps = 0
         changed_indices = []
         candidates_used = []
@@ -890,17 +890,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             key=lambda idx: (weak_signature(new_top[idx])[0] in recurring_family, member_support(new_top[idx], weak_signature(new_top[idx])[0]), idx)
         )[:3]
 
-        for idx in target_indices:
-            if swaps >= 1:
-                break
-            lst = list(new_top[idx])
-            vals = [int(x) for x in lst[:int(n_alvo)]]
-
-            # preserva o núcleo mais forte e escolhe explicitamente o elemento mais fraco para troca
-            ranked_members = sorted(vals, key=lambda v: (-member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))
-            anchors = ranked_members[:3]
+        def _single_swap_candidate(vals, anchors, before_packet_metrics):
+            nonlocal dense_pair_set, strong_pairs, recurring_family
             drop = sorted([v for v in vals if v not in anchors], key=lambda v: (member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))[0]
-
             candidate_pool = []
             for pair in strong_pairs:
                 if any(int(a) in anchors for a in pair):
@@ -912,19 +904,16 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 ic = int(cand)
                 if ic not in vals and ic not in candidate_pool:
                     candidate_pool.append(ic)
-
-            best_add = None
-            best_total = None
-            best_gain = None
+            best = None
+            old_internal = list_internal_score(vals)
+            old_density = packet_pair_density(vals)
             for cand in candidate_pool:
                 ic = int(cand)
                 trial = sorted(dict.fromkeys([int(v) for v in vals if int(v) != int(drop)] + [ic]))[:int(n_alvo)]
                 if len(trial) != int(n_alvo):
                     continue
                 comb_gain = candidate_gain(vals, drop, ic)
-                old_internal = list_internal_score(vals)
                 new_internal = list_internal_score(trial)
-                old_density = packet_pair_density(vals)
                 new_density = packet_pair_density(trial)
                 anchor_gain = 0.0
                 for a in anchors:
@@ -934,68 +923,204 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                     anchor_gain += (pair_score(ic, int(a)) - pair_score(int(drop), int(a))) * 0.18
                     anchor_gain += (0.20 if npair in dense_pair_set else 0.0) - (0.20 if opair in dense_pair_set else 0.0)
                 total = float(comb_gain) + float(anchor_gain) + (new_internal - old_internal) * 0.44 + (new_density - old_density) * 0.28
-                if best_total is None or total > best_total:
-                    best_total = total
-                    best_gain = comb_gain
-                    best_add = ic
-                    best_old_internal = old_internal
-                    best_new_internal = new_internal
-                    best_old_density = old_density
-                    best_new_density = new_density
-                    best_anchor_gain = anchor_gain
+                trial_top = [list(x) for x in new_top]
+                trial_top[idx] = list(trial)
+                trial_metrics = _packet_metrics(trial_top)
+                unique_before = int(before_packet_metrics.get("passageiros_unicos", 0))
+                overlap_before = float(before_packet_metrics.get("sobreposicao_media", 0.0))
+                unique_after = int(trial_metrics.get("passageiros_unicos", 0))
+                overlap_after = float(trial_metrics.get("sobreposicao_media", 0.0))
+                if unique_after > max(20, unique_before):
+                    continue
+                if overlap_after < max(1.68, overlap_before - 0.08):
+                    continue
+                if new_internal <= old_internal:
+                    continue
+                if new_density + 1e-9 < old_density:
+                    continue
+                cand_info = {
+                    "kind": "single",
+                    "drop": int(drop),
+                    "add": int(ic),
+                    "trial": list(trial),
+                    "trial_metrics": trial_metrics,
+                    "total_gain": float(total),
+                    "comb_gain": float(comb_gain),
+                    "anchor_gain": float(anchor_gain),
+                    "old_internal_score": float(old_internal),
+                    "new_internal_score": float(new_internal),
+                    "old_pair_density": float(old_density),
+                    "new_pair_density": float(new_density),
+                    "anchors": [int(v) for v in anchors],
+                }
+                if best is None or cand_info["total_gain"] > best["total_gain"]:
+                    best = cand_info
+            return best
 
-            if best_add is None or best_total is None or best_total <= 0.0:
-                continue
+        def _coupled_swap_candidate(vals, anchors, before_packet_metrics):
+            # ajuste relacional mínimo: troca principal + troca relacional secundária apenas se necessária
+            non_anchor_vals = [int(v) for v in vals if int(v) not in set(int(a) for a in anchors)]
+            if len(non_anchor_vals) < 2:
+                return None
+            ordered_non_anchor = sorted(non_anchor_vals, key=lambda v: (member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))
+            primary_drop = int(ordered_non_anchor[0])
+            partner_drop = int(ordered_non_anchor[1])
+            partner_conflict = None
+            partner_penalty = None
+            for cand in ordered_non_anchor[1:]:
+                pen = 0.0
+                for a in anchors:
+                    pair = tuple(sorted((int(cand), int(a))))
+                    pen -= float(pair_freq.get(pair, 0)) * 0.52
+                    pen -= pair_score(int(cand), int(a)) * 0.18
+                    pen -= (0.20 if pair in dense_pair_set else 0.0)
+                if partner_penalty is None or pen < partner_penalty:
+                    partner_penalty = pen
+                    partner_conflict = int(cand)
+            if partner_conflict is None:
+                partner_conflict = partner_drop
+            used = set(int(v) for v in vals)
+            primary_pool = []
+            for pair in strong_pairs:
+                if any(int(a) in anchors for a in pair):
+                    for member in pair:
+                        im = int(member)
+                        if im not in used and im not in primary_pool:
+                            primary_pool.append(im)
+            for cand in recurring_family + ranking[:18]:
+                ic = int(cand)
+                if ic not in used and ic not in primary_pool:
+                    primary_pool.append(ic)
+            best = None
+            old_internal = list_internal_score(vals)
+            old_density = packet_pair_density(vals)
+            for add1 in primary_pool[:14]:
+                base_once = sorted(dict.fromkeys([int(v) for v in vals if int(v) != int(primary_drop)] + [int(add1)]))[:int(n_alvo)]
+                if len(base_once) != int(n_alvo):
+                    continue
+                secondary_pool = []
+                for pair in strong_pairs:
+                    if int(add1) in pair or any(int(a) in pair for a in anchors):
+                        for member in pair:
+                            im = int(member)
+                            if im not in set(base_once) and im not in secondary_pool:
+                                secondary_pool.append(im)
+                for cand in recurring_family + ranking[:22]:
+                    ic = int(cand)
+                    if ic not in set(base_once) and ic not in secondary_pool:
+                        secondary_pool.append(ic)
+                for add2 in secondary_pool[:12]:
+                    trial = sorted(dict.fromkeys([int(v) for v in vals if int(v) not in {int(primary_drop), int(partner_conflict)}] + [int(add1), int(add2)]))[:int(n_alvo)]
+                    if len(trial) != int(n_alvo):
+                        continue
+                    total = 0.0
+                    total += candidate_gain(vals, primary_drop, int(add1))
+                    total += candidate_gain(base_once, partner_conflict, int(add2)) * 0.72
+                    new_internal = list_internal_score(trial)
+                    new_density = packet_pair_density(trial)
+                    rel_gain = 0.0
+                    for a in anchors:
+                        rel_gain += pair_score(int(add2), int(a)) - pair_score(int(partner_conflict), int(a))
+                    pair_add = tuple(sorted((int(add1), int(add2))))
+                    pair_old = tuple(sorted((int(primary_drop), int(partner_conflict))))
+                    total += rel_gain * 0.20
+                    total += (float(pair_freq.get(pair_add, 0)) - float(pair_freq.get(pair_old, 0))) * 0.36
+                    total += (new_internal - old_internal) * 0.46 + (new_density - old_density) * 0.32
+                    trial_top = [list(x) for x in new_top]
+                    trial_top[idx] = list(trial)
+                    trial_metrics = _packet_metrics(trial_top)
+                    unique_before = int(before_packet_metrics.get("passageiros_unicos", 0))
+                    overlap_before = float(before_packet_metrics.get("sobreposicao_media", 0.0))
+                    unique_after = int(trial_metrics.get("passageiros_unicos", 0))
+                    overlap_after = float(trial_metrics.get("sobreposicao_media", 0.0))
+                    if unique_after > max(20, unique_before + 1):
+                        continue
+                    if overlap_after < max(1.69, overlap_before - 0.06):
+                        continue
+                    if new_internal <= old_internal:
+                        continue
+                    if new_density + 1e-9 < old_density:
+                        continue
+                    if total <= 0.0:
+                        continue
+                    cand_info = {
+                        "kind": "coupled",
+                        "drop": int(primary_drop),
+                        "add": int(add1),
+                        "drop_rel": int(partner_conflict),
+                        "add_rel": int(add2),
+                        "trial": list(trial),
+                        "trial_metrics": trial_metrics,
+                        "total_gain": float(total),
+                        "comb_gain": float(candidate_gain(vals, primary_drop, int(add1))),
+                        "anchor_gain": float(rel_gain),
+                        "old_internal_score": float(old_internal),
+                        "new_internal_score": float(new_internal),
+                        "old_pair_density": float(old_density),
+                        "new_pair_density": float(new_density),
+                        "anchors": [int(v) for v in anchors],
+                    }
+                    if best is None or cand_info["total_gain"] > best["total_gain"]:
+                        best = cand_info
+            return best
 
-            nova = sorted(dict.fromkeys([int(v) for v in vals if int(v) != int(drop)] + [int(best_add)]))[:int(n_alvo)]
-            if len(nova) != int(n_alvo):
+        for idx in target_indices:
+            if swaps >= 1:
+                break
+            vals = [int(x) for x in new_top[idx][:int(n_alvo)]]
+            ranked_members = sorted(vals, key=lambda v: (-member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))
+            anchors = ranked_members[:3]
+            single_best = _single_swap_candidate(vals, anchors, packet_metrics_before)
+            chosen = single_best
+            if chosen is None or float(chosen.get("total_gain", 0.0)) <= 0.0:
+                coupled_best = _coupled_swap_candidate(vals, anchors, packet_metrics_before)
+                if coupled_best is not None:
+                    chosen = coupled_best
+            else:
+                # só dispara swap duplo quando o ganho simples é insuficiente ou muito marginal
+                coupled_best = None
+                if float(chosen.get("total_gain", 0.0)) < 0.32:
+                    coupled_best = _coupled_swap_candidate(vals, anchors, packet_metrics_before)
+                if coupled_best is not None and float(coupled_best.get("total_gain", 0.0)) > float(chosen.get("total_gain", 0.0)) + 0.08:
+                    chosen = coupled_best
+            if chosen is None:
                 continue
-
-            trial_top = [list(x) for x in new_top]
-            trial_top[idx] = list(nova)
-            trial_metrics = _packet_metrics(trial_top)
-            unique_before = int(before_metrics.get("passageiros_unicos", 0))
-            overlap_before = float(before_metrics.get("sobreposicao_media", 0.0))
-            unique_after = int(trial_metrics.get("passageiros_unicos", 0))
-            overlap_after = float(trial_metrics.get("sobreposicao_media", 0.0))
-
-            # HO6M: swap cirúrgico, sem abrir pacote; aceita leve oscilação de overlap desde que não rompa a coerência
-            if unique_after > max(20, unique_before):
-                continue
-            if overlap_after < max(1.68, overlap_before - 0.08):
-                continue
-            if best_new_internal <= best_old_internal:
-                continue
-            if best_new_density + 1e-9 < best_old_density:
-                continue
-
+            nova = list(chosen["trial"])
             new_top[idx] = list(nova)
-            before_metrics = trial_metrics
+            packet_metrics_before = chosen["trial_metrics"]
             swaps += 1
             changed_indices.append(int(idx))
-            candidates_used.append({
+            meta = {
                 "idx": int(idx),
-                "drop": int(drop),
-                "add": int(best_add),
-                "total_gain": round(float(best_total), 4),
-                "comb_gain": round(float(best_gain), 4),
-                "anchor_gain": round(float(best_anchor_gain), 4),
-                "old_internal_score": round(float(best_old_internal), 4),
-                "new_internal_score": round(float(best_new_internal), 4),
-                "old_pair_density": round(float(best_old_density), 4),
-                "new_pair_density": round(float(best_new_density), 4),
-                "anchors": [int(v) for v in anchors],
-                "targeted_internal_swap": True,
-            })
+                "drop": int(chosen.get("drop")),
+                "add": int(chosen.get("add")),
+                "total_gain": round(float(chosen.get("total_gain", 0.0)), 4),
+                "comb_gain": round(float(chosen.get("comb_gain", 0.0)), 4),
+                "anchor_gain": round(float(chosen.get("anchor_gain", 0.0)), 4),
+                "old_internal_score": round(float(chosen.get("old_internal_score", 0.0)), 4),
+                "new_internal_score": round(float(chosen.get("new_internal_score", 0.0)), 4),
+                "old_pair_density": round(float(chosen.get("old_pair_density", 0.0)), 4),
+                "new_pair_density": round(float(chosen.get("new_pair_density", 0.0)), 4),
+                "anchors": [int(v) for v in chosen.get("anchors", [])],
+                "relational_minimal_coupled_swap": bool(chosen.get("kind") == "coupled"),
+            }
+            if chosen.get("kind") == "coupled":
+                meta["drop_rel"] = int(chosen.get("drop_rel"))
+                meta["add_rel"] = int(chosen.get("add_rel"))
+                meta["coupled_swap"] = True
+            else:
+                meta["coupled_swap"] = False
+            candidates_used.append(meta)
 
         final_packet = new_top + tail
         after_metrics = _packet_metrics(new_top)
+        mode = "relational_minimal_coupled_swap" if any(bool(x.get("coupled_swap", False)) for x in candidates_used) else "targeted_internal_swap_relational_guarded"
 
         return final_packet, {
             "active": True,
             "applied": bool(swaps > 0 and final_packet != pkt),
             "reason": "ok" if swaps > 0 else "sem_swap_elegivel",
-            "mode": "targeted_internal_swap",
+            "mode": mode,
             "before_metrics": _packet_metrics(top),
             "after_metrics": after_metrics,
             "swaps": int(swaps),
@@ -1005,23 +1130,23 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "family_size": int(len(recurring_family)),
             "family_preview": recurring_family[:8],
             "top_k": int(top_k),
-            "targeted_internal_swap": True,
+            "targeted_internal_swap": bool(mode != "relational_minimal_coupled_swap"),
+            "relational_minimal_coupled_swap": bool(mode == "relational_minimal_coupled_swap"),
             "has_cp": bool(has_cp),
         }
     except Exception as e:
         return listas_packet, {"active": False, "applied": False, "reason": f"packet_final_mount_erro: {e}"}
 
-
 def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_df=None, n_alvo=6, seed=0, max_lists=None):
     try:
         pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
         try:
-            st.session_state["v16h57HO6M_generator_call_count"] = int(st.session_state.get("v16h57HO6M_generator_call_count", 0)) + 1
-            _steps = st.session_state.get("v16h57HO6M_generator_call_steps")
+            st.session_state["v16h57HO6N_generator_call_count"] = int(st.session_state.get("v16h57HO6N_generator_call_count", 0)) + 1
+            _steps = st.session_state.get("v16h57HO6N_generator_call_steps")
             if not isinstance(_steps, list):
                 _steps = []
-            _steps.append({"count": int(st.session_state.get("v16h57HO6M_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
-            st.session_state["v16h57HO6M_generator_call_steps"] = _steps
+            _steps.append({"count": int(st.session_state.get("v16h57HO6N_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
+            st.session_state["v16h57HO6N_generator_call_steps"] = _steps
         except Exception:
             pass
         base = []
@@ -1111,7 +1236,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     )
                 )
 
-                # v16h57HO6M_CLEAN_REAL — INJECAO BORDA-PERTO REAL
+                # v16h57HO6N_CLEAN_REAL — INJECAO BORDA-PERTO REAL
                 # objetivo: trazer alguns candidatos da borda util para o topo operativo,
                 # sem inventar motor novo e sem quebrar o ranking base.
                 try:
@@ -1129,7 +1254,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                             break
 
                     if inj_candidates:
-                        # v16h57HO6M_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
+                        # v16h57HO6N_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
                         extra_pool = ranking2[18:22]
                         extra_pool = sorted(
                             [int(v) for v in extra_pool],
@@ -1247,7 +1372,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
-        # v16h57HO6M_CLEAN_REAL — montagem final profunda para conversão
+        # v16h57HO6N_CLEAN_REAL — montagem final profunda para conversão
         out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
             out,
             ranking_vals=ranking2,
@@ -1308,11 +1433,11 @@ def v16h57FS_clear_mode6_packet_state():
         "bloco_c_info",
         "postura_respiravel_info",
         "postura_respiravel_memoria",
-        "v16h57HO6M_auditor",
-        "v16h57HO6M_generator_call_count",
-        "v16h57HO6M_generator_call_steps",
-        "v16h57HO6M_pre_sanidade_top10",
-        "v16h57HO6M_post_sanidade_top10",
+        "v16h57HO6N_auditor",
+        "v16h57HO6N_generator_call_count",
+        "v16h57HO6N_generator_call_steps",
+        "v16h57HO6N_pre_sanidade_top10",
+        "v16h57HO6N_post_sanidade_top10",
     ]
     try:
         for k in keys:
@@ -1329,16 +1454,16 @@ def v16h57FS_clear_mode6_packet_state():
 # V16h57HO6A — AUDITOR AUTOMÁTICO DO BUILD
 # Valida unicidade, ponto vivo, pré-sanidade, mudança real e consistência
 # ============================================================
-def pc_v16_build_auditor_ho6m(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
+def pc_v16_build_auditor_ho6n(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
     try:
         npgen_info = npgen_info if isinstance(npgen_info, dict) else {}
         fm = npgen_info.get("final_mount_info") if isinstance(npgen_info.get("final_mount_info"), dict) else {}
         cp = npgen_info.get("conversion_pressure") if isinstance(npgen_info.get("conversion_pressure"), dict) else {}
 
-        gen_calls = int(st.session_state.get("v16h57HO6M_generator_call_count", 0) or 0)
+        gen_calls = int(st.session_state.get("v16h57HO6N_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) == "targeted_internal_swap"
+        fm_mode_ok = str(fm.get("mode", "")) in {"relational_minimal_coupled_swap", "targeted_internal_swap_relational_guarded"}
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
 
@@ -1391,14 +1516,14 @@ def pc_v16_build_auditor_ho6m(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_nao_detectada_no_top10"
 
-        st.session_state["v16h57HO6M_auditor"] = auditor
+        st.session_state["v16h57HO6N_auditor"] = auditor
         return auditor
     except Exception as e:
         auditor = {
             "status": "INVALIDO",
             "motivo": f"auditor_erro: {e}",
             "unicidade": "FALHA",
-            "generator_call_count": int(st.session_state.get("v16h57HO6M_generator_call_count", 0) or 0),
+            "generator_call_count": int(st.session_state.get("v16h57HO6N_generator_call_count", 0) or 0),
             "ponto_fluxo": "FALHA",
             "antes_sanidade": "OK",
             "mudou_pacote": "NAO",
@@ -1406,7 +1531,7 @@ def pc_v16_build_auditor_ho6m(*, npgen_info=None, pre_sanidade_top10=None, post_
             "consistencia_intervencao": "FALHA",
         }
         try:
-            st.session_state["v16h57HO6M_auditor"] = auditor
+            st.session_state["v16h57HO6N_auditor"] = auditor
         except Exception:
             pass
         return auditor
@@ -1644,7 +1769,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        # fallback v16h57HO6M_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
+        # fallback v16h57HO6N_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
         if trocas == 0 and new_top10:
             try:
                 base = list(new_top10[0])
@@ -1665,7 +1790,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                 pass
 
         
-        # v16h57HO6M_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
+        # v16h57HO6N_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
         try:
             if trocas == 0 and new_top10:
                 base = list(new_top10[0])
@@ -3901,7 +4026,7 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
 def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) -> Tuple[List[List[int]], Dict[str, Any]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
-    v16h57HO6M_CLEAN_REAL:
+    v16h57HO6N_CLEAN_REAL:
     - aceita calib_override (compatível com SAFE/CAP)
     - sempre retorna (pacote, calib_meta)
     - protege o SAFE contra abortos por assinatura/estado mínimo
@@ -16651,7 +16776,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_brutas = listas_filtradas
 
     # ------------------------------------------------------------
-    # v16h57HO6M_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
+    # v16h57HO6N_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
     # ------------------------------------------------------------
     _ranking_vals_dx = []
     if "ranking2" in locals() and ranking2 is not None:
@@ -16684,9 +16809,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
     st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
     try:
-        st.session_state["v16h57HO6M_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
+        st.session_state["v16h57HO6N_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6M_pre_sanidade_top10"] = []
+        st.session_state["v16h57HO6N_pre_sanidade_top10"] = []
     try:
         pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
@@ -17027,20 +17152,20 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     try:
-        st.session_state["v16h57HO6M_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
+        st.session_state["v16h57HO6N_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6M_post_sanidade_top10"] = []
+        st.session_state["v16h57HO6N_post_sanidade_top10"] = []
 
     try:
-        _auditor_ho6 = pc_v16_build_auditor_ho6m(
+        _auditor_ho6 = pc_v16_build_auditor_ho6n(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
-            pre_sanidade_top10=st.session_state.get("v16h57HO6M_pre_sanidade_top10") or [],
-            post_sanidade_top10=st.session_state.get("v16h57HO6M_post_sanidade_top10") or [],
+            pre_sanidade_top10=st.session_state.get("v16h57HO6N_pre_sanidade_top10") or [],
+            post_sanidade_top10=st.session_state.get("v16h57HO6N_post_sanidade_top10") or [],
         )
     except Exception as _aud_e:
         _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
 
-    st.markdown("### 🔎 AUDITOR HO6M")
+    st.markdown("### 🔎 AUDITOR HO6N")
     if str((_auditor_ho6 or {}).get("status", "")) == "OK":
         st.success("status: OK")
     else:
@@ -22424,7 +22549,7 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 # ============================================================
-# POST MODO6 AUDIT (v16h57HO6M_CLEAN_REAL)
+# POST MODO6 AUDIT (v16h57HO6N_CLEAN_REAL)
 # ============================================================
 try:
     import itertools
@@ -22505,13 +22630,13 @@ except Exception as e:
 
 
 # ============================================================
-# BUILD v16h57HO6M_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
+# BUILD v16h57HO6N_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
 # CT REAL GENERATOR HOOK (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_REAL_GENERATOR_PRE_SANIDADE"] = {
-        "build": "v16h57HO6M_CLEAN_REAL",
+        "build": "v16h57HO6N_CLEAN_REAL",
         "hook": "before_sanidade_final_listas",
         "status": "armed"
     }
@@ -22521,13 +22646,13 @@ except Exception:
 
 
 # ============================================================
-# BUILD v16h57HO6M_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57HO6N_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
 # CT REAL HOOK INSIDE GENERATOR (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_GENERATOR_PRE_SANIDADE_REAL"] = {
-        "build": "v16h57HO6M_CLEAN_REAL",
+        "build": "v16h57HO6N_CLEAN_REAL",
         "hook_point": "generator_before_sanidade",
         "status": "armed"
     }
