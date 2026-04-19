@@ -1,4 +1,4 @@
-# --- v16h57HO6N_CLEAN_REAL TARGETED INTERNAL SWAP AUDITOR BANNER OK ---
+# --- v16h57HO6O_CLEAN_REAL MICRO_CONFIGURATION_CONDITIONAL_DOUBLE_SWAP AUDITOR BANNER OK ---
 from __future__ import annotations
 
 # ============================================================
@@ -519,17 +519,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6N_CLEAN_REAL — RELATIONAL MINIMAL COUPLED SWAP + AUDITOR + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6O_CLEAN_REAL — MICRO-CONFIGURATION CONDITIONAL DOUBLE SWAP + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6N_CLEAN_REAL — RELATIONAL MINIMAL COUPLED SWAP + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6N_CLEAN_REAL_RELATIONAL_MINIMAL_COUPLED_SWAP_AUDITOR_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6O_CLEAN_REAL — MICRO-CONFIGURATION CONDITIONAL DOUBLE SWAP + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6O_CLEAN_REAL_MICRO_CONFIGURATION_CONDITIONAL_DOUBLE_SWAP_AUDITOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-19_02 (HO6N_CLEAN_REAL_RELATIONAL_MINIMAL_COUPLED_SWAP)"
+WATERMARK = "2026-04-19_03 (HO6O_CLEAN_REAL_MICRO_CONFIGURATION_CONDITIONAL_DOUBLE_SWAP)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6N CLEAN REAL — BUILD AUDITÁVEL (relational minimal coupled swap)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6O CLEAN REAL — BUILD AUDITÁVEL (micro-configuration conditional double swap)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -750,10 +750,10 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6N — relational minimal coupled swap no mesmo ponto da linha HO6.
-    Objetivo único: após a leitura individual do HO6M, permitir um ajuste relacional mínimo
-    entre elementos não-âncora da lista, preservando família, pressão local e coerência do pacote
-    sem abrir volume nem alterar o fluxo.
+    HO6O — micro-configuration conditional double swap no mesmo ponto da linha HO6.
+    Objetivo único: após HO6M e HO6O, ajustar a micro-configuração interna da lista,
+    preservando âncoras e família dominante, permitindo até 2 swaps condicionais apenas
+    quando o segundo swap aumenta a coerência interna sem abrir o pacote nem alterar o fluxo.
     """
     try:
         pkt = []
@@ -1065,31 +1065,36 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             return best
 
         for idx in target_indices:
-            if swaps >= 1:
+            if swaps >= 2:
                 break
             vals = [int(x) for x in new_top[idx][:int(n_alvo)]]
             ranked_members = sorted(vals, key=lambda v: (-member_support(vals, v), ranking_pos.get(int(v), 9999), int(v)))
             anchors = ranked_members[:3]
+
             single_best = _single_swap_candidate(vals, anchors, packet_metrics_before)
+            coupled_best = None
+            if single_best is None or float(single_best.get("total_gain", 0.0)) <= 0.0 or float(single_best.get("total_gain", 0.0)) < 0.34:
+                coupled_best = _coupled_swap_candidate(vals, anchors, packet_metrics_before)
+            elif swaps == 0 and float(single_best.get("total_gain", 0.0)) < 0.46:
+                coupled_best = _coupled_swap_candidate(vals, anchors, packet_metrics_before)
+
             chosen = single_best
             if chosen is None or float(chosen.get("total_gain", 0.0)) <= 0.0:
-                coupled_best = _coupled_swap_candidate(vals, anchors, packet_metrics_before)
                 if coupled_best is not None:
                     chosen = coupled_best
-            else:
-                # só dispara swap duplo quando o ganho simples é insuficiente ou muito marginal
-                coupled_best = None
-                if float(chosen.get("total_gain", 0.0)) < 0.32:
-                    coupled_best = _coupled_swap_candidate(vals, anchors, packet_metrics_before)
-                if coupled_best is not None and float(coupled_best.get("total_gain", 0.0)) > float(chosen.get("total_gain", 0.0)) + 0.08:
-                    chosen = coupled_best
+            elif coupled_best is not None and float(coupled_best.get("total_gain", 0.0)) > float(chosen.get("total_gain", 0.0)) + 0.07:
+                chosen = coupled_best
+
             if chosen is None:
                 continue
+
             nova = list(chosen["trial"])
+            prev_packet_metrics = dict(packet_metrics_before)
             new_top[idx] = list(nova)
             packet_metrics_before = chosen["trial_metrics"]
             swaps += 1
             changed_indices.append(int(idx))
+
             meta = {
                 "idx": int(idx),
                 "drop": int(chosen.get("drop")),
@@ -1103,6 +1108,11 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "new_pair_density": round(float(chosen.get("new_pair_density", 0.0)), 4),
                 "anchors": [int(v) for v in chosen.get("anchors", [])],
                 "relational_minimal_coupled_swap": bool(chosen.get("kind") == "coupled"),
+                "secondary_conditional_swap": bool(swaps >= 2),
+                "packet_unique_before": int(prev_packet_metrics.get("passageiros_unicos", 0)),
+                "packet_unique_after": int(packet_metrics_before.get("passageiros_unicos", 0)),
+                "packet_overlap_before": float(prev_packet_metrics.get("sobreposicao_media", 0.0)),
+                "packet_overlap_after": float(packet_metrics_before.get("sobreposicao_media", 0.0)),
             }
             if chosen.get("kind") == "coupled":
                 meta["drop_rel"] = int(chosen.get("drop_rel"))
@@ -1112,9 +1122,23 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 meta["coupled_swap"] = False
             candidates_used.append(meta)
 
+            # HO6O: permite até 2 swaps, mas o segundo só entra sob condição forte:
+            # 1) ainda estamos abaixo do limite máximo;
+            # 2) o pacote continua fechado;
+            # 3) há ganho mensurável de coerência/overlap sem abrir universo.
+            if swaps >= 1:
+                packet_unique = int(packet_metrics_before.get("passageiros_unicos", 0))
+                packet_overlap = float(packet_metrics_before.get("sobreposicao_media", 0.0))
+                if swaps >= 2:
+                    break
+                if packet_unique > 19:
+                    break
+                if packet_overlap < 1.76:
+                    break
+
         final_packet = new_top + tail
         after_metrics = _packet_metrics(new_top)
-        mode = "relational_minimal_coupled_swap" if any(bool(x.get("coupled_swap", False)) for x in candidates_used) else "targeted_internal_swap_relational_guarded"
+        mode = "micro_configuration_conditional_double_swap" if swaps >= 2 else ("relational_minimal_coupled_swap" if any(bool(x.get("coupled_swap", False)) for x in candidates_used) else "targeted_internal_swap_relational_guarded")
 
         return final_packet, {
             "active": True,
@@ -1132,6 +1156,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "top_k": int(top_k),
             "targeted_internal_swap": bool(mode != "relational_minimal_coupled_swap"),
             "relational_minimal_coupled_swap": bool(mode == "relational_minimal_coupled_swap"),
+            "micro_configuration_conditional_double_swap": bool(mode == "micro_configuration_conditional_double_swap"),
             "has_cp": bool(has_cp),
         }
     except Exception as e:
@@ -1141,12 +1166,12 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
     try:
         pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
         try:
-            st.session_state["v16h57HO6N_generator_call_count"] = int(st.session_state.get("v16h57HO6N_generator_call_count", 0)) + 1
-            _steps = st.session_state.get("v16h57HO6N_generator_call_steps")
+            st.session_state["v16h57HO6O_generator_call_count"] = int(st.session_state.get("v16h57HO6O_generator_call_count", 0)) + 1
+            _steps = st.session_state.get("v16h57HO6O_generator_call_steps")
             if not isinstance(_steps, list):
                 _steps = []
-            _steps.append({"count": int(st.session_state.get("v16h57HO6N_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
-            st.session_state["v16h57HO6N_generator_call_steps"] = _steps
+            _steps.append({"count": int(st.session_state.get("v16h57HO6O_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
+            st.session_state["v16h57HO6O_generator_call_steps"] = _steps
         except Exception:
             pass
         base = []
@@ -1236,7 +1261,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     )
                 )
 
-                # v16h57HO6N_CLEAN_REAL — INJECAO BORDA-PERTO REAL
+                # v16h57HO6O_CLEAN_REAL — INJECAO BORDA-PERTO REAL
                 # objetivo: trazer alguns candidatos da borda util para o topo operativo,
                 # sem inventar motor novo e sem quebrar o ranking base.
                 try:
@@ -1254,7 +1279,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                             break
 
                     if inj_candidates:
-                        # v16h57HO6N_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
+                        # v16h57HO6O_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
                         extra_pool = ranking2[18:22]
                         extra_pool = sorted(
                             [int(v) for v in extra_pool],
@@ -1372,7 +1397,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
-        # v16h57HO6N_CLEAN_REAL — montagem final profunda para conversão
+        # v16h57HO6O_CLEAN_REAL — montagem final profunda para conversão
         out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
             out,
             ranking_vals=ranking2,
@@ -1433,11 +1458,11 @@ def v16h57FS_clear_mode6_packet_state():
         "bloco_c_info",
         "postura_respiravel_info",
         "postura_respiravel_memoria",
-        "v16h57HO6N_auditor",
-        "v16h57HO6N_generator_call_count",
-        "v16h57HO6N_generator_call_steps",
-        "v16h57HO6N_pre_sanidade_top10",
-        "v16h57HO6N_post_sanidade_top10",
+        "v16h57HO6O_auditor",
+        "v16h57HO6O_generator_call_count",
+        "v16h57HO6O_generator_call_steps",
+        "v16h57HO6O_pre_sanidade_top10",
+        "v16h57HO6O_post_sanidade_top10",
     ]
     try:
         for k in keys:
@@ -1454,16 +1479,16 @@ def v16h57FS_clear_mode6_packet_state():
 # V16h57HO6A — AUDITOR AUTOMÁTICO DO BUILD
 # Valida unicidade, ponto vivo, pré-sanidade, mudança real e consistência
 # ============================================================
-def pc_v16_build_auditor_ho6n(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
+def pc_v16_build_auditor_ho6o(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
     try:
         npgen_info = npgen_info if isinstance(npgen_info, dict) else {}
         fm = npgen_info.get("final_mount_info") if isinstance(npgen_info.get("final_mount_info"), dict) else {}
         cp = npgen_info.get("conversion_pressure") if isinstance(npgen_info.get("conversion_pressure"), dict) else {}
 
-        gen_calls = int(st.session_state.get("v16h57HO6N_generator_call_count", 0) or 0)
+        gen_calls = int(st.session_state.get("v16h57HO6O_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) in {"relational_minimal_coupled_swap", "targeted_internal_swap_relational_guarded"}
+        fm_mode_ok = str(fm.get("mode", "")) in {"micro_configuration_conditional_double_swap", "relational_minimal_coupled_swap", "targeted_internal_swap_relational_guarded"}
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
 
@@ -1516,14 +1541,14 @@ def pc_v16_build_auditor_ho6n(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_nao_detectada_no_top10"
 
-        st.session_state["v16h57HO6N_auditor"] = auditor
+        st.session_state["v16h57HO6O_auditor"] = auditor
         return auditor
     except Exception as e:
         auditor = {
             "status": "INVALIDO",
             "motivo": f"auditor_erro: {e}",
             "unicidade": "FALHA",
-            "generator_call_count": int(st.session_state.get("v16h57HO6N_generator_call_count", 0) or 0),
+            "generator_call_count": int(st.session_state.get("v16h57HO6O_generator_call_count", 0) or 0),
             "ponto_fluxo": "FALHA",
             "antes_sanidade": "OK",
             "mudou_pacote": "NAO",
@@ -1531,7 +1556,7 @@ def pc_v16_build_auditor_ho6n(*, npgen_info=None, pre_sanidade_top10=None, post_
             "consistencia_intervencao": "FALHA",
         }
         try:
-            st.session_state["v16h57HO6N_auditor"] = auditor
+            st.session_state["v16h57HO6O_auditor"] = auditor
         except Exception:
             pass
         return auditor
@@ -1769,7 +1794,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        # fallback v16h57HO6N_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
+        # fallback v16h57HO6O_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
         if trocas == 0 and new_top10:
             try:
                 base = list(new_top10[0])
@@ -1790,7 +1815,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                 pass
 
         
-        # v16h57HO6N_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
+        # v16h57HO6O_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
         try:
             if trocas == 0 and new_top10:
                 base = list(new_top10[0])
@@ -4026,7 +4051,7 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
 def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) -> Tuple[List[List[int]], Dict[str, Any]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
-    v16h57HO6N_CLEAN_REAL:
+    v16h57HO6O_CLEAN_REAL:
     - aceita calib_override (compatível com SAFE/CAP)
     - sempre retorna (pacote, calib_meta)
     - protege o SAFE contra abortos por assinatura/estado mínimo
@@ -16776,7 +16801,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_brutas = listas_filtradas
 
     # ------------------------------------------------------------
-    # v16h57HO6N_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
+    # v16h57HO6O_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
     # ------------------------------------------------------------
     _ranking_vals_dx = []
     if "ranking2" in locals() and ranking2 is not None:
@@ -16809,9 +16834,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
     st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
     try:
-        st.session_state["v16h57HO6N_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
+        st.session_state["v16h57HO6O_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6N_pre_sanidade_top10"] = []
+        st.session_state["v16h57HO6O_pre_sanidade_top10"] = []
     try:
         pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
@@ -17152,20 +17177,20 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     try:
-        st.session_state["v16h57HO6N_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
+        st.session_state["v16h57HO6O_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6N_post_sanidade_top10"] = []
+        st.session_state["v16h57HO6O_post_sanidade_top10"] = []
 
     try:
-        _auditor_ho6 = pc_v16_build_auditor_ho6n(
+        _auditor_ho6 = pc_v16_build_auditor_ho6o(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
-            pre_sanidade_top10=st.session_state.get("v16h57HO6N_pre_sanidade_top10") or [],
-            post_sanidade_top10=st.session_state.get("v16h57HO6N_post_sanidade_top10") or [],
+            pre_sanidade_top10=st.session_state.get("v16h57HO6O_pre_sanidade_top10") or [],
+            post_sanidade_top10=st.session_state.get("v16h57HO6O_post_sanidade_top10") or [],
         )
     except Exception as _aud_e:
         _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
 
-    st.markdown("### 🔎 AUDITOR HO6N")
+    st.markdown("### 🔎 AUDITOR HO6O")
     if str((_auditor_ho6 or {}).get("status", "")) == "OK":
         st.success("status: OK")
     else:
@@ -22549,7 +22574,7 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 # ============================================================
-# POST MODO6 AUDIT (v16h57HO6N_CLEAN_REAL)
+# POST MODO6 AUDIT (v16h57HO6O_CLEAN_REAL)
 # ============================================================
 try:
     import itertools
@@ -22630,13 +22655,13 @@ except Exception as e:
 
 
 # ============================================================
-# BUILD v16h57HO6N_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
+# BUILD v16h57HO6O_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
 # CT REAL GENERATOR HOOK (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_REAL_GENERATOR_PRE_SANIDADE"] = {
-        "build": "v16h57HO6N_CLEAN_REAL",
+        "build": "v16h57HO6O_CLEAN_REAL",
         "hook": "before_sanidade_final_listas",
         "status": "armed"
     }
@@ -22646,13 +22671,13 @@ except Exception:
 
 
 # ============================================================
-# BUILD v16h57HO6N_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57HO6O_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
 # CT REAL HOOK INSIDE GENERATOR (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_GENERATOR_PRE_SANIDADE_REAL"] = {
-        "build": "v16h57HO6N_CLEAN_REAL",
+        "build": "v16h57HO6O_CLEAN_REAL",
         "hook_point": "generator_before_sanidade",
         "status": "armed"
     }
