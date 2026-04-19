@@ -1,4 +1,4 @@
-# --- v16h57GP POST GO MICRO LOCK CONVERSION STABILIZER ---
+# --- v16h57HO6M_CLEAN_REAL TARGETED INTERNAL SWAP AUDITOR BANNER OK ---
 from __future__ import annotations
 
 # ============================================================
@@ -14,6 +14,8 @@ Arquivo único, íntegro e operacional.
 import streamlit as st
 from datetime import datetime
 import re
+import pandas as pd
+import numpy as np
 
 # ============================================================
 # V16h57CJ — MODE6 FUNCTION TRACE HELPERS
@@ -114,7 +116,7 @@ def pc_list_source_detector(step, listas=None, extra=None):
 # ============================================================
 # V16h57CF — INTERNAL MODE6 TRACE HELPERS
 # ============================================================
-def pc_packet_audit_dict(listas, label=""):
+def pc_packet_audit_dict_legacy_duplicate(listas, label=""):
     try:
         if not listas:
             return {
@@ -517,17 +519,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57FJ — FG + PRESSAO FINAL DE CONVERSAO + FAMILIA ESTAVEL + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6M_CLEAN_REAL — TARGETED INTERNAL SWAP + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57v16h57HO6M — TARGETED INTERNAL SWAP + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6M_TARGETED_INTERNAL_SWAP_AUDITOR_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6M_CLEAN_REAL — TARGETED INTERNAL SWAP + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6M_CLEAN_REAL_TARGETED_INTERNAL_SWAP_AUDITOR_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-18_04 (HO6M_TARGETED_INTERNAL_SWAP)"
+WATERMARK = "2026-04-19_01 (HO6M_CLEAN_REAL_TARGETED_INTERNAL_SWAP)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6M — BUILD AUDITÁVEL (targeted internal swap)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6M CLEAN REAL — BUILD AUDITÁVEL (targeted internal swap)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1109,7 +1111,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     )
                 )
 
-                # v16h57FJ — INJECAO BORDA-PERTO REAL
+                # v16h57HO6M_CLEAN_REAL — INJECAO BORDA-PERTO REAL
                 # objetivo: trazer alguns candidatos da borda util para o topo operativo,
                 # sem inventar motor novo e sem quebrar o ranking base.
                 try:
@@ -1127,7 +1129,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                             break
 
                     if inj_candidates:
-                        # v16h57FJ — injecao mais agressiva: até 3 candidatos subindo até a posição 7
+                        # v16h57HO6M_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
                         extra_pool = ranking2[18:22]
                         extra_pool = sorted(
                             [int(v) for v in extra_pool],
@@ -1245,7 +1247,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
-        # v16h57FJ — montagem final profunda para conversão
+        # v16h57HO6M_CLEAN_REAL — montagem final profunda para conversão
         out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
             out,
             ranking_vals=ranking2,
@@ -1642,7 +1644,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        # fallback v16h57FJ: se nada mudou, força 1 troca mínima na 1a lista do top
+        # fallback v16h57HO6M_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
         if trocas == 0 and new_top10:
             try:
                 base = list(new_top10[0])
@@ -1663,7 +1665,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                 pass
 
         
-        # v16h57FJ safety: guarantee at least one minimal swap if calibration active
+        # v16h57HO6M_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
         try:
             if trocas == 0 and new_top10:
                 base = list(new_top10[0])
@@ -3899,7 +3901,7 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
 def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) -> Tuple[List[List[int]], Dict[str, Any]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
-    v16h57FJ:
+    v16h57HO6M_CLEAN_REAL:
     - aceita calib_override (compatível com SAFE/CAP)
     - sempre retorna (pacote, calib_meta)
     - protege o SAFE contra abortos por assinatura/estado mínimo
@@ -16649,7 +16651,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_brutas = listas_filtradas
 
     # ------------------------------------------------------------
-    # v16h57FJ — CT no fluxo real, antes da sanidade, sem calib_meta
+    # v16h57HO6M_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
     # ------------------------------------------------------------
     _ranking_vals_dx = []
     if "ranking2" in locals() and ranking2 is not None:
@@ -22422,7 +22424,7 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 # ============================================================
-# POST MODO6 AUDIT (v16h57FJ)
+# POST MODO6 AUDIT (v16h57HO6M_CLEAN_REAL)
 # ============================================================
 try:
     import itertools
@@ -22503,13 +22505,13 @@ except Exception as e:
 
 
 # ============================================================
-# BUILD v16h57FJ — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
+# BUILD v16h57HO6M_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
 # CT REAL GENERATOR HOOK (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_REAL_GENERATOR_PRE_SANIDADE"] = {
-        "build": "v16h57FJ",
+        "build": "v16h57HO6M_CLEAN_REAL",
         "hook": "before_sanidade_final_listas",
         "status": "armed"
     }
@@ -22519,13 +22521,13 @@ except Exception:
 
 
 # ============================================================
-# BUILD v16h57FJ — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57HO6M_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
 # CT REAL HOOK INSIDE GENERATOR (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_GENERATOR_PRE_SANIDADE_REAL"] = {
-        "build": "v16h57FJ",
+        "build": "v16h57HO6M_CLEAN_REAL",
         "hook_point": "generator_before_sanidade",
         "status": "armed"
     }
