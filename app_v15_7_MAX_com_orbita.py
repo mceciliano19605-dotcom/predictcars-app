@@ -1,4 +1,4 @@
-# --- v16h57HO6S_CLEAN_REAL PACKET COVERAGE REBALANCE AUDITOR BANNER OK ---
+# --- v16h57HO6S_CLEAN_REAL FIXED FAMILY PHASE ROTATION AUDITOR OK ---
 from __future__ import annotations
 
 # ============================================================
@@ -522,14 +522,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6S_CLEAN_REAL — FAMILY PHASE ROTATION CONTROLLED + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6S_CLEAN_REAL — FAMILY PHASE ROTATION CONTROLLED + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6S_CLEAN_REAL_FAMILY_PHASE_ROTATION_CONTROLLED_AUDITOR_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6S_CLEAN_REAL_FIXED — FAMILY PHASE ROTATION + AUDITOR OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6S_CLEAN_REAL_FIXED_FAMILY_PHASE_ROTATION_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-19_05 (HO6S_CLEAN_REAL_FAMILY_PHASE_ROTATION_CONTROLLED)"
+WATERMARK = "2026-04-20_01 (HO6S_CLEAN_REAL_FIXED_FAMILY_PHASE_ROTATION_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6S CLEAN REAL — BUILD AUDITÁVEL (family phase rotation controlled)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6S CLEAN REAL FIXED — BUILD AUDITÁVEL (family phase rotation)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -17009,7 +17009,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         st.session_state["v16h57HO6S_post_sanidade_top10"] = []
 
     try:
-        _auditor_ho6 = pc_v16_build_auditor_ho6r(
+        _auditor_ho6 = pc_v16_build_auditor_ho6s(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
             pre_sanidade_top10=st.session_state.get("v16h57HO6S_pre_sanidade_top10") or [],
             post_sanidade_top10=st.session_state.get("v16h57HO6S_post_sanidade_top10") or [],
