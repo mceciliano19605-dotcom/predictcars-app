@@ -1,4 +1,4 @@
-# --- v16h57HO6X_CLEAN_REAL TEMPORAL PERSISTENCE LEDGER AUDITOR OK ---
+# --- v16h57HO6W_CLEAN_REAL DISCRETE TEMPORAL ATOM AUDITOR BANNER OK ---
 from __future__ import annotations
 
 # ============================================================
@@ -17,34 +17,51 @@ import re
 import pandas as pd
 import numpy as np
 
-import json
-import os
-
 # ============================================================
-# V16h57HO6X — TEMPORAL PERSISTENCE LEDGER (FILE-BASED)
-# Persistência mínima entre execuções para o átomo temporal.
-# Não altera listas, ranking, fluxo ou Camada 4.
+# V16h57HO6X — TEMPORAL PERSISTENCE (STREAMLIT-SAFE)
+# Persistência mínima entre execuções do replay, sem depender de session_state
 # ============================================================
-HO6W_LEDGER_PATH = "ho6w_temporal_ledger.json"
-
-def pc_ho6w_load_ledger():
-    try:
-        if os.path.exists(HO6W_LEDGER_PATH):
-            with open(HO6W_LEDGER_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return data if isinstance(data, dict) else {}
-    except Exception:
-        pass
+@st.cache_resource(show_spinner=False)
+def pc_ho6x_temporal_store():
     return {}
 
-def pc_ho6w_save_ledger(data):
+def pc_ho6x_reset_temporal_store_if_needed():
     try:
-        payload = data if isinstance(data, dict) else {}
-        with open(HO6W_LEDGER_PATH, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False)
+        store = pc_ho6x_temporal_store()
+        active_build = str(store.get("last_build", ""))
+        if active_build and active_build != str(BUILD_TAG):
+            store.clear()
     except Exception:
         pass
 
+def pc_ho6x_load_prev_family(current_k):
+    try:
+        store = pc_ho6x_temporal_store()
+        last_build = str(store.get("last_build", ""))
+        last_k = store.get("last_k")
+        last_family = store.get("family", [])
+        if last_build != str(BUILD_TAG):
+            return {}
+        try:
+            current_k = int(current_k)
+            last_k = int(last_k)
+        except Exception:
+            return {}
+        if current_k < last_k and isinstance(last_family, list):
+            return {"family": [int(x) for x in last_family[:3]], "last_k": last_k, "last_build": last_build}
+        return {}
+    except Exception:
+        return {}
+
+def pc_ho6x_save_family(current_k, family_now, score_now):
+    try:
+        store = pc_ho6x_temporal_store()
+        store["last_k"] = int(current_k) if current_k is not None else 0
+        store["family"] = [int(x) for x in (family_now or [])[:3]]
+        store["score"] = float(score_now or 0.0)
+        store["last_build"] = str(BUILD_TAG)
+    except Exception:
+        pass
 
 # ============================================================
 # V16h57CJ — MODE6 FUNCTION TRACE HELPERS
@@ -551,14 +568,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6X_CLEAN_REAL — TEMPORAL PERSISTENCE LEDGER + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6X_CLEAN_REAL_TEMPORAL_PERSISTENCE_LEDGER_AUDITOR_OK.py"
+BUILD_TAG = "v16h57HO6X_CLEAN_REAL — TEMPORAL PERSISTENCE STREAMLIT-SAFE + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6X_CLEAN_REAL_TEMPORAL_PERSISTENCE_STREAMLIT_SAFE_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-21_05 (HO6X_CLEAN_REAL_TEMPORAL_PERSISTENCE_LEDGER_AUDITOR_OK)"
+WATERMARK = "2026-04-21_07 (HO6X_CLEAN_REAL_TEMPORAL_PERSISTENCE_STREAMLIT_SAFE_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6X CLEAN REAL — BUILD AUDITÁVEL (temporal persistence ledger auditor ok)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6X CLEAN REAL — BUILD AUDITÁVEL (temporal persistence streamlit-safe)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -897,27 +914,14 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         fam_now_info = extract_family_signature(top10_base)
         family_now = [int(x) for x in fam_now_info.get("family", [])]
 
-        ledger = pc_ho6w_load_ledger()
+        try:
+            current_k = int(st.session_state.get("k_reg", 0) or 0)
+        except Exception:
+            current_k = 0
 
-        prev_info = {}
-        if isinstance(ledger, dict):
-            try:
-                last_k = int(ledger.get("last_k", 0) or 0)
-            except Exception:
-                last_k = 0
-            last_build = str(ledger.get("last_build", "") or "")
-            try:
-                current_k = int(st.session_state.get("k_reg", 0) or 0)
-            except Exception:
-                current_k = 0
-
-            # Usa a família anterior apenas quando:
-            # - é o mesmo build
-            # - existe k anterior persistido
-            # - estamos avançando para um k menor (replay descendente)
-            if last_build == BUILD_TAG and last_k > 0 and current_k > 0 and current_k < last_k:
-                prev_info = ledger
-
+        prev_info = pc_ho6x_load_prev_family(current_k)
+        if not isinstance(prev_info, dict):
+            prev_info = {}
         family_prev = [int(x) for x in (prev_info.get("family", []) if isinstance(prev_info.get("family", []), list) else [])][:3]
 
         intersecao = len(set(family_now).intersection(set(family_prev))) if family_now and family_prev else 0
@@ -951,13 +955,11 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         after_metrics = packet_metrics(selected)
 
         try:
-            pc_ho6w_save_ledger({
-                "family": [int(x) for x in family_now],
-                "score": float(fam_now_info.get("score", 0.0)),
-                "last_k": int(st.session_state.get("k_reg", 0) or 0),
-                "last_build": BUILD_TAG,
-                "last_updated_ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            })
+            pc_ho6x_save_family(
+                current_k=current_k,
+                family_now=[int(x) for x in family_now],
+                score_now=float(fam_now_info.get("score", 0.0)),
+            )
         except Exception:
             pass
 
