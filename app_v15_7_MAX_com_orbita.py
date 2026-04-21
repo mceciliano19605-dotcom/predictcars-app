@@ -523,13 +523,13 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # ============================================================
 
 BUILD_TAG = "v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6W_CLEAN_REAL_DISCRETE_TEMPORAL_ATOM_AUDITOR_VISIBLE_OK.py"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6W_CLEAN_REAL_DISCRETE_TEMPORAL_ATOM_FULL_INTEGRATION_VISIBLE_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-21_01 (HO6W_CLEAN_REAL_DISCRETE_TEMPORAL_ATOM_AUDITOR_VISIBLE_OK)"
+WATERMARK = "2026-04-21_02 (HO6W_CLEAN_REAL_DISCRETE_TEMPORAL_ATOM_FULL_INTEGRATION_VISIBLE_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6W CLEAN REAL — BUILD AUDITÁVEL (discrete temporal atom auditor visible)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6W CLEAN REAL — BUILD AUDITÁVEL (discrete temporal atom full integration visible)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -17014,6 +17014,12 @@ if painel == "🎯 Modo 6 Acertos — Execução":
             "mudou_pacote": (_auditor_ho6 or {}).get("mudou_pacote", "n/d"),
             "chegou_top10": (_auditor_ho6 or {}).get("chegou_top10", "n/d"),
             "consistencia_intervencao": (_auditor_ho6 or {}).get("consistencia_intervencao", "n/d"),
+            "temporal_state": (_auditor_ho6 or {}).get("temporal_state", "n/d"),
+            "family_prev": (_auditor_ho6 or {}).get("family_prev", []),
+            "family_now": (_auditor_ho6 or {}).get("family_now", []),
+            "intersecao": (_auditor_ho6 or {}).get("intersecao", 0),
+            "epsilon": (_auditor_ho6 or {}).get("epsilon", 0.0),
+            "ajuste_aplicado": (_auditor_ho6 or {}).get("ajuste_aplicado", 0.0),
         }
         st.code("\n".join([f"{k}: {v}" for k, v in _aud_lines.items()]), language="text")
     except Exception:
