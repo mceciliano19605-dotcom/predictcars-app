@@ -18,52 +18,6 @@ import pandas as pd
 import numpy as np
 
 # ============================================================
-# V16h57HO6X — TEMPORAL PERSISTENCE (STREAMLIT-SAFE)
-# Persistência mínima entre execuções do replay, sem depender de session_state
-# ============================================================
-@st.cache_resource(show_spinner=False)
-def pc_ho6x_temporal_store():
-    return {}
-
-def pc_ho6x_reset_temporal_store_if_needed():
-    try:
-        store = pc_ho6x_temporal_store()
-        active_build = str(store.get("last_build", ""))
-        if active_build and active_build != str(BUILD_TAG):
-            store.clear()
-    except Exception:
-        pass
-
-def pc_ho6x_load_prev_family(current_k):
-    try:
-        store = pc_ho6x_temporal_store()
-        last_build = str(store.get("last_build", ""))
-        last_k = store.get("last_k")
-        last_family = store.get("family", [])
-        if last_build != str(BUILD_TAG):
-            return {}
-        try:
-            current_k = int(current_k)
-            last_k = int(last_k)
-        except Exception:
-            return {}
-        if current_k < last_k and isinstance(last_family, list):
-            return {"family": [int(x) for x in last_family[:3]], "last_k": last_k, "last_build": last_build}
-        return {}
-    except Exception:
-        return {}
-
-def pc_ho6x_save_family(current_k, family_now, score_now):
-    try:
-        store = pc_ho6x_temporal_store()
-        store["last_k"] = int(current_k) if current_k is not None else 0
-        store["family"] = [int(x) for x in (family_now or [])[:3]]
-        store["score"] = float(score_now or 0.0)
-        store["last_build"] = str(BUILD_TAG)
-    except Exception:
-        pass
-
-# ============================================================
 # V16h57CJ — MODE6 FUNCTION TRACE HELPERS
 # ============================================================
 def pc_packet_audit_dict(listas, label=""):
@@ -568,14 +522,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6X_CLEAN_REAL — TEMPORAL PERSISTENCE STREAMLIT-SAFE + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6X_CLEAN_REAL_TEMPORAL_PERSISTENCE_STREAMLIT_SAFE_AUDITOR_OK.py"
+BUILD_TAG = "v16h57HO6Y_CLEAN_REAL — INTRA-EXEC TEMPORAL SIMULATION + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6Y_CLEAN_REAL_INTRA_EXEC_TEMPORAL_SIMULATION_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-21_07 (HO6X_CLEAN_REAL_TEMPORAL_PERSISTENCE_STREAMLIT_SAFE_AUDITOR_OK)"
+WATERMARK = "2026-04-21_08 (HO6Y_CLEAN_REAL_INTRA_EXEC_TEMPORAL_SIMULATION_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6X CLEAN REAL — BUILD AUDITÁVEL (temporal persistence streamlit-safe)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6Y CLEAN REAL — BUILD AUDITÁVEL (intra-exec temporal simulation)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -799,12 +753,12 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6W — discrete temporal atom.
-    Introduz a primeira camada temporal válida:
-    - extrai família do Top10_base
-    - compara com a família da execução anterior
-    - classifica CONTINUA / TRANSICAO / RUPTURA
-    - aplica ajuste temporal global e auditável ao score final
+    HO6Y — intra-exec temporal simulation.
+    O tempo passa a existir DENTRO da mesma execução:
+    - gera passos temporais internos a partir do Top10_base
+    - extrai família por passo
+    - classifica CONTINUA / TRANSICAO / RUPTURA entre passos consecutivos
+    - aplica viés temporal LEVE por lista, sem criar motor novo
     """
     try:
         pkt = []
@@ -909,84 +863,160 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "candidates": [int(x) for x in candidates],
             }
 
+        def build_step_variant(base_top10, tail_lists, step_idx):
+            variant = [list(x) for x in (base_top10 or [])]
+            if not variant:
+                return []
+            tail = [list(x) for x in (tail_lists or [])]
+            # usa cauda real se existir; senão cria micro-rotação determinística com ranking/cp
+            if tail:
+                replace_qtd = min(len(tail), max(1, step_idx))
+                for r in range(replace_qtd):
+                    pos = max(0, len(variant) - 1 - r)
+                    variant[pos] = list(tail[r][:int(n_alvo)])
+            else:
+                rank_pool = [int(v) for v in ranking[:max(12, int(n_alvo) + 6)] if isinstance(v, int)]
+                for ridx in range(min(len(variant), max(1, step_idx))):
+                    pos = max(0, len(variant) - 1 - ridx)
+                    lst = list(variant[pos][:int(n_alvo)])
+                    blocked = set(lst)
+                    # remove um passageiro mais fraco e injeta candidato útil
+                    lst_sorted = sorted(lst, key=lambda v: (cp_scores.get(int(v), 0.0), -pair_score(v, lst[0] if lst else v), ranking_pos.get(int(v), 9999), int(v)))
+                    drop = int(lst_sorted[0]) if lst_sorted else None
+                    cand = None
+                    for v in rank_pool:
+                        if v not in blocked:
+                            cand = int(v)
+                            break
+                    if drop is not None and cand is not None:
+                        lst2 = [int(x) for x in lst if int(x) != drop]
+                        lst2.append(int(cand))
+                        lst2 = sorted(dict.fromkeys(lst2))[:int(n_alvo)]
+                        if len(lst2) >= int(n_alvo):
+                            variant[pos] = lst2
+            return variant
+
         top10_base = [list(x) for x in pkt[:top_k]]
+        tail_lists = [list(x) for x in pkt[top_k:]]
         before_metrics = packet_metrics(top10_base)
-        fam_now_info = extract_family_signature(top10_base)
-        family_now = [int(x) for x in fam_now_info.get("family", [])]
-
-        try:
-            current_k = int(st.session_state.get("k_reg", 0) or 0)
-        except Exception:
-            current_k = 0
-
-        prev_info = pc_ho6x_load_prev_family(current_k)
-        if not isinstance(prev_info, dict):
-            prev_info = {}
-        family_prev = [int(x) for x in (prev_info.get("family", []) if isinstance(prev_info.get("family", []), list) else [])][:3]
-
-        intersecao = len(set(family_now).intersection(set(family_prev))) if family_now and family_prev else 0
-        if family_prev and intersecao == 3:
-            temporal_state = "CONTINUA"
-        elif family_prev and intersecao == 2:
-            temporal_state = "TRANSICAO"
-        elif family_prev:
-            temporal_state = "RUPTURA"
-        else:
-            temporal_state = "TRANSICAO"
 
         base_scores = [float(list_internal_score(lst)) for lst in top10_base]
         score_range = (max(base_scores) - min(base_scores)) if base_scores else 0.0
         epsilon = round(max(0.0001, float(score_range) * 0.01), 6)
 
-        if temporal_state == "CONTINUA":
-            ajuste_temporal = float(epsilon)
-        elif temporal_state == "TRANSICAO":
-            ajuste_temporal = 0.0
+        step_sizes = []
+        for nstep in [max(3, min(len(top10_base), 4)), max(4, min(len(top10_base), 6)), max(5, min(len(top10_base), 8)), len(top10_base)]:
+            if nstep not in step_sizes:
+                step_sizes.append(nstep)
+        temporal_steps = []
+        prev_family = []
+        for step_idx, cut in enumerate(step_sizes):
+            variant = build_step_variant(top10_base[:cut], tail_lists, step_idx)
+            fam_info = extract_family_signature(variant)
+            family_now = [int(x) for x in fam_info.get("family", [])]
+            intersecao = len(set(family_now).intersection(set(prev_family))) if family_now and prev_family else 0
+            if step_idx == 0:
+                temporal_state = "TRANSICAO"
+            elif intersecao == 3:
+                temporal_state = "CONTINUA"
+            elif intersecao == 2:
+                temporal_state = "TRANSICAO"
+            else:
+                temporal_state = "RUPTURA"
+            temporal_steps.append({
+                "step": int(step_idx),
+                "cut": int(cut),
+                "family": [int(x) for x in family_now],
+                "intersecao": int(intersecao),
+                "state": str(temporal_state),
+            })
+            prev_family = [int(x) for x in family_now]
+
+        states = [str(x.get("state", "TRANSICAO")) for x in temporal_steps]
+        count_cont = sum(1 for s in states if s == "CONTINUA")
+        count_trans = sum(1 for s in states if s == "TRANSICAO")
+        count_rup = sum(1 for s in states if s == "RUPTURA")
+        if count_cont >= max(count_trans, count_rup):
+            estado_dominante = "CONTINUA"
+        elif count_rup > max(count_cont, count_trans):
+            estado_dominante = "RUPTURA"
         else:
-            ajuste_temporal = round(-float(epsilon) / 2.0, 6)
+            estado_dominante = "TRANSICAO"
 
-        score_base_packet = round(float(sum(base_scores) / len(base_scores)) if base_scores else 0.0, 6)
-        score_final_packet = round(float(score_base_packet + ajuste_temporal), 6)
+        dominant_family = []
+        for item in reversed(temporal_steps):
+            if item.get("state") == estado_dominante and item.get("family"):
+                dominant_family = [int(x) for x in item.get("family", [])]
+                break
+        if not dominant_family and temporal_steps:
+            dominant_family = [int(x) for x in temporal_steps[-1].get("family", [])]
 
-        # Global adjustment only: no reordering by design
-        selected = [list(x) for x in top10_base]
+        per_list_bonus = []
+        selected_scored = []
+        for idx, lst in enumerate(top10_base):
+            base_score = float(base_scores[idx]) if idx < len(base_scores) else float(list_internal_score(lst))
+            overlap = len(set(int(x) for x in lst[:int(n_alvo)]).intersection(set(dominant_family))) if dominant_family else 0
+            if estado_dominante == "CONTINUA":
+                temporal_bonus = round(float(epsilon) * (overlap / 3.0), 6)
+            elif estado_dominante == "RUPTURA":
+                temporal_bonus = round(-float(epsilon) * (overlap / 6.0), 6)
+            else:
+                temporal_bonus = 0.0
+            per_list_bonus.append(float(temporal_bonus))
+            selected_scored.append((round(float(base_score + temporal_bonus), 6), idx, list(lst)))
+
+        selected_scored.sort(key=lambda x: (-float(x[0]), int(x[1]), tuple(x[2])))
+        selected = [list(x[2]) for x in selected_scored]
+        changed_indices = [int(new_pos) for new_pos, (_, old_idx, _) in enumerate(selected_scored) if int(old_idx) != int(new_pos)]
+
         tail = [list(x) for x in pkt[top_k:]]
         final_packet = selected + tail
         after_metrics = packet_metrics(selected)
 
-        try:
-            pc_ho6x_save_family(
-                current_k=current_k,
-                family_now=[int(x) for x in family_now],
-                score_now=float(fam_now_info.get("score", 0.0)),
-            )
-        except Exception:
-            pass
+        family_prev = [int(x) for x in temporal_steps[-2].get("family", [])] if len(temporal_steps) >= 2 else []
+        family_now = [int(x) for x in temporal_steps[-1].get("family", [])] if temporal_steps else []
+        intersecao_final = int(temporal_steps[-1].get("intersecao", 0)) if temporal_steps else 0
+        if estado_dominante == "CONTINUA":
+            ajuste_temporal = float(round(float(sum(per_list_bonus)) / max(1, len(per_list_bonus)), 6))
+        elif estado_dominante == "RUPTURA":
+            ajuste_temporal = float(round(float(sum(per_list_bonus)) / max(1, len(per_list_bonus)), 6))
+        else:
+            ajuste_temporal = 0.0
+
+        score_base_packet = round(float(sum(base_scores) / len(base_scores)) if base_scores else 0.0, 6)
+        score_final_packet = round(float(sum(x[0] for x in selected_scored) / len(selected_scored)) if selected_scored else score_base_packet, 6)
 
         return final_packet, {
             "active": True,
             "applied": True,
             "reason": "ok",
-            "mode": "discrete_temporal_atom",
+            "mode": "intra_exec_temporal_simulation",
             "before_metrics": before_metrics,
             "after_metrics": after_metrics,
             "swaps": 0,
-            "listas_alteradas": 0,
-            "changed_indices": [],
+            "listas_alteradas": int(len(changed_indices)),
+            "changed_indices": list(changed_indices),
             "top10_base_hash": hash(str(top10_base)),
             "top10_final_hash": hash(str(selected)),
             "family_prev": [int(x) for x in family_prev],
             "family_now": [int(x) for x in family_now],
-            "family_now_score": float(fam_now_info.get("score", 0.0)),
-            "family_candidates": [int(x) for x in fam_now_info.get("candidates", [])],
-            "intersecao": int(intersecao),
-            "temporal_state": str(temporal_state),
+            "family_now_score": float(extract_family_signature(selected).get("score", 0.0)) if selected else 0.0,
+            "family_candidates": [int(x) for x in extract_family_signature(selected).get("candidates", [])] if selected else [],
+            "intersecao": int(intersecao_final),
+            "temporal_state": str(estado_dominante),
             "epsilon": float(epsilon),
             "ajuste_aplicado": float(ajuste_temporal),
             "score_base_packet": float(score_base_packet),
             "score_final_packet": float(score_final_packet),
-            "global_adjustment_only": True,
+            "global_adjustment_only": False,
             "has_cp": bool(any(float(v) > 0.0 for v in cp_scores.values())),
+            "temporal_steps": [dict(x) for x in temporal_steps],
+            "temporal_steps_count": int(len(temporal_steps)),
+            "intersecoes_steps": [int(x.get("intersecao", 0)) for x in temporal_steps],
+            "sequencia_estados": [str(x.get("state", "TRANSICAO")) for x in temporal_steps],
+            "estado_dominante": str(estado_dominante),
+            "impacto_temporal_real": bool(selected != top10_base),
+            "per_list_bonus": [float(x) for x in per_list_bonus],
         }
     except Exception as e:
         return listas_packet, {"active": False, "applied": False, "reason": f"packet_final_mount_erro: {e}"}
@@ -1317,7 +1347,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         gen_calls = int(st.session_state.get("v16h57HO6W_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) in {"discrete_temporal_atom", "discrete_temporal_atom_guarded"}
+        fm_mode_ok = str(fm.get("mode", "")) in {"discrete_temporal_atom", "discrete_temporal_atom_guarded", "intra_exec_temporal_simulation"}
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
 
@@ -1360,6 +1390,12 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "intersecao": int(fm.get("intersecao", 0) or 0),
             "epsilon": float(fm.get("epsilon", 0.0) or 0.0),
             "ajuste_aplicado": float(fm.get("ajuste_aplicado", 0.0) or 0.0),
+            "temporal_steps": list(fm.get("temporal_steps", [])) if isinstance(fm.get("temporal_steps", []), list) else [],
+            "temporal_steps_count": int(fm.get("temporal_steps_count", 0) or 0),
+            "sequencia_estados": list(fm.get("sequencia_estados", [])) if isinstance(fm.get("sequencia_estados", []), list) else [],
+            "intersecoes_steps": list(fm.get("intersecoes_steps", [])) if isinstance(fm.get("intersecoes_steps", []), list) else [],
+            "estado_dominante": str(fm.get("estado_dominante", "")),
+            "impacto_temporal_real": bool(fm.get("impacto_temporal_real", False)),
         }
 
         if gen_calls != 1:
@@ -17071,6 +17107,11 @@ if painel == "🎯 Modo 6 Acertos — Execução":
             "intersecao": (_auditor_ho6 or {}).get("intersecao", 0),
             "epsilon": (_auditor_ho6 or {}).get("epsilon", 0.0),
             "ajuste_aplicado": (_auditor_ho6 or {}).get("ajuste_aplicado", 0.0),
+            "temporal_steps_count": (_auditor_ho6 or {}).get("temporal_steps_count", 0),
+            "sequencia_estados": (_auditor_ho6 or {}).get("sequencia_estados", []),
+            "intersecoes_steps": (_auditor_ho6 or {}).get("intersecoes_steps", []),
+            "estado_dominante": (_auditor_ho6 or {}).get("estado_dominante", ""),
+            "impacto_temporal_real": (_auditor_ho6 or {}).get("impacto_temporal_real", False),
         }
         st.code("\n".join([f"{k}: {v}" for k, v in _aud_lines.items()]), language="text")
     except Exception:
