@@ -1,4 +1,4 @@
-# --- v16h57HO6W_CLEAN_REAL DISCRETE TEMPORAL ATOM AUDITOR BANNER OK ---
+# --- v16h57HO6X_CLEAN_REAL TEMPORAL PERSISTENCE LEDGER AUDITOR OK ---
 from __future__ import annotations
 
 # ============================================================
@@ -16,6 +16,35 @@ from datetime import datetime
 import re
 import pandas as pd
 import numpy as np
+
+import json
+import os
+
+# ============================================================
+# V16h57HO6X — TEMPORAL PERSISTENCE LEDGER (FILE-BASED)
+# Persistência mínima entre execuções para o átomo temporal.
+# Não altera listas, ranking, fluxo ou Camada 4.
+# ============================================================
+HO6W_LEDGER_PATH = "ho6w_temporal_ledger.json"
+
+def pc_ho6w_load_ledger():
+    try:
+        if os.path.exists(HO6W_LEDGER_PATH):
+            with open(HO6W_LEDGER_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+    except Exception:
+        pass
+    return {}
+
+def pc_ho6w_save_ledger(data):
+    try:
+        payload = data if isinstance(data, dict) else {}
+        with open(HO6W_LEDGER_PATH, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+    except Exception:
+        pass
+
 
 # ============================================================
 # V16h57CJ — MODE6 FUNCTION TRACE HELPERS
@@ -522,14 +551,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6W_CLEAN_REAL_DISCRETE_TEMPORAL_ATOM_FULL_INTEGRATION_VISIBLE_OK.py"
+BUILD_TAG = "v16h57HO6X_CLEAN_REAL — TEMPORAL PERSISTENCE LEDGER + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6X_CLEAN_REAL_TEMPORAL_PERSISTENCE_LEDGER_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-21_02 (HO6W_CLEAN_REAL_DISCRETE_TEMPORAL_ATOM_FULL_INTEGRATION_VISIBLE_OK)"
+WATERMARK = "2026-04-21_05 (HO6X_CLEAN_REAL_TEMPORAL_PERSISTENCE_LEDGER_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6W CLEAN REAL — BUILD AUDITÁVEL (discrete temporal atom full integration visible)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6X CLEAN REAL — BUILD AUDITÁVEL (temporal persistence ledger auditor ok)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -868,10 +897,27 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         fam_now_info = extract_family_signature(top10_base)
         family_now = [int(x) for x in fam_now_info.get("family", [])]
 
-        mem_key = "v16h57HO6W_prev_family_base"
-        prev_info = st.session_state.get(mem_key)
-        if not isinstance(prev_info, dict):
-            prev_info = {}
+        ledger = pc_ho6w_load_ledger()
+
+        prev_info = {}
+        if isinstance(ledger, dict):
+            try:
+                last_k = int(ledger.get("last_k", 0) or 0)
+            except Exception:
+                last_k = 0
+            last_build = str(ledger.get("last_build", "") or "")
+            try:
+                current_k = int(st.session_state.get("k_reg", 0) or 0)
+            except Exception:
+                current_k = 0
+
+            # Usa a família anterior apenas quando:
+            # - é o mesmo build
+            # - existe k anterior persistido
+            # - estamos avançando para um k menor (replay descendente)
+            if last_build == BUILD_TAG and last_k > 0 and current_k > 0 and current_k < last_k:
+                prev_info = ledger
+
         family_prev = [int(x) for x in (prev_info.get("family", []) if isinstance(prev_info.get("family", []), list) else [])][:3]
 
         intersecao = len(set(family_now).intersection(set(family_prev))) if family_now and family_prev else 0
@@ -905,10 +951,13 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         after_metrics = packet_metrics(selected)
 
         try:
-            st.session_state[mem_key] = {
+            pc_ho6w_save_ledger({
                 "family": [int(x) for x in family_now],
                 "score": float(fam_now_info.get("score", 0.0)),
-            }
+                "last_k": int(st.session_state.get("k_reg", 0) or 0),
+                "last_build": BUILD_TAG,
+                "last_updated_ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            })
         except Exception:
             pass
 
