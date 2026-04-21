@@ -522,7 +522,7 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6Y_CLEAN_REAL — INTRA-EXEC TEMPORAL SIMULATION + AUDITOR + BANNER OK"
+BUILD_TAG = "v16h57HO6Z_CLEAN_REAL — TEMPORAL INERTIA STABILIZATION + AUDITOR + BANNER OK"
 BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6Y_CLEAN_REAL_INTRA_EXEC_TEMPORAL_SIMULATION_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -920,9 +920,15 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             elif intersecao == 3:
                 temporal_state = "CONTINUA"
             elif intersecao == 2:
-                temporal_state = "TRANSICAO"
+                if prev_family and len(set(family_now).intersection(set(prev_family))) >= 2:
+                    temporal_state = "CONTINUA"
+                else:
+                    temporal_state = "TRANSICAO"
             else:
-                temporal_state = "RUPTURA"
+                if prev_family and len(set(family_now).intersection(set(prev_family))) >= 2:
+                    temporal_state = "TRANSICAO"
+                else:
+                    temporal_state = "RUPTURA"
             temporal_steps.append({
                 "step": int(step_idx),
                 "cut": int(cut),
