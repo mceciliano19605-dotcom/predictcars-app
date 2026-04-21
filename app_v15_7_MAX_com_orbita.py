@@ -523,13 +523,13 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # ============================================================
 
 BUILD_TAG = "v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6W_CLEAN_REAL_TEMPORAL_PHASE_PERSISTENCE_CONTROL_AUDITOR_BANNER_OK.py"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6W_CLEAN_REAL_DISCRETE_TEMPORAL_ATOM_AUDITOR_VISIBLE_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-20_02 (HO6W_CLEAN_REAL_TEMPORAL_PHASE_PERSISTENCE_CONTROL_AUDITOR_BANNER_OK)"
+WATERMARK = "2026-04-21_01 (HO6W_CLEAN_REAL_DISCRETE_TEMPORAL_ATOM_AUDITOR_VISIBLE_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6W CLEAN REAL — BUILD AUDITÁVEL (temporal phase persistence control)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6W CLEAN REAL — BUILD AUDITÁVEL (discrete temporal atom auditor visible)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1257,7 +1257,7 @@ def v16h57FS_clear_mode6_packet_state():
 # V16h57HO6A — AUDITOR AUTOMÁTICO DO BUILD
 # Valida unicidade, ponto vivo, pré-sanidade, mudança real e consistência
 # ============================================================
-def pc_v16_build_auditor_ho6u(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
+def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
     try:
         npgen_info = npgen_info if isinstance(npgen_info, dict) else {}
         fm = npgen_info.get("final_mount_info") if isinstance(npgen_info.get("final_mount_info"), dict) else {}
@@ -1301,6 +1301,14 @@ def pc_v16_build_auditor_ho6u(*, npgen_info=None, pre_sanidade_top10=None, post_
             "cp_ok": bool(cp.get("ok", False)),
             "pre_top10_hash": hash(str(pre_top)) if pre_top else None,
             "post_top10_hash": hash(str(post_top)) if post_top else None,
+
+            # HO6W temporal visibility
+            "temporal_state": str(fm.get("temporal_state", "")),
+            "family_prev": list(fm.get("family_prev", [])) if isinstance(fm.get("family_prev", []), list) else [],
+            "family_now": list(fm.get("family_now", [])) if isinstance(fm.get("family_now", []), list) else [],
+            "intersecao": int(fm.get("intersecao", 0) or 0),
+            "epsilon": float(fm.get("epsilon", 0.0) or 0.0),
+            "ajuste_aplicado": float(fm.get("ajuste_aplicado", 0.0) or 0.0),
         }
 
         if gen_calls != 1:
@@ -1320,6 +1328,29 @@ def pc_v16_build_auditor_ho6u(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["motivo"] = "mudanca_nao_detectada_no_top10"
 
         st.session_state["v16h57HO6W_auditor"] = auditor
+        return auditor
+    except Exception as e:
+        auditor = {
+            "status": "INVALIDO",
+            "motivo": f"auditor_erro: {e}",
+            "unicidade": "FALHA",
+            "generator_call_count": int(st.session_state.get("v16h57HO6W_generator_call_count", 0) or 0),
+            "ponto_fluxo": "FALHA",
+            "antes_sanidade": "OK",
+            "mudou_pacote": "NAO",
+            "chegou_top10": "NAO",
+            "consistencia_intervencao": "FALHA",
+            "temporal_state": "",
+            "family_prev": [],
+            "family_now": [],
+            "intersecao": 0,
+            "epsilon": 0.0,
+            "ajuste_aplicado": 0.0,
+        }
+        try:
+            st.session_state["v16h57HO6W_auditor"] = auditor
+        except Exception:
+            pass
         return auditor
     except Exception as e:
         auditor = {
@@ -16960,7 +16991,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         st.session_state["v16h57HO6W_post_sanidade_top10"] = []
 
     try:
-        _auditor_ho6 = pc_v16_build_auditor_ho6u(
+        _auditor_ho6 = pc_v16_build_auditor_ho6w(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
             pre_sanidade_top10=st.session_state.get("v16h57HO6W_pre_sanidade_top10") or [],
             post_sanidade_top10=st.session_state.get("v16h57HO6W_post_sanidade_top10") or [],
