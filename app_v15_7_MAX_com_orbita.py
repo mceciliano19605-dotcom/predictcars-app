@@ -522,14 +522,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6Y_CLEAN_REAL — INTRA-EXEC TEMPORAL SIMULATION + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6Y_CLEAN_REAL_INTRA_EXEC_TEMPORAL_SIMULATION_AUDITOR_OK.py"
+BUILD_TAG = "v16h57HO6ZF_CLEAN_REAL — FAMILY STABILITY CONTROL + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZF_CLEAN_REAL_FAMILY_STABILITY_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-21_08 (HO6Y_CLEAN_REAL_INTRA_EXEC_TEMPORAL_SIMULATION_AUDITOR_OK)"
+WATERMARK = "2026-04-22_00 (HO6ZF_CLEAN_REAL_FAMILY_STABILITY_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6Y CLEAN REAL — BUILD AUDITÁVEL (intra-exec temporal simulation)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZF CLEAN REAL — BUILD AUDITÁVEL (family stability control)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -753,7 +753,7 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6Y — intra-exec temporal simulation.
+    HO6ZF — family stability control.
     O tempo passa a existir DENTRO da mesma execução:
     - gera passos temporais internos a partir do Top10_base
     - extrai família por passo
@@ -910,25 +910,70 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 step_sizes.append(nstep)
         temporal_steps = []
         prev_family = []
+        family_stability_applied_steps = 0
+        family_stability_events = []
         for step_idx, cut in enumerate(step_sizes):
             variant = build_step_variant(top10_base[:cut], tail_lists, step_idx)
             fam_info = extract_family_signature(variant)
-            family_now = [int(x) for x in fam_info.get("family", [])]
+            family_now_raw = [int(x) for x in fam_info.get("family", [])]
+            family_now = [int(x) for x in family_now_raw]
+            intersecao_raw = len(set(family_now).intersection(set(prev_family))) if family_now and prev_family else 0
+
+            # HO6ZF — FAMILY STABILITY CONTROL
+            # se a família quebrar abaixo de 2 elementos em comum, preserva parcialmente
+            # a família anterior (1 a 2 elementos) para evitar ruptura estrutural precoce.
+            stability_applied = False
+            if step_idx > 0 and prev_family and intersecao_raw < 2:
+                keep_prev = [int(x) for x in prev_family[:2]]
+                keep_curr = [int(x) for x in family_now if int(x) not in keep_prev]
+                stabilized = []
+                for x in keep_prev:
+                    if x not in stabilized:
+                        stabilized.append(int(x))
+                for x in keep_curr:
+                    if x not in stabilized:
+                        stabilized.append(int(x))
+                    if len(stabilized) >= 3:
+                        break
+                if len(stabilized) < 3:
+                    for x in family_now:
+                        if x not in stabilized:
+                            stabilized.append(int(x))
+                        if len(stabilized) >= 3:
+                            break
+                stabilized = [int(x) for x in stabilized[:3]]
+                inter_stab = len(set(stabilized).intersection(set(prev_family))) if stabilized and prev_family else 0
+                if len(stabilized) == 3 and inter_stab > intersecao_raw:
+                    family_now = stabilized
+                    stability_applied = True
+                    family_stability_applied_steps += 1
+                    family_stability_events.append({
+                        "step": int(step_idx),
+                        "family_prev": [int(x) for x in prev_family],
+                        "family_raw": [int(x) for x in family_now_raw],
+                        "family_stable": [int(x) for x in family_now],
+                        "intersecao_raw": int(intersecao_raw),
+                        "intersecao_stable": int(inter_stab),
+                    })
+
             intersecao = len(set(family_now).intersection(set(prev_family))) if family_now and prev_family else 0
             if step_idx == 0:
                 temporal_state = "TRANSICAO"
             elif intersecao == 3:
                 temporal_state = "CONTINUA"
             elif intersecao == 2:
-                temporal_state = "TRANSICAO"
+                temporal_state = "CONTINUA"
             else:
                 temporal_state = "RUPTURA"
             temporal_steps.append({
                 "step": int(step_idx),
                 "cut": int(cut),
                 "family": [int(x) for x in family_now],
+                "family_raw": [int(x) for x in family_now_raw],
                 "intersecao": int(intersecao),
+                "intersecao_raw": int(intersecao_raw),
                 "state": str(temporal_state),
+                "family_stability_applied": bool(stability_applied),
             })
             prev_family = [int(x) for x in family_now]
 
@@ -990,7 +1035,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "active": True,
             "applied": True,
             "reason": "ok",
-            "mode": "intra_exec_temporal_simulation",
+            "mode": "intra_exec_family_stability",
             "before_metrics": before_metrics,
             "after_metrics": after_metrics,
             "swaps": 0,
@@ -1016,6 +1061,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "sequencia_estados": [str(x.get("state", "TRANSICAO")) for x in temporal_steps],
             "estado_dominante": str(estado_dominante),
             "impacto_temporal_real": bool(selected != top10_base),
+            "family_stability_applied_steps": int(family_stability_applied_steps),
+            "family_stability_events": [dict(x) for x in family_stability_events],
+            "family_stability_active": bool(family_stability_applied_steps > 0),
             "per_list_bonus": [float(x) for x in per_list_bonus],
         }
     except Exception as e:
@@ -1347,7 +1395,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         gen_calls = int(st.session_state.get("v16h57HO6W_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) in {"discrete_temporal_atom", "discrete_temporal_atom_guarded", "intra_exec_temporal_simulation"}
+        fm_mode_ok = str(fm.get("mode", "")) in {"discrete_temporal_atom", "discrete_temporal_atom_guarded", "intra_exec_temporal_simulation", "intra_exec_family_stability"}
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
 
@@ -1396,6 +1444,8 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "intersecoes_steps": list(fm.get("intersecoes_steps", [])) if isinstance(fm.get("intersecoes_steps", []), list) else [],
             "estado_dominante": str(fm.get("estado_dominante", "")),
             "impacto_temporal_real": bool(fm.get("impacto_temporal_real", False)),
+            "family_stability_applied_steps": int(fm.get("family_stability_applied_steps", 0) or 0),
+            "family_stability_active": bool(fm.get("family_stability_active", False)),
         }
 
         if gen_calls != 1:
