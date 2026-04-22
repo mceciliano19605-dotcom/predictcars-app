@@ -519,17 +519,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZC_CLEAN_REAL — CONVERSION MICRO-TUNING + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZF_CLEAN_REAL — FAMILY STABILITY CONTROL + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZF_CLEAN_REAL_FAMILY_STABILITY_AUDITOR_OK.py"
+BUILD_TAG = "v16h57HO6ZC_CLEAN_REAL — CONVERSION MICRO-TUNING + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZC_CLEAN_REAL_CONVERSION_MICRO_TUNING_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-22_00 (HO6ZF_CLEAN_REAL_FAMILY_STABILITY_AUDITOR_OK)"
+WATERMARK = "2026-04-22_00 (HO6ZC_CLEAN_REAL_CONVERSION_MICRO_TUNING_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZF CLEAN REAL — BUILD AUDITÁVEL (family stability control)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZC CLEAN REAL — BUILD AUDITÁVEL (conversion micro-tuning)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -753,7 +753,7 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6ZF — family stability control.
+    HO6ZC — conversion micro-tuning dentro da estabilidade.
     O tempo passa a existir DENTRO da mesma execução:
     - gera passos temporais internos a partir do Top10_base
     - extrai família por passo
@@ -919,7 +919,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             family_now = [int(x) for x in family_now_raw]
             intersecao_raw = len(set(family_now).intersection(set(prev_family))) if family_now and prev_family else 0
 
-            # HO6ZF — FAMILY STABILITY CONTROL
+            # HO6ZC — FAMILY STABILITY BASE (herdado do HO6ZF)
             # se a família quebrar abaixo de 2 elementos em comum, preserva parcialmente
             # a família anterior (1 a 2 elementos) para evitar ruptura estrutural precoce.
             stability_applied = False
@@ -996,7 +996,43 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         if not dominant_family and temporal_steps:
             dominant_family = [int(x) for x in temporal_steps[-1].get("family", [])]
 
+        # HO6ZC — conversion micro-tuning dentro da estabilidade.
+        # Não altera a família dominante; apenas refina as combinações em torno dela.
+        conv_features = []
+        for idx, lst in enumerate(top10_base):
+            vals = [int(x) for x in lst[:int(n_alvo)]]
+            overlap = len(set(vals).intersection(set(dominant_family))) if dominant_family else 0
+            non_dom = [int(x) for x in vals if int(x) not in set(dominant_family)]
+            cp_non = float(sum(float(cp_scores.get(int(v), 0.0)) for v in non_dom))
+            rank_non = 0.0
+            if ranking:
+                rank_non = float(sum(max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking)))) for v in non_dom))
+            pair_non = 0.0
+            pair_pairs = 0
+            for i in range(len(non_dom)):
+                for j in range(i + 1, len(non_dom)):
+                    pair_non += float(pair_score(non_dom[i], non_dom[j]))
+                    pair_pairs += 1
+            pair_non = float(pair_non / pair_pairs) if pair_pairs else 0.0
+            # overlap 2 é o sweet-spot de conversão: mantém estabilidade sem comprimir demais.
+            overlap_pref = 1.0 if overlap == 2 else (0.8 if overlap == 3 else (0.35 if overlap == 1 else 0.0))
+            conv_raw = float(overlap_pref + 0.55 * cp_non + 0.25 * rank_non + 0.20 * pair_non)
+            conv_features.append({
+                "idx": int(idx),
+                "overlap": int(overlap),
+                "cp_non": float(round(cp_non, 6)),
+                "rank_non": float(round(rank_non, 6)),
+                "pair_non": float(round(pair_non, 6)),
+                "conv_raw": float(round(conv_raw, 6)),
+            })
+
+        conv_vals = [float(x.get("conv_raw", 0.0)) for x in conv_features]
+        conv_min = min(conv_vals) if conv_vals else 0.0
+        conv_max = max(conv_vals) if conv_vals else 0.0
+        conv_den = float(conv_max - conv_min) if conv_max != conv_min else 0.0
+
         per_list_bonus = []
+        conversion_micro_bonus = []
         selected_scored = []
         for idx, lst in enumerate(top10_base):
             base_score = float(base_scores[idx]) if idx < len(base_scores) else float(list_internal_score(lst))
@@ -1007,8 +1043,21 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 temporal_bonus = round(-float(epsilon) * (overlap / 6.0), 6)
             else:
                 temporal_bonus = 0.0
-            per_list_bonus.append(float(temporal_bonus))
-            selected_scored.append((round(float(base_score + temporal_bonus), 6), idx, list(lst)))
+
+            conv_bonus = 0.0
+            if estado_dominante == "CONTINUA" and conv_den > 0.0:
+                conv_raw = float(conv_features[idx].get("conv_raw", 0.0))
+                conv_norm = (conv_raw - conv_min) / conv_den
+                # bônus micro: pequeno, positivo, só para listas já estáveis (overlap >= 2).
+                if int(conv_features[idx].get("overlap", 0)) >= 2:
+                    conv_bonus = round(float(epsilon) * 0.45 * conv_norm, 6)
+                else:
+                    conv_bonus = round(-float(epsilon) * 0.15 * (1.0 - conv_norm), 6)
+
+            total_bonus = float(round(float(temporal_bonus) + float(conv_bonus), 6))
+            per_list_bonus.append(float(total_bonus))
+            conversion_micro_bonus.append(float(conv_bonus))
+            selected_scored.append((round(float(base_score + total_bonus), 6), idx, list(lst)))
 
         selected_scored.sort(key=lambda x: (-float(x[0]), int(x[1]), tuple(x[2])))
         selected = [list(x[2]) for x in selected_scored]
@@ -1035,7 +1084,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "active": True,
             "applied": True,
             "reason": "ok",
-            "mode": "intra_exec_family_stability",
+            "mode": "intra_exec_family_stability_conversion",
             "before_metrics": before_metrics,
             "after_metrics": after_metrics,
             "swaps": 0,
@@ -1064,6 +1113,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "family_stability_applied_steps": int(family_stability_applied_steps),
             "family_stability_events": [dict(x) for x in family_stability_events],
             "family_stability_active": bool(family_stability_applied_steps > 0),
+            "conversion_micro_tuning_active": bool(estado_dominante == "CONTINUA"),
+            "conversion_micro_bonus": [float(x) for x in conversion_micro_bonus],
+            "conversion_micro_features": [dict(x) for x in conv_features],
             "per_list_bonus": [float(x) for x in per_list_bonus],
         }
     except Exception as e:
@@ -1444,6 +1496,10 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "intersecoes_steps": list(fm.get("intersecoes_steps", [])) if isinstance(fm.get("intersecoes_steps", []), list) else [],
             "estado_dominante": str(fm.get("estado_dominante", "")),
             "impacto_temporal_real": bool(fm.get("impacto_temporal_real", False)),
+            "family_stability_applied_steps": int(fm.get("family_stability_applied_steps", 0) or 0),
+            "family_stability_active": bool(fm.get("family_stability_active", False)),
+            "conversion_micro_tuning_active": bool(fm.get("conversion_micro_tuning_active", False)),
+            "conversion_micro_bonus": list(fm.get("conversion_micro_bonus", [])) if isinstance(fm.get("conversion_micro_bonus", []), list) else [],
             "family_stability_applied_steps": int(fm.get("family_stability_applied_steps", 0) or 0),
             "family_stability_active": bool(fm.get("family_stability_active", False)),
         }
