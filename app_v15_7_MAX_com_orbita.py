@@ -522,14 +522,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6Z_CLEAN_REAL — TEMPORAL INERTIA STABILIZATION + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6Z_CLEAN_REAL_TEMPORAL_INERTIA_AUDITOR_OK.py"
+BUILD_TAG = "v16h57HO6Y_CLEAN_REAL — INTRA-EXEC TEMPORAL SIMULATION + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6Y_CLEAN_REAL_INTRA_EXEC_TEMPORAL_SIMULATION_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-21_23 (HO6Z_CLEAN_REAL_TEMPORAL_INERTIA_AUDITOR_OK)"
+WATERMARK = "2026-04-21_08 (HO6Y_CLEAN_REAL_INTRA_EXEC_TEMPORAL_SIMULATION_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6Z CLEAN REAL — BUILD AUDITÁVEL (temporal inertia stabilization)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6Y CLEAN REAL — BUILD AUDITÁVEL (intra-exec temporal simulation)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -753,7 +753,7 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6Z — temporal inertia stabilization.
+    HO6Y — intra-exec temporal simulation.
     O tempo passa a existir DENTRO da mesma execução:
     - gera passos temporais internos a partir do Top10_base
     - extrai família por passo
@@ -920,15 +920,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             elif intersecao == 3:
                 temporal_state = "CONTINUA"
             elif intersecao == 2:
-                if prev_family and len(set(family_now).intersection(set(prev_family))) >= 2:
-                    temporal_state = "CONTINUA"
-                else:
-                    temporal_state = "TRANSICAO"
+                temporal_state = "TRANSICAO"
             else:
-                if prev_family and len(set(family_now).intersection(set(prev_family))) >= 2:
-                    temporal_state = "TRANSICAO"
-                else:
-                    temporal_state = "RUPTURA"
+                temporal_state = "RUPTURA"
             temporal_steps.append({
                 "step": int(step_idx),
                 "cut": int(cut),
