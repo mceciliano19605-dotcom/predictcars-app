@@ -522,14 +522,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZN_CLEAN_REAL — SELECTIVE COUPLING + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZN_CLEAN_REAL_SELECTIVE_COUPLING_AUDITOR_OK.py"
+BUILD_TAG = "v16h57HO6ZO_CLEAN_REAL — FINAL DECISION LAYER + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZO_CLEAN_REAL_FINAL_DECISION_LAYER_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-23_06 (HO6ZN_CLEAN_REAL_SELECTIVE_COUPLING_AUDITOR_OK)"
+WATERMARK = "2026-04-23_11 (HO6ZO_CLEAN_REAL_FINAL_DECISION_LAYER_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZN CLEAN REAL — BUILD AUDITÁVEL (selective coupling)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZO CLEAN REAL — BUILD AUDITÁVEL (final decision layer)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -753,7 +753,7 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6ZN — selective coupling over a stable family base.
+    HO6ZO — final decision layer over a stable family base.
     O tempo passa a existir DENTRO da mesma execução:
     - gera passos temporais internos a partir do Top10_base
     - extrai família por passo
@@ -1001,6 +1001,8 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         local_coupling_events = []
         selective_coupling_bonus = []
         selective_coupling_events = []
+        decision_bonus_list = []
+        decision_events = []
         # HO6ZN — SELECTIVE COUPLING
         # Reforça, sem alterar composição, listas cujo acoplamento coincide com
         # elementos historicamente mais úteis para conversão (cp_scores) dentro da
@@ -1048,6 +1050,21 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             raw = float(pair_sum * 0.18 + cp_sum * 0.22 + selective_pairs * 0.08 + (dom_overlap / 3.0) * 0.10)
             return raw
 
+        def _decision_score(lst):
+            vals = [int(x) for x in lst[:int(n_alvo)]]
+            if not vals:
+                return 0.0
+            pair_strength = 0.0
+            for i in range(len(vals)):
+                for j in range(i + 1, len(vals)):
+                    pair_strength += pair_score(vals[i], vals[j])
+            cp_strength = sum(float(cp_scores.get(int(x), 0.0)) for x in vals)
+            rank_strength = sum(max(0.0, 1.0 - (ranking_pos.get(int(x), 9999) / max(1, len(ranking) if ranking else 1))) for x in vals)
+            internal_spread = max(vals) - min(vals) if len(vals) >= 2 else 0
+            spread_penalty = min(float(internal_spread) / max(1.0, 60.0), 1.0)
+            raw = float(pair_strength * 0.22 + cp_strength * 0.18 + rank_strength * 0.06 - spread_penalty * 0.04)
+            return raw
+
         selected_scored = []
         for idx, lst in enumerate(top10_base):
             base_score = float(base_scores[idx]) if idx < len(base_scores) else float(list_internal_score(lst))
@@ -1081,7 +1098,18 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "overlap": int(overlap),
                 "bonus": float(zsn_bonus),
             })
-            selected_scored.append((round(float(base_score + temporal_bonus + zlc_bonus + zsn_bonus), 6), idx, list(lst)))
+            decision_bonus = 0.0
+            if estado_dominante == "CONTINUA":
+                raw_decision_bonus = float(_decision_score(lst)) * max(0.0, float(epsilon))
+                decision_clamp = max(float(epsilon) * 1.25, 0.0001)
+                decision_bonus = round(max(-decision_clamp, min(decision_clamp, raw_decision_bonus)), 6)
+            decision_bonus_list.append(float(decision_bonus))
+            decision_events.append({
+                "idx": int(idx),
+                "overlap": int(overlap),
+                "bonus": float(decision_bonus),
+            })
+            selected_scored.append((round(float(base_score + temporal_bonus + zlc_bonus + zsn_bonus + decision_bonus), 6), idx, list(lst)))
 
         selected_scored.sort(key=lambda x: (-float(x[0]), int(x[1]), tuple(x[2])))
         selected = [list(x[2]) for x in selected_scored]
@@ -1109,7 +1137,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "active": True,
             "applied": True,
             "reason": "ok",
-            "mode": "intra_exec_selective_coupling",
+            "mode": "intra_exec_final_decision_layer",
             "before_metrics": before_metrics,
             "after_metrics": after_metrics,
             "swaps": 0,
@@ -1149,6 +1177,10 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "selective_coupling_bonus": [float(x) for x in selective_coupling_bonus],
             "selective_coupling_bonus_avg": float(round(float(sum(selective_coupling_bonus) / len(selective_coupling_bonus)) if selective_coupling_bonus else 0.0, 6)),
             "selective_coupling_events": [dict(x) for x in selective_coupling_events],
+            "decision_layer_active": bool(estado_dominante == "CONTINUA"),
+            "decision_bonus": [float(x) for x in decision_bonus_list],
+            "decision_bonus_avg": float(round(float(sum(decision_bonus_list) / len(decision_bonus_list)) if decision_bonus_list else 0.0, 6)),
+            "decision_events": [dict(x) for x in decision_events],
         }
     except Exception as e:
         return listas_packet, {"active": False, "applied": False, "reason": f"packet_final_mount_erro: {e}"}
@@ -1479,7 +1511,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         gen_calls = int(st.session_state.get("v16h57HO6W_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) in {"discrete_temporal_atom", "discrete_temporal_atom_guarded", "intra_exec_temporal_simulation", "intra_exec_family_stability", "intra_exec_local_coupling_adjustment", "intra_exec_coupling_intensification", "intra_exec_selective_coupling"}
+        fm_mode_ok = str(fm.get("mode", "")) in {"discrete_temporal_atom", "discrete_temporal_atom_guarded", "intra_exec_temporal_simulation", "intra_exec_family_stability", "intra_exec_local_coupling_adjustment", "intra_exec_coupling_intensification", "intra_exec_selective_coupling", "intra_exec_final_decision_layer"}
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
 
@@ -1536,6 +1568,8 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "coupling_intensification_bonus_avg": float(fm.get("coupling_intensification_bonus_avg", 0.0) or 0.0),
             "selective_coupling_active": bool(fm.get("selective_coupling_active", False)),
             "selective_coupling_bonus_avg": float(fm.get("selective_coupling_bonus_avg", 0.0) or 0.0),
+            "decision_layer_active": bool(fm.get("decision_layer_active", False)),
+            "decision_bonus_avg": float(fm.get("decision_bonus_avg", 0.0) or 0.0),
         }
 
         if gen_calls != 1:
