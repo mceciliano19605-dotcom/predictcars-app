@@ -522,14 +522,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZL_CLEAN_REAL — LOCAL COUPLING ADJUSTMENT + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZL_CLEAN_REAL_LOCAL_COUPLING_ADJUSTMENT_AUDITOR_OK.py"
+BUILD_TAG = "v16h57HO6ZM_CLEAN_REAL — COUPLING INTENSIFICATION + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZM_CLEAN_REAL_COUPLING_INTENSIFICATION_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-22_15 (HO6ZL_CLEAN_REAL_LOCAL_COUPLING_ADJUSTMENT_AUDITOR_OK)"
+WATERMARK = "2026-04-22_23 (HO6ZM_CLEAN_REAL_COUPLING_INTENSIFICATION_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZL CLEAN REAL — BUILD AUDITÁVEL (local coupling adjustment)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZM CLEAN REAL — BUILD AUDITÁVEL (coupling intensification)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -753,7 +753,7 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6ZL — local coupling adjustment over a stable family base.
+    HO6ZM — coupling intensification over a stable family base.
     O tempo passa a existir DENTRO da mesma execução:
     - gera passos temporais internos a partir do Top10_base
     - extrai família por passo
@@ -999,9 +999,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         per_list_bonus = []
         local_coupling_bonus = []
         local_coupling_events = []
-        # HO6ZL — LOCAL COUPLING ADJUSTMENT
-        # Ajuste fino NÃO estrutural: reforça listas que preservam blocos locais
-        # de coocorrência dentro da família estável dominante.
+        # HO6ZM — COUPLING INTENSIFICATION
+        # Intensificação NÃO estrutural: reforça com mais força listas que preservam
+        # blocos locais úteis dentro da família estável dominante.
         def _local_coupling_score(lst, dom_family):
             vals = [int(x) for x in lst[:int(n_alvo)]]
             if not vals or not dom_family:
@@ -1011,11 +1011,16 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             if len(overlap_vals) < 2:
                 return 0.0
             pair_sum = 0.0
+            trio_sum = 0.0
             for i in range(len(overlap_vals)):
                 for j in range(i + 1, len(overlap_vals)):
                     pair_sum += pair_score(overlap_vals[i], overlap_vals[j])
+            if len(overlap_vals) >= 3:
+                trio_sum = pair_sum / 3.0
             cp_sum = sum(float(cp_scores.get(int(x), 0.0)) for x in overlap_vals)
-            return float(pair_sum * 0.12 + cp_sum * 0.06 + (len(overlap_vals) / 3.0) * 0.08)
+            overlap_factor = float(len(overlap_vals)) / 3.0
+            raw_score = float(pair_sum * 0.26 + trio_sum * 0.10 + cp_sum * 0.10 + overlap_factor * 0.14)
+            return float(raw_score)
 
         selected_scored = []
         for idx, lst in enumerate(top10_base):
@@ -1030,7 +1035,9 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             per_list_bonus.append(float(temporal_bonus))
             zlc_bonus = 0.0
             if estado_dominante == "CONTINUA" and dominant_family:
-                zlc_bonus = round(float(_local_coupling_score(lst, dominant_family)) * max(0.0, float(epsilon)), 6)
+                raw_zlc_bonus = float(_local_coupling_score(lst, dominant_family)) * max(0.0, float(epsilon)) * 1.75
+                clamp_lim = max(float(epsilon) * 1.35, 0.0001)
+                zlc_bonus = round(max(-clamp_lim, min(clamp_lim, raw_zlc_bonus)), 6)
             local_coupling_bonus.append(float(zlc_bonus))
             local_coupling_events.append({
                 "idx": int(idx),
@@ -1065,7 +1072,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "active": True,
             "applied": True,
             "reason": "ok",
-            "mode": "intra_exec_local_coupling_adjustment",
+            "mode": "intra_exec_coupling_intensification",
             "before_metrics": before_metrics,
             "after_metrics": after_metrics,
             "swaps": 0,
@@ -1099,6 +1106,8 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "local_coupling_bonus": [float(x) for x in local_coupling_bonus],
             "local_coupling_bonus_avg": float(local_coupling_bonus_avg),
             "local_coupling_events": [dict(x) for x in local_coupling_events],
+            "coupling_intensification_active": bool(estado_dominante == "CONTINUA"),
+            "coupling_intensification_bonus_avg": float(local_coupling_bonus_avg),
         }
     except Exception as e:
         return listas_packet, {"active": False, "applied": False, "reason": f"packet_final_mount_erro: {e}"}
@@ -1429,7 +1438,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         gen_calls = int(st.session_state.get("v16h57HO6W_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) in {"discrete_temporal_atom", "discrete_temporal_atom_guarded", "intra_exec_temporal_simulation", "intra_exec_family_stability", "intra_exec_local_coupling_adjustment"}
+        fm_mode_ok = str(fm.get("mode", "")) in {"discrete_temporal_atom", "discrete_temporal_atom_guarded", "intra_exec_temporal_simulation", "intra_exec_family_stability", "intra_exec_local_coupling_adjustment", "intra_exec_coupling_intensification"}
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
 
@@ -1482,6 +1491,8 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "family_stability_active": bool(fm.get("family_stability_active", False)),
             "local_coupling_active": bool(fm.get("local_coupling_active", False)),
             "local_coupling_bonus_avg": float(fm.get("local_coupling_bonus_avg", 0.0) or 0.0),
+            "coupling_intensification_active": bool(fm.get("coupling_intensification_active", False)),
+            "coupling_intensification_bonus_avg": float(fm.get("coupling_intensification_bonus_avg", 0.0) or 0.0),
         }
 
         if gen_calls != 1:
