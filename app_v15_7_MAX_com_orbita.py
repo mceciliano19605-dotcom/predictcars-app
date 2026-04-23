@@ -522,14 +522,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6W_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZM_CLEAN_REAL — COUPLING INTENSIFICATION + AUDITOR + BANNER OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZM_CLEAN_REAL_COUPLING_INTENSIFICATION_AUDITOR_OK.py"
+BUILD_TAG = "v16h57HO6ZN_CLEAN_REAL — SELECTIVE COUPLING + AUDITOR + BANNER OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZN_CLEAN_REAL_SELECTIVE_COUPLING_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-22_23 (HO6ZM_CLEAN_REAL_COUPLING_INTENSIFICATION_AUDITOR_OK)"
+WATERMARK = "2026-04-23_06 (HO6ZN_CLEAN_REAL_SELECTIVE_COUPLING_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZM CLEAN REAL — BUILD AUDITÁVEL (coupling intensification)", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZN CLEAN REAL — BUILD AUDITÁVEL (selective coupling)", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -753,7 +753,7 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6ZM — coupling intensification over a stable family base.
+    HO6ZN — selective coupling over a stable family base.
     O tempo passa a existir DENTRO da mesma execução:
     - gera passos temporais internos a partir do Top10_base
     - extrai família por passo
@@ -999,9 +999,12 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         per_list_bonus = []
         local_coupling_bonus = []
         local_coupling_events = []
-        # HO6ZM — COUPLING INTENSIFICATION
-        # Intensificação NÃO estrutural: reforça com mais força listas que preservam
-        # blocos locais úteis dentro da família estável dominante.
+        selective_coupling_bonus = []
+        selective_coupling_events = []
+        # HO6ZN — SELECTIVE COUPLING
+        # Reforça, sem alterar composição, listas cujo acoplamento coincide com
+        # elementos historicamente mais úteis para conversão (cp_scores) dentro da
+        # família dominante estável.
         def _local_coupling_score(lst, dom_family):
             vals = [int(x) for x in lst[:int(n_alvo)]]
             if not vals or not dom_family:
@@ -1019,8 +1022,31 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 trio_sum = pair_sum / 3.0
             cp_sum = sum(float(cp_scores.get(int(x), 0.0)) for x in overlap_vals)
             overlap_factor = float(len(overlap_vals)) / 3.0
-            raw_score = float(pair_sum * 0.26 + trio_sum * 0.10 + cp_sum * 0.10 + overlap_factor * 0.14)
+            raw_score = float(pair_sum * 0.22 + trio_sum * 0.08 + cp_sum * 0.10 + overlap_factor * 0.10)
             return float(raw_score)
+
+        def _selective_coupling_score(lst, dom_family):
+            vals = [int(x) for x in lst[:int(n_alvo)]]
+            if not vals:
+                return 0.0
+            dom_set = set(int(x) for x in (dom_family or []))
+            top_cp = [int(k) for k, _ in sorted(cp_scores.items(), key=lambda kv: (-float(kv[1]), int(kv[0])))[:8]]
+            target_set = set(top_cp).union(dom_set)
+            chosen = [int(x) for x in vals if int(x) in target_set]
+            if len(chosen) < 2:
+                return 0.0
+            cp_sum = sum(float(cp_scores.get(int(x), 0.0)) for x in chosen)
+            pair_sum = 0.0
+            selective_pairs = 0
+            for i in range(len(chosen)):
+                for j in range(i + 1, len(chosen)):
+                    ps = pair_score(chosen[i], chosen[j])
+                    if ps > 0:
+                        selective_pairs += 1
+                    pair_sum += ps
+            dom_overlap = len([x for x in chosen if x in dom_set])
+            raw = float(pair_sum * 0.18 + cp_sum * 0.22 + selective_pairs * 0.08 + (dom_overlap / 3.0) * 0.10)
+            return raw
 
         selected_scored = []
         for idx, lst in enumerate(top10_base):
@@ -1035,8 +1061,8 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             per_list_bonus.append(float(temporal_bonus))
             zlc_bonus = 0.0
             if estado_dominante == "CONTINUA" and dominant_family:
-                raw_zlc_bonus = float(_local_coupling_score(lst, dominant_family)) * max(0.0, float(epsilon)) * 1.75
-                clamp_lim = max(float(epsilon) * 1.35, 0.0001)
+                raw_zlc_bonus = float(_local_coupling_score(lst, dominant_family)) * max(0.0, float(epsilon)) * 0.95
+                clamp_lim = max(float(epsilon) * 0.85, 0.0001)
                 zlc_bonus = round(max(-clamp_lim, min(clamp_lim, raw_zlc_bonus)), 6)
             local_coupling_bonus.append(float(zlc_bonus))
             local_coupling_events.append({
@@ -1044,7 +1070,18 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "overlap": int(overlap),
                 "bonus": float(zlc_bonus),
             })
-            selected_scored.append((round(float(base_score + temporal_bonus + zlc_bonus), 6), idx, list(lst)))
+            zsn_bonus = 0.0
+            if estado_dominante == "CONTINUA":
+                raw_zsn_bonus = float(_selective_coupling_score(lst, dominant_family)) * max(0.0, float(epsilon)) * 1.20
+                selective_clamp = max(float(epsilon) * 1.10, 0.0001)
+                zsn_bonus = round(max(-selective_clamp, min(selective_clamp, raw_zsn_bonus)), 6)
+            selective_coupling_bonus.append(float(zsn_bonus))
+            selective_coupling_events.append({
+                "idx": int(idx),
+                "overlap": int(overlap),
+                "bonus": float(zsn_bonus),
+            })
+            selected_scored.append((round(float(base_score + temporal_bonus + zlc_bonus + zsn_bonus), 6), idx, list(lst)))
 
         selected_scored.sort(key=lambda x: (-float(x[0]), int(x[1]), tuple(x[2])))
         selected = [list(x[2]) for x in selected_scored]
@@ -1072,7 +1109,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "active": True,
             "applied": True,
             "reason": "ok",
-            "mode": "intra_exec_coupling_intensification",
+            "mode": "intra_exec_selective_coupling",
             "before_metrics": before_metrics,
             "after_metrics": after_metrics,
             "swaps": 0,
@@ -1108,6 +1145,10 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "local_coupling_events": [dict(x) for x in local_coupling_events],
             "coupling_intensification_active": bool(estado_dominante == "CONTINUA"),
             "coupling_intensification_bonus_avg": float(local_coupling_bonus_avg),
+            "selective_coupling_active": bool(estado_dominante == "CONTINUA"),
+            "selective_coupling_bonus": [float(x) for x in selective_coupling_bonus],
+            "selective_coupling_bonus_avg": float(round(float(sum(selective_coupling_bonus) / len(selective_coupling_bonus)) if selective_coupling_bonus else 0.0, 6)),
+            "selective_coupling_events": [dict(x) for x in selective_coupling_events],
         }
     except Exception as e:
         return listas_packet, {"active": False, "applied": False, "reason": f"packet_final_mount_erro: {e}"}
@@ -1438,7 +1479,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         gen_calls = int(st.session_state.get("v16h57HO6W_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) in {"discrete_temporal_atom", "discrete_temporal_atom_guarded", "intra_exec_temporal_simulation", "intra_exec_family_stability", "intra_exec_local_coupling_adjustment", "intra_exec_coupling_intensification"}
+        fm_mode_ok = str(fm.get("mode", "")) in {"discrete_temporal_atom", "discrete_temporal_atom_guarded", "intra_exec_temporal_simulation", "intra_exec_family_stability", "intra_exec_local_coupling_adjustment", "intra_exec_coupling_intensification", "intra_exec_selective_coupling"}
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
 
@@ -1493,6 +1534,8 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "local_coupling_bonus_avg": float(fm.get("local_coupling_bonus_avg", 0.0) or 0.0),
             "coupling_intensification_active": bool(fm.get("coupling_intensification_active", False)),
             "coupling_intensification_bonus_avg": float(fm.get("coupling_intensification_bonus_avg", 0.0) or 0.0),
+            "selective_coupling_active": bool(fm.get("selective_coupling_active", False)),
+            "selective_coupling_bonus_avg": float(fm.get("selective_coupling_bonus_avg", 0.0) or 0.0),
         }
 
         if gen_calls != 1:
