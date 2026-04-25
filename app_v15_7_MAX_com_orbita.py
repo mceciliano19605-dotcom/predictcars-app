@@ -522,14 +522,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOB_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZOB_REAL_INTRA_LIST_COHERENCE_PURO_AUDITOR_OK — INTRA-LIST ADJUST (1 SWAP) + AUDITOR OK"
+BUILD_TAG = "v16h57HO6ZOB_REAL_INTRA_LIST_COHERENCE_PURO_AUDITOR_OK — INTRA-LIST COHERENCE (MAX 2 SWAPS) + AUDITOR OK"
 BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOB_REAL_INTRA_LIST_COHERENCE_PURO_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "2026-04-23_12 (HO6ZOB_REAL_INTRA_LIST_COHERENCE_PURO_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOB REAL INTRA LIST ADJUST PURO — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOB REAL INTRA LIST COHERENCE PURO — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -754,14 +754,14 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6C — REAL_INTRA_LIST_ADJUST_PURO.
-    Atua apenas no Top10 já gerado, tentando corrigir 1 elemento interno por lista.
+    HO6ZOB — REAL_INTRA_LIST_COHERENCE_PURO.
+    Atua apenas no Top10 já gerado, avaliando a lista como bloco.
     Regras:
-    - no máximo 1 troca por lista;
+    - até 2 trocas coordenadas por lista;
     - não cria lista nova;
     - não altera volume;
-    - preserva a identidade dos demais 5 elementos;
-    - aceita troca somente se o score refinado melhorar.
+    - preserva pelo menos 4 elementos originais;
+    - aceita ajuste somente se o score global de coerência do conjunto melhorar.
     """
     try:
         pkt = []
@@ -778,7 +778,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "active": False,
                 "applied": False,
                 "reason": "pacote_vazio",
-                "mode": "intra_exec_intra_list_adjust",
+                "mode": "intra_exec_intra_list_coherence",
             }
 
         top_k = int(max(1, min(int(top_k), len(pkt))))
@@ -819,35 +819,53 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         def list_score(lst):
             vals = [int(x) for x in lst[:int(n_alvo)]]
-            if len(vals) < int(n_alvo):
+            if len(vals) < int(n_alvo) or len(set(vals)) != int(n_alvo):
                 return -1e9
 
             pair_strength = 0.0
+            pair_scores = []
             for i in range(len(vals)):
                 for j in range(i + 1, len(vals)):
-                    pair_strength += pair_score(vals[i], vals[j])
+                    ps = pair_score(vals[i], vals[j])
+                    pair_strength += ps
+                    pair_scores.append(float(ps))
 
             cp_strength = sum(float(cp_scores.get(int(x), 0.0)) for x in vals)
             rank_sum = sum(rank_strength(x) for x in vals)
             internal_spread = max(vals) - min(vals) if len(vals) >= 2 else 0
             spread_penalty = min(float(internal_spread) / max(1.0, 60.0), 1.0)
 
-            # Mesmo vocabulário do HO6ZO, agora usado para comparar troca interna.
-            return float(pair_strength * 0.22 + cp_strength * 0.18 + rank_sum * 0.06 - spread_penalty * 0.04)
+            # Coerência de bloco: média dos pares + penalização leve para pares zerados.
+            pair_avg = float(pair_strength) / max(1, len(pair_scores))
+            zero_pairs = sum(1 for ps in pair_scores if ps <= 0.0)
+            zero_pair_penalty = float(zero_pairs) / max(1, len(pair_scores))
+
+            # O score continua usando sinais reais do sistema, mas agora avalia o conjunto completo.
+            return float(
+                pair_strength * 0.18 +
+                pair_avg * 0.22 +
+                cp_strength * 0.16 +
+                rank_sum * 0.05 -
+                spread_penalty * 0.03 -
+                zero_pair_penalty * 0.08
+            )
 
         def element_quality(v, others):
             v = int(v)
+            others = [int(o) for o in others]
             pair_part = sum(pair_score(v, o) for o in others)
             cp_part = float(cp_scores.get(v, 0.0))
             rank_part = rank_strength(v)
-            return float(pair_part * 0.22 + cp_part * 0.18 + rank_part * 0.06)
+            # Qualidade local do elemento dentro do bloco.
+            return float(pair_part * 0.18 + cp_part * 0.16 + rank_part * 0.05)
 
         top10_base = [list(x) for x in pkt[:top_k]]
         tail = [list(x) for x in pkt[top_k:]]
         before_metrics = packet_metrics(top10_base)
 
-        # Candidatos estreitos e coerentes: ranking operacional + números já vistos no pacote/cauda + top CP.
+        # Pool fechado: ranking operacional + CP + elementos do próprio pacote/cauda.
         candidate_pool = []
+
         def _add_candidate(x):
             try:
                 ix = int(x)
@@ -856,11 +874,11 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             except Exception:
                 pass
 
-        for v in ranking[:max(18, int(n_alvo) * 3)]:
+        for v in ranking[:max(24, int(n_alvo) * 4)]:
             _add_candidate(v)
 
         try:
-            for k, _v in sorted(cp_scores.items(), key=lambda kv: (-float(kv[1]), int(kv[0])))[:12]:
+            for k, _v in sorted(cp_scores.items(), key=lambda kv: (-float(kv[1]), int(kv[0])))[:16]:
                 _add_candidate(k)
         except Exception:
             pass
@@ -870,10 +888,13 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 _add_candidate(v)
 
         selected = []
-        adjustment_events = []
+        coherence_events = []
         swaps_total = 0
         attempted_total = 0
         ganho_total = 0.0
+        max_swaps_per_list = 2
+
+        from itertools import combinations
 
         for idx, lst in enumerate(top10_base):
             vals = [int(x) for x in lst[:int(n_alvo)]]
@@ -881,84 +902,88 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             event = {
                 "idx": int(idx),
                 "lista_original": [int(x) for x in vals],
-                "troca_aceita": False,
-                "suspeito": None,
-                "candidato": None,
+                "ajuste_aceito": False,
+                "removidos": [],
+                "adicionados": [],
                 "score_antes": round(float(base_score), 6),
                 "score_depois": round(float(base_score), 6),
                 "ganho": 0.0,
-                "motivo": "sem_troca",
+                "motivo": "sem_ajuste",
             }
 
             if len(vals) != int(n_alvo) or not candidate_pool:
                 selected.append(sorted(vals))
                 event["motivo"] = "lista_ou_pool_invalido"
-                adjustment_events.append(event)
+                coherence_events.append(event)
                 continue
 
-            # Diagnóstico intra-lista: elemento mais fraco no contexto dos outros 5.
+            # Diagnóstico: piores elementos no contexto dos demais.
             qualities = []
             for v in vals:
                 others = [x for x in vals if int(x) != int(v)]
                 qualities.append((float(element_quality(v, others)), int(v)))
-
             qualities.sort(key=lambda t: (float(t[0]), int(t[1])))
-            suspeito = int(qualities[0][1])
-            segundo = float(qualities[1][0]) if len(qualities) > 1 else float(qualities[0][0])
-            gap = float(segundo - float(qualities[0][0]))
 
-            event["suspeito"] = suspeito
-            event["qualidade_suspeito"] = round(float(qualities[0][0]), 6)
-            event["gap_diagnostico"] = round(float(gap), 6)
+            weak_candidates = [int(v) for _, v in qualities[:min(4, len(qualities))]]
+            event["weak_candidates"] = [int(x) for x in weak_candidates]
+            event["weak_quality"] = [round(float(q), 6) for q, _ in qualities[:min(4, len(qualities))]]
 
             best_list = list(vals)
-            best_cand = None
             best_score = base_score
-            tentativas_lista = 0
+            best_removed = []
+            best_added = []
+            best_swap_qtd = 0
 
-            # Apenas 1 substituição: L' = L - {suspeito} + {candidato}
-            for cand in candidate_pool:
-                cand = int(cand)
-                if cand in vals:
-                    continue
-                candidate_list = [int(x) for x in vals if int(x) != suspeito] + [cand]
-                candidate_list = sorted(dict.fromkeys(candidate_list))
-                if len(candidate_list) != int(n_alvo):
-                    continue
+            # Testa 1 troca e 2 trocas coordenadas.
+            for swap_qtd in [1, 2]:
+                for removed_tuple in combinations(weak_candidates, swap_qtd):
+                    removed = [int(x) for x in removed_tuple]
+                    kept = [int(x) for x in vals if int(x) not in set(removed)]
+                    add_pool = [int(c) for c in candidate_pool if int(c) not in vals]
+                    # Limita tentativas para manter leve na nuvem, mas suficiente para bloco local.
+                    add_pool = add_pool[:24]
+                    for added_tuple in combinations(add_pool, swap_qtd):
+                        added = [int(x) for x in added_tuple]
+                        cand_list = sorted(dict.fromkeys(kept + added))
+                        if len(cand_list) != int(n_alvo):
+                            continue
+                        # preserva identidade: no mínimo 4 elementos originais.
+                        if len(set(cand_list).intersection(set(vals))) < int(n_alvo) - max_swaps_per_list:
+                            continue
 
-                tentativas_lista += 1
-                attempted_total += 1
-                cand_score = float(list_score(candidate_list))
-
-                if cand_score > best_score:
-                    best_score = cand_score
-                    best_list = list(candidate_list)
-                    best_cand = cand
+                        attempted_total += 1
+                        cand_score = float(list_score(cand_list))
+                        if cand_score > best_score:
+                            best_score = cand_score
+                            best_list = list(cand_list)
+                            best_removed = list(removed)
+                            best_added = list(added)
+                            best_swap_qtd = int(swap_qtd)
 
             ganho = float(best_score - base_score)
-            # Limiar mínimo: ganho positivo real; sem trocar por estética.
-            if best_cand is not None and ganho > 1e-9:
+            if best_swap_qtd > 0 and ganho > 1e-9:
                 selected.append(sorted(best_list))
-                swaps_total += 1
+                swaps_total += int(best_swap_qtd)
                 ganho_total += ganho
                 event.update({
-                    "troca_aceita": True,
-                    "candidato": int(best_cand),
+                    "ajuste_aceito": True,
+                    "removidos": [int(x) for x in best_removed],
+                    "adicionados": [int(x) for x in best_added],
                     "lista_final": [int(x) for x in sorted(best_list)],
                     "score_depois": round(float(best_score), 6),
                     "ganho": round(float(ganho), 6),
-                    "tentativas": int(tentativas_lista),
-                    "motivo": "ganho_positivo",
+                    "swap_qtd": int(best_swap_qtd),
+                    "motivo": "ganho_coerencia_bloco",
                 })
             else:
                 selected.append(sorted(vals))
                 event.update({
                     "lista_final": [int(x) for x in sorted(vals)],
-                    "tentativas": int(tentativas_lista),
-                    "motivo": "sem_candidato_com_ganho",
+                    "swap_qtd": 0,
+                    "motivo": "sem_candidato_com_ganho_de_bloco",
                 })
 
-            adjustment_events.append(event)
+            coherence_events.append(event)
 
         final_packet = selected + tail
         after_metrics = packet_metrics(selected)
@@ -966,13 +991,13 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         score_base_packet = round(float(sum(list_score(x) for x in top10_base) / max(1, len(top10_base))), 6)
         score_final_packet = round(float(sum(list_score(x) for x in selected) / max(1, len(selected))), 6)
-        ganho_medio = round(float(ganho_total / max(1, swaps_total)), 6) if swaps_total else 0.0
+        ganho_medio = round(float(ganho_total / max(1, len(changed_indices))), 6) if changed_indices else 0.0
 
         return final_packet, {
             "active": True,
-            "applied": bool(swaps_total > 0),
-            "reason": "ok" if swaps_total > 0 else "sem_trocas_aceitas",
-            "mode": "intra_exec_intra_list_adjust",
+            "applied": bool(len(changed_indices) > 0),
+            "reason": "ok" if changed_indices else "sem_ajustes_aceitos",
+            "mode": "intra_exec_intra_list_coherence",
             "before_metrics": before_metrics,
             "after_metrics": after_metrics,
             "swaps": int(swaps_total),
@@ -987,10 +1012,10 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "score_final_packet": float(score_final_packet),
             "ganho_medio": float(ganho_medio),
             "global_adjustment_only": False,
-            "intra_list_adjustment_active": True,
-            "max_swaps_per_list": 2,
+            "intra_list_coherence_active": True,
+            "max_swaps_per_list": int(max_swaps_per_list),
             "candidate_pool_qtd": int(len(candidate_pool)),
-            "adjustment_events": [dict(x) for x in adjustment_events],
+            "coherence_events": [dict(x) for x in coherence_events],
             "has_cp": bool(any(float(v) > 0.0 for v in cp_scores.values())),
         }
     except Exception as e:
@@ -998,7 +1023,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "active": False,
             "applied": False,
             "reason": f"packet_final_mount_erro: {e}",
-            "mode": "intra_exec_intra_list_adjust",
+            "mode": "intra_exec_intra_list_coherence",
         }
 
 
@@ -1329,7 +1354,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         gen_calls = int(st.session_state.get("v16h57HO6ZOB_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) == "intra_exec_intra_list_adjust"
+        fm_mode_ok = str(fm.get("mode", "")) == "intra_exec_intra_list_coherence"
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
         swaps_total = int(fm.get("swaps_total", fm.get("swaps", 0)) or 0)
@@ -1365,12 +1390,13 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "cp_ok": bool(cp.get("ok", False)),
             "pre_top10_hash": hash(str(pre_top)) if pre_top else None,
             "post_top10_hash": hash(str(post_top)) if post_top else None,
-            "intra_list_adjustment_active": bool(fm.get("intra_list_adjustment_active", False)),
+            "intra_list_coherence_active": bool(fm.get("intra_list_coherence_active", False)),
             "swaps_total": int(swaps_total),
             "trocas_tentadas": int(fm.get("trocas_tentadas", 0) or 0),
             "trocas_aceitas": int(fm.get("trocas_aceitas", 0) or 0),
             "ganho_medio": float(fm.get("ganho_medio", 0.0) or 0.0),
             "max_swaps_per_list": int(fm.get("max_swaps_per_list", 0) or 0),
+            "candidate_pool_qtd": int(fm.get("candidate_pool_qtd", 0) or 0),
         }
 
         if gen_calls != 1:
@@ -1382,6 +1408,9 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         elif not fm_mode_ok:
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "intervencao_nao_corresponde_ao_objetivo_declarado"
+        elif not bool(fm.get("intra_list_coherence_active", False)):
+            auditor["status"] = "INVALIDO"
+            auditor["motivo"] = "coerencia_intra_lista_inativa"
         elif not changed_pre:
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_nao_detectada_no_pacote"
@@ -1390,7 +1419,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["motivo"] = "mudanca_nao_detectada_no_top10"
         elif swaps_total <= 0:
             auditor["status"] = "INVALIDO"
-            auditor["motivo"] = "ajuste_intra_lista_sem_trocas_aceitas"
+            auditor["motivo"] = "coerencia_intra_lista_sem_trocas_aceitas"
 
         st.session_state["v16h57HO6ZOB_auditor"] = auditor
         return auditor
@@ -1405,7 +1434,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "mudou_pacote": "NAO",
             "chegou_top10": "NAO",
             "consistencia_intervencao": "FALHA",
-            "intra_list_adjustment_active": False,
+            "intra_list_coherence_active": False,
             "swaps_total": 0,
         }
         try:
@@ -17044,7 +17073,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     except Exception as _aud_e:
         _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
 
-    st.markdown("### 🔎 AUDITOR HO6C")
+    st.markdown("### 🔎 AUDITOR HO6ZOB")
     if str((_auditor_ho6 or {}).get("status", "")) == "OK":
         st.success("status: OK")
     else:
