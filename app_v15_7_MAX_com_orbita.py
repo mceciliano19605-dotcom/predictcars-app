@@ -1,4 +1,4 @@
-# --- v16h57HO6ZOD_CLEAN_REAL DISCRETE TEMPORAL ATOM AUDITOR BANNER OK ---
+# --- v16h57HO6ZOE_CLEAN_REAL DISCRETE TEMPORAL ATOM AUDITOR BANNER OK ---
 from __future__ import annotations
 
 # ============================================================
@@ -519,17 +519,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOD_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOE_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZOD_REAL_INTER_LIST_COVERAGE_PURO_AUDITOR_OK — INTER-LIST COVERAGE + AUDITOR OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOD_REAL_INTER_LIST_COVERAGE_PURO_AUDITOR_OK.py"
+BUILD_TAG = "v16h57HO6ZOE_REAL_GUIDED_COHESION_GENERATION_PURO_AUDITOR_OK — GUIDED COHESION GENERATION + AUDITOR OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOE_REAL_GUIDED_COHESION_GENERATION_PURO_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-23_12 (HO6ZOD_REAL_INTER_LIST_COVERAGE_PURO_AUDITOR_OK)"
+WATERMARK = "2026-04-23_12 (HO6ZOE_REAL_GUIDED_COHESION_GENERATION_PURO_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOD REAL INTRA LIST COHERENCE PURO — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOE REAL INTRA LIST COHERENCE PURO — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -586,39 +586,132 @@ def pc_v16_cooccurrence_matrix(series_hist):
 # usando pares historicamente frequentes.
 # ============================================================
 
+
 def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12):
+    """
+    HO6ZOE — geração guiada por coexistência.
+    Constrói listas passo a passo, aceitando números que aumentam a coerência
+    do bloco já formado, em vez de apenas juntar bons números/p pares isolados.
+    """
     try:
-        if not isinstance(ranking, list) or len(ranking) < n:
+        if not isinstance(ranking, list) or len(ranking) < int(n):
             return []
 
-        from random import shuffle
-        top = ranking[:20]  # universo mais relevante
-        pairs = []
+        ranking = [int(x) for x in ranking if int(x) > 0]
+        co_matrix = co_matrix if isinstance(co_matrix, dict) else {}
 
-        # construir pares fortes
+        top = []
+        for x in ranking[:max(24, int(n) * 5)]:
+            if int(x) not in top:
+                top.append(int(x))
+
+        if len(top) < int(n):
+            return []
+
+        rank_pos = {int(v): i for i, v in enumerate(ranking)}
+
+        def pair_score(a, b):
+            return float(co_matrix.get(tuple(sorted((int(a), int(b)))), 0.0))
+
+        def rank_strength(v):
+            return max(0.0, 1.0 - (rank_pos.get(int(v), 9999) / max(1, len(ranking))))
+
+        def candidate_fit(candidate, current):
+            candidate = int(candidate)
+            if candidate in current:
+                return -1e9
+            if not current:
+                return rank_strength(candidate)
+            pair_sum = sum(pair_score(candidate, x) for x in current)
+            pair_avg = pair_sum / max(1, len(current))
+            zero_pairs = sum(1 for x in current if pair_score(candidate, x) <= 0.0)
+            zero_penalty = zero_pairs / max(1, len(current))
+            spread_after = max(current + [candidate]) - min(current + [candidate])
+            spread_penalty = min(float(spread_after) / 60.0, 1.0)
+            return float(pair_sum * 0.20 + pair_avg * 0.30 + rank_strength(candidate) * 0.10 - zero_penalty * 0.16 - spread_penalty * 0.04)
+
+        def list_score(vals):
+            vals = [int(x) for x in vals[:int(n)]]
+            if len(vals) != int(n) or len(set(vals)) != int(n):
+                return -1e9
+            pair_scores = []
+            for i in range(len(vals)):
+                for j in range(i + 1, len(vals)):
+                    pair_scores.append(pair_score(vals[i], vals[j]))
+            pair_sum = sum(pair_scores)
+            pair_avg = pair_sum / max(1, len(pair_scores))
+            zero_ratio = sum(1 for s in pair_scores if s <= 0.0) / max(1, len(pair_scores))
+            rank_sum = sum(rank_strength(x) for x in vals)
+            spread = max(vals) - min(vals)
+            spread_penalty = min(float(spread) / 60.0, 1.0)
+            return float(pair_sum * 0.18 + pair_avg * 0.30 + rank_sum * 0.08 - zero_ratio * 0.18 - spread_penalty * 0.04)
+
+        generated = []
+        seen = set()
+
+        strong_pairs = []
         for i in range(len(top)):
-            for j in range(i+1, len(top)):
-                pair = tuple(sorted((top[i], top[j])))
-                score = co_matrix.get(pair, 0)
-                if score > 0:
-                    pairs.append((score, pair))
+            for j in range(i + 1, len(top)):
+                ps = pair_score(top[i], top[j])
+                if ps > 0:
+                    strong_pairs.append((ps, top[i], top[j]))
+        strong_pairs.sort(key=lambda t: (-float(t[0]), rank_pos.get(t[1], 9999), rank_pos.get(t[2], 9999)))
 
-        pairs.sort(reverse=True)
+        starts = []
+        for v in top[:min(len(top), max(10, int(k_lists) * 2))]:
+            starts.append([int(v)])
+        for _, a, b in strong_pairs[:max(8, int(k_lists) * 2)]:
+            starts.append(sorted([int(a), int(b)]))
 
-        lists = []
-        for score, pair in pairs[:k_lists*3]:
-            base = list(pair)
-            rest = [x for x in top if x not in base]
-            shuffle(rest)
-            while len(base) < n and rest:
-                base.append(rest.pop())
-            if len(base) == n:
-                lists.append(base)
+        for start in starts:
+            current = []
+            for x in start:
+                if x not in current:
+                    current.append(int(x))
 
-        return lists[:k_lists]
+            while len(current) < int(n):
+                scored = []
+                for cand in top:
+                    if cand in current:
+                        continue
+                    scored.append((candidate_fit(cand, current), int(cand)))
+                if not scored:
+                    break
+                scored.sort(key=lambda t: (-float(t[0]), rank_pos.get(int(t[1]), 9999), int(t[1])))
+                current.append(int(scored[0][1]))
+
+            if len(current) == int(n):
+                candidate_list = sorted(dict.fromkeys(current))
+                if len(candidate_list) != int(n):
+                    continue
+                key = tuple(candidate_list)
+                if key not in seen:
+                    seen.add(key)
+                    generated.append(candidate_list)
+
+            if len(generated) >= max(int(k_lists) * 2, int(k_lists) + 4):
+                break
+
+        if len(generated) < int(k_lists):
+            for offset in range(0, min(len(top), max(12, int(k_lists) * 3))):
+                pool = top[offset:] + top[:offset]
+                cand = []
+                for x in pool:
+                    if x not in cand:
+                        cand.append(int(x))
+                    if len(cand) >= int(n):
+                        break
+                cand = sorted(cand[:int(n)])
+                if len(cand) == int(n) and tuple(cand) not in seen:
+                    seen.add(tuple(cand))
+                    generated.append(cand)
+                if len(generated) >= int(k_lists):
+                    break
+
+        generated.sort(key=lambda lst: (-float(list_score(lst)), tuple(lst)))
+        return generated[:int(k_lists)]
     except Exception:
         return []
-
 
 def pc_v16_apply_cooccurrence(ranking, co_matrix):
     try:
@@ -752,16 +845,12 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 
 
+
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6ZOD — REAL_INTER_LIST_COVERAGE_PURO.
-    Atua apenas na montagem final do Top10, sem alterar a composição das listas.
-    Regras:
-    - não cria lista nova;
-    - não troca números dentro das listas;
-    - não altera volume total;
-    - seleciona/reordena o Top10 a partir do pacote já gerado;
-    - busca melhorar cobertura coletiva e reduzir redundância entre listas.
+    HO6ZOE — auditoria de geração guiada.
+    A intervenção principal acontece no gerador. Aqui não se troca números:
+    apenas seleciona o Top10 já gerado por coerência de bloco para manter o ponto final auditável.
     """
     try:
         pkt = []
@@ -778,7 +867,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "active": False,
                 "applied": False,
                 "reason": "pacote_vazio",
-                "mode": "intra_exec_inter_list_coverage",
+                "mode": "intra_exec_guided_cohesion_generation",
             }
 
         top_k = int(max(1, min(int(top_k), len(pkt))))
@@ -803,17 +892,22 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 return 0.0
             return max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking))))
 
-        def list_quality(lst):
+        def block_score(lst):
             vals = [int(x) for x in lst[:int(n_alvo)]]
             if len(vals) < int(n_alvo) or len(set(vals)) != int(n_alvo):
                 return -1e9
-            pair_strength = 0.0
+            pair_scores = []
             for i in range(len(vals)):
                 for j in range(i + 1, len(vals)):
-                    pair_strength += pair_score(vals[i], vals[j])
+                    pair_scores.append(pair_score(vals[i], vals[j]))
+            pair_sum = sum(pair_scores)
+            pair_avg = pair_sum / max(1, len(pair_scores))
+            zero_ratio = sum(1 for s in pair_scores if s <= 0.0) / max(1, len(pair_scores))
             cp_strength = sum(float(cp_scores.get(int(x), 0.0)) for x in vals)
             rank_sum = sum(rank_strength(x) for x in vals)
-            return float(pair_strength * 0.16 + cp_strength * 0.16 + rank_sum * 0.06)
+            spread = max(vals) - min(vals)
+            spread_penalty = min(float(spread) / 60.0, 1.0)
+            return float(pair_sum * 0.18 + pair_avg * 0.28 + cp_strength * 0.12 + rank_sum * 0.06 - zero_ratio * 0.16 - spread_penalty * 0.04)
 
         def packet_metrics(packet_lists):
             flat = [int(x) for lst in (packet_lists or []) for x in lst[:int(n_alvo)]]
@@ -828,99 +922,30 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "hash": hash(str(packet_lists or [])),
             }
 
-        candidates = [list(x) for x in pkt]
         base_top = [list(x) for x in pkt[:top_k]]
         before_metrics = packet_metrics(base_top)
 
-        selected = []
-        selected_keys = set()
-        covered = set()
-        selection_events = []
+        ranked = [(block_score(lst), idx, list(lst)) for idx, lst in enumerate(pkt)]
+        ranked.sort(key=lambda t: (-float(t[0]), int(t[1]), tuple(t[2])))
+        selected = [list(x[2]) for x in ranked[:top_k]]
 
-        for slot in range(top_k):
-            best_idx = None
-            best_score = None
-            best_info = None
-
-            for idx, lst in enumerate(candidates):
-                key = tuple(lst)
-                if key in selected_keys:
-                    continue
-
-                s = set(int(x) for x in lst[:int(n_alvo)])
-                new_coverage = len(s - covered)
-                overlap_with_selected = 0.0
-                if selected:
-                    overlaps = [len(s.intersection(set(x))) for x in selected]
-                    overlap_with_selected = float(sum(overlaps)) / max(1, len(overlaps))
-
-                quality = float(list_quality(lst))
-                coverage_bonus = float(new_coverage) * 0.85
-                redundancy_penalty = float(overlap_with_selected) * 0.38
-                original_top_bonus = 0.05 if idx < top_k else 0.0
-                score = quality + coverage_bonus + original_top_bonus - redundancy_penalty
-
-                info = {
-                    "candidate_idx": int(idx),
-                    "slot": int(slot),
-                    "quality": round(float(quality), 6),
-                    "new_coverage": int(new_coverage),
-                    "overlap_with_selected": round(float(overlap_with_selected), 6),
-                    "score": round(float(score), 6),
-                    "from_tail": bool(idx >= top_k),
-                    "lista": [int(x) for x in lst],
-                }
-
-                if best_score is None or score > best_score:
-                    best_score = score
-                    best_idx = idx
-                    best_info = info
-
-            if best_idx is None:
-                break
-
-            chosen = list(candidates[best_idx])
-            selected.append(chosen)
-            selected_keys.add(tuple(chosen))
-            covered.update(int(x) for x in chosen[:int(n_alvo)])
-            selection_events.append(best_info)
-
-        for lst in candidates:
-            if len(selected) >= top_k:
-                break
-            key = tuple(lst)
-            if key not in selected_keys:
-                selected.append(list(lst))
-                selected_keys.add(key)
-
-        selected = selected[:top_k]
-
-        selected_set = {tuple(x) for x in selected}
-        tail = []
-        for lst in candidates:
-            if tuple(lst) not in selected_set:
-                tail.append(list(lst))
-
+        selected_keys = {tuple(x) for x in selected}
+        tail = [list(x) for x in pkt if tuple(x) not in selected_keys]
         final_packet = selected + tail
+
         after_metrics = packet_metrics(selected)
         changed_indices = [int(i) for i, (a, b) in enumerate(zip(base_top, selected)) if list(a) != list(b)]
-
-        promoted_from_tail = []
-        base_top_set = {tuple(x) for x in base_top}
-        for i, lst in enumerate(selected):
-            if tuple(lst) not in base_top_set:
-                promoted_from_tail.append(int(i))
-
-        score_base_packet = round(float(sum(list_quality(x) for x in base_top) / max(1, len(base_top))), 6)
-        score_final_packet = round(float(sum(list_quality(x) for x in selected) / max(1, len(selected))), 6)
-
+        promoted_from_tail = [int(i) for i, lst in enumerate(selected) if tuple(lst) not in {tuple(x) for x in base_top}]
         applied = bool(list(map(tuple, selected)) != list(map(tuple, base_top)))
+
+        score_base_packet = round(float(sum(block_score(x) for x in base_top) / max(1, len(base_top))), 6)
+        score_final_packet = round(float(sum(block_score(x) for x in selected) / max(1, len(selected))), 6)
 
         return final_packet, {
             "active": True,
             "applied": bool(applied),
-            "reason": "ok" if applied else "sem_reordenacao_necessaria",
-            "mode": "intra_exec_inter_list_coverage",
+            "reason": "ok" if applied else "geracao_guiada_sem_reordenacao_final",
+            "mode": "intra_exec_guided_cohesion_generation",
             "before_metrics": before_metrics,
             "after_metrics": after_metrics,
             "listas_alteradas": int(len(changed_indices)),
@@ -930,12 +955,11 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "top10_final_hash": hash(str(selected)),
             "score_base_packet": float(score_base_packet),
             "score_final_packet": float(score_final_packet),
-            "inter_list_coverage_active": True,
+            "guided_cohesion_generation_active": True,
             "coverage_unique_before": int(before_metrics.get("passageiros_unicos", 0) or 0),
             "coverage_unique_after": int(after_metrics.get("passageiros_unicos", 0) or 0),
             "overlap_before": float(before_metrics.get("sobreposicao_media", 0.0) or 0.0),
             "overlap_after": float(after_metrics.get("sobreposicao_media", 0.0) or 0.0),
-            "selection_events": [dict(x) for x in selection_events],
             "has_cp": bool(any(float(v) > 0.0 for v in cp_scores.values())),
         }
     except Exception as e:
@@ -943,20 +967,19 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "active": False,
             "applied": False,
             "reason": f"packet_final_mount_erro: {e}",
-            "mode": "intra_exec_inter_list_coverage",
+            "mode": "intra_exec_guided_cohesion_generation",
         }
-
 
 def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_df=None, n_alvo=6, seed=0, max_lists=None):
     try:
         pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
         try:
-            st.session_state["v16h57HO6ZOD_generator_call_count"] = int(st.session_state.get("v16h57HO6ZOD_generator_call_count", 0)) + 1
-            _steps = st.session_state.get("v16h57HO6ZOD_generator_call_steps")
+            st.session_state["v16h57HO6ZOE_generator_call_count"] = int(st.session_state.get("v16h57HO6ZOE_generator_call_count", 0)) + 1
+            _steps = st.session_state.get("v16h57HO6ZOE_generator_call_steps")
             if not isinstance(_steps, list):
                 _steps = []
-            _steps.append({"count": int(st.session_state.get("v16h57HO6ZOD_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
-            st.session_state["v16h57HO6ZOD_generator_call_steps"] = _steps
+            _steps.append({"count": int(st.session_state.get("v16h57HO6ZOE_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
+            st.session_state["v16h57HO6ZOE_generator_call_steps"] = _steps
         except Exception:
             pass
         base = []
@@ -1046,7 +1069,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     )
                 )
 
-                # v16h57HO6ZOD_CLEAN_REAL — INJECAO BORDA-PERTO REAL
+                # v16h57HO6ZOE_CLEAN_REAL — INJECAO BORDA-PERTO REAL
                 # objetivo: trazer alguns candidatos da borda util para o topo operativo,
                 # sem inventar motor novo e sem quebrar o ranking base.
                 try:
@@ -1064,7 +1087,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                             break
 
                     if inj_candidates:
-                        # v16h57HO6ZOD_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
+                        # v16h57HO6ZOE_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
                         extra_pool = ranking2[18:22]
                         extra_pool = sorted(
                             [int(v) for v in extra_pool],
@@ -1182,7 +1205,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
-        # v16h57HO6ZOD_CLEAN_REAL — montagem final profunda para conversão
+        # v16h57HO6ZOE_CLEAN_REAL — montagem final profunda para conversão
         out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
             out,
             ranking_vals=ranking2,
@@ -1243,11 +1266,11 @@ def v16h57FS_clear_mode6_packet_state():
         "bloco_c_info",
         "postura_respiravel_info",
         "postura_respiravel_memoria",
-        "v16h57HO6ZOD_auditor",
-        "v16h57HO6ZOD_generator_call_count",
-        "v16h57HO6ZOD_generator_call_steps",
-        "v16h57HO6ZOD_pre_sanidade_top10",
-        "v16h57HO6ZOD_post_sanidade_top10",
+        "v16h57HO6ZOE_auditor",
+        "v16h57HO6ZOE_generator_call_count",
+        "v16h57HO6ZOE_generator_call_steps",
+        "v16h57HO6ZOE_pre_sanidade_top10",
+        "v16h57HO6ZOE_post_sanidade_top10",
     ]
     try:
         for k in keys:
@@ -1265,16 +1288,17 @@ def v16h57FS_clear_mode6_packet_state():
 # Valida unicidade, ponto vivo, pré-sanidade, mudança real e consistência
 # ============================================================
 
+
 def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_sanidade_top10=None):
     try:
         npgen_info = npgen_info if isinstance(npgen_info, dict) else {}
         fm = npgen_info.get("final_mount_info") if isinstance(npgen_info.get("final_mount_info"), dict) else {}
         cp = npgen_info.get("conversion_pressure") if isinstance(npgen_info.get("conversion_pressure"), dict) else {}
 
-        gen_calls = int(st.session_state.get("v16h57HO6ZOD_generator_call_count", 0) or 0)
+        gen_calls = int(st.session_state.get("v16h57HO6ZOE_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) == "intra_exec_inter_list_coverage"
+        fm_mode_ok = str(fm.get("mode", "")) == "intra_exec_guided_cohesion_generation"
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
         promoted_from_tail = fm.get("promoted_from_tail") or []
@@ -1311,7 +1335,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "cp_ok": bool(cp.get("ok", False)),
             "pre_top10_hash": hash(str(pre_top)) if pre_top else None,
             "post_top10_hash": hash(str(post_top)) if post_top else None,
-            "inter_list_coverage_active": bool(fm.get("inter_list_coverage_active", False)),
+            "guided_cohesion_generation_active": bool(fm.get("guided_cohesion_generation_active", False)),
             "coverage_unique_before": int(fm.get("coverage_unique_before", 0) or 0),
             "coverage_unique_after": int(fm.get("coverage_unique_after", 0) or 0),
             "overlap_before": float(fm.get("overlap_before", 0.0) or 0.0),
@@ -1329,9 +1353,9 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         elif not fm_mode_ok:
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "intervencao_nao_corresponde_ao_objetivo_declarado"
-        elif not bool(fm.get("inter_list_coverage_active", False)):
+        elif not bool(fm.get("guided_cohesion_generation_active", False)):
             auditor["status"] = "INVALIDO"
-            auditor["motivo"] = "cobertura_inter_listas_inativa"
+            auditor["motivo"] = "geracao_guiada_inativa"
         elif not changed_pre:
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_nao_detectada_no_pacote"
@@ -1339,27 +1363,26 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_nao_detectada_no_top10"
 
-        st.session_state["v16h57HO6ZOD_auditor"] = auditor
+        st.session_state["v16h57HO6ZOE_auditor"] = auditor
         return auditor
     except Exception as e:
         auditor = {
             "status": "INVALIDO",
             "motivo": f"auditor_erro: {e}",
             "unicidade": "FALHA",
-            "generator_call_count": int(st.session_state.get("v16h57HO6ZOD_generator_call_count", 0) or 0),
+            "generator_call_count": int(st.session_state.get("v16h57HO6ZOE_generator_call_count", 0) or 0),
             "ponto_fluxo": "FALHA",
             "antes_sanidade": "OK",
             "mudou_pacote": "NAO",
             "chegou_top10": "NAO",
             "consistencia_intervencao": "FALHA",
-            "inter_list_coverage_active": False,
+            "guided_cohesion_generation_active": False,
         }
         try:
-            st.session_state["v16h57HO6ZOD_auditor"] = auditor
+            st.session_state["v16h57HO6ZOE_auditor"] = auditor
         except Exception:
             pass
         return auditor
-
 
 # ============================================================
 # V16 — POSTURA OPERACIONAL (pré-C4)
@@ -1594,7 +1617,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        # fallback v16h57HO6ZOD_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
+        # fallback v16h57HO6ZOE_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
         if trocas == 0 and new_top10:
             try:
                 base = list(new_top10[0])
@@ -1615,7 +1638,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                 pass
 
         
-        # v16h57HO6ZOD_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
+        # v16h57HO6ZOE_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
         try:
             if trocas == 0 and new_top10:
                 base = list(new_top10[0])
@@ -3851,7 +3874,7 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
 def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) -> Tuple[List[List[int]], Dict[str, Any]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
-    v16h57HO6ZOD_CLEAN_REAL:
+    v16h57HO6ZOE_CLEAN_REAL:
     - aceita calib_override (compatível com SAFE/CAP)
     - sempre retorna (pacote, calib_meta)
     - protege o SAFE contra abortos por assinatura/estado mínimo
@@ -16601,7 +16624,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_brutas = listas_filtradas
 
     # ------------------------------------------------------------
-    # v16h57HO6ZOD_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
+    # v16h57HO6ZOE_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
     # ------------------------------------------------------------
     _ranking_vals_dx = []
     if "ranking2" in locals() and ranking2 is not None:
@@ -16634,9 +16657,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
     st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
     try:
-        st.session_state["v16h57HO6ZOD_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
+        st.session_state["v16h57HO6ZOE_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6ZOD_pre_sanidade_top10"] = []
+        st.session_state["v16h57HO6ZOE_pre_sanidade_top10"] = []
     try:
         pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
@@ -16977,20 +17000,20 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     try:
-        st.session_state["v16h57HO6ZOD_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
+        st.session_state["v16h57HO6ZOE_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6ZOD_post_sanidade_top10"] = []
+        st.session_state["v16h57HO6ZOE_post_sanidade_top10"] = []
 
     try:
         _auditor_ho6 = pc_v16_build_auditor_ho6w(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
-            pre_sanidade_top10=st.session_state.get("v16h57HO6ZOD_pre_sanidade_top10") or [],
-            post_sanidade_top10=st.session_state.get("v16h57HO6ZOD_post_sanidade_top10") or [],
+            pre_sanidade_top10=st.session_state.get("v16h57HO6ZOE_pre_sanidade_top10") or [],
+            post_sanidade_top10=st.session_state.get("v16h57HO6ZOE_post_sanidade_top10") or [],
         )
     except Exception as _aud_e:
         _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
 
-    st.markdown("### 🔎 AUDITOR HO6ZOD")
+    st.markdown("### 🔎 AUDITOR HO6ZOE")
     if str((_auditor_ho6 or {}).get("status", "")) == "OK":
         st.success("status: OK")
     else:
@@ -22385,7 +22408,7 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 # ============================================================
-# POST MODO6 AUDIT (v16h57HO6ZOD_CLEAN_REAL)
+# POST MODO6 AUDIT (v16h57HO6ZOE_CLEAN_REAL)
 # ============================================================
 try:
     import itertools
@@ -22466,13 +22489,13 @@ except Exception as e:
 
 
 # ============================================================
-# BUILD v16h57HO6ZOD_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
+# BUILD v16h57HO6ZOE_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
 # CT REAL GENERATOR HOOK (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_REAL_GENERATOR_PRE_SANIDADE"] = {
-        "build": "v16h57HO6ZOD_CLEAN_REAL",
+        "build": "v16h57HO6ZOE_CLEAN_REAL",
         "hook": "before_sanidade_final_listas",
         "status": "armed"
     }
@@ -22482,13 +22505,13 @@ except Exception:
 
 
 # ============================================================
-# BUILD v16h57HO6ZOD_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57HO6ZOE_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
 # CT REAL HOOK INSIDE GENERATOR (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_GENERATOR_PRE_SANIDADE_REAL"] = {
-        "build": "v16h57HO6ZOD_CLEAN_REAL",
+        "build": "v16h57HO6ZOE_CLEAN_REAL",
         "hook_point": "generator_before_sanidade",
         "status": "armed"
     }
