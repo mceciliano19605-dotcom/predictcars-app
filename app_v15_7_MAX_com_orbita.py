@@ -1,5 +1,23 @@
-# --- v16h57HO6ZOE_CLEAN_REAL DISCRETE TEMPORAL ATOM AUDITOR BANNER OK ---
+# --- v16h57HO6ZOF_CLEAN_REAL DISCRETE TEMPORAL ATOM AUDITOR BANNER OK ---
 from __future__ import annotations
+
+def pc_v16_detect_system_state(historico):
+    try:
+        if not historico or len(historico) < 10:
+            return "NEUTRO"
+        recent = historico[-10:]
+        flat = [x for linha in recent for x in linha]
+        diversidade = len(set(flat))
+        repeticao = len(flat) - diversidade
+        if repeticao > 20:
+            return "FECHAMENTO_FORTE"
+        elif repeticao > 10:
+            return "QUASE_FECHANDO"
+        else:
+            return "ABERTO"
+    except:
+        return "NEUTRO"
+
 
 # ============================================================
 # PARTE 1/8 — INÍCIO
@@ -519,17 +537,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOE_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOF_CLEAN_REAL — DISCRETE TEMPORAL ATOM + AUDITOR + BANNER OK
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZOE_REAL_GUIDED_COHESION_GENERATION_PURO_AUDITOR_OK — GUIDED COHESION GENERATION + AUDITOR OK"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOE_REAL_GUIDED_COHESION_GENERATION_PURO_AUDITOR_OK.py"
+BUILD_TAG = "v16h57HO6ZOF_REAL_GUIDED_COHESION_GENERATION_PURO_AUDITOR_OK — STATE AWARE GENERATION + AUDITOR OK"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOF_REAL_GUIDED_COHESION_GENERATION_PURO_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-23_12 (HO6ZOE_REAL_GUIDED_COHESION_GENERATION_PURO_AUDITOR_OK)"
+WATERMARK = "2026-04-23_12 (HO6ZOF_REAL_GUIDED_COHESION_GENERATION_PURO_AUDITOR_OK)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOE REAL INTRA LIST COHERENCE PURO — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOF REAL INTRA LIST COHERENCE PURO — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -589,7 +607,7 @@ def pc_v16_cooccurrence_matrix(series_hist):
 
 def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12):
     """
-    HO6ZOE — geração guiada por coexistência.
+    HO6ZOF — geração guiada por coexistência.
     Constrói listas passo a passo, aceitando números que aumentam a coerência
     do bloco já formado, em vez de apenas juntar bons números/p pares isolados.
     """
@@ -848,7 +866,7 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6ZOE — auditoria de geração guiada.
+    HO6ZOF — auditoria de geração guiada.
     A intervenção principal acontece no gerador. Aqui não se troca números:
     apenas seleciona o Top10 já gerado por coerência de bloco para manter o ponto final auditável.
     """
@@ -867,7 +885,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "active": False,
                 "applied": False,
                 "reason": "pacote_vazio",
-                "mode": "intra_exec_guided_cohesion_generation",
+                "mode": "intra_exec_state_aware_generation",
             }
 
         top_k = int(max(1, min(int(top_k), len(pkt))))
@@ -945,7 +963,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "active": True,
             "applied": bool(applied),
             "reason": "ok" if applied else "geracao_guiada_sem_reordenacao_final",
-            "mode": "intra_exec_guided_cohesion_generation",
+            "mode": "intra_exec_state_aware_generation",
             "before_metrics": before_metrics,
             "after_metrics": after_metrics,
             "listas_alteradas": int(len(changed_indices)),
@@ -955,7 +973,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "top10_final_hash": hash(str(selected)),
             "score_base_packet": float(score_base_packet),
             "score_final_packet": float(score_final_packet),
-            "guided_cohesion_generation_active": True,
+            "state_aware_generation_active": True,
             "coverage_unique_before": int(before_metrics.get("passageiros_unicos", 0) or 0),
             "coverage_unique_after": int(after_metrics.get("passageiros_unicos", 0) or 0),
             "overlap_before": float(before_metrics.get("sobreposicao_media", 0.0) or 0.0),
@@ -967,19 +985,19 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "active": False,
             "applied": False,
             "reason": f"packet_final_mount_erro: {e}",
-            "mode": "intra_exec_guided_cohesion_generation",
+            "mode": "intra_exec_state_aware_generation",
         }
 
 def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_df=None, n_alvo=6, seed=0, max_lists=None):
     try:
         pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
         try:
-            st.session_state["v16h57HO6ZOE_generator_call_count"] = int(st.session_state.get("v16h57HO6ZOE_generator_call_count", 0)) + 1
-            _steps = st.session_state.get("v16h57HO6ZOE_generator_call_steps")
+            st.session_state["v16h57HO6ZOF_generator_call_count"] = int(st.session_state.get("v16h57HO6ZOF_generator_call_count", 0)) + 1
+            _steps = st.session_state.get("v16h57HO6ZOF_generator_call_steps")
             if not isinstance(_steps, list):
                 _steps = []
-            _steps.append({"count": int(st.session_state.get("v16h57HO6ZOE_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
-            st.session_state["v16h57HO6ZOE_generator_call_steps"] = _steps
+            _steps.append({"count": int(st.session_state.get("v16h57HO6ZOF_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
+            st.session_state["v16h57HO6ZOF_generator_call_steps"] = _steps
         except Exception:
             pass
         base = []
@@ -1069,7 +1087,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     )
                 )
 
-                # v16h57HO6ZOE_CLEAN_REAL — INJECAO BORDA-PERTO REAL
+                # v16h57HO6ZOF_CLEAN_REAL — INJECAO BORDA-PERTO REAL
                 # objetivo: trazer alguns candidatos da borda util para o topo operativo,
                 # sem inventar motor novo e sem quebrar o ranking base.
                 try:
@@ -1087,7 +1105,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                             break
 
                     if inj_candidates:
-                        # v16h57HO6ZOE_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
+                        # v16h57HO6ZOF_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
                         extra_pool = ranking2[18:22]
                         extra_pool = sorted(
                             [int(v) for v in extra_pool],
@@ -1205,7 +1223,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
-        # v16h57HO6ZOE_CLEAN_REAL — montagem final profunda para conversão
+        # v16h57HO6ZOF_CLEAN_REAL — montagem final profunda para conversão
         out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
             out,
             ranking_vals=ranking2,
@@ -1266,11 +1284,11 @@ def v16h57FS_clear_mode6_packet_state():
         "bloco_c_info",
         "postura_respiravel_info",
         "postura_respiravel_memoria",
-        "v16h57HO6ZOE_auditor",
-        "v16h57HO6ZOE_generator_call_count",
-        "v16h57HO6ZOE_generator_call_steps",
-        "v16h57HO6ZOE_pre_sanidade_top10",
-        "v16h57HO6ZOE_post_sanidade_top10",
+        "v16h57HO6ZOF_auditor",
+        "v16h57HO6ZOF_generator_call_count",
+        "v16h57HO6ZOF_generator_call_steps",
+        "v16h57HO6ZOF_pre_sanidade_top10",
+        "v16h57HO6ZOF_post_sanidade_top10",
     ]
     try:
         for k in keys:
@@ -1295,10 +1313,10 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         fm = npgen_info.get("final_mount_info") if isinstance(npgen_info.get("final_mount_info"), dict) else {}
         cp = npgen_info.get("conversion_pressure") if isinstance(npgen_info.get("conversion_pressure"), dict) else {}
 
-        gen_calls = int(st.session_state.get("v16h57HO6ZOE_generator_call_count", 0) or 0)
+        gen_calls = int(st.session_state.get("v16h57HO6ZOF_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
         fm_active = bool(fm.get("active", False))
-        fm_mode_ok = str(fm.get("mode", "")) == "intra_exec_guided_cohesion_generation"
+        fm_mode_ok = str(fm.get("mode", "")) == "intra_exec_state_aware_generation"
         fm_applied = bool(fm.get("applied", False))
         changed_indices = fm.get("changed_indices") or []
         promoted_from_tail = fm.get("promoted_from_tail") or []
@@ -1335,7 +1353,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "cp_ok": bool(cp.get("ok", False)),
             "pre_top10_hash": hash(str(pre_top)) if pre_top else None,
             "post_top10_hash": hash(str(post_top)) if post_top else None,
-            "guided_cohesion_generation_active": bool(fm.get("guided_cohesion_generation_active", False)),
+            "state_aware_generation_active": bool(fm.get("state_aware_generation_active", False)),
             "coverage_unique_before": int(fm.get("coverage_unique_before", 0) or 0),
             "coverage_unique_after": int(fm.get("coverage_unique_after", 0) or 0),
             "overlap_before": float(fm.get("overlap_before", 0.0) or 0.0),
@@ -1353,7 +1371,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         elif not fm_mode_ok:
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "intervencao_nao_corresponde_ao_objetivo_declarado"
-        elif not bool(fm.get("guided_cohesion_generation_active", False)):
+        elif not bool(fm.get("state_aware_generation_active", False)):
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "geracao_guiada_inativa"
         elif not changed_pre:
@@ -1363,23 +1381,23 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_nao_detectada_no_top10"
 
-        st.session_state["v16h57HO6ZOE_auditor"] = auditor
+        st.session_state["v16h57HO6ZOF_auditor"] = auditor
         return auditor
     except Exception as e:
         auditor = {
             "status": "INVALIDO",
             "motivo": f"auditor_erro: {e}",
             "unicidade": "FALHA",
-            "generator_call_count": int(st.session_state.get("v16h57HO6ZOE_generator_call_count", 0) or 0),
+            "generator_call_count": int(st.session_state.get("v16h57HO6ZOF_generator_call_count", 0) or 0),
             "ponto_fluxo": "FALHA",
             "antes_sanidade": "OK",
             "mudou_pacote": "NAO",
             "chegou_top10": "NAO",
             "consistencia_intervencao": "FALHA",
-            "guided_cohesion_generation_active": False,
+            "state_aware_generation_active": False,
         }
         try:
-            st.session_state["v16h57HO6ZOE_auditor"] = auditor
+            st.session_state["v16h57HO6ZOF_auditor"] = auditor
         except Exception:
             pass
         return auditor
@@ -1617,7 +1635,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        # fallback v16h57HO6ZOE_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
+        # fallback v16h57HO6ZOF_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
         if trocas == 0 and new_top10:
             try:
                 base = list(new_top10[0])
@@ -1638,7 +1656,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                 pass
 
         
-        # v16h57HO6ZOE_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
+        # v16h57HO6ZOF_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
         try:
             if trocas == 0 and new_top10:
                 base = list(new_top10[0])
@@ -3874,7 +3892,7 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
 def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) -> Tuple[List[List[int]], Dict[str, Any]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
-    v16h57HO6ZOE_CLEAN_REAL:
+    v16h57HO6ZOF_CLEAN_REAL:
     - aceita calib_override (compatível com SAFE/CAP)
     - sempre retorna (pacote, calib_meta)
     - protege o SAFE contra abortos por assinatura/estado mínimo
@@ -16624,7 +16642,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_brutas = listas_filtradas
 
     # ------------------------------------------------------------
-    # v16h57HO6ZOE_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
+    # v16h57HO6ZOF_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
     # ------------------------------------------------------------
     _ranking_vals_dx = []
     if "ranking2" in locals() and ranking2 is not None:
@@ -16657,9 +16675,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
     st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
     try:
-        st.session_state["v16h57HO6ZOE_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
+        st.session_state["v16h57HO6ZOF_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6ZOE_pre_sanidade_top10"] = []
+        st.session_state["v16h57HO6ZOF_pre_sanidade_top10"] = []
     try:
         pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
@@ -17000,20 +17018,20 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     try:
-        st.session_state["v16h57HO6ZOE_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
+        st.session_state["v16h57HO6ZOF_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6ZOE_post_sanidade_top10"] = []
+        st.session_state["v16h57HO6ZOF_post_sanidade_top10"] = []
 
     try:
         _auditor_ho6 = pc_v16_build_auditor_ho6w(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
-            pre_sanidade_top10=st.session_state.get("v16h57HO6ZOE_pre_sanidade_top10") or [],
-            post_sanidade_top10=st.session_state.get("v16h57HO6ZOE_post_sanidade_top10") or [],
+            pre_sanidade_top10=st.session_state.get("v16h57HO6ZOF_pre_sanidade_top10") or [],
+            post_sanidade_top10=st.session_state.get("v16h57HO6ZOF_post_sanidade_top10") or [],
         )
     except Exception as _aud_e:
         _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
 
-    st.markdown("### 🔎 AUDITOR HO6ZOE")
+    st.markdown("### 🔎 AUDITOR HO6ZOF")
     if str((_auditor_ho6 or {}).get("status", "")) == "OK":
         st.success("status: OK")
     else:
@@ -22408,7 +22426,7 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 # ============================================================
-# POST MODO6 AUDIT (v16h57HO6ZOE_CLEAN_REAL)
+# POST MODO6 AUDIT (v16h57HO6ZOF_CLEAN_REAL)
 # ============================================================
 try:
     import itertools
@@ -22489,13 +22507,13 @@ except Exception as e:
 
 
 # ============================================================
-# BUILD v16h57HO6ZOE_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
+# BUILD v16h57HO6ZOF_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
 # CT REAL GENERATOR HOOK (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_REAL_GENERATOR_PRE_SANIDADE"] = {
-        "build": "v16h57HO6ZOE_CLEAN_REAL",
+        "build": "v16h57HO6ZOF_CLEAN_REAL",
         "hook": "before_sanidade_final_listas",
         "status": "armed"
     }
@@ -22505,13 +22523,13 @@ except Exception:
 
 
 # ============================================================
-# BUILD v16h57HO6ZOE_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57HO6ZOF_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
 # CT REAL HOOK INSIDE GENERATOR (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_GENERATOR_PRE_SANIDADE_REAL"] = {
-        "build": "v16h57HO6ZOE_CLEAN_REAL",
+        "build": "v16h57HO6ZOF_CLEAN_REAL",
         "hook_point": "generator_before_sanidade",
         "status": "armed"
     }
