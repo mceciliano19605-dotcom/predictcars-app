@@ -522,11 +522,11 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZOI_PRE_FINAL_MOUNT_CAUSAL_AUDITOR — PRE-FINAL_MOUNT ISOLATED CAUSAL AUDITOR"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOI_PRE_FINAL_MOUNT_CAUSAL_AUDITOR.py"
+BUILD_TAG = "v16h57HO6ZOJ_VISIBLE_CAUSAL_AUDITOR — VISIBLE CAUSAL AUDITOR — PRE-FINAL_MOUNT Δ EXPOSTO"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOJ_VISIBLE_CAUSAL_AUDITOR.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-28_01 (HO6ZOI_PRE_FINAL_MOUNT_CAUSAL_AUDITOR)"
+WATERMARK = "2026-04-28_01 (HO6ZOJ_VISIBLE_CAUSAL_AUDITOR)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
 st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOI PRE-FINAL_MOUNT CAUSAL AUDITOR — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
@@ -1395,7 +1395,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
-        # v16h57HO6ZOI — SNAPSHOT CAUSAL LIMPO ANTES DO FINAL_MOUNT
+        # v16h57HO6ZOJ — SNAPSHOT CAUSAL LIMPO ANTES DO FINAL_MOUNT
         # A validação da hipótese estado -> score -> ranking -> lista deve usar
         # exclusivamente estes objetos pré-final_mount. O final_mount permanece
         # no fluxo operacional, mas NÃO é prova causal do estado.
@@ -1560,6 +1560,9 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "temporal_state_applied_in_generator": bool(temporal_state_applied),
             "impacto_temporal_real": bool(impacto_temporal_real),
             "impacto_estado_isolado": bool(impacto_estado_isolado),
+            # HO6ZOJ — aliases explícitos para auditor causal visível (pré-final_mount)
+            "impacto_estado_isolado_pre_mount": bool(impacto_estado_isolado),
+            "ranking_candidatos_mudou_pre_mount": bool(ranking_candidatos_mudou),
             "listas_base_sem_estado_hash": npgen_info.get("listas_base_sem_estado_hash"),
             "listas_estado_modulado_hash": npgen_info.get("listas_estado_modulado_hash"),
             "listas_base_sem_estado_exemplo": npgen_info.get("listas_base_sem_estado_exemplo", []),
@@ -17296,6 +17299,20 @@ if painel == "🎯 Modo 6 Acertos — Execução":
             "chegou_top10": (_auditor_ho6 or {}).get("chegou_top10", "n/d"),
             "consistencia_intervencao": (_auditor_ho6 or {}).get("consistencia_intervencao", "n/d"),
             "temporal_state": (_auditor_ho6 or {}).get("temporal_state", "n/d"),
+            # HO6ZOJ — AUDITOR CAUSAL VISÍVEL (pré-final_mount).
+            # Estes campos são obrigatórios para validar: estado -> score -> ranking -> lista -> pacote.
+            "auditoria_causal_pre_final_mount": (_auditor_ho6 or {}).get("auditoria_causal_pre_final_mount", False),
+            "final_mount_ignorado_na_validacao_causal": (_auditor_ho6 or {}).get("final_mount_ignorado_na_validacao_causal", False),
+            "score_delta_medio": (_auditor_ho6 or {}).get("score_delta_medio", 0.0),
+            "score_delta_max": (_auditor_ho6 or {}).get("score_delta_max", 0.0),
+            "ranking_candidatos_mudou_pre_mount": (_auditor_ho6 or {}).get("ranking_candidatos_mudou_pre_mount", (_auditor_ho6 or {}).get("ranking_candidatos_mudou", False)),
+            "impacto_estado_isolado_pre_mount": (_auditor_ho6 or {}).get("impacto_estado_isolado_pre_mount", (_auditor_ho6 or {}).get("impacto_estado_isolado", False)),
+            "qtd_candidatos_afetados": (_auditor_ho6 or {}).get("qtd_candidatos_afetados", 0),
+            "ranking_checks": (_auditor_ho6 or {}).get("ranking_checks", 0),
+            "ranking_changes": (_auditor_ho6 or {}).get("ranking_changes", 0),
+            "listas_pre_final_mount_hash": (_auditor_ho6 or {}).get("listas_pre_final_mount_hash", None),
+            "score_samples": (_auditor_ho6 or {}).get("score_samples", []),
+            "affected_candidates": (_auditor_ho6 or {}).get("affected_candidates", []),
             "family_prev": (_auditor_ho6 or {}).get("family_prev", []),
             "family_now": (_auditor_ho6 or {}).get("family_now", []),
             "intersecao": (_auditor_ho6 or {}).get("intersecao", 0),
