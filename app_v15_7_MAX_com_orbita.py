@@ -522,14 +522,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZOJ_VISIBLE_CAUSAL_AUDITOR — VISIBLE CAUSAL AUDITOR — PRE-FINAL_MOUNT Δ EXPOSTO"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOJ_VISIBLE_CAUSAL_AUDITOR.py"
+BUILD_TAG = "v16h57HO6ZOK_FIXED_AUDITOR — FIXED AUDITOR LABEL — NO LOGIC CHANGE"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOK_FIXED_AUDITOR.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-28_01 (HO6ZOJ_VISIBLE_CAUSAL_AUDITOR)"
+WATERMARK = "2026-04-28_02 (HO6ZOK_FIXED_AUDITOR)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOI PRE-FINAL_MOUNT CAUSAL AUDITOR — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOK FIXED AUDITOR LABEL — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
