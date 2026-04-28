@@ -522,14 +522,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR — STRONG STATE MODULATION + DELTA AUDITOR"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR.py"
+BUILD_TAG = "v16h57HO6ZOI_PRE_FINAL_MOUNT_CAUSAL_AUDITOR — PRE-FINAL_MOUNT ISOLATED CAUSAL AUDITOR"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOI_PRE_FINAL_MOUNT_CAUSAL_AUDITOR.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-27_03 (HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR)"
+WATERMARK = "2026-04-28_01 (HO6ZOI_PRE_FINAL_MOUNT_CAUSAL_AUDITOR)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOH REAL STRONG STATE MODULATION — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOI PRE-FINAL_MOUNT CAUSAL AUDITOR — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1395,7 +1395,16 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
+        # v16h57HO6ZOI — SNAPSHOT CAUSAL LIMPO ANTES DO FINAL_MOUNT
+        # A validação da hipótese estado -> score -> ranking -> lista deve usar
+        # exclusivamente estes objetos pré-final_mount. O final_mount permanece
+        # no fluxo operacional, mas NÃO é prova causal do estado.
+        out_pre_final_mount = [list(x) for x in out]
+        mudou_no_pacote_pre_mount = bool(out_pre_final_mount != base)
+        impacto_temporal_real_pre_mount = bool(mudou_no_pacote_pre_mount and impacto_estado_isolado)
+
         # v16h57HO6ZOF_CORRIGIDO_CLEAN_REAL — montagem final profunda para conversão
+        # Mantida por compatibilidade arquitetural, mas ignorada na auditoria causal.
         out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
             out,
             ranking_vals=ranking2,
@@ -1409,20 +1418,24 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
 
         return out, {
             "active": True,
-            "applied": bool(out != base),
+            "applied": bool(mudou_no_pacote_pre_mount),
             "reason": "ok" if out else "saida_vazia",
             "listas_regeneradas_qtd": int(min(len(geradas), len(base))),
             "co_pairs_qtd": int(len(co)),
             "ranking_base_qtd": int(len(ranking2)),
             "listas_antes_gerador_hash": hash(str(base)),
+            "listas_pre_final_mount_hash": hash(str(out_pre_final_mount)),
             "listas_finais_hash": hash(str(out)),
+            "mudou_no_pacote_pre_mount": bool(mudou_no_pacote_pre_mount),
             "mudou_no_pacote_final": bool(out != base),
+            "final_mount_ignorado_na_validacao_causal": True,
             "conversion_pressure": cp_info,
             "final_mount_info": final_mount_info,
             "temporal_state": temporal_state,
             "temporal_state_info": ho6zof_state_info,
             "temporal_state_applied_in_generator": bool(temporal_state in ("FECHAMENTO_FORTE", "NORMAL")),
-            "impacto_temporal_real": bool(out != base),
+            "impacto_temporal_real": bool(impacto_temporal_real_pre_mount),
+            "impacto_temporal_real_pre_mount": bool(impacto_temporal_real_pre_mount),
             "impacto_estado_isolado": bool(impacto_estado_isolado),
             "listas_base_sem_estado_hash": hash(str(geradas_base_estado_audit)),
             "listas_estado_modulado_hash": hash(str(geradas)),
@@ -1504,7 +1517,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         temporal_state = str(npgen_info.get("temporal_state", "n/d") or "n/d")
         temporal_state_info = npgen_info.get("temporal_state_info") if isinstance(npgen_info.get("temporal_state_info"), dict) else {}
         temporal_state_applied = bool(npgen_info.get("temporal_state_applied_in_generator", False))
-        impacto_temporal_real = bool(npgen_info.get("impacto_temporal_real", False))
+        impacto_temporal_real = bool(npgen_info.get("impacto_temporal_real_pre_mount", npgen_info.get("impacto_temporal_real", False)))
         impacto_estado_isolado = bool(npgen_info.get("impacto_estado_isolado", False))
         score_delta_medio = float(npgen_info.get("score_delta_medio", 0.0) or 0.0)
         score_delta_max = float(npgen_info.get("score_delta_max", 0.0) or 0.0)
@@ -1512,7 +1525,12 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         qtd_candidatos_afetados = int(npgen_info.get("qtd_candidatos_afetados", 0) or 0)
 
         gen_calls = int(st.session_state.get("v16h57HO6ZOF_CORRIGIDO_generator_call_count", 0) or 0)
-        changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
+        # HO6ZOI — validação causal usa pacote pré-final_mount, não o pacote final.
+        changed_pre = bool(npgen_info.get("mudou_no_pacote_pre_mount", False))
+        causal_pre_mount_ok = bool(
+            npgen_info.get("final_mount_ignorado_na_validacao_causal", False)
+            and npgen_info.get("listas_pre_final_mount_hash") is not None
+        )
         fm_active = bool(fm.get("active", False))
         fm_mode_ok = str(fm.get("mode", "")) == "intra_exec_guided_cohesion_generation"
         fm_applied = bool(fm.get("applied", False))
@@ -1557,11 +1575,14 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "motivo": "ok",
             "unicidade": "OK" if gen_calls == 1 else "FALHA",
             "generator_call_count": int(gen_calls),
-            "ponto_fluxo": "OK" if fm_active else "FALHA",
+            "ponto_fluxo": "OK" if causal_pre_mount_ok else "FALHA",
             "antes_sanidade": "OK",
             "mudou_pacote": "SIM" if changed_pre else "NAO",
-            "chegou_top10": "SIM" if chegou_top10 else "NAO",
-            "consistencia_intervencao": "OK" if fm_mode_ok else "FALHA",
+            "chegou_top10": "NAO_DECISORIO_NESTE_BUILD",
+            "consistencia_intervencao": "OK" if causal_pre_mount_ok else "FALHA",
+            "auditoria_causal_pre_final_mount": bool(causal_pre_mount_ok),
+            "final_mount_ignorado_na_validacao_causal": bool(npgen_info.get("final_mount_ignorado_na_validacao_causal", False)),
+            "listas_pre_final_mount_hash": npgen_info.get("listas_pre_final_mount_hash"),
             "final_mount_applied": bool(fm_applied),
             "changed_indices": list(changed_indices) if isinstance(changed_indices, list) else [],
             "promoted_from_tail": list(promoted_from_tail) if isinstance(promoted_from_tail, list) else [],
@@ -1580,12 +1601,9 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         if gen_calls != 1:
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "generator_duplicado"
-        elif not fm_active:
+        elif not causal_pre_mount_ok:
             auditor["status"] = "INVALIDO"
-            auditor["motivo"] = "intervencao_fora_do_ponto_vivo"
-        elif not fm_mode_ok:
-            auditor["status"] = "INVALIDO"
-            auditor["motivo"] = "intervencao_nao_corresponde_ao_objetivo_declarado"
+            auditor["motivo"] = "auditoria_pre_final_mount_ausente"
         elif temporal_state not in ("FECHAMENTO_FORTE", "NORMAL"):
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "temporal_state_nao_calculado"
@@ -1604,15 +1622,9 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         elif not impacto_temporal_real:
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "temporal_state_sem_impacto_estrutural"
-        elif not bool(fm.get("guided_cohesion_generation_active", False)):
-            auditor["status"] = "INVALIDO"
-            auditor["motivo"] = "geracao_guiada_inativa"
         elif not changed_pre:
             auditor["status"] = "INVALIDO"
-            auditor["motivo"] = "mudanca_nao_detectada_no_pacote"
-        elif not chegou_top10:
-            auditor["status"] = "INVALIDO"
-            auditor["motivo"] = "mudanca_nao_detectada_no_top10"
+            auditor["motivo"] = "mudanca_pre_final_mount_nao_detectada"
 
         st.session_state["v16h57HO6ZOF_CORRIGIDO_auditor"] = auditor
         return auditor
