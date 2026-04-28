@@ -1,4 +1,4 @@
-# --- v16h57HO6ZOG_REAL_STATE_MODULATION_AUDITOR_ISOLADO ---
+# --- v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR ---
 from __future__ import annotations
 
 # ============================================================
@@ -519,17 +519,17 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 
 
 # ============================================================
-# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOG_REAL_STATE_MODULATION_AUDITOR_ISOLADO
+# PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZOG_REAL_STATE_MODULATION_AUDITOR_ISOLADO — REAL STATE MODULATION + ISOLATED AUDITOR"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOG_REAL_STATE_MODULATION_AUDITOR_ISOLADO.py"
+BUILD_TAG = "v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR — STRONG STATE MODULATION + DELTA AUDITOR"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-27_02 (HO6ZOG_REAL_STATE_MODULATION_AUDITOR_ISOLADO)"
+WATERMARK = "2026-04-27_03 (HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOG REAL STATE MODULATION — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOH REAL STRONG STATE MODULATION — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -623,14 +623,18 @@ def pc_v16_ho6zof_real_temporal_state(packet_metrics):
 # ============================================================
 
 
-def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temporal_state="NORMAL", audit_mode=False):
+def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temporal_state="NORMAL", audit_mode=False, audit_collector=None):
     """
-    HO6ZOG REAL — geração guiada por coexistência com MODULAÇÃO de estado.
+    HO6ZOH REAL — modulação FORTE de estado com auditor de Δ.
 
-    Diferença em relação ao HO6ZOF:
-    - o estado não atua apenas como filtro binário;
-    - o estado modula pesos do score durante a seleção;
-    - audit_mode=True executa a base sem modulação para auditoria causal isolada.
+    Cadeia medida:
+    estado -> score -> ranking -> lista -> pacote
+
+    audit_collector recebe:
+    - score_delta_medio
+    - score_delta_max
+    - ranking_candidatos_mudou
+    - qtd_candidatos_afetados
     """
     try:
         if not isinstance(ranking, list) or len(ranking) < int(n):
@@ -639,6 +643,17 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
         temporal_state = str(temporal_state or "NORMAL")
         if bool(audit_mode):
             temporal_state = "NORMAL"
+
+        if not isinstance(audit_collector, dict):
+            audit_collector = None
+
+        if audit_collector is not None:
+            audit_collector.setdefault("score_deltas_abs", [])
+            audit_collector.setdefault("score_deltas_raw", [])
+            audit_collector.setdefault("ranking_changes", 0)
+            audit_collector.setdefault("ranking_checks", 0)
+            audit_collector.setdefault("affected_candidates", set())
+            audit_collector.setdefault("score_samples", [])
 
         ranking = [int(x) for x in ranking if int(x) > 0]
         co_matrix = co_matrix if isinstance(co_matrix, dict) else {}
@@ -659,12 +674,30 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
         def rank_strength(v):
             return max(0.0, 1.0 - (rank_pos.get(int(v), 9999) / max(1, len(ranking))))
 
-        def candidate_fit(candidate, current):
+        def score_base(candidate, current):
             candidate = int(candidate)
-
             if candidate in current:
                 return -1e9
+            if not current:
+                return rank_strength(candidate)
+            pair_sum = sum(pair_score(candidate, x) for x in current)
+            pair_avg = pair_sum / max(1, len(current))
+            zero_pairs = sum(1 for x in current if pair_score(candidate, x) <= 0.0)
+            zero_penalty = zero_pairs / max(1, len(current))
+            spread_after = max(current + [candidate]) - min(current + [candidate])
+            spread_penalty = min(float(spread_after) / 60.0, 1.0)
+            return float(
+                pair_sum * 0.20
+                + pair_avg * 0.30
+                + rank_strength(candidate) * 0.10
+                - zero_penalty * 0.16
+                - spread_penalty * 0.04
+            )
 
+        def score_modulated(candidate, current):
+            candidate = int(candidate)
+            if candidate in current:
+                return -1e9
             if not current:
                 return rank_strength(candidate)
 
@@ -675,25 +708,39 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
             spread_after = max(current + [candidate]) - min(current + [candidate])
             spread_penalty = min(float(spread_after) / 60.0, 1.0)
 
-            # ====================================================
-            # HO6ZOG REAL — ESTADO MODULANDO O SCORE
-            # ====================================================
             if temporal_state == "FECHAMENTO_FORTE":
+                # HO6ZOH — modulação dominante:
+                # coesão passa a dominar, ranking quase some, dispersão/pares vazios pesam mais.
                 return float(
-                    pair_sum * 0.15
-                    + pair_avg * 0.45
-                    + rank_strength(candidate) * 0.05
-                    - zero_penalty * 0.21
-                    - spread_penalty * 0.052
+                    pair_sum * 0.08
+                    + pair_avg * 0.68
+                    + rank_strength(candidate) * 0.01
+                    - zero_penalty * 0.34
+                    - spread_penalty * 0.12
                 )
 
-            return float(
-                pair_sum * 0.20
-                + pair_avg * 0.30
-                + rank_strength(candidate) * 0.10
-                - zero_penalty * 0.16
-                - spread_penalty * 0.04
-            )
+            return score_base(candidate, current)
+
+        def candidate_fit(candidate, current):
+            sb = score_base(candidate, current)
+            sm = score_modulated(candidate, current)
+
+            if audit_collector is not None and sb > -1e8 and sm > -1e8:
+                delta = float(sm - sb)
+                audit_collector["score_deltas_abs"].append(abs(delta))
+                audit_collector["score_deltas_raw"].append(delta)
+                if abs(delta) > 1e-12:
+                    audit_collector["affected_candidates"].add(int(candidate))
+                if len(audit_collector["score_samples"]) < 20:
+                    audit_collector["score_samples"].append({
+                        "candidate": int(candidate),
+                        "current": [int(x) for x in current],
+                        "score_base": round(float(sb), 8),
+                        "score_modulado": round(float(sm), 8),
+                        "delta": round(float(delta), 8),
+                    })
+
+            return sm
 
         def list_score(vals):
             vals = [int(x) for x in vals[:int(n)]]
@@ -711,7 +758,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
             spread_penalty = min(float(spread) / 60.0, 1.0)
 
             if temporal_state == "FECHAMENTO_FORTE":
-                return float(pair_sum * 0.15 + pair_avg * 0.45 + rank_sum * 0.05 - zero_ratio * 0.21 - spread_penalty * 0.052)
+                return float(pair_sum * 0.08 + pair_avg * 0.68 + rank_sum * 0.01 - zero_ratio * 0.34 - spread_penalty * 0.12)
 
             return float(pair_sum * 0.18 + pair_avg * 0.30 + rank_sum * 0.08 - zero_ratio * 0.18 - spread_penalty * 0.04)
 
@@ -740,13 +787,30 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
 
             while len(current) < int(n):
                 scored = []
+                base_rank_probe = []
+                mod_rank_probe = []
+
                 for cand in top:
                     if cand in current:
                         continue
+                    sb = score_base(cand, current)
+                    sm = score_modulated(cand, current)
+                    if sb > -1e8:
+                        base_rank_probe.append((sb, int(cand)))
+                    if sm > -1e8:
+                        mod_rank_probe.append((sm, int(cand)))
+
                     score = candidate_fit(cand, current)
                     if score <= -1e8:
                         continue
                     scored.append((score, int(cand)))
+
+                if audit_collector is not None and base_rank_probe and mod_rank_probe:
+                    base_order = [c for _, c in sorted(base_rank_probe, key=lambda t: (-float(t[0]), rank_pos.get(int(t[1]), 9999), int(t[1])))]
+                    mod_order = [c for _, c in sorted(mod_rank_probe, key=lambda t: (-float(t[0]), rank_pos.get(int(t[1]), 9999), int(t[1])))]
+                    audit_collector["ranking_checks"] += 1
+                    if base_order != mod_order:
+                        audit_collector["ranking_changes"] += 1
 
                 if not scored:
                     break
@@ -783,6 +847,18 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                     break
 
         generated.sort(key=lambda lst: (-float(list_score(lst)), tuple(lst)))
+
+        if audit_collector is not None:
+            deltas = audit_collector.get("score_deltas_abs", []) or []
+            audit_collector["score_delta_medio"] = round(float(sum(deltas) / len(deltas)), 10) if deltas else 0.0
+            audit_collector["score_delta_max"] = round(float(max(deltas)), 10) if deltas else 0.0
+            audit_collector["qtd_candidatos_afetados"] = int(len(audit_collector.get("affected_candidates", set())))
+            audit_collector["ranking_candidatos_mudou"] = bool(int(audit_collector.get("ranking_changes", 0)) > 0)
+            try:
+                audit_collector["affected_candidates"] = sorted([int(x) for x in audit_collector.get("affected_candidates", set())])[:30]
+            except Exception:
+                audit_collector["affected_candidates"] = []
+
         return generated[:int(k_lists)]
     except Exception:
         return []
@@ -1245,6 +1321,15 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
         # HO6ZOG REAL — A/B causal interno:
         # geradas_base = mesmo gerador, sem modulação de estado
         # geradas_estado = mesmo gerador, com estado real modulando score
+        ho6zoh_delta_audit = {
+            "score_deltas_abs": [],
+            "score_deltas_raw": [],
+            "ranking_changes": 0,
+            "ranking_checks": 0,
+            "affected_candidates": set(),
+            "score_samples": [],
+        }
+
         geradas_base_estado_audit = pc_v16_generate_lists_cooccurrence(
             ranking2,
             co,
@@ -1252,6 +1337,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             k_lists=k_gen,
             temporal_state="NORMAL",
             audit_mode=True,
+            audit_collector=None,
         ) if co else []
 
         geradas = pc_v16_generate_lists_cooccurrence(
@@ -1261,6 +1347,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             k_lists=k_gen,
             temporal_state=temporal_state,
             audit_mode=False,
+            audit_collector=ho6zoh_delta_audit,
         ) if co else []
 
         impacto_estado_isolado = bool(geradas_base_estado_audit and geradas and geradas_base_estado_audit != geradas)
@@ -1341,6 +1428,14 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "listas_estado_modulado_hash": hash(str(geradas)),
             "listas_base_sem_estado_exemplo": geradas_base_estado_audit[:3] if isinstance(geradas_base_estado_audit, list) else [],
             "listas_estado_modulado_exemplo": geradas[:3] if isinstance(geradas, list) else [],
+            "score_delta_medio": float(ho6zoh_delta_audit.get("score_delta_medio", 0.0) or 0.0),
+            "score_delta_max": float(ho6zoh_delta_audit.get("score_delta_max", 0.0) or 0.0),
+            "ranking_candidatos_mudou": bool(ho6zoh_delta_audit.get("ranking_candidatos_mudou", False)),
+            "qtd_candidatos_afetados": int(ho6zoh_delta_audit.get("qtd_candidatos_afetados", 0) or 0),
+            "ranking_checks": int(ho6zoh_delta_audit.get("ranking_checks", 0) or 0),
+            "ranking_changes": int(ho6zoh_delta_audit.get("ranking_changes", 0) or 0),
+            "score_samples": ho6zoh_delta_audit.get("score_samples", []),
+            "affected_candidates": ho6zoh_delta_audit.get("affected_candidates", []),
         }
     except Exception as e:
         return listas_totais, {"active": False, "applied": False, "reason": f"new_packet_generator_erro: {e}", "listas_regeneradas_qtd": 0}
@@ -1411,6 +1506,10 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         temporal_state_applied = bool(npgen_info.get("temporal_state_applied_in_generator", False))
         impacto_temporal_real = bool(npgen_info.get("impacto_temporal_real", False))
         impacto_estado_isolado = bool(npgen_info.get("impacto_estado_isolado", False))
+        score_delta_medio = float(npgen_info.get("score_delta_medio", 0.0) or 0.0)
+        score_delta_max = float(npgen_info.get("score_delta_max", 0.0) or 0.0)
+        ranking_candidatos_mudou = bool(npgen_info.get("ranking_candidatos_mudou", False))
+        qtd_candidatos_afetados = int(npgen_info.get("qtd_candidatos_afetados", 0) or 0)
 
         gen_calls = int(st.session_state.get("v16h57HO6ZOF_CORRIGIDO_generator_call_count", 0) or 0)
         changed_pre = bool(npgen_info.get("mudou_no_pacote_final", False))
@@ -1447,6 +1546,14 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "listas_estado_modulado_hash": npgen_info.get("listas_estado_modulado_hash"),
             "listas_base_sem_estado_exemplo": npgen_info.get("listas_base_sem_estado_exemplo", []),
             "listas_estado_modulado_exemplo": npgen_info.get("listas_estado_modulado_exemplo", []),
+            "score_delta_medio": float(score_delta_medio),
+            "score_delta_max": float(score_delta_max),
+            "ranking_candidatos_mudou": bool(ranking_candidatos_mudou),
+            "qtd_candidatos_afetados": int(qtd_candidatos_afetados),
+            "ranking_checks": int(npgen_info.get("ranking_checks", 0) or 0),
+            "ranking_changes": int(npgen_info.get("ranking_changes", 0) or 0),
+            "score_samples": npgen_info.get("score_samples", []),
+            "affected_candidates": npgen_info.get("affected_candidates", []),
             "motivo": "ok",
             "unicidade": "OK" if gen_calls == 1 else "FALHA",
             "generator_call_count": int(gen_calls),
@@ -1485,6 +1592,12 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         elif not temporal_state_applied:
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "temporal_state_nao_aplicado_no_gerador"
+        elif score_delta_medio <= 0.0 or score_delta_max <= 0.0:
+            auditor["status"] = "INVALIDO"
+            auditor["motivo"] = "estado_sem_delta_score"
+        elif not ranking_candidatos_mudou:
+            auditor["status"] = "INVALIDO"
+            auditor["motivo"] = "estado_sem_mudanca_ranking_candidatos"
         elif not impacto_estado_isolado:
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "estado_sem_impacto_isolado"
