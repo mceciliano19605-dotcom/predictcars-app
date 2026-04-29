@@ -886,7 +886,12 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                     break
 
                 scored.sort(key=lambda t: (-float(t[0]), rank_pos.get(int(t[1]), 9999), int(t[1])))
-                current.append(int(scored[0][1]))
+                # HO6ZON — seleção dinâmica real dentro da construção incremental:
+                # em vez de sempre escolher o topo absoluto, escolhe entre os top-k
+                # candidatos já ordenados pelo score. Mantém qualidade, mas reduz
+                # aprisionamento em trajetória gulosa local.
+                selected_score, selected_candidate = _select_candidate_dynamic(scored, k=3)
+                current.append(int(selected_candidate))
 
             if len(current) == int(n):
                 candidate_list = sorted(dict.fromkeys(current))
@@ -1521,6 +1526,8 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "affected_candidates": ho6zoh_delta_audit.get("affected_candidates", []),
             "group_coherence_real_active": True,
             "group_coherence_real_mode": "candidate_fit_group_density_gain_conflict_penalty",
+            "dynamic_selection_real_active": True,
+            "dynamic_selection_mode": "topk_sampling_k3_inside_incremental_build",
         }
     except Exception as e:
         return listas_totais, {"active": False, "applied": False, "reason": f"new_packet_generator_erro: {e}", "listas_regeneradas_qtd": 0}
