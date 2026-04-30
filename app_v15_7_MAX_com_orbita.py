@@ -1,7 +1,7 @@
 # --- v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR ---
 from __future__ import annotations
 
-# HO6ZOU — dynamic selection (escape local minima)
+# HO6ZOW — dynamic selection (escape local minima)
 import random
 def _select_candidate_dynamic(scored_candidates, k=3):
     topk = scored_candidates[:max(1, min(k, len(scored_candidates)))]
@@ -529,14 +529,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZOU_CLOSURE_VIABILITY_DECISION — DIVERSE FINAL-SET VIABILITY IN CANDIDATE_FIT"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOU_CLOSURE_VIABILITY_DECISION_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6ZOW_FULL_SET_GLOBAL_SELECTION — GLOBAL LIST SELECTION PRE-SANIDADE"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOW_FULL_SET_GLOBAL_SELECTION_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-30_01 (HO6ZOU_CLOSURE_VIABILITY_DECISION)"
+WATERMARK = "2026-04-30_02 (HO6ZOW_FULL_SET_GLOBAL_SELECTION)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOU CLOSURE VIABILITY DECISION — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOW FULL SET GLOBAL SELECTION — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -585,6 +585,131 @@ def pc_v16_cooccurrence_matrix(series_hist):
         return co
     except Exception:
         return {}
+
+
+# ============================================================
+# V16h57HO6ZOW — FULL SET GLOBAL SELECTION LAYER
+# lista -> full_set_score -> seleção/ranking -> pacote pré-sanidade
+# ============================================================
+def pc_v16_full_set_global_selection_layer(listas, co_matrix=None, target_profile=None, n_alvo=6, top_n=12):
+    try:
+        co_matrix = co_matrix if isinstance(co_matrix, dict) else {}
+        target_profile = target_profile if isinstance(target_profile, dict) else {}
+        base = []
+        for lst in (listas or []):
+            try:
+                li = sorted(dict.fromkeys(int(x) for x in list(lst)[:int(n_alvo)]))
+                if len(li) == int(n_alvo):
+                    base.append(li)
+            except Exception:
+                pass
+
+        if not base:
+            return listas, {
+                "active": True,
+                "applied": False,
+                "reason": "base_vazia",
+                "mode": "full_set_global_selection_pre_sanidade",
+                "listas_antes_hash": hash(str(listas or [])),
+                "listas_depois_hash": hash(str(listas or [])),
+            }
+
+        def pair_score(a, b):
+            try:
+                return float(co_matrix.get(tuple(sorted((int(a), int(b)))), 0.0))
+            except Exception:
+                return 0.0
+
+        def historical_alignment(vals):
+            try:
+                if not (isinstance(target_profile, dict) and bool(target_profile.get("ok"))):
+                    return 0.0
+                vals = sorted(int(x) for x in vals[:int(n_alvo)])
+                spread = max(vals) - min(vals)
+                low = sum(1 for x in vals if int(x) <= 17)
+                mid = sum(1 for x in vals if 18 <= int(x) <= 34)
+                high = sum(1 for x in vals if int(x) >= 35)
+                even = sum(1 for x in vals if int(x) % 2 == 0)
+                consec = 0
+                for i in range(len(vals) - 1):
+                    if int(vals[i + 1]) - int(vals[i]) == 1:
+                        consec += 1
+                err = (
+                    abs(float(spread) - float(target_profile.get("spread_mean", 0.0))) / 50.0
+                    + abs(float(low) - float(target_profile.get("low_mean", 0.0))) / max(1.0, float(n_alvo))
+                    + abs(float(mid) - float(target_profile.get("mid_mean", 0.0))) / max(1.0, float(n_alvo))
+                    + abs(float(high) - float(target_profile.get("high_mean", 0.0))) / max(1.0, float(n_alvo))
+                    + abs(float(even) - float(target_profile.get("even_mean", 0.0))) / max(1.0, float(n_alvo))
+                    + abs(float(consec) - float(target_profile.get("consecutive_mean", 0.0))) / max(1.0, float(n_alvo))
+                )
+                return max(0.0, 1.0 - float(err) / 6.0)
+            except Exception:
+                return 0.0
+
+        def full_set_score(vals):
+            vals = sorted(dict.fromkeys(int(x) for x in list(vals)[:int(n_alvo)]))
+            if len(vals) != int(n_alvo):
+                return -1e9
+            pair_scores = []
+            for i in range(len(vals)):
+                for j in range(i + 1, len(vals)):
+                    pair_scores.append(pair_score(vals[i], vals[j]))
+            pair_strength = sum(float(s) for s in pair_scores) / max(1, len(pair_scores))
+            pair_consistency = sum(1 for s in pair_scores if float(s) > 0.0) / max(1, len(pair_scores))
+            structural_conflict = sum(1 for s in pair_scores if float(s) <= 0.0) / max(1, len(pair_scores))
+            spread = max(vals) - min(vals)
+            spread_penalty = min(float(spread) / 60.0, 1.0)
+            structure_density = max(0.0, 1.0 - abs(float(spread_penalty) - 0.42))
+            hist_align = historical_alignment(vals)
+            return float(
+                pair_strength * 0.25
+                + pair_consistency * 0.20
+                + structure_density * 0.15
+                + hist_align * 0.20
+                - structural_conflict * 0.20
+            )
+
+        scored = [(float(full_set_score(lst)), int(idx), list(lst)) for idx, lst in enumerate(base)]
+        scored_sorted = sorted(scored, key=lambda t: (-float(t[0]), int(t[1]), tuple(t[2])))
+        top_n = int(max(1, min(int(top_n or len(base)), len(base))))
+        selected = [list(t[2]) for t in scored_sorted[:top_n]]
+        selected_keys = {tuple(x) for x in selected}
+        tail = [list(x) for x in base if tuple(x) not in selected_keys]
+        out = selected + tail
+
+        scores = [float(t[0]) for t in scored_sorted]
+        before_hash = hash(str(base))
+        after_hash = hash(str(out))
+        ranking_changed = bool([tuple(x) for x in base] != [tuple(x) for x in out])
+        selection_changed = bool([tuple(x) for x in base[:top_n]] != [tuple(x) for x in selected])
+
+        return out, {
+            "active": True,
+            "applied": bool(ranking_changed or selection_changed),
+            "reason": "ok" if (ranking_changed or selection_changed) else "sem_mudanca_ranking_global",
+            "mode": "full_set_global_selection_pre_sanidade",
+            "top_n_interno": int(top_n),
+            "listas_antes_hash": before_hash,
+            "listas_depois_hash": after_hash,
+            "ranking_listas_mudou_pre_sanidade": bool(ranking_changed),
+            "impacto_global_pre_sanidade": bool(selection_changed or before_hash != after_hash),
+            "full_set_score_medio": round(float(sum(scores) / max(1, len(scores))), 10) if scores else 0.0,
+            "full_set_score_max": round(float(max(scores)), 10) if scores else 0.0,
+            "full_set_score_min": round(float(min(scores)), 10) if scores else 0.0,
+            "scores_top": [
+                {"idx_original": int(t[1]), "score": round(float(t[0]), 8), "lista": [int(x) for x in t[2]]}
+                for t in scored_sorted[:min(10, len(scored_sorted))]
+            ],
+        }
+    except Exception as e:
+        return listas, {
+            "active": False,
+            "applied": False,
+            "reason": f"full_set_global_selection_erro: {e}",
+            "mode": "full_set_global_selection_pre_sanidade",
+            "listas_antes_hash": hash(str(listas or [])),
+            "listas_depois_hash": hash(str(listas or [])),
+        }
 
 
 # ============================================================
@@ -716,7 +841,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
             spread_penalty = min(float(spread_after) / 60.0, 1.0)
 
             if temporal_state == "FECHAMENTO_FORTE":
-                # HO6ZOU — DYNAMIC SELECTION:
+                # HO6ZOW — DYNAMIC SELECTION:
                 # Evolui de coexistência local de pares para coerência estrutural
                 # do grupo parcial formado no candidate_fit.
                 # Usa somente dados reais já existentes: co_matrix, current,
@@ -760,7 +885,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                     - group_zero_ratio * 0.20
                 )
 
-                # HO6ZOU — CLOSURE GUIDED REAL:
+                # HO6ZOW — CLOSURE GUIDED REAL:
                 # Direcionamento explícito de fechamento dentro do score_modulated.
                 # Não é flag nem pós-processo: altera o score antes do ranking/seleção.
                 # Sinais reais usados:
@@ -780,7 +905,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                     - conflict_ratio * 0.16
                 )
 
-                # HO6ZOU — CLOSURE LOOKAHEAD REAL:
+                # HO6ZOW — CLOSURE LOOKAHEAD REAL:
                 # avalia se, após inserir o candidato, ainda há caminhos plausíveis
                 # de fechamento até n elementos. Atua dentro do score_modulated.
                 remaining_slots = max(0, int(n) - len(group_after))
@@ -828,7 +953,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                             - (1.0 - lookahead_viability) * 0.20
                         )
 
-                # HO6ZOU — TARGET SHAPE CONVERGENCE:
+                # HO6ZOW — TARGET SHAPE CONVERGENCE:
                 # avalia se o grupo parcial já possui forma estrutural saudável
                 # de fechamento, além de qualidade atual e viabilidade futura.
                 target_density = float(group_positive_ratio)
@@ -845,7 +970,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                     - target_conflict * 0.24
                 )
 
-                # HO6ZOU — FINAL SET CLOSURE REAL:
+                # HO6ZOW — FINAL SET CLOSURE REAL:
                 # Simula uma conclusão leve do conjunto após inserir o candidato
                 # e avalia a forma do conjunto completo estimado dentro do candidate_fit.
                 final_set_closure_term = 0.0
@@ -914,7 +1039,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                         - completed_zero_ratio * 0.26
                     )
 
-                # HO6ZOU — REAL TARGET PROFILE CLOSURE:
+                # HO6ZOW — REAL TARGET PROFILE CLOSURE:
                 # compara o conjunto completo estimado com perfil histórico real,
                 # reduzindo erro de forma entre o grupo e as séries reais.
                 real_target_profile_term = 0.0
@@ -944,7 +1069,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                         - float(completed_zero_ratio) * 0.18
                     )
 
-                # HO6ZOU — CLOSURE VIABILITY DECISION:
+                # HO6ZOW — CLOSURE VIABILITY DECISION:
                 # múltiplos caminhos de fechamento, com diversidade controlada,
                 # avaliando o conjunto completo possível antes da decisão.
                 closure_viability_term = 0.0
@@ -1113,7 +1238,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
             spread_penalty = min(float(spread) / 60.0, 1.0)
 
             if temporal_state == "FECHAMENTO_FORTE":
-                # HO6ZOU — ordenação final das listas por coerência global:
+                # HO6ZOW — ordenação final das listas por coerência global:
                 # favorece lista inteira com densidade de pares positivos e baixa ruptura.
                 positive_ratio = sum(1 for s in pair_scores if float(s) > 0.0) / max(1, len(pair_scores))
                 avg_positive_pair = (
@@ -1132,7 +1257,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                     - float(zero_ratio) * 0.24
                 )
 
-                # HO6ZOU — list_score com viabilidade interna da lista como unidade.
+                # HO6ZOW — list_score com viabilidade interna da lista como unidade.
                 lookahead_list_term = (
                     float(positive_ratio) * 0.18
                     + float(avg_positive_pair) * 0.08
@@ -1140,7 +1265,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                     - float(zero_ratio) * 0.20
                 )
 
-                # HO6ZOU — list_score por formato estrutural final.
+                # HO6ZOW — list_score por formato estrutural final.
                 target_shape_list_term = (
                     float(positive_ratio) * 0.18
                     + max(0.0, 1.0 - abs(float(positive_ratio) - 0.72)) * 0.16
@@ -1148,7 +1273,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                     - float(zero_ratio) * 0.22
                 )
 
-                # HO6ZOU — list_score também avalia o conjunto final como unidade.
+                # HO6ZOW — list_score também avalia o conjunto final como unidade.
                 final_set_list_term = (
                     float(positive_ratio) * 0.20
                     + float(avg_positive_pair) * 0.10
@@ -1226,7 +1351,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                     break
 
                 scored.sort(key=lambda t: (-float(t[0]), rank_pos.get(int(t[1]), 9999), int(t[1])))
-                # HO6ZOU — seleção dinâmica real dentro da construção incremental:
+                # HO6ZOW — seleção dinâmica real dentro da construção incremental:
                 # em vez de sempre escolher o topo absoluto, escolhe entre os top-k
                 # candidatos já ordenados pelo score. Mantém qualidade, mas reduz
                 # aprisionamento em trajetória gulosa local.
@@ -1414,7 +1539,7 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    HO6ZOU — auditoria de geração guiada.
+    HO6ZOW — auditoria de geração guiada.
     A intervenção principal acontece no gerador. Aqui não se troca números:
     apenas seleciona o Top10 já gerado por coerência de bloco para manter o ponto final auditável.
     """
@@ -1541,12 +1666,12 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
 
         pc_exec_trace("ENTER pc_v16_new_packet_generator", {"arg_n": len(listas_totais or [])})
         try:
-            st.session_state["v16h57HO6ZOU_generator_call_count"] = int(st.session_state.get("v16h57HO6ZOU_generator_call_count", 0)) + 1
-            _steps = st.session_state.get("v16h57HO6ZOU_generator_call_steps")
+            st.session_state["v16h57HO6ZOW_generator_call_count"] = int(st.session_state.get("v16h57HO6ZOW_generator_call_count", 0)) + 1
+            _steps = st.session_state.get("v16h57HO6ZOW_generator_call_steps")
             if not isinstance(_steps, list):
                 _steps = []
-            _steps.append({"count": int(st.session_state.get("v16h57HO6ZOU_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
-            st.session_state["v16h57HO6ZOU_generator_call_steps"] = _steps
+            _steps.append({"count": int(st.session_state.get("v16h57HO6ZOW_generator_call_count", 1)), "arg_n": int(len(listas_totais or []))})
+            st.session_state["v16h57HO6ZOW_generator_call_steps"] = _steps
         except Exception:
             pass
         base = []
@@ -1596,7 +1721,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
 
         co = pc_v16_cooccurrence_matrix(series_hist) if series_hist else {}
 
-        # HO6ZOU — perfil histórico real de fechamento das séries.
+        # HO6ZOW — perfil histórico real de fechamento das séries.
         target_profile = {"ok": False, "motivo": "sem_series_hist"}
         try:
             _profiles = []
@@ -1685,7 +1810,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                     )
                 )
 
-                # v16h57HO6ZOU_CLEAN_REAL — INJECAO BORDA-PERTO REAL
+                # v16h57HO6ZOW_CLEAN_REAL — INJECAO BORDA-PERTO REAL
                 # objetivo: trazer alguns candidatos da borda util para o topo operativo,
                 # sem inventar motor novo e sem quebrar o ranking base.
                 try:
@@ -1703,7 +1828,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                             break
 
                     if inj_candidates:
-                        # v16h57HO6ZOU_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
+                        # v16h57HO6ZOW_CLEAN_REAL — injecao mais agressiva: até 3 candidatos subindo até a posição 7
                         extra_pool = ranking2[18:22]
                         extra_pool = sorted(
                             [int(v) for v in extra_pool],
@@ -1852,6 +1977,29 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 if len(out) >= len(base):
                     break
 
+        # HO6ZOW — FULL SET GLOBAL SELECTION LAYER (pré-sanidade)
+        full_set_global_audit = {
+            "active": False,
+            "applied": False,
+            "reason": "nao_executado",
+            "mode": "full_set_global_selection_pre_sanidade",
+        }
+        try:
+            out, full_set_global_audit = pc_v16_full_set_global_selection_layer(
+                out,
+                co_matrix=co,
+                target_profile=target_profile,
+                n_alvo=int(n_alvo),
+                top_n=min(len(out), max(10, int(k_gen))),
+            )
+        except Exception as _fsg_e:
+            full_set_global_audit = {
+                "active": False,
+                "applied": False,
+                "reason": f"full_set_global_selection_erro: {_fsg_e}",
+                "mode": "full_set_global_selection_pre_sanidade",
+            }
+
         # v16h57HO6ZOJ — SNAPSHOT CAUSAL LIMPO ANTES DO FINAL_MOUNT
         # A validação da hipótese estado -> score -> ranking -> lista deve usar
         # exclusivamente estes objetos pré-final_mount. O final_mount permanece
@@ -1860,7 +2008,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
         mudou_no_pacote_pre_mount = bool(out_pre_final_mount != base)
         impacto_temporal_real_pre_mount = bool(mudou_no_pacote_pre_mount and impacto_estado_isolado)
 
-        # v16h57HO6ZOU_CLEAN_REAL — montagem final profunda para conversão
+        # v16h57HO6ZOW_CLEAN_REAL — montagem final profunda para conversão
         # Mantida por compatibilidade arquitetural, mas ignorada na auditoria causal.
         out_mounted, final_mount_info = pc_v16_packet_final_mount_deep(
             out,
@@ -1924,6 +2072,9 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "closure_viability_decision_active": True,
             "closure_viability_mode": "candidate_fit_diverse_completed_group_paths",
             "closure_viability_paths_per_candidate": 8,
+            "full_set_global_selection_active": bool(full_set_global_audit.get("active", False)) if isinstance(full_set_global_audit, dict) else False,
+            "full_set_global_selection_applied": bool(full_set_global_audit.get("applied", False)) if isinstance(full_set_global_audit, dict) else False,
+            "full_set_global_selection_audit": full_set_global_audit,
         }
     except Exception as e:
         return listas_totais, {"active": False, "applied": False, "reason": f"new_packet_generator_erro: {e}", "listas_regeneradas_qtd": 0}
@@ -1961,11 +2112,11 @@ def v16h57FS_clear_mode6_packet_state():
         "bloco_c_info",
         "postura_respiravel_info",
         "postura_respiravel_memoria",
-        "v16h57HO6ZOU_auditor",
-        "v16h57HO6ZOU_generator_call_count",
-        "v16h57HO6ZOU_generator_call_steps",
-        "v16h57HO6ZOU_pre_sanidade_top10",
-        "v16h57HO6ZOU_post_sanidade_top10",
+        "v16h57HO6ZOW_auditor",
+        "v16h57HO6ZOW_generator_call_count",
+        "v16h57HO6ZOW_generator_call_steps",
+        "v16h57HO6ZOW_pre_sanidade_top10",
+        "v16h57HO6ZOW_post_sanidade_top10",
     ]
     try:
         for k in keys:
@@ -1999,7 +2150,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
         ranking_candidatos_mudou = bool(npgen_info.get("ranking_candidatos_mudou", False))
         qtd_candidatos_afetados = int(npgen_info.get("qtd_candidatos_afetados", 0) or 0)
 
-        gen_calls = int(st.session_state.get("v16h57HO6ZOU_generator_call_count", 0) or 0)
+        gen_calls = int(st.session_state.get("v16h57HO6ZOW_generator_call_count", 0) or 0)
         # HO6ZOI — validação causal usa pacote pré-final_mount, não o pacote final.
         changed_pre = bool(npgen_info.get("mudou_no_pacote_pre_mount", False))
         causal_pre_mount_ok = bool(
@@ -2104,14 +2255,14 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             auditor["status"] = "INVALIDO"
             auditor["motivo"] = "mudanca_pre_final_mount_nao_detectada"
 
-        st.session_state["v16h57HO6ZOU_auditor"] = auditor
+        st.session_state["v16h57HO6ZOW_auditor"] = auditor
         return auditor
     except Exception as e:
         auditor = {
             "status": "INVALIDO",
             "motivo": f"auditor_erro: {e}",
             "unicidade": "FALHA",
-            "generator_call_count": int(st.session_state.get("v16h57HO6ZOU_generator_call_count", 0) or 0),
+            "generator_call_count": int(st.session_state.get("v16h57HO6ZOW_generator_call_count", 0) or 0),
             "ponto_fluxo": "FALHA",
             "antes_sanidade": "OK",
             "mudou_pacote": "NAO",
@@ -2120,7 +2271,7 @@ def pc_v16_build_auditor_ho6w(*, npgen_info=None, pre_sanidade_top10=None, post_
             "guided_cohesion_generation_active": False,
         }
         try:
-            st.session_state["v16h57HO6ZOU_auditor"] = auditor
+            st.session_state["v16h57HO6ZOW_auditor"] = auditor
         except Exception:
             pass
         return auditor
@@ -2358,7 +2509,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
         new_tot = uniq2
         new_top10 = new_tot[:10]
 
-        # fallback v16h57HO6ZOU_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
+        # fallback v16h57HO6ZOW_CLEAN_REAL: se nada mudou, força 1 troca mínima na 1a lista do top
         if trocas == 0 and new_top10:
             try:
                 base = list(new_top10[0])
@@ -2379,7 +2530,7 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
                 pass
 
         
-        # v16h57HO6ZOU_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
+        # v16h57HO6ZOW_CLEAN_REAL safety: guarantee at least one minimal swap if calibration active
         try:
             if trocas == 0 and new_top10:
                 base = list(new_top10[0])
@@ -4615,7 +4766,7 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
 def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) -> Tuple[List[List[int]], Dict[str, Any]]:
     """Gera pacote Top10 do Modo 6 (silencioso) para a janela atual.
     Regra: é o mesmo espírito do painel, mas sem UI e com falhas silenciosas.
-    v16h57HO6ZOU_CLEAN_REAL:
+    v16h57HO6ZOW_CLEAN_REAL:
     - aceita calib_override (compatível com SAFE/CAP)
     - sempre retorna (pacote, calib_meta)
     - protege o SAFE contra abortos por assinatura/estado mínimo
@@ -17369,7 +17520,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     listas_brutas = listas_filtradas
 
     # ------------------------------------------------------------
-    # v16h57HO6ZOU_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
+    # v16h57HO6ZOW_CLEAN_REAL — CT no fluxo real, antes da sanidade, sem calib_meta
     # ------------------------------------------------------------
     _ranking_vals_dx = []
     if "ranking2" in locals() and ranking2 is not None:
@@ -17402,9 +17553,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
     st.session_state["v16_ct_last_real_generator"] = dict(_npgen_dx_info or {})
     try:
-        st.session_state["v16h57HO6ZOU_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
+        st.session_state["v16h57HO6ZOW_pre_sanidade_top10"] = [list(lst) for lst in (listas_brutas or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6ZOU_pre_sanidade_top10"] = []
+        st.session_state["v16h57HO6ZOW_pre_sanidade_top10"] = []
     try:
         pc_trace_store("pc_trace_after_npg_dx", listas_brutas, "1.9) PRE SANIDADE CT EM LISTAS_FILTRADAS")
     except Exception:
@@ -17745,20 +17896,20 @@ if painel == "🎯 Modo 6 Acertos — Execução":
 
 
     try:
-        st.session_state["v16h57HO6ZOU_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
+        st.session_state["v16h57HO6ZOW_post_sanidade_top10"] = [list(lst) for lst in (listas_top10 or [])[:10]]
     except Exception:
-        st.session_state["v16h57HO6ZOU_post_sanidade_top10"] = []
+        st.session_state["v16h57HO6ZOW_post_sanidade_top10"] = []
 
     try:
         _auditor_ho6 = pc_v16_build_auditor_ho6w(
             npgen_info=(_npgen_dx_info if isinstance(_npgen_dx_info, dict) else {}),
-            pre_sanidade_top10=st.session_state.get("v16h57HO6ZOU_pre_sanidade_top10") or [],
-            post_sanidade_top10=st.session_state.get("v16h57HO6ZOU_post_sanidade_top10") or [],
+            pre_sanidade_top10=st.session_state.get("v16h57HO6ZOW_pre_sanidade_top10") or [],
+            post_sanidade_top10=st.session_state.get("v16h57HO6ZOW_post_sanidade_top10") or [],
         )
     except Exception as _aud_e:
         _auditor_ho6 = {"status": "INVALIDO", "motivo": f"auditor_erro: {_aud_e}"}
 
-    st.markdown("### 🔎 AUDITOR HO6ZOU")
+    st.markdown("### 🔎 AUDITOR HO6ZOW")
     if str((_auditor_ho6 or {}).get("status", "")) == "OK":
         st.success("status: OK")
     else:
@@ -23167,7 +23318,7 @@ if painel == "📡 CAP — Calibração Assistida da Parabólica (pré-C4)":
     v16_painel_cap_calibracao_assistida_parabola_pre_c4()
 
 # ============================================================
-# POST MODO6 AUDIT (v16h57HO6ZOU_CLEAN_REAL)
+# POST MODO6 AUDIT (v16h57HO6ZOW_CLEAN_REAL)
 # ============================================================
 try:
     import itertools
@@ -23248,13 +23399,13 @@ except Exception as e:
 
 
 # ============================================================
-# BUILD v16h57HO6ZOU_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
+# BUILD v16h57HO6ZOW_CLEAN_REAL — CT REAL GENERATOR (PRE-SANIDADE HOOK) + BANNER OK
 # CT REAL GENERATOR HOOK (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_REAL_GENERATOR_PRE_SANIDADE"] = {
-        "build": "v16h57HO6ZOU_CLEAN_REAL",
+        "build": "v16h57HO6ZOW_CLEAN_REAL",
         "hook": "before_sanidade_final_listas",
         "status": "armed"
     }
@@ -23264,13 +23415,13 @@ except Exception:
 
 
 # ============================================================
-# BUILD v16h57HO6ZOU_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
+# BUILD v16h57HO6ZOW_CLEAN_REAL — CT GENERATOR PRE-SANIDADE REAL HOOK + BANNER OK
 # CT REAL HOOK INSIDE GENERATOR (PRE SANIDADE)
 # ============================================================
 try:
     import streamlit as st
     st.session_state["CT_GENERATOR_PRE_SANIDADE_REAL"] = {
-        "build": "v16h57HO6ZOU_CLEAN_REAL",
+        "build": "v16h57HO6ZOW_CLEAN_REAL",
         "hook_point": "generator_before_sanidade",
         "status": "armed"
     }
