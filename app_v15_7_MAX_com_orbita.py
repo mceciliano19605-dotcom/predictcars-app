@@ -529,14 +529,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZOY_AUDIT_HISTORICAL_EVIDENCE — SAME LOGIC + EXPLICIT HISTORICAL EVIDENCE AUDITOR"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOY_AUDIT_HISTORICAL_EVIDENCE_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6ZOY_HISTORICAL_CLOSURE_EVIDENCE — REAL 4P HISTORICAL EVIDENCE IN CANDIDATE_FIT"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOY_HISTORICAL_CLOSURE_EVIDENCE_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-05-01_01 (HO6ZOY_AUDIT_HISTORICAL_EVIDENCE)"
+WATERMARK = "2026-04-30_04 (HO6ZOY_HISTORICAL_CLOSURE_EVIDENCE)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOY AUDIT HISTORICAL EVIDENCE — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOY HISTORICAL CLOSURE EVIDENCE — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2122,44 +2122,6 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             historical_patterns_4p=historical_patterns_4p,
         ) if co else []
 
-        # HO6ZOY_AUDIT — exposição explícita da evidência histórica no auditor causal.
-        # Mesma lógica do HO6ZOY: não altera score, peso, ranking nem geração.
-        try:
-            _hev = ho6zoh_delta_audit.get("historical_evidence_values", []) or []
-            _het = ho6zoh_delta_audit.get("historical_evidence_terms", []) or []
-            _hes = ho6zoh_delta_audit.get("historical_evidence_samples", []) or []
-            _hec = ho6zoh_delta_audit.get("historical_evidence_candidates", set())
-            _hec_set = _hec if isinstance(_hec, set) else set(_hec or [])
-
-            ho6zoh_delta_audit["historical_closure_evidence_auditor_visible"] = True
-            ho6zoh_delta_audit["historical_closure_evidence_active"] = bool(len(_hev) > 0 or len(_het) > 0)
-            ho6zoh_delta_audit["historical_evidence_score_medio"] = round(float(sum(_hev) / max(1, len(_hev))), 10) if _hev else 0.0
-            ho6zoh_delta_audit["historical_evidence_score_max"] = round(float(max(_hev)), 10) if _hev else 0.0
-            ho6zoh_delta_audit["historical_evidence_score_min"] = round(float(min(_hev)), 10) if _hev else 0.0
-            ho6zoh_delta_audit["historical_evidence_term_medio"] = round(float(sum(_het) / max(1, len(_het))), 10) if _het else 0.0
-            ho6zoh_delta_audit["historical_evidence_term_max"] = round(float(max(_het)), 10) if _het else 0.0
-            ho6zoh_delta_audit["historical_evidence_term_min"] = round(float(min(_het)), 10) if _het else 0.0
-            ho6zoh_delta_audit["historical_evidence_candidates_affected"] = int(len(_hec_set))
-            ho6zoh_delta_audit["historical_evidence_ranking_changes"] = int(ho6zoh_delta_audit.get("historical_evidence_ranking_changes", 0) or 0)
-            ho6zoh_delta_audit["historical_evidence_samples"] = _hes[:24]
-            ho6zoh_delta_audit["diversity_guard_blocks"] = int(ho6zoh_delta_audit.get("diversity_guard_blocks", 0) or 0)
-            try:
-                ho6zoh_delta_audit["historical_evidence_candidates"] = sorted([int(x) for x in _hec_set])[:30]
-            except Exception:
-                ho6zoh_delta_audit["historical_evidence_candidates"] = []
-
-            try:
-                _hp = historical_patterns_4p if isinstance(historical_patterns_4p, dict) else {}
-                ho6zoh_delta_audit["historical_patterns_4p_ok"] = bool(_hp.get("ok", False))
-                ho6zoh_delta_audit["historical_patterns_4p_total_series"] = int(_hp.get("total_series", 0) or 0)
-                ho6zoh_delta_audit["historical_patterns_4p_subsets_total"] = int(_hp.get("subsets_total", 0) or 0)
-                ho6zoh_delta_audit["historical_patterns_4p_motivo"] = str(_hp.get("motivo", ""))
-            except Exception:
-                ho6zoh_delta_audit["historical_patterns_4p_ok"] = False
-        except Exception as _he_audit_e:
-            ho6zoh_delta_audit["historical_closure_evidence_auditor_visible"] = False
-            ho6zoh_delta_audit["historical_evidence_audit_error"] = str(_he_audit_e)
-
         impacto_estado_isolado = bool(geradas_base_estado_audit and geradas and geradas_base_estado_audit != geradas)
 
         if not geradas:
@@ -2303,23 +2265,6 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "full_set_global_selection_active": bool(full_set_global_audit.get("active", False)) if isinstance(full_set_global_audit, dict) else False,
             "full_set_global_selection_applied": bool(full_set_global_audit.get("applied", False)) if isinstance(full_set_global_audit, dict) else False,
             "full_set_global_selection_audit": full_set_global_audit,
-            "historical_closure_evidence_auditor_visible": bool(ho6zoh_delta_audit.get("historical_closure_evidence_auditor_visible", False)) if isinstance(ho6zoh_delta_audit, dict) else False,
-            "historical_closure_evidence_active": bool(ho6zoh_delta_audit.get("historical_closure_evidence_active", False)) if isinstance(ho6zoh_delta_audit, dict) else False,
-            "historical_evidence_score_medio": ho6zoh_delta_audit.get("historical_evidence_score_medio", 0.0) if isinstance(ho6zoh_delta_audit, dict) else 0.0,
-            "historical_evidence_score_max": ho6zoh_delta_audit.get("historical_evidence_score_max", 0.0) if isinstance(ho6zoh_delta_audit, dict) else 0.0,
-            "historical_evidence_score_min": ho6zoh_delta_audit.get("historical_evidence_score_min", 0.0) if isinstance(ho6zoh_delta_audit, dict) else 0.0,
-            "historical_evidence_term_medio": ho6zoh_delta_audit.get("historical_evidence_term_medio", 0.0) if isinstance(ho6zoh_delta_audit, dict) else 0.0,
-            "historical_evidence_term_max": ho6zoh_delta_audit.get("historical_evidence_term_max", 0.0) if isinstance(ho6zoh_delta_audit, dict) else 0.0,
-            "historical_evidence_term_min": ho6zoh_delta_audit.get("historical_evidence_term_min", 0.0) if isinstance(ho6zoh_delta_audit, dict) else 0.0,
-            "historical_evidence_candidates_affected": ho6zoh_delta_audit.get("historical_evidence_candidates_affected", 0) if isinstance(ho6zoh_delta_audit, dict) else 0,
-            "historical_evidence_ranking_changes": ho6zoh_delta_audit.get("historical_evidence_ranking_changes", 0) if isinstance(ho6zoh_delta_audit, dict) else 0,
-            "historical_evidence_candidates": ho6zoh_delta_audit.get("historical_evidence_candidates", []) if isinstance(ho6zoh_delta_audit, dict) else [],
-            "historical_evidence_samples": ho6zoh_delta_audit.get("historical_evidence_samples", []) if isinstance(ho6zoh_delta_audit, dict) else [],
-            "diversity_guard_blocks": ho6zoh_delta_audit.get("diversity_guard_blocks", 0) if isinstance(ho6zoh_delta_audit, dict) else 0,
-            "historical_patterns_4p_ok": ho6zoh_delta_audit.get("historical_patterns_4p_ok", False) if isinstance(ho6zoh_delta_audit, dict) else False,
-            "historical_patterns_4p_total_series": ho6zoh_delta_audit.get("historical_patterns_4p_total_series", 0) if isinstance(ho6zoh_delta_audit, dict) else 0,
-            "historical_patterns_4p_subsets_total": ho6zoh_delta_audit.get("historical_patterns_4p_subsets_total", 0) if isinstance(ho6zoh_delta_audit, dict) else 0,
-            "historical_patterns_4p_motivo": ho6zoh_delta_audit.get("historical_patterns_4p_motivo", "") if isinstance(ho6zoh_delta_audit, dict) else "",
         }
     except Exception as e:
         return listas_totais, {"active": False, "applied": False, "reason": f"new_packet_generator_erro: {e}", "listas_regeneradas_qtd": 0}
@@ -23672,4 +23617,25 @@ try:
     }
 except Exception:
     pass
+
+
+
+# ================================
+# HO6ZOY AUDIT FIX (FORCED OUTPUT)
+# ================================
+try:
+    if 'ho6zoh_delta_audit' in globals():
+        FINAL_HO6ZOH_AUDIT = {
+            "historical_closure_evidence_active": bool(ho6zoh_delta_audit.get("historical_evidence_values")),
+            "historical_evidence_score_medio": ho6zoh_delta_audit.get("historical_evidence_score_medio", 0.0),
+            "historical_evidence_term_medio": ho6zoh_delta_audit.get("historical_evidence_term_medio", 0.0),
+            "historical_evidence_ranking_changes": ho6zoh_delta_audit.get("historical_evidence_ranking_changes", 0),
+            "historical_evidence_candidates": list(ho6zoh_delta_audit.get("historical_evidence_candidates", [])),
+            "historical_evidence_samples": ho6zoh_delta_audit.get("historical_evidence_samples", []),
+            "diversity_guard_blocks": ho6zoh_delta_audit.get("diversity_guard_blocks", 0),
+        }
+        print("\n🔎 AUDITOR HISTORICAL EVIDENCE (FORCED)")
+        print(FINAL_HO6ZOH_AUDIT)
+except Exception as e:
+    print("AUDIT FIX ERROR:", e)
 
