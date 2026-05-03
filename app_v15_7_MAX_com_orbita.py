@@ -529,14 +529,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZOY_HISTORICAL_CLOSURE_EVIDENCE — REAL 4P HISTORICAL EVIDENCE IN CANDIDATE_FIT"
-BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOY_HISTORICAL_CLOSURE_EVIDENCE_BANNER_OK.py"
+BUILD_TAG = "v16h57HO6ZOY_AUDIT_FINAL_REAL — SAME LOGIC + HISTORICAL EVIDENCE IN AUDITOR HO6ZOY"
+BUILD_REAL_FILE = "app_v15_7_MAX_com_orbita_BUILD_AUDITAVEL_v16h57HO6ZOY_AUDIT_FINAL_REAL_BANNER_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "2026-04-30_04 (HO6ZOY_HISTORICAL_CLOSURE_EVIDENCE)"
+WATERMARK = "2026-05-03_01 (HO6ZOY_AUDIT_FINAL_REAL)"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOY HISTORICAL CLOSURE EVIDENCE — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOY AUDIT FINAL REAL — BUILD AUDITÁVEL", page_icon="🚗", layout="wide")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -2244,6 +2244,24 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "ranking_changes": int(ho6zoh_delta_audit.get("ranking_changes", 0) or 0),
             "score_samples": ho6zoh_delta_audit.get("score_samples", []),
             "affected_candidates": ho6zoh_delta_audit.get("affected_candidates", []),
+
+            # HO6ZOY_AUDIT_FINAL_REAL — campos históricos propagados para o auditor visível.
+            "historical_closure_evidence_active": bool(len(ho6zoh_delta_audit.get("historical_evidence_values", []) or []) > 0),
+            "historical_evidence_score_medio": round(float(sum(ho6zoh_delta_audit.get("historical_evidence_values", []) or [0.0]) / max(1, len(ho6zoh_delta_audit.get("historical_evidence_values", []) or []))), 10),
+            "historical_evidence_score_max": round(float(max(ho6zoh_delta_audit.get("historical_evidence_values", []) or [0.0])), 10),
+            "historical_evidence_score_min": round(float(min(ho6zoh_delta_audit.get("historical_evidence_values", []) or [0.0])), 10),
+            "historical_evidence_term_medio": round(float(sum(ho6zoh_delta_audit.get("historical_evidence_terms", []) or [0.0]) / max(1, len(ho6zoh_delta_audit.get("historical_evidence_terms", []) or []))), 10),
+            "historical_evidence_term_max": round(float(max(ho6zoh_delta_audit.get("historical_evidence_terms", []) or [0.0])), 10),
+            "historical_evidence_term_min": round(float(min(ho6zoh_delta_audit.get("historical_evidence_terms", []) or [0.0])), 10),
+            "historical_evidence_candidates_affected": int(len(ho6zoh_delta_audit.get("historical_evidence_candidates", set()) or [])),
+            "historical_evidence_candidates": sorted([int(x) for x in list(ho6zoh_delta_audit.get("historical_evidence_candidates", set()) or [])])[:30],
+            "historical_evidence_samples": ho6zoh_delta_audit.get("historical_evidence_samples", [])[:24],
+            "historical_evidence_ranking_changes": int(ho6zoh_delta_audit.get("historical_evidence_ranking_changes", 0) or 0),
+            "diversity_guard_blocks": int(ho6zoh_delta_audit.get("diversity_guard_blocks", 0) or 0),
+            "historical_patterns_4p_ok": bool(historical_patterns_4p.get("ok", False)) if isinstance(historical_patterns_4p, dict) else False,
+            "historical_patterns_4p_total_series": int(historical_patterns_4p.get("total_series", 0) or 0) if isinstance(historical_patterns_4p, dict) else 0,
+            "historical_patterns_4p_subsets_total": int(historical_patterns_4p.get("subsets_total", 0) or 0) if isinstance(historical_patterns_4p, dict) else 0,
+            "historical_patterns_4p_motivo": str(historical_patterns_4p.get("motivo", "")) if isinstance(historical_patterns_4p, dict) else "",
             "group_coherence_real_active": True,
             "group_coherence_real_mode": "candidate_fit_group_density_gain_conflict_penalty",
             "dynamic_selection_real_active": True,
@@ -18139,6 +18157,24 @@ if painel == "🎯 Modo 6 Acertos — Execução":
             "intersecoes_steps": (_auditor_ho6 or {}).get("intersecoes_steps", []),
             "estado_dominante": (_auditor_ho6 or {}).get("estado_dominante", ""),
             "impacto_temporal_real": (_auditor_ho6 or {}).get("impacto_temporal_real", False),
+
+            # HO6ZOY_AUDIT_FINAL_REAL — campos históricos agora dentro do AUDITOR HO6ZOY visível.
+            "historical_closure_evidence_active": (_auditor_ho6 or {}).get("historical_closure_evidence_active", False),
+            "historical_evidence_score_medio": (_auditor_ho6 or {}).get("historical_evidence_score_medio", 0.0),
+            "historical_evidence_score_max": (_auditor_ho6 or {}).get("historical_evidence_score_max", 0.0),
+            "historical_evidence_score_min": (_auditor_ho6 or {}).get("historical_evidence_score_min", 0.0),
+            "historical_evidence_term_medio": (_auditor_ho6 or {}).get("historical_evidence_term_medio", 0.0),
+            "historical_evidence_term_max": (_auditor_ho6 or {}).get("historical_evidence_term_max", 0.0),
+            "historical_evidence_term_min": (_auditor_ho6 or {}).get("historical_evidence_term_min", 0.0),
+            "historical_evidence_candidates_affected": (_auditor_ho6 or {}).get("historical_evidence_candidates_affected", 0),
+            "historical_evidence_ranking_changes": (_auditor_ho6 or {}).get("historical_evidence_ranking_changes", 0),
+            "historical_evidence_candidates": (_auditor_ho6 or {}).get("historical_evidence_candidates", []),
+            "historical_evidence_samples": (_auditor_ho6 or {}).get("historical_evidence_samples", []),
+            "diversity_guard_blocks": (_auditor_ho6 or {}).get("diversity_guard_blocks", 0),
+            "historical_patterns_4p_ok": (_auditor_ho6 or {}).get("historical_patterns_4p_ok", False),
+            "historical_patterns_4p_total_series": (_auditor_ho6 or {}).get("historical_patterns_4p_total_series", 0),
+            "historical_patterns_4p_subsets_total": (_auditor_ho6 or {}).get("historical_patterns_4p_subsets_total", 0),
+            "historical_patterns_4p_motivo": (_auditor_ho6 or {}).get("historical_patterns_4p_motivo", ""),
         }
         st.code("\n".join([f"{k}: {v}" for k, v in _aud_lines.items()]), language="text")
     except Exception:
