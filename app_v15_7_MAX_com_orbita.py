@@ -984,8 +984,9 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                 return True
 
         def score_modulated(candidate, current):
-            # neutralizado para garantir isolamento de H1
-            return score_base(candidate, current)
+            candidate = int(candidate)
+            if candidate in current:
+                return -1e9
             if not current:
                 return rank_strength(candidate)
 
@@ -1363,21 +1364,27 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
         def candidate_fit(candidate, current):
             sm = score_base(candidate, current)
 
-            # H1 — variância de gaps
-            vals = sorted(current + [candidate])
-            gaps = [vals[i+1] - vals[i] for i in range(len(vals)-1)]
-
-            if gaps:
-                var_d = float(np.var(gaps))
+            # estado atual (sem candidato)
+            vals_base = sorted(current)
+            if len(vals_base) > 1:
+                gaps_base = [vals_base[i+1] - vals_base[i] for i in range(len(vals_base)-1)]
+                var_base = float(np.var(gaps_base))
             else:
-                var_d = 0.0
+                var_base = 0.0
 
-            delta = var_d - 12.0
-            h1 = - delta * abs(delta)
+            # estado com candidato
+            vals_new = sorted(current + [candidate])
+            gaps_new = [vals_new[i+1] - vals_new[i] for i in range(len(vals_new)-1)]
+            var_new = float(np.var(gaps_new)) if gaps_new else 0.0
 
-            h1_clipped = max(-50.0, min(50.0, h1))
+            # H1 — contraste relativo
+            delta_var = var_base - var_new
 
-            score_final = sm + (0.01 * h1_clipped)
+            h1 = delta_var * abs(delta_var)
+
+            h1_clipped = max(-100.0, min(100.0, h1))
+
+            score_final = sm + (0.05 * h1_clipped)
 
             return float(score_final)
 
