@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 # HO6ZOY — dynamic selection (escape local minima)
-import random
-
 
 
 # ============================================================
@@ -1360,25 +1358,30 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
             return score_base(candidate, current)
 
         def candidate_fit(candidate, current):
-            sb = score_base(candidate, current)
-            sm = score_modulated(candidate, current)
+            sm = score_base(candidate, current)
 
-            if audit_collector is not None and sb > -1e8 and sm > -1e8:
-                delta = float(sm - sb)
-                audit_collector["score_deltas_abs"].append(abs(delta))
-                audit_collector["score_deltas_raw"].append(delta)
-                if abs(delta) > 1e-12:
-                    audit_collector["affected_candidates"].add(int(candidate))
-                if len(audit_collector["score_samples"]) < 20:
-                    audit_collector["score_samples"].append({
-                        "candidate": int(candidate),
-                        "current": [int(x) for x in current],
-                        "score_base": round(float(sb), 8),
-                        "score_modulado": round(float(sm), 8),
-                        "delta": round(float(delta), 8),
-                    })
+            vals_base = sorted(current)
+            if len(vals_base) > 1:
+                gaps_base = [vals_base[i+1] - vals_base[i] for i in range(len(vals_base)-1)]
+                var_base = float(np.var(gaps_base))
+            else:
+                var_base = 0.0
 
-            return sm
+            vals_new = sorted(current + [candidate])
+            gaps_new = [vals_new[i+1] - vals_new[i] for i in range(len(vals_new)-1)]
+            var_new = float(np.var(gaps_new)) if gaps_new else 0.0
+
+            delta = var_base - var_new
+
+            h1 = (delta * abs(delta)) * (1 + abs(delta))
+            h1 = np.sign(h1) * (abs(h1) ** 1.5)
+
+            h1_clipped = max(-500.0, min(500.0, h1))
+
+            score_final = sm + (0.08 * h1_clipped)
+
+            return float(score_final)
+
 
         def list_score(vals):
             vals = [int(x) for x in vals[:int(n)]]
@@ -1512,12 +1515,9 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                     break
 
                 scored.sort(key=lambda t: (-float(t[0]), rank_pos.get(int(t[1]), 9999), int(t[1])))
-                # HO6ZOY — seleção dinâmica real dentro da construção incremental:
-                # em vez de sempre escolher o topo absoluto, escolhe entre os top-k
-                # candidatos já ordenados pelo score. Mantém qualidade, mas reduz
-                # aprisionamento em trajetória gulosa local.
-                selected_score, selected_candidate = max(scored, key=lambda x: x[0])[1]
-                current.append(int(selected_candidate))
+
+                best_candidate = scored[0][1]
+                current.append(int(best_candidate))
 
             if len(current) == int(n):
                 candidate_list = sorted(dict.fromkeys(current))
@@ -2554,7 +2554,6 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
     Mantém volume e não inventa motor novo.
     """
     try:
-        import random
         rng = random.Random(int(seed) if seed is not None else 0)
 
         if not isinstance(listas_totais, list) or len(listas_totais) == 0:
@@ -3050,7 +3049,6 @@ def pc_v16_mc_observacional_pacote_pre_c4(
     baseline_noc = nocivo_share(baseline)
 
     def sim_diversificado(cap_pct: float):
-        import random
         rates4 = []
         rates3 = []
         avgs = []
@@ -4875,8 +4873,6 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
         else:
             cohesion_frac = 0.18
             top_anchor = min(3, n_alvo)
-
-        import random
         rng = random.Random(int(seed) if seed is not None else 0)
 
         freq = {}
@@ -6625,7 +6621,6 @@ def v16_gerar_listas_extra_por_orbita(info_orbita, universo_min, universo_max, n
     Sem interceptação automática: é só expansão condicional do pacote.
     """
     try:
-        import random
         rnd = random.Random(int(seed or 0) + 991)
         universo = list(range(int(universo_min), int(universo_max)+1))
 
@@ -7237,8 +7232,6 @@ def v16_gerar_listas_interceptacao_orbita(info_orbita: dict,
     Objetivo: aumentar interseção e repetição controlada sem explodir universo.
     Retorna uma lista de listas (cada uma com n_carro passageiros).
     """
-    import random
-
     try:
         qtd = int(qtd)
     except Exception:
@@ -10890,7 +10883,6 @@ def v16_painel_mc_observacional_pacote_pre_c4():
     """
     import numpy as np
     import pandas as pd
-    import random
     import math
 
     st.title("🧪 MC Observacional do Pacote (pré-C4)")
@@ -14680,7 +14672,7 @@ if painel == "⚙️ Modo TURBO++ HÍBRIDO":
             soma_pesos = float(pesos_mc.sum())
         pesos_mc = pesos_mc / soma_pesos
 
-        escolha_idx = np.random.choice(len(pesos_mc), p=pesos_mc)
+        escolha_idx = np.len(pesos_mc[0], p=pesos_mc)
         previsao_mc = df[col_pass].iloc[escolha_idx].values.tolist()
 
         # Consolidação leve
