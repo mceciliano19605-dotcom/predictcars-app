@@ -1364,7 +1364,6 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
         def candidate_fit(candidate, current):
             sm = score_base(candidate, current)
 
-            # estado atual (sem candidato)
             vals_base = sorted(current)
             if len(vals_base) > 1:
                 gaps_base = [vals_base[i+1] - vals_base[i] for i in range(len(vals_base)-1)]
@@ -1372,21 +1371,21 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
             else:
                 var_base = 0.0
 
-            # estado com candidato
             vals_new = sorted(current + [candidate])
             gaps_new = [vals_new[i+1] - vals_new[i] for i in range(len(vals_new)-1)]
             var_new = float(np.var(gaps_new)) if gaps_new else 0.0
 
-            # H1 — contraste relativo
-            delta_var = var_base - var_new
+            delta = var_base - var_new
 
-            h1 = delta_var * abs(delta_var)
+            h1 = (delta * abs(delta)) * (1 + abs(delta))
+            h1 = np.sign(h1) * (abs(h1) ** 1.5)
 
-            h1_clipped = max(-100.0, min(100.0, h1))
+            h1_clipped = max(-500.0, min(500.0, h1))
 
-            score_final = sm + (0.05 * h1_clipped)
+            score_final = sm + (0.08 * h1_clipped)
 
             return float(score_final)
+
 
         def list_score(vals):
             vals = [int(x) for x in vals[:int(n)]]
