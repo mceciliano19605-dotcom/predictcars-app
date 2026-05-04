@@ -984,9 +984,8 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                 return True
 
         def score_modulated(candidate, current):
-            candidate = int(candidate)
-            if candidate in current:
-                return -1e9
+            # neutralizado para garantir isolamento de H1
+            return score_base(candidate, current)
             if not current:
                 return rank_strength(candidate)
 
@@ -1362,25 +1361,25 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
             return score_base(candidate, current)
 
         def candidate_fit(candidate, current):
-            sb = score_base(candidate, current)
-            sm = score_modulated(candidate, current)
+            sm = score_base(candidate, current)
 
-            if audit_collector is not None and sb > -1e8 and sm > -1e8:
-                delta = float(sm - sb)
-                audit_collector["score_deltas_abs"].append(abs(delta))
-                audit_collector["score_deltas_raw"].append(delta)
-                if abs(delta) > 1e-12:
-                    audit_collector["affected_candidates"].add(int(candidate))
-                if len(audit_collector["score_samples"]) < 20:
-                    audit_collector["score_samples"].append({
-                        "candidate": int(candidate),
-                        "current": [int(x) for x in current],
-                        "score_base": round(float(sb), 8),
-                        "score_modulado": round(float(sm), 8),
-                        "delta": round(float(delta), 8),
-                    })
+            # H1 — variância de gaps
+            vals = sorted(current + [candidate])
+            gaps = [vals[i+1] - vals[i] for i in range(len(vals)-1)]
 
-            return sm
+            if gaps:
+                var_d = float(np.var(gaps))
+            else:
+                var_d = 0.0
+
+            delta = var_d - 12.0
+            h1 = - delta * abs(delta)
+
+            h1_clipped = max(-50.0, min(50.0, h1))
+
+            score_final = sm + (0.01 * h1_clipped)
+
+            return float(score_final)
 
         def list_score(vals):
             vals = [int(x) for x in vals[:int(n)]]
