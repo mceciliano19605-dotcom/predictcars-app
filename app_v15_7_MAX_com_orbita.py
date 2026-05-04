@@ -3,9 +3,7 @@ from __future__ import annotations
 
 # HO6ZOY — dynamic selection (escape local minima)
 import random
-def _select_candidate_dynamic(scored_candidates, k=3):
-    topk = scored_candidates[:max(1, min(k, len(scored_candidates)))]
-    return random.choice(topk)
+
 
 
 # ============================================================
@@ -1362,30 +1360,25 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
             return score_base(candidate, current)
 
         def candidate_fit(candidate, current):
-            sm = score_base(candidate, current)
+            sb = score_base(candidate, current)
+            sm = score_modulated(candidate, current)
 
-            vals_base = sorted(current)
-            if len(vals_base) > 1:
-                gaps_base = [vals_base[i+1] - vals_base[i] for i in range(len(vals_base)-1)]
-                var_base = float(np.var(gaps_base))
-            else:
-                var_base = 0.0
+            if audit_collector is not None and sb > -1e8 and sm > -1e8:
+                delta = float(sm - sb)
+                audit_collector["score_deltas_abs"].append(abs(delta))
+                audit_collector["score_deltas_raw"].append(delta)
+                if abs(delta) > 1e-12:
+                    audit_collector["affected_candidates"].add(int(candidate))
+                if len(audit_collector["score_samples"]) < 20:
+                    audit_collector["score_samples"].append({
+                        "candidate": int(candidate),
+                        "current": [int(x) for x in current],
+                        "score_base": round(float(sb), 8),
+                        "score_modulado": round(float(sm), 8),
+                        "delta": round(float(delta), 8),
+                    })
 
-            vals_new = sorted(current + [candidate])
-            gaps_new = [vals_new[i+1] - vals_new[i] for i in range(len(vals_new)-1)]
-            var_new = float(np.var(gaps_new)) if gaps_new else 0.0
-
-            delta = var_base - var_new
-
-            h1 = (delta * abs(delta)) * (1 + abs(delta))
-            h1 = np.sign(h1) * (abs(h1) ** 1.5)
-
-            h1_clipped = max(-500.0, min(500.0, h1))
-
-            score_final = sm + (0.08 * h1_clipped)
-
-            return float(score_final)
-
+            return sm
 
         def list_score(vals):
             vals = [int(x) for x in vals[:int(n)]]
@@ -1523,7 +1516,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                 # em vez de sempre escolher o topo absoluto, escolhe entre os top-k
                 # candidatos já ordenados pelo score. Mantém qualidade, mas reduz
                 # aprisionamento em trajetória gulosa local.
-                selected_score, selected_candidate = _select_candidate_dynamic(scored, k=3)
+                selected_score, selected_candidate = max(scored, key=lambda x: x[0])[1]
                 current.append(int(selected_candidate))
 
             if len(current) == int(n):
