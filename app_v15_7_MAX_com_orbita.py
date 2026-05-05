@@ -5237,13 +5237,27 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     listas_filtradas.append([int(v) for v in lista])
             except Exception:
                 pass
-        # BLOCO INTRA-LISTA (1 SWAP POR LISTA)
-        for i, lista in enumerate(listas_filtradas):
-            melhor_lista = list(lista)
-            melhor_score = list_score(melhor_lista)
 
-            for idx_out in range(len(melhor_lista)):
-                base_lista = list(melhor_lista)
+        # AUDITOR INTRA-LISTA (SEM ALTERAR LISTAS)
+        intra_lista_audit = {
+            "trocas_qtd": 0,
+            "detalhes": []
+        }
+
+        for i, lista in enumerate(listas_filtradas):
+            original = list(lista)
+            original_score = list_score(original)
+
+            melhor_lista = list(lista)
+            melhor_score = original_score
+
+            troca_realizada = False
+            removido_final = None
+            inserido_final = None
+
+            for idx_out in range(len(lista)):
+                base_lista = list(lista)
+                removido = base_lista[idx_out]
 
                 for candidato in rank_pos.keys():
                     candidato = int(candidato)
@@ -5262,9 +5276,27 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     if sc > melhor_score:
                         melhor_score = sc
                         melhor_lista = nova
+                        troca_realizada = True
+                        removido_final = int(removido)
+                        inserido_final = int(candidato)
 
-            listas_filtradas[i] = list(melhor_lista)
+            if troca_realizada:
+                intra_lista_audit["trocas_qtd"] += 1
 
+                core_antes = set(original[:2])
+                core_depois = set(melhor_lista[:2])
+
+                intra_lista_audit["detalhes"].append({
+                    "lista_idx": i,
+                    "removido": removido_final,
+                    "inserido": inserido_final,
+                    "score_antes": round(float(original_score), 6),
+                    "score_depois": round(float(melhor_score), 6),
+                    "ganho": round(float(melhor_score - original_score), 6),
+                    "core_preservado": core_antes == core_depois,
+                    "hash_antes": hash(tuple(original)),
+                    "hash_depois": hash(tuple(melhor_lista))
+                })
 
         # ------------------------------------------------------------
         # CT / GENERATOR PATH CANÔNICO (DQ)
