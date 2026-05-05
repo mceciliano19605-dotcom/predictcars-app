@@ -1359,7 +1359,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
             return score_base(candidate, current)
 
         def candidate_fit(candidate, current):
-            sm = score_base(candidate, current)
+            sb = score_base(candidate, current)
 
             vals_base = sorted(current)
             if len(vals_base) > 1:
@@ -1379,7 +1379,25 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
 
             h1_clipped = max(-500.0, min(500.0, h1))
 
-            score_final = sm + (0.08 * h1_clipped)
+            score_final = sb + (0.08 * h1_clipped)
+
+            if audit_collector is not None and sb > -1e8 and score_final > -1e8:
+                delta_dbg = float(score_final - sb)
+                audit_collector["score_deltas_abs"].append(abs(delta_dbg))
+                audit_collector["score_deltas_raw"].append(delta_dbg)
+
+                if abs(delta_dbg) > 1e-12:
+                    audit_collector["affected_candidates"].add(int(candidate))
+
+                if len(audit_collector["score_samples"]) < 20:
+                    audit_collector["score_samples"].append({
+                        "candidate": int(candidate),
+                        "current": [int(x) for x in current],
+                        "score_base": round(float(sb), 8),
+                        "score_final_h1": round(float(score_final), 8),
+                        "h1": round(float(h1_clipped), 8),
+                        "delta": round(float(delta_dbg), 8),
+                    })
 
             return float(score_final)
 
@@ -1484,7 +1502,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
             while len(current) < int(n):
                 scored = []
                 base_rank_probe = []
-                mod_rank_probe = []
+                h1_rank_probe = []
 
                 for cand in top:
                     if cand in current:
@@ -1492,24 +1510,22 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                     if not diversity_guard_candidate(cand, current):
                         continue
                     sb = score_base(cand, current)
-                    sm = score_modulated(cand, current)
                     if sb > -1e8:
                         base_rank_probe.append((sb, int(cand)))
-                    if sm > -1e8:
-                        mod_rank_probe.append((sm, int(cand)))
 
                     score = candidate_fit(cand, current)
                     if score <= -1e8:
                         continue
                     scored.append((score, int(cand)))
+                    h1_rank_probe.append((score, int(cand)))
 
-                if audit_collector is not None and base_rank_probe and mod_rank_probe:
+                if audit_collector is not None and base_rank_probe and h1_rank_probe:
                     base_order = [c for _, c in sorted(base_rank_probe, key=lambda t: (-float(t[0]), rank_pos.get(int(t[1]), 9999), int(t[1])))]
-                    mod_order = [c for _, c in sorted(mod_rank_probe, key=lambda t: (-float(t[0]), rank_pos.get(int(t[1]), 9999), int(t[1])))]
+                    h1_order = [c for _, c in sorted(h1_rank_probe, key=lambda t: (-float(t[0]), rank_pos.get(int(t[1]), 9999), int(t[1])))]
+
                     audit_collector["ranking_checks"] += 1
-                    if base_order != mod_order:
+                    if base_order != h1_order:
                         audit_collector["ranking_changes"] += 1
-                        audit_collector["historical_evidence_ranking_changes"] += 1
 
                 if not scored:
                     break
