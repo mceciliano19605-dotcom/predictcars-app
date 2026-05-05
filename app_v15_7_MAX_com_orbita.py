@@ -5237,6 +5237,34 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                     listas_filtradas.append([int(v) for v in lista])
             except Exception:
                 pass
+        # BLOCO INTRA-LISTA (1 SWAP POR LISTA)
+        for i, lista in enumerate(listas_filtradas):
+            melhor_lista = list(lista)
+            melhor_score = list_score(melhor_lista)
+
+            for idx_out in range(len(melhor_lista)):
+                base_lista = list(melhor_lista)
+
+                for candidato in rank_pos.keys():
+                    candidato = int(candidato)
+                    if candidato in base_lista:
+                        continue
+
+                    nova = list(base_lista)
+                    nova[idx_out] = candidato
+                    nova = sorted(dict.fromkeys(int(x) for x in nova))
+
+                    if len(nova) != len(base_lista):
+                        continue
+
+                    sc = list_score(nova)
+
+                    if sc > melhor_score:
+                        melhor_score = sc
+                        melhor_lista = nova
+
+            listas_filtradas[i] = list(melhor_lista)
+
 
         # ------------------------------------------------------------
         # CT / GENERATOR PATH CANÔNICO (DQ)
