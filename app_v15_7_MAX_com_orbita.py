@@ -5304,6 +5304,17 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
         # - Não altera replay
         # - Não altera pipeline
         # ------------------------------------------------------------
+        # EXPOSIÇÃO DO AUDITOR INTRA-LISTA (SEM ALTERAR LISTAS)
+        try:
+            st.session_state["intra_lista_audit"] = intra_lista_audit
+        except Exception:
+            pass
+
+        try:
+            calib_meta["intra_lista_audit"] = intra_lista_audit
+        except Exception:
+            pass
+
         _listas_pre_sanidade = list(listas_filtradas)
 
         try:
@@ -18233,6 +18244,9 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         st.code("\n".join([f"{k}: {v}" for k, v in _aud_lines.items()]), language="text")
     except Exception:
         pass
+
+    st.markdown("### 📊 AUDITOR INTRA-LISTA")
+    st.json(st.session_state.get("intra_lista_audit", {}))
 
     st.success(
         f"Modo 6 (PRÉ-ECO | n-base={n_real}) — "
