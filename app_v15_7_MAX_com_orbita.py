@@ -1,8 +1,6 @@
 # --- v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR ---
 from __future__ import annotations
 
-# HO6ZOY — dynamic selection (escape local minima)
-
 
 # ============================================================
 # PARTE 1/8 — INÍCIO
@@ -1382,7 +1380,6 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
 
             return float(score_final)
 
-
         def list_score(vals):
             vals = [int(x) for x in vals[:int(n)]]
             if len(vals) != int(n) or len(set(vals)) != int(n):
@@ -2124,7 +2121,6 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
 
         if not geradas:
             try:
-                rng = np.random.default_rng(int(seed) if seed is not None else 0)
                 top = ranking2[:max(12, int(n_alvo))]
                 geradas = []
                 for _ in range(min(max_lists, max(9, min(12, max_lists)))):
@@ -2554,7 +2550,6 @@ def pc_resp_aplicar_diversificacao(listas_totais, listas_top10, universo, seed=0
     Mantém volume e não inventa motor novo.
     """
     try:
-        rng = random.Random(int(seed) if seed is not None else 0)
 
         if not isinstance(listas_totais, list) or len(listas_totais) == 0:
             return listas_totais, listas_top10, {"aplicado": False, "motivo": "listas_totais vazias"}
@@ -3068,7 +3063,6 @@ def pc_v16_mc_observacional_pacote_pre_c4(
         top10_resp = list(modo6_listas_top10 or [])
 
         for s in range(sims):
-            random.seed(1337 + s)
             pacote = baseline
             origem = "baseline"
             try:
@@ -4795,7 +4789,6 @@ def pc_semi_auto_processar_um_k(*, _df_full_safe: pd.DataFrame, k_exec: int) -> 
                 universo_boot = sorted({v for v in vals_boot if isinstance(v, int) and v > 0})
                 if len(universo_boot) >= 6:
                     seed = pc_stable_seed(f"PC-SAFE-BOOT-{len(df_recorte)}-{k_exec}")
-                    rng = np.random.default_rng(seed)
                     pacote = [sorted(rng.choice(universo_boot, size=6, replace=False).tolist()) for _ in range(9)]
                 else:
                     pacote = []
@@ -4873,7 +4866,7 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
         else:
             cohesion_frac = 0.18
             top_anchor = min(3, n_alvo)
-        rng = random.Random(int(seed) if seed is not None else 0)
+
 
         freq = {}
         for lst in norm:
@@ -5063,7 +5056,6 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
         st.session_state["universo_str"] = f"{umin}–{umax}"
 
         seed = pc_stable_seed(f"PC-M6-{len(df)}-{n_real}-{umin}-{umax}")
-        rng = np.random.default_rng(seed)
 
         universo_idx = list(range(len(universo)))
         valor_por_idx = {i: universo[i] for i in universo_idx}
@@ -6621,7 +6613,6 @@ def v16_gerar_listas_extra_por_orbita(info_orbita, universo_min, universo_max, n
     Sem interceptação automática: é só expansão condicional do pacote.
     """
     try:
-        rnd = random.Random(int(seed or 0) + 991)
         universo = list(range(int(universo_min), int(universo_max)+1))
 
         ancoras = list(info_orbita.get("ancoras") or [])
@@ -7232,6 +7223,7 @@ def v16_gerar_listas_interceptacao_orbita(info_orbita: dict,
     Objetivo: aumentar interseção e repetição controlada sem explodir universo.
     Retorna uma lista de listas (cada uma com n_carro passageiros).
     """
+
     try:
         qtd = int(qtd)
     except Exception:
@@ -7241,7 +7233,6 @@ def v16_gerar_listas_interceptacao_orbita(info_orbita: dict,
     if qtd <= 0:
         return []
 
-    rng = random.Random(int(seed) + 9173)
 
     # âncoras / candidatos principais (se não vierem, recalcula a partir das listas do pacote)
     anchors = list(info_orbita.get("ancoras") or info_orbita.get("anchors") or [])
@@ -9841,7 +9832,6 @@ def pc_fill_lists_to_target(listas, target_n: int, universe_candidates: list, n_
 
     probs = pc_dirichlet_smooth_probs(counts_tail, uni, alpha=1.0, eps=0.02)
 
-    rnd = random.Random(int(seed) % (2**32))
 
     # set de unicidade
     seen = set()
@@ -11119,7 +11109,6 @@ def v16_painel_mc_observacional_pacote_pre_c4():
     st.subheader("🎲 MC Bootstrap — Foi sorte ou é sinal?")
     B = st.number_input("Rodadas MC (bootstrap)", min_value=200, max_value=10000, value=2000, step=200)
     B = int(B)
-    rng = random.Random(1337)
 
     arr = np.asarray(hits_w, dtype=float)
     n = len(arr)
@@ -14672,7 +14661,6 @@ if painel == "⚙️ Modo TURBO++ HÍBRIDO":
             soma_pesos = float(pesos_mc.sum())
         pesos_mc = pesos_mc / soma_pesos
 
-        escolha_idx = np.len(pesos_mc[0], p=pesos_mc)
         previsao_mc = df[col_pass].iloc[escolha_idx].values.tolist()
 
         # Consolidação leve
@@ -15302,7 +15290,6 @@ def monte_carlo_profundo(base, n=800, universo_min=1, universo_max=60):
     base_arr = np.array([int(x) for x in base], dtype=int)
 
     for _ in range(n):
-        ruido = np.random.randint(-5, 6, size=len(base_arr))
         candidato = base_arr + ruido
         candidato = np.clip(candidato, umin, umax)
         sims.append(candidato.tolist())
@@ -15810,7 +15797,6 @@ elif painel == "🟣 B4 — Refinamento Leve de Passageiros":
         st.warning("Universo inválido para refinamento.")
         st.stop()
 
-    rng = np.random.default_rng(42)
 
     # ------------------------------------------------------------
     # Refinamento leve (heurístico, reversível)
@@ -17493,7 +17479,6 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     # REPRODUTIBILIDADE (ORIGINAL)
     # ------------------------------------------------------------
     seed = pc_stable_seed(f"PC-M6-{len(df)}-{n_real}-{umin}-{umax}")
-    rng = np.random.default_rng(seed)
 
 
     # ------------------------------------------------------------
