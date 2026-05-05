@@ -18,6 +18,9 @@ import re
 import pandas as pd
 import numpy as np
 
+# Gerador determinístico para Modo 6
+rng = np.random.default_rng(42)
+
 # ============================================================
 # V16h57CJ — MODE6 FUNCTION TRACE HELPERS
 # ============================================================
