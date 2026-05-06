@@ -526,7 +526,7 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZOY_AUDITOR_INTRA_LISTA_CONTRACT_OK"
+BUILD_TAG = "v16h57INTERLISTA_AUDITORIAL_OK"
 BUILD_REAL_FILE = "app_v16h57HO6ZOY_AUDITOR_INTRA_LISTA_CONTRACT_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -5326,6 +5326,145 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
 
         try:
             calib_meta["intra_lista_audit"] = intra_lista_audit
+        except Exception:
+            pass
+
+
+        # ============================================================
+        # AUDITOR INTER-LISTA (AUDITORIAL)
+        # ============================================================
+
+        inter_lista_audit = {
+            "metricas": {},
+            "detalhes": [],
+            "listas_analisadas": 0
+        }
+
+        try:
+
+            hash_antes = hash(
+                tuple(tuple(int(x) for x in lst) for lst in listas_filtradas)
+            )
+
+            listas_analisadas = len(listas_filtradas)
+
+            overlap_total = 0
+            overlap_count = 0
+
+            pares_familia = 0
+            pares_total = 0
+
+            pair_counter = {}
+
+            for i in range(len(listas_filtradas)):
+
+                lst_i = list(map(int, listas_filtradas[i]))
+
+                pares_i = set()
+
+                for a in range(len(lst_i)):
+                    for b in range(a + 1, len(lst_i)):
+                        par = tuple(sorted((lst_i[a], lst_i[b])))
+                        pares_i.add(par)
+
+                for p in pares_i:
+                    pair_counter[p] = pair_counter.get(p, 0) + 1
+
+                for j in range(i + 1, len(listas_filtradas)):
+
+                    pares_total += 1
+
+                    lst_j = list(map(int, listas_filtradas[j]))
+
+                    intersecao = len(set(lst_i) & set(lst_j))
+
+                    overlap_total += intersecao
+                    overlap_count += 1
+
+                    mesma_familia = (intersecao >= 4)
+
+                    if mesma_familia:
+                        pares_familia += 1
+
+                    inter_lista_audit["detalhes"].append({
+                        "lista_a": int(i),
+                        "lista_b": int(j),
+                        "intersecao": int(intersecao),
+                        "mesma_familia": bool(mesma_familia),
+                    })
+
+            overlap_ratio = (
+                overlap_total / overlap_count
+                if overlap_count > 0 else 0.0
+            )
+
+            family_density = (
+                pares_familia / pares_total
+                if pares_total > 0 else 0.0
+            )
+
+            coexistence_spread = len(pair_counter)
+
+            unique_pair_ratio = (
+                coexistence_spread / overlap_count
+                if overlap_count > 0 else 0.0
+            )
+
+            total_pair_occurrences = sum(pair_counter.values())
+
+            packet_entropy = 0.0
+
+            if total_pair_occurrences > 0:
+                for freq in pair_counter.values():
+                    p = freq / total_pair_occurrences
+                    if p > 0:
+                        packet_entropy -= p * math.log(p, 2)
+
+            inter_lista_audit["metricas"] = {
+                "overlap_ratio": float(overlap_ratio),
+                "family_density": float(family_density),
+                "coexistence_spread": float(coexistence_spread),
+                "unique_pair_ratio": float(unique_pair_ratio),
+                "packet_entropy": float(packet_entropy),
+                "pares_familia": int(pares_familia),
+                "pares_total": int(pares_total)
+            }
+
+            inter_lista_audit["listas_analisadas"] = int(listas_analisadas)
+
+            hash_depois = hash(
+                tuple(tuple(int(x) for x in lst) for lst in listas_filtradas)
+            )
+
+            inter_lista_audit["metricas"]["listas_intactas"] = (
+                hash_antes == hash_depois
+            )
+
+        except Exception as e:
+
+            inter_lista_audit = {
+                "metricas": {
+                    "erro": str(e),
+                    "listas_intactas": False
+                },
+                "detalhes": [],
+                "listas_analisadas": 0
+            }
+
+        if not isinstance(inter_lista_audit, dict):
+            inter_lista_audit = {
+                "metricas": {},
+                "detalhes": [],
+                "listas_analisadas": 0
+            }
+
+        try:
+            st.session_state["inter_lista_audit"] = inter_lista_audit
+        except Exception:
+            pass
+
+        try:
+            calib_meta["inter_lista_audit"] = inter_lista_audit
         except Exception:
             pass
 
@@ -18260,6 +18399,18 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
 
     st.markdown("### 📊 AUDITOR INTRA-LISTA")
+
+    st.markdown("### 📊 AUDITOR INTER-LISTA")
+    st.json(
+        st.session_state.get(
+            "inter_lista_audit",
+            {
+                "metricas": {},
+                "detalhes": [],
+                "listas_analisadas": 0
+            }
+        )
+    )
     st.json(st.session_state.get("intra_lista_audit", {"trocas_qtd": 0, "detalhes": []}))
 
     st.success(
