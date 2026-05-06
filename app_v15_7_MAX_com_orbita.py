@@ -526,11 +526,11 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57INTERLISTA_AUDITORIAL_OK"
-BUILD_REAL_FILE = "app_v16h57HO6ZOY_AUDITOR_INTRA_LISTA_CONTRACT_OK.py"
+BUILD_TAG = "v16h57INTERLISTA_REFERENCE_FIX_OK"
+BUILD_REAL_FILE = "app_v16h57INTERLISTA_REFERENCE_FIX_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57HO6ZOY_AUDITOR_INTRA_LISTA_CONTRACT_OK"
+WATERMARK = "BUILD: v16h57INTERLISTA_REFERENCE_FIX_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
 st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOY_AUDITOR_INTRA_LISTA_CONTRACT_OK")
@@ -5343,10 +5343,12 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
         try:
 
             hash_antes = hash(
-                tuple(tuple(int(x) for x in lst) for lst in listas_filtradas)
+                tuple(tuple(int(x) for x in lst) for lst in listas_base_inter)
             )
 
-            listas_analisadas = len(listas_filtradas)
+            listas_base_inter = _listas_pre_sanidade if "_listas_pre_sanidade" in locals() and _listas_pre_sanidade else listas_filtradas
+
+            listas_analisadas = len(listas_base_inter)
 
             overlap_total = 0
             overlap_count = 0
@@ -5356,9 +5358,9 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
 
             pair_counter = {}
 
-            for i in range(len(listas_filtradas)):
+            for i in range(len(listas_base_inter)):
 
-                lst_i = list(map(int, listas_filtradas[i]))
+                lst_i = list(map(int, listas_base_inter[i]))
 
                 pares_i = set()
 
@@ -5370,11 +5372,11 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
                 for p in pares_i:
                     pair_counter[p] = pair_counter.get(p, 0) + 1
 
-                for j in range(i + 1, len(listas_filtradas)):
+                for j in range(i + 1, len(listas_base_inter)):
 
                     pares_total += 1
 
-                    lst_j = list(map(int, listas_filtradas[j]))
+                    lst_j = list(map(int, listas_base_inter[j]))
 
                     intersecao = len(set(lst_i) & set(lst_j))
 
@@ -5433,7 +5435,7 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             inter_lista_audit["listas_analisadas"] = int(listas_analisadas)
 
             hash_depois = hash(
-                tuple(tuple(int(x) for x in lst) for lst in listas_filtradas)
+                tuple(tuple(int(x) for x in lst) for lst in listas_base_inter)
             )
 
             inter_lista_audit["metricas"]["listas_intactas"] = (
