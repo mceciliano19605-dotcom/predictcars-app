@@ -526,14 +526,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57HO6ZOY_AUDITOR_INTRA_LISTA_EXPOSE_COMPLETO_OK"
-BUILD_REAL_FILE = "app_v16h57HO6ZOY_AUDITOR_INTRA_LISTA_EXPOSE_COMPLETO_OK.py"
+BUILD_TAG = "v16h57HO6ZOY_AUDITOR_INTRA_LISTA_CONTRACT_OK"
+BUILD_REAL_FILE = "app_v16h57HO6ZOY_AUDITOR_INTRA_LISTA_CONTRACT_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57HO6ZOY_AUDITOR_INTRA_LISTA_EXPOSE_COMPLETO_OK"
+WATERMARK = "BUILD: v16h57HO6ZOY_AUDITOR_INTRA_LISTA_CONTRACT_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOY_AUDITOR_INTRA_LISTA_EXPOSE_COMPLETO_OK")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOY_AUDITOR_INTRA_LISTA_CONTRACT_OK")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -5305,6 +5305,20 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
         # - Não altera pipeline
         # ------------------------------------------------------------
         # EXPOSIÇÃO DO AUDITOR INTRA-LISTA (SEM ALTERAR LISTAS)
+
+        # GARANTIA DE CONTRATO DO AUDITOR INTRA-LISTA
+        try:
+            if not isinstance(intra_lista_audit, dict):
+                intra_lista_audit = {"trocas_qtd": 0, "detalhes": []}
+            if "trocas_qtd" not in intra_lista_audit:
+                intra_lista_audit["trocas_qtd"] = 0
+            if "detalhes" not in intra_lista_audit:
+                intra_lista_audit["detalhes"] = []
+            if not isinstance(intra_lista_audit.get("detalhes"), list):
+                intra_lista_audit["detalhes"] = []
+        except Exception:
+            intra_lista_audit = {"trocas_qtd": 0, "detalhes": []}
+
         try:
             st.session_state["intra_lista_audit"] = intra_lista_audit
         except Exception:
@@ -18246,7 +18260,7 @@ if painel == "🎯 Modo 6 Acertos — Execução":
         pass
 
     st.markdown("### 📊 AUDITOR INTRA-LISTA")
-    st.json(st.session_state.get("intra_lista_audit", {}))
+    st.json(st.session_state.get("intra_lista_audit", {"trocas_qtd": 0, "detalhes": []}))
 
     st.success(
         f"Modo 6 (PRÉ-ECO | n-base={n_real}) — "
