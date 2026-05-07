@@ -526,11 +526,11 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57INTERLISTA_RUNTIME_BIND_FIX_OK"
-BUILD_REAL_FILE = "app_v16h57INTERLISTA_RUNTIME_BIND_FIX_OK.py"
+BUILD_TAG = "v16h57INTERLISTA_RUNTIME_SCOPE_FIX_OK"
+BUILD_REAL_FILE = "app_v16h57INTERLISTA_RUNTIME_SCOPE_FIX_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57INTERLISTA_RUNTIME_BIND_FIX_OK"
+WATERMARK = "BUILD: v16h57INTERLISTA_RUNTIME_SCOPE_FIX_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
 st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOY_AUDITOR_INTRA_LISTA_CONTRACT_OK")
@@ -5469,12 +5469,24 @@ def pc_modo6_gerar_pacote_top10_silent(df: pd.DataFrame, calib_override=None) ->
             }
 
         try:
-            st.session_state["inter_lista_audit"] = inter_lista_audit
+
+            if (
+                isinstance(inter_lista_audit, dict)
+                and inter_lista_audit.get("listas_analisadas", 0) > 0
+            ):
+                st.session_state["inter_lista_audit"] = inter_lista_audit
+
         except Exception:
             pass
 
         try:
-            calib_meta["inter_lista_audit"] = inter_lista_audit
+
+            if (
+                isinstance(inter_lista_audit, dict)
+                and inter_lista_audit.get("listas_analisadas", 0) > 0
+            ):
+                calib_meta["inter_lista_audit"] = inter_lista_audit
+
         except Exception:
             pass
 
