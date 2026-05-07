@@ -178,6 +178,106 @@ def pc_trace_store(key, listas, label=None):
 
 
 # ============================================================
+# V16h57IC — CONSOLIDAÇÃO BINÁRIA DO AUDITOR INTER-LISTA
+# Apenas valida instrumento: não altera geração, ranking, SAFE, C4 ou listas.
+# ============================================================
+def pc_v16_consolidar_auditor_inter_lista(expected_n=12, overlap_tol=0.05):
+    try:
+        audit = st.session_state.get("inter_lista_audit", {})
+        src_trace = st.session_state.get("v16h57FS_source_detector", [])
+
+        if not isinstance(audit, dict):
+            audit = {}
+        if not isinstance(src_trace, list):
+            src_trace = []
+
+        metricas = audit.get("metricas", {}) if isinstance(audit.get("metricas", {}), dict) else {}
+        detalhes = audit.get("detalhes", []) if isinstance(audit.get("detalhes", []), list) else []
+
+        def _last_trace(label):
+            achados = []
+            for item in src_trace:
+                if isinstance(item, dict) and str(item.get("step", "")) == str(label):
+                    achados.append(item)
+            return achados[-1] if achados else {}
+
+        before = _last_trace("BEFORE sanidade_final_listas")
+        after = _last_trace("AFTER sanidade_final_listas")
+
+        before_packet = before.get("packet", {}) if isinstance(before, dict) and isinstance(before.get("packet", {}), dict) else {}
+        after_packet = after.get("packet", {}) if isinstance(after, dict) and isinstance(after.get("packet", {}), dict) else {}
+
+        before_chain = before.get("caller_chain", []) if isinstance(before, dict) and isinstance(before.get("caller_chain", []), list) else []
+        after_chain = after.get("caller_chain", []) if isinstance(after, dict) and isinstance(after.get("caller_chain", []), list) else []
+
+        auditor_n = int(audit.get("listas_analisadas", 0) or 0)
+        before_n = int(before_packet.get("n_listas", 0) or 0)
+        after_n = int(after_packet.get("n_listas", 0) or 0)
+
+        auditor_overlap = float(metricas.get("overlap_ratio", 0.0) or 0.0)
+        before_overlap = float(before_packet.get("sobreposicao_media", 0.0) or 0.0)
+        after_overlap = float(after_packet.get("sobreposicao_media", 0.0) or 0.0)
+
+        overlap_before_ok = abs(auditor_overlap - before_overlap) <= float(overlap_tol)
+        overlap_after_ok = abs(auditor_overlap - after_overlap) <= float(overlap_tol)
+        hook_before_ok = "sanidade_final_listas" in [str(x) for x in before_chain]
+        hook_after_ok = "sanidade_final_listas" in [str(x) for x in after_chain]
+
+        checks = {
+            "auditor_listas_analisadas_12": auditor_n == int(expected_n),
+            "listas_intactas_true": bool(metricas.get("listas_intactas", False)) is True,
+            "metricas_preenchidas": bool(metricas) and "erro" not in metricas,
+            "detalhes_preenchidos": len(detalhes) > 0,
+            "trace_before_n_listas_12": before_n == int(expected_n),
+            "trace_after_n_listas_12": after_n == int(expected_n),
+            "overlap_ratio_coerente_trace_before": bool(overlap_before_ok),
+            "overlap_ratio_coerente_trace_after": bool(overlap_after_ok),
+            "hook_before_em_sanidade_final_listas": bool(hook_before_ok),
+            "hook_after_em_sanidade_final_listas": bool(hook_after_ok),
+            "ausencia_auditor_vazio": bool(auditor_n > 0 and bool(metricas) and len(detalhes) > 0),
+            "ausencia_fallback_enganoso": bool(hook_before_ok and hook_after_ok and before_n > 0 and after_n > 0),
+            "sem_erro_runtime": "erro" not in metricas,
+        }
+
+        validado = all(bool(v) for v in checks.values())
+        status = "AUDITOR INTER-LISTA VALIDADO" if validado else "AUDITOR INTER-LISTA NÃO VALIDADO"
+
+        resultado = {
+            "status_binario": status,
+            "validado": bool(validado),
+            "checks": checks,
+            "comparacao": {
+                "auditor_listas_analisadas": int(auditor_n),
+                "trace_before_n_listas": int(before_n),
+                "trace_after_n_listas": int(after_n),
+                "auditor_overlap_ratio": float(auditor_overlap),
+                "trace_before_sobreposicao_media": float(before_overlap),
+                "trace_after_sobreposicao_media": float(after_overlap),
+                "overlap_tolerancia": float(overlap_tol),
+                "before_caller_chain": before_chain,
+                "after_caller_chain": after_chain,
+            },
+            "motivo": "ok" if validado else "falha_em_um_ou_mais_checks",
+        }
+
+        st.session_state["inter_lista_consolidacao_binaria"] = resultado
+        return resultado
+    except Exception as e:
+        resultado = {
+            "status_binario": "AUDITOR INTER-LISTA NÃO VALIDADO",
+            "validado": False,
+            "checks": {},
+            "comparacao": {},
+            "motivo": f"erro_runtime_consolidacao: {e}",
+        }
+        try:
+            st.session_state["inter_lista_consolidacao_binaria"] = resultado
+        except Exception:
+            pass
+        return resultado
+
+
+# ============================================================
 # ============================================================
 # V16h57CP — COHESION AUTO-TUNE (plugável real)
 # - Mede o pacote real antes do controller
@@ -526,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57INTERLISTA_SANIDADE_HOOK_OK"
-BUILD_REAL_FILE = "app_v16h57INTERLISTA_SANIDADE_HOOK_OK.py"
+BUILD_TAG = "v16h57INTERLISTA_CONSOLIDA_AUDITOR_OK"
+BUILD_REAL_FILE = "app_v16h57INTERLISTA_CONSOLIDA_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57INTERLISTA_SANIDADE_HOOK_OK"
+WATERMARK = "BUILD: v16h57INTERLISTA_CONSOLIDA_AUDITOR_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOY_AUDITOR_INTRA_LISTA_CONTRACT_OK")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57INTERLISTA_CONSOLIDA_AUDITOR_OK")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -16415,11 +16515,14 @@ def pc_v16_inter_lista_audit_from_listas(listas):
         }
 
         inter_lista_audit["listas_analisadas"] = int(listas_analisadas)
+        inter_lista_audit["origem_auditor"] = "sanidade_final_listas"
+        inter_lista_audit["fallback_usado"] = False
 
         hash_depois = hash(
             tuple(tuple(int(x) for x in lst) for lst in listas_base_inter)
         )
 
+        inter_lista_audit["hash_auditor"] = int(hash_antes)
         inter_lista_audit["metricas"]["listas_intactas"] = (
             hash_antes == hash_depois
         )
@@ -16432,7 +16535,9 @@ def pc_v16_inter_lista_audit_from_listas(listas):
                 "listas_intactas": False
             },
             "detalhes": [],
-            "listas_analisadas": 0
+            "listas_analisadas": 0,
+            "origem_auditor": "erro",
+            "fallback_usado": True
         }
 
     return inter_lista_audit
@@ -16451,7 +16556,9 @@ def sanidade_final_listas(listas):
                 "listas_intactas": False
             },
             "detalhes": [],
-            "listas_analisadas": 0
+            "listas_analisadas": 0,
+            "origem_auditor": "erro",
+            "fallback_usado": True
         }
 
     """
@@ -18572,6 +18679,23 @@ if painel == "🎯 Modo 6 Acertos — Execução":
             }
         )
     )
+
+    # V16h57IC — status binário oficial do instrumento inter-lista.
+    try:
+        _consolidacao_inter = pc_v16_consolidar_auditor_inter_lista(expected_n=12, overlap_tol=0.05)
+        if bool((_consolidacao_inter or {}).get("validado", False)):
+            st.success("AUDITOR INTER-LISTA VALIDADO")
+        else:
+            st.error("AUDITOR INTER-LISTA NÃO VALIDADO")
+        st.json(_consolidacao_inter)
+    except Exception as _e_inter_status:
+        st.error("AUDITOR INTER-LISTA NÃO VALIDADO")
+        st.json({
+            "status_binario": "AUDITOR INTER-LISTA NÃO VALIDADO",
+            "validado": False,
+            "motivo": f"erro_exibicao_status: {_e_inter_status}",
+        })
+
     st.json(st.session_state.get("intra_lista_audit", {"trocas_qtd": 0, "detalhes": []}))
 
     st.success(
@@ -19249,7 +19373,9 @@ def sanidade_final_listas(listas):
                 "listas_intactas": False
             },
             "detalhes": [],
-            "listas_analisadas": 0
+            "listas_analisadas": 0,
+            "origem_auditor": "erro",
+            "fallback_usado": True
         }
 
     """
@@ -23986,6 +24112,22 @@ try:
                 st.json(_item)
         else:
             st.warning("Nenhum trace de origem das listas foi capturado nesta execução.")
+
+        st.markdown("#### ✅ CONSOLIDAÇÃO BINÁRIA — AUDITOR INTER-LISTA")
+        try:
+            _consolidacao_inter_post = pc_v16_consolidar_auditor_inter_lista(expected_n=12, overlap_tol=0.05)
+            if bool((_consolidacao_inter_post or {}).get("validado", False)):
+                st.success("AUDITOR INTER-LISTA VALIDADO")
+            else:
+                st.error("AUDITOR INTER-LISTA NÃO VALIDADO")
+            st.json(_consolidacao_inter_post)
+        except Exception as _e_inter_status_post:
+            st.error("AUDITOR INTER-LISTA NÃO VALIDADO")
+            st.json({
+                "status_binario": "AUDITOR INTER-LISTA NÃO VALIDADO",
+                "validado": False,
+                "motivo": f"erro_exibicao_status_post: {_e_inter_status_post}",
+            })
 
         st.markdown("#### 🧪 AUDITORIA DO CT (CONVERSION PRESSURE)")
         try:
