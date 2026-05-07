@@ -526,11 +526,11 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57INTERLISTA_REALFLOW_OK"
-BUILD_REAL_FILE = "app_v16h57INTERLISTA_REALFLOW_OK.py"
+BUILD_TAG = "v16h57INTERLISTA_SANIDADE_HOOK_OK"
+BUILD_REAL_FILE = "app_v16h57INTERLISTA_SANIDADE_HOOK_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57INTERLISTA_REALFLOW_OK"
+WATERMARK = "BUILD: v16h57INTERLISTA_SANIDADE_HOOK_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
 st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57HO6ZOY_AUDITOR_INTRA_LISTA_CONTRACT_OK")
@@ -16312,9 +16312,148 @@ def v16_avaliar_pre_eco_eco():
 # Válido para V15.7 MAX e V16 Premium
 # ============================================================
 
+
+def pc_v16_inter_lista_audit_from_listas(listas):
+
+    inter_lista_audit = {
+        "metricas": {},
+        "detalhes": [],
+        "listas_analisadas": 0
+    }
+
+    try:
+
+        listas_base_inter = []
+
+        for lst in (listas or []):
+
+            try:
+
+                li = [int(x) for x in list(lst)[:6]]
+
+                if len(li) == 6 and len(set(li)) == 6:
+                    listas_base_inter.append(li)
+
+            except Exception:
+                pass
+
+        hash_antes = hash(
+            tuple(tuple(int(x) for x in lst) for lst in listas_base_inter)
+        )
+
+        listas_analisadas = len(listas_base_inter)
+
+        overlap_total = 0
+        overlap_count = 0
+
+        pares_familia = 0
+        pares_total = 0
+
+        pair_counter = {}
+
+        for i in range(len(listas_base_inter)):
+
+            lst_i = list(map(int, listas_base_inter[i]))
+
+            pares_i = set()
+
+            for a in range(len(lst_i)):
+                for b in range(a + 1, len(lst_i)):
+                    pares_i.add(tuple(sorted((lst_i[a], lst_i[b]))))
+
+            for p in pares_i:
+                pair_counter[p] = pair_counter.get(p, 0) + 1
+
+            for j in range(i + 1, len(listas_base_inter)):
+
+                pares_total += 1
+
+                lst_j = list(map(int, listas_base_inter[j]))
+
+                intersecao = len(set(lst_i) & set(lst_j))
+
+                overlap_total += intersecao
+                overlap_count += 1
+
+                mesma_familia = intersecao >= 4
+
+                if mesma_familia:
+                    pares_familia += 1
+
+                inter_lista_audit["detalhes"].append({
+                    "lista_a": int(i),
+                    "lista_b": int(j),
+                    "intersecao": int(intersecao),
+                    "mesma_familia": bool(mesma_familia),
+                })
+
+        overlap_ratio = overlap_total / overlap_count if overlap_count > 0 else 0.0
+        family_density = pares_familia / pares_total if pares_total > 0 else 0.0
+        coexistence_spread = len(pair_counter)
+        unique_pair_ratio = coexistence_spread / overlap_count if overlap_count > 0 else 0.0
+
+        total_pair_occurrences = sum(pair_counter.values())
+        packet_entropy = 0.0
+
+        if total_pair_occurrences > 0:
+
+            for freq in pair_counter.values():
+
+                p = freq / total_pair_occurrences
+
+                if p > 0:
+                    packet_entropy -= p * math.log(p, 2)
+
+        inter_lista_audit["metricas"] = {
+            "overlap_ratio": float(overlap_ratio),
+            "family_density": float(family_density),
+            "coexistence_spread": float(coexistence_spread),
+            "unique_pair_ratio": float(unique_pair_ratio),
+            "packet_entropy": float(packet_entropy),
+            "pares_familia": int(pares_familia),
+            "pares_total": int(pares_total),
+        }
+
+        inter_lista_audit["listas_analisadas"] = int(listas_analisadas)
+
+        hash_depois = hash(
+            tuple(tuple(int(x) for x in lst) for lst in listas_base_inter)
+        )
+
+        inter_lista_audit["metricas"]["listas_intactas"] = (
+            hash_antes == hash_depois
+        )
+
+    except Exception as e:
+
+        inter_lista_audit = {
+            "metricas": {
+                "erro": str(e),
+                "listas_intactas": False
+            },
+            "detalhes": [],
+            "listas_analisadas": 0
+        }
+
+    return inter_lista_audit
+
+
 def sanidade_final_listas(listas):
     pc_exec_trace("ENTER sanidade_final_listas", {"arg_n": len(listas or [])})
     pc_list_source_detector("BEFORE sanidade_final_listas", listas, {"arg_n": len(listas or [])})
+    try:
+        inter_lista_audit = pc_v16_inter_lista_audit_from_listas(listas)
+        st.session_state["inter_lista_audit"] = inter_lista_audit
+    except Exception as e:
+        st.session_state["inter_lista_audit"] = {
+            "metricas": {
+                "erro": str(e),
+                "listas_intactas": False
+            },
+            "detalhes": [],
+            "listas_analisadas": 0
+        }
+
     """
     Sanidade final das listas de previsão.
     Regras:
@@ -19100,6 +19239,19 @@ if painel == "🧪 Testes de Confiabilidade REAL":
 def sanidade_final_listas(listas):
     pc_exec_trace("ENTER sanidade_final_listas", {"arg_n": len(listas or [])})
     pc_list_source_detector("BEFORE sanidade_final_listas", listas, {"arg_n": len(listas or [])})
+    try:
+        inter_lista_audit = pc_v16_inter_lista_audit_from_listas(listas)
+        st.session_state["inter_lista_audit"] = inter_lista_audit
+    except Exception as e:
+        st.session_state["inter_lista_audit"] = {
+            "metricas": {
+                "erro": str(e),
+                "listas_intactas": False
+            },
+            "detalhes": [],
+            "listas_analisadas": 0
+        }
+
     """
     Sanidade final das listas de previsão.
     Regras:
