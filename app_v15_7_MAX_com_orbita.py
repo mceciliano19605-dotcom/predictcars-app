@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57INTERLISTA_CONSOLIDA_AUDITOR_OK"
-BUILD_REAL_FILE = "app_v16h57INTERLISTA_CONSOLIDA_AUDITOR_OK.py"
+BUILD_TAG = "v16h57H6_OBSERVACIONAL_GEOMETRIA_COLETIVA_OK"
+BUILD_REAL_FILE = "app_v16h57H6_OBSERVACIONAL_GEOMETRIA_COLETIVA_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57INTERLISTA_CONSOLIDA_AUDITOR_OK"
+WATERMARK = "BUILD: v16h57H6_OBSERVACIONAL_GEOMETRIA_COLETIVA_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57INTERLISTA_CONSOLIDA_AUDITOR_OK")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H6_OBSERVACIONAL_GEOMETRIA_COLETIVA_OK")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -24127,6 +24127,86 @@ try:
                 "status_binario": "AUDITOR INTER-LISTA NÃO VALIDADO",
                 "validado": False,
                 "motivo": f"erro_exibicao_status_post: {_e_inter_status_post}",
+            })
+
+        st.markdown("#### 🧭 H6 — LEITURA OBSERVACIONAL DA GEOMETRIA COLETIVA")
+        try:
+            _h6_audit = st.session_state.get("inter_lista_audit", {})
+            _h6_consolidacao = st.session_state.get("inter_lista_consolidacao_binaria", {})
+            _h6_src_trace = st.session_state.get("v16h57FS_source_detector", [])
+
+            if not isinstance(_h6_audit, dict):
+                _h6_audit = {}
+            if not isinstance(_h6_consolidacao, dict):
+                _h6_consolidacao = {}
+            if not isinstance(_h6_src_trace, list):
+                _h6_src_trace = []
+
+            _h6_metricas = _h6_audit.get("metricas", {}) if isinstance(_h6_audit.get("metricas", {}), dict) else {}
+
+            def _h6_last_trace(_label):
+                _achados = []
+                for _item in _h6_src_trace:
+                    if isinstance(_item, dict) and str(_item.get("step", "")) == str(_label):
+                        _achados.append(_item)
+                return _achados[-1] if _achados else {}
+
+            _h6_before = _h6_last_trace("BEFORE sanidade_final_listas")
+            _h6_after = _h6_last_trace("AFTER sanidade_final_listas")
+            _h6_before_packet = _h6_before.get("packet", {}) if isinstance(_h6_before, dict) and isinstance(_h6_before.get("packet", {}), dict) else {}
+            _h6_after_packet = _h6_after.get("packet", {}) if isinstance(_h6_after, dict) and isinstance(_h6_after.get("packet", {}), dict) else {}
+
+            _h6_observacional = {
+                "modo": "H6_OBSERVACIONAL_GEOMETRIA_COLETIVA",
+                "natureza": "somente_leitura",
+                "altera_listas": False,
+                "altera_ranking": False,
+                "altera_safe": False,
+                "altera_camada_4": False,
+                "usa_random": False,
+                "usa_random_choice": False,
+                "usa_select_candidate_dynamic": False,
+                "auditor_inter_lista_validado": bool(_h6_consolidacao.get("validado", False)),
+                "status_auditor": str(_h6_consolidacao.get("status_binario", "n/d")),
+                "metricas_inter_lista": {
+                    "overlap_ratio": _h6_metricas.get("overlap_ratio"),
+                    "family_density": _h6_metricas.get("family_density"),
+                    "coexistence_spread": _h6_metricas.get("coexistence_spread"),
+                    "unique_pair_ratio": _h6_metricas.get("unique_pair_ratio"),
+                    "packet_entropy": _h6_metricas.get("packet_entropy"),
+                    "pares_familia": _h6_metricas.get("pares_familia"),
+                    "pares_total": _h6_metricas.get("pares_total"),
+                    "listas_intactas": _h6_metricas.get("listas_intactas"),
+                },
+                "trace_pacote": {
+                    "before_n_listas": _h6_before_packet.get("n_listas"),
+                    "after_n_listas": _h6_after_packet.get("n_listas"),
+                    "before_passageiros_unicos": _h6_before_packet.get("passageiros_unicos"),
+                    "after_passageiros_unicos": _h6_after_packet.get("passageiros_unicos"),
+                    "before_sobreposicao_media": _h6_before_packet.get("sobreposicao_media"),
+                    "after_sobreposicao_media": _h6_after_packet.get("sobreposicao_media"),
+                },
+                "leitura_operacional": {
+                    "instrumento_h5_fechado": bool(_h6_consolidacao.get("validado", False)),
+                    "hipotese_4_nao_consolidada_pelo_h6": True,
+                    "safe_permanece_fonte_de_prova_estatistica": True,
+                    "observacao": "H6 apenas descreve a geometria coletiva já medida; não intervém no pacote.",
+                },
+            }
+
+            st.info("H6 observacional ativo: leitura da geometria coletiva pós-H5, sem intervenção no pacote.")
+            st.json(_h6_observacional)
+            st.session_state["h6_observacional_geometria_coletiva"] = _h6_observacional
+        except Exception as _e_h6_obs:
+            st.warning("H6 observacional não pôde ser exibido nesta execução.")
+            st.json({
+                "modo": "H6_OBSERVACIONAL_GEOMETRIA_COLETIVA",
+                "natureza": "somente_leitura",
+                "erro": str(_e_h6_obs),
+                "altera_listas": False,
+                "altera_ranking": False,
+                "altera_safe": False,
+                "altera_camada_4": False,
             })
 
         st.markdown("#### 🧪 AUDITORIA DO CT (CONVERSION PRESSURE)")
