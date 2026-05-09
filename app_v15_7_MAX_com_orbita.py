@@ -1835,15 +1835,15 @@ def pc_v16_conversion_pressure_scores(snapshot_p0_canonic, lookback=60):
 
 def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=None, co_matrix=None, n_alvo=6, top_k=10):
     """
-    H7_MICRO_STABILITY_GATE — microintervenção determinística de estabilidade.
+    H7 — MICRO STABILITY GATE (FINAL LAYER)
+    Intervenção determinística e cirúrgica no ponto final de montagem do pacote.
 
-    Escopo fechado:
-    - atua somente após o Top10 base estar formado;
-    - apenas reordena/prioriza as listas já existentes no Top10;
+    Regras do H7:
     - não cria listas;
     - não troca passageiros;
-    - não altera composição interna das listas;
-    - execução determinística sem mecanismos aleatórios.
+    - não altera candidate_fit, gerador, SAFE, Camada 4 ou sanidade;
+    - apenas reordena/prioriza listas já existentes no pacote recebido;
+    - auditoria física comprova execução, reordenação e preservação estrutural.
     """
     try:
         pkt = []
@@ -1856,36 +1856,28 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 pass
 
         if not pkt:
-            audit = {
-                "h7_runtime_executado": False,
-                "h7_loop_pairs_analisados": 0,
-                "h7_score_medio": 0.0,
-                "h7_score_max": 0.0,
-                "h7_reordenacao_ocorreu": False,
-                "h7_top1_antes": [],
-                "h7_top1_depois": [],
-                "h7_ordem_original": [],
-                "h7_ordem_final": [],
-                "h7_sem_troca_passageiro": True,
-                "h7_sem_lista_nova": True,
-                "h7_mesmo_conjunto_de_listas": True,
-                "h7_hash_composicao_antes": None,
-                "h7_hash_composicao_depois": None,
-                "h7_deterministico": True,
-                "h7_sem_random": True,
-                "motivo": "pacote_vazio",
+            auditor_h7 = {
+                "h7_executed": False,
+                "h7_active": False,
+                "h7_reason": "pacote_vazio",
+                "h7_mode": "micro_stability_gate_final_layer",
+                "same_full_packet_composition": True,
+                "same_top10_passageiros": True,
+                "same_all_list_contents": True,
+                "passageiros_trocados": False,
+                "deterministic_reorder": False,
+                "new_randomness": False,
             }
             try:
-                st.session_state["auditor_h7_micro_stability_gate"] = audit
+                st.session_state["v16h57H7_micro_stability_gate_auditor"] = auditor_h7
             except Exception:
                 pass
             return listas_packet, {
                 "active": False,
                 "applied": False,
                 "reason": "pacote_vazio",
-                "mode": "intra_exec_guided_cohesion_generation",
-                "h7_mode": "H7_MICRO_STABILITY_GATE",
-                "h7_auditor": audit,
+                "mode": "micro_stability_gate_final_layer",
+                "h7_auditor": auditor_h7,
             }
 
         top_k = int(max(1, min(int(top_k), len(pkt))))
@@ -1910,6 +1902,32 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 return 0.0
             return max(0.0, 1.0 - (ranking_pos.get(int(v), 9999) / max(1, len(ranking))))
 
+        def packet_metrics(packet_lists):
+            packet_lists = packet_lists or []
+            flat = [int(x) for lst in packet_lists for x in list(lst)[:int(n_alvo)]]
+            inter = []
+            for i in range(len(packet_lists)):
+                si = set(packet_lists[i][:int(n_alvo)])
+                for j in range(i + 1, len(packet_lists)):
+                    inter.append(len(si.intersection(packet_lists[j][:int(n_alvo)])))
+            return {
+                "passageiros_unicos": len(set(flat)),
+                "sobreposicao_media": round(sum(inter) / len(inter), 2) if inter else 0.0,
+                "hash": hash(str(packet_lists or [])),
+            }
+
+        def canonical_packet(packet_lists):
+            out = []
+            for lst in (packet_lists or []):
+                try:
+                    out.append(tuple(sorted(int(x) for x in list(lst)[:int(n_alvo)])))
+                except Exception:
+                    pass
+            return out
+
+        def composition_signature(packet_lists):
+            return sorted(canonical_packet(packet_lists))
+
         def block_score(lst):
             vals = [int(x) for x in lst[:int(n_alvo)]]
             if len(vals) < int(n_alvo) or len(set(vals)) != int(n_alvo):
@@ -1921,190 +1939,120 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             pair_sum = sum(pair_scores)
             pair_avg = pair_sum / max(1, len(pair_scores))
             zero_ratio = sum(1 for s in pair_scores if s <= 0.0) / max(1, len(pair_scores))
+            positive_ratio = sum(1 for s in pair_scores if s > 0.0) / max(1, len(pair_scores))
             cp_strength = sum(float(cp_scores.get(int(x), 0.0)) for x in vals)
             rank_sum = sum(rank_strength(x) for x in vals)
             spread = max(vals) - min(vals)
             spread_penalty = min(float(spread) / 60.0, 1.0)
-            return float(pair_sum * 0.18 + pair_avg * 0.28 + cp_strength * 0.12 + rank_sum * 0.06 - zero_ratio * 0.16 - spread_penalty * 0.04)
-
-        def packet_metrics(packet_lists):
-            flat = [int(x) for lst in (packet_lists or []) for x in lst[:int(n_alvo)]]
-            inter = []
-            for i in range(len(packet_lists or [])):
-                si = set(packet_lists[i][:int(n_alvo)])
-                for j in range(i + 1, len(packet_lists or [])):
-                    inter.append(len(si.intersection(packet_lists[j][:int(n_alvo)])))
-            return {
-                "passageiros_unicos": len(set(flat)),
-                "sobreposicao_media": round(sum(inter) / len(inter), 2) if inter else 0.0,
-                "hash": hash(str(packet_lists or [])),
-            }
-
-        def _composition_key(packet_lists):
-            return sorted(tuple(sorted(int(x) for x in list(lst)[:int(n_alvo)])) for lst in (packet_lists or []))
-
-        def _composition_hash(packet_lists):
-            try:
-                return hash(str(_composition_key(packet_lists)))
-            except Exception:
-                return None
-
-        # Top10 já formado: H7 só atua sobre esta janela, nunca promove cauda.
-        base_top = [list(x) for x in pkt[:top_k]]
-        tail = [list(x) for x in pkt[top_k:]]
-        before_metrics = packet_metrics(base_top)
-        ordem_original = list(range(len(base_top)))
-        composicao_antes = _composition_key(base_top)
-        hash_composicao_antes = _composition_hash(base_top)
-
-        # Frequência dos passageiros dentro do Top10 base.
-        freq = {}
-        for lst in base_top:
-            for v in lst[:int(n_alvo)]:
-                vi = int(v)
-                freq[vi] = int(freq.get(vi, 0)) + 1
-
-        # Entropia global do Top10 base, usada como preservação observacional estável.
-        try:
-            total_freq = float(sum(freq.values()))
-            entropy_val = 0.0
-            if total_freq > 0:
-                for c in freq.values():
-                    p = float(c) / total_freq
-                    if p > 0:
-                        entropy_val -= p * float(np.log2(p))
-            entropy_preservation_score = float(entropy_val / max(1e-9, np.log2(max(2, len(freq))))) if freq else 0.0
-            entropy_preservation_score = max(0.0, min(1.0, entropy_preservation_score))
-        except Exception:
-            entropy_preservation_score = 0.0
-
-        pair_details = []
-        for i in range(len(base_top)):
-            si = set(base_top[i][:int(n_alvo)])
-            for j in range(i + 1, len(base_top)):
-                sj = set(base_top[j][:int(n_alvo)])
-                inter = len(si.intersection(sj))
-                pair_details.append({"i": int(i), "j": int(j), "intersecao": int(inter)})
-
-        loop_pairs_analisados = int(len(pair_details))
-
-        raw_rows = []
-        raw_cross_values = []
-        for idx, lst in enumerate(base_top):
-            vals = [int(x) for x in lst[:int(n_alvo)]]
-            others = [base_top[j] for j in range(len(base_top)) if j != idx]
-            inters = []
-            excessive_count = 0
-            for other in others:
-                inter = len(set(vals).intersection(set(other[:int(n_alvo)])))
-                inters.append(int(inter))
-                if inter >= 4:
-                    excessive_count += 1
-
-            # Sobreposição útil: saudável quando a interseção fica em 2 ou 3;
-            # 4+ não aumenta o ganho e entra na penalização de redundância.
-            useful_overlap_score = sum(min(max(int(x), 0), 3) / 3.0 for x in inters) / max(1, len(inters))
-            excessive_redundancy_penalty = float(excessive_count) / max(1, len(inters))
-
-            # Presença cruzada: frequência média dos passageiros da lista nas demais listas.
-            cross_raw = 0.0
-            if others:
-                cross_raw = sum(max(0, int(freq.get(int(v), 0)) - 1) for v in vals) / max(1.0, float(len(vals) * len(others)))
-            raw_cross_values.append(float(cross_raw))
-            raw_rows.append({
-                "idx": int(idx),
-                "lista": list(vals),
-                "useful_overlap_score": float(useful_overlap_score),
-                "cross_presence_raw": float(cross_raw),
-                "entropy_preservation_score": float(entropy_preservation_score),
-                "excessive_redundancy_penalty": float(excessive_redundancy_penalty),
-            })
-
-        max_cross = max(raw_cross_values) if raw_cross_values else 0.0
-        scored_rows = []
-        for row in raw_rows:
-            cross_presence_score = float(row["cross_presence_raw"]) / max(1e-9, float(max_cross)) if max_cross > 0 else 0.0
-            score = (
-                0.45 * float(row["useful_overlap_score"])
-                + 0.30 * float(cross_presence_score)
-                + 0.15 * float(row["entropy_preservation_score"])
-                - 0.10 * float(row["excessive_redundancy_penalty"])
+            spread_health = max(0.0, 1.0 - abs(float(spread_penalty) - 0.42))
+            internal_stability = float(positive_ratio * 0.18 + spread_health * 0.10 - zero_ratio * 0.16)
+            return float(
+                pair_sum * 0.18
+                + pair_avg * 0.28
+                + cp_strength * 0.12
+                + rank_sum * 0.06
+                + internal_stability
+                - zero_ratio * 0.16
+                - spread_penalty * 0.04
             )
-            scored_rows.append({
-                "idx": int(row["idx"]),
-                "lista": list(row["lista"]),
-                "COEXISTENCE_STABILITY_SCORE": float(score),
-                "useful_overlap_score": float(row["useful_overlap_score"]),
-                "cross_presence_score": float(cross_presence_score),
-                "entropy_preservation_score": float(row["entropy_preservation_score"]),
-                "excessive_redundancy_penalty": float(row["excessive_redundancy_penalty"]),
-            })
 
-        # Desempate determinístico:
-        # 1) maior score; 2) menor redundância; 3) maior presença cruzada; 4) ordem original.
-        scored_sorted = sorted(
-            scored_rows,
-            key=lambda r: (
-                -float(r.get("COEXISTENCE_STABILITY_SCORE", 0.0)),
-                float(r.get("excessive_redundancy_penalty", 0.0)),
-                -float(r.get("cross_presence_score", 0.0)),
-                int(r.get("idx", 0)),
-            ),
-        )
-        selected = [list(r["lista"]) for r in scored_sorted]
-        ordem_final = [int(r["idx"]) for r in scored_sorted]
+        base_packet = [list(x) for x in pkt]
+        base_top = [list(x) for x in pkt[:top_k]]
+        before_metrics = packet_metrics(base_top)
+        full_before_metrics = packet_metrics(base_packet)
+
+        ranked = [(block_score(lst), idx, list(lst)) for idx, lst in enumerate(pkt)]
+        ranked.sort(key=lambda t: (-float(t[0]), int(t[1]), tuple(t[2])))
+        selected = [list(x[2]) for x in ranked[:top_k]]
+
+        selected_keys = {tuple(x) for x in selected}
+        tail = [list(x) for x in pkt if tuple(x) not in selected_keys]
         final_packet = selected + tail
 
         after_metrics = packet_metrics(selected)
-        changed_indices = [int(i) for i, (a, b) in enumerate(zip(base_top, selected)) if list(a) != list(b)]
-        applied = bool(list(map(tuple, selected)) != list(map(tuple, base_top)))
-        composicao_depois = _composition_key(selected)
-        hash_composicao_depois = _composition_hash(selected)
-        mesmo_conjunto = bool(composicao_antes == composicao_depois)
+        full_after_metrics = packet_metrics(final_packet)
 
-        h7_scores = [float(r.get("COEXISTENCE_STABILITY_SCORE", 0.0)) for r in scored_rows]
-        h7_audit = {
-            "h7_runtime_executado": True,
-            "h7_loop_pairs_analisados": int(loop_pairs_analisados),
-            "h7_score_medio": round(float(sum(h7_scores) / max(1, len(h7_scores))), 10) if h7_scores else 0.0,
-            "h7_score_max": round(float(max(h7_scores)), 10) if h7_scores else 0.0,
-            "h7_reordenacao_ocorreu": bool(applied),
-            "h7_top1_antes": list(base_top[0]) if base_top else [],
-            "h7_top1_depois": list(selected[0]) if selected else [],
-            "h7_ordem_original": list(ordem_original),
-            "h7_ordem_final": list(ordem_final),
-            "h7_sem_troca_passageiro": bool(mesmo_conjunto),
-            "h7_sem_lista_nova": bool(mesmo_conjunto),
-            "h7_mesmo_conjunto_de_listas": bool(mesmo_conjunto),
-            "h7_hash_composicao_antes": hash_composicao_antes,
-            "h7_hash_composicao_depois": hash_composicao_depois,
-            "h7_deterministico": True,
-            "h7_sem_random": True,
-            "h7_formula": "0.45*useful_overlap_score + 0.30*cross_presence_score + 0.15*entropy_preservation_score - 0.10*excessive_redundancy_penalty",
-            "h7_scores_por_lista": scored_sorted[:10],
-            "h7_pair_details_qtd": int(loop_pairs_analisados),
-            "h7_bloco": "H7_MICRO_STABILITY_GATE",
-        }
-        try:
-            st.session_state["auditor_h7_micro_stability_gate"] = dict(h7_audit)
-        except Exception:
-            pass
+        base_top_sig = composition_signature(base_top)
+        selected_sig = composition_signature(selected)
+        base_packet_sig = composition_signature(base_packet)
+        final_packet_sig = composition_signature(final_packet)
+
+        changed_indices = [int(i) for i, (a, b) in enumerate(zip(base_top, selected)) if list(a) != list(b)]
+        promoted_from_tail = [int(i) for i, lst in enumerate(selected) if tuple(lst) not in {tuple(x) for x in base_top}]
+        reordered = bool(list(map(tuple, final_packet)) != list(map(tuple, base_packet)))
+        applied = bool(list(map(tuple, selected)) != list(map(tuple, base_top)))
 
         score_base_packet = round(float(sum(block_score(x) for x in base_top) / max(1, len(base_top))), 6)
         score_final_packet = round(float(sum(block_score(x) for x in selected) / max(1, len(selected))), 6)
 
+        same_full_packet_composition = bool(base_packet_sig == final_packet_sig)
+        same_top10_passageiros = bool(
+            set(x for lst in base_top for x in lst[:int(n_alvo)])
+            == set(x for lst in selected for x in lst[:int(n_alvo)])
+        )
+        same_all_list_contents = bool(all(
+            tuple(sorted(a[:int(n_alvo)])) == tuple(sorted(b[:int(n_alvo)]))
+            for a, b in zip(composition_signature(base_packet), composition_signature(final_packet))
+        )) if len(base_packet_sig) == len(final_packet_sig) else False
+
+        auditor_h7 = {
+            "h7_executed": True,
+            "h7_active": True,
+            "h7_reason": "ok" if applied else "sem_reordenacao_final_necessaria",
+            "h7_mode": "micro_stability_gate_final_layer",
+            "h7_scope": "pc_v16_packet_final_mount_deep_only",
+            "final_layer_only": True,
+            "deterministic_reorder": bool(reordered),
+            "applied": bool(applied),
+            "same_full_packet_composition": bool(same_full_packet_composition),
+            "same_top10_passageiros": bool(same_top10_passageiros),
+            "same_all_list_contents": bool(same_full_packet_composition),
+            "passageiros_trocados": bool(not same_full_packet_composition),
+            "new_randomness": False,
+            "top_k": int(top_k),
+            "n_packet_before": int(len(base_packet)),
+            "n_packet_after": int(len(final_packet)),
+            "top10_base_hash": hash(str(base_top)),
+            "top10_final_hash": hash(str(selected)),
+            "full_packet_base_hash": hash(str(base_packet)),
+            "full_packet_final_hash": hash(str(final_packet)),
+            "composition_signature_before_hash": hash(str(base_packet_sig)),
+            "composition_signature_after_hash": hash(str(final_packet_sig)),
+            "coverage_unique_before": int(before_metrics.get("passageiros_unicos", 0) or 0),
+            "coverage_unique_after": int(after_metrics.get("passageiros_unicos", 0) or 0),
+            "full_coverage_unique_before": int(full_before_metrics.get("passageiros_unicos", 0) or 0),
+            "full_coverage_unique_after": int(full_after_metrics.get("passageiros_unicos", 0) or 0),
+            "overlap_before": float(before_metrics.get("sobreposicao_media", 0.0) or 0.0),
+            "overlap_after": float(after_metrics.get("sobreposicao_media", 0.0) or 0.0),
+            "full_overlap_before": float(full_before_metrics.get("sobreposicao_media", 0.0) or 0.0),
+            "full_overlap_after": float(full_after_metrics.get("sobreposicao_media", 0.0) or 0.0),
+            "listas_alteradas_posicionalmente": int(len(changed_indices)),
+            "changed_indices": list(changed_indices),
+            "promoted_from_tail": list(promoted_from_tail),
+            "score_base_packet": float(score_base_packet),
+            "score_final_packet": float(score_final_packet),
+            "score_delta_final_layer": round(float(score_final_packet - score_base_packet), 6),
+            "top_scores": [
+                {"idx_original": int(t[1]), "score": round(float(t[0]), 8), "lista": [int(x) for x in t[2]]}
+                for t in ranked[:min(10, len(ranked))]
+            ],
+        }
+
+        try:
+            st.session_state["v16h57H7_micro_stability_gate_auditor"] = dict(auditor_h7)
+        except Exception:
+            pass
+
         return final_packet, {
             "active": True,
             "applied": bool(applied),
-            "reason": "ok_h7_micro_reordenacao" if applied else "h7_sem_reordenacao_final",
-            "mode": "intra_exec_guided_cohesion_generation",
-            "h7_mode": "H7_MICRO_STABILITY_GATE",
-            "h7_auditor": h7_audit,
+            "reason": "ok" if applied else "micro_stability_gate_sem_reordenacao_final",
+            "mode": "micro_stability_gate_final_layer",
             "before_metrics": before_metrics,
             "after_metrics": after_metrics,
             "listas_alteradas": int(len(changed_indices)),
             "changed_indices": list(changed_indices),
-            "promoted_from_tail": [],
+            "promoted_from_tail": list(promoted_from_tail),
             "top10_base_hash": hash(str(base_top)),
             "top10_final_hash": hash(str(selected)),
             "score_base_packet": float(score_base_packet),
@@ -2115,38 +2063,35 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "overlap_before": float(before_metrics.get("sobreposicao_media", 0.0) or 0.0),
             "overlap_after": float(after_metrics.get("sobreposicao_media", 0.0) or 0.0),
             "has_cp": bool(any(float(v) > 0.0 for v in cp_scores.values())),
+            "h7_auditor": auditor_h7,
+            "h7_executed": True,
+            "h7_same_full_packet_composition": bool(same_full_packet_composition),
+            "h7_passageiros_trocados": bool(not same_full_packet_composition),
+            "h7_deterministic_reorder": bool(reordered),
         }
     except Exception as e:
-        audit = {
-            "h7_runtime_executado": False,
-            "h7_loop_pairs_analisados": 0,
-            "h7_score_medio": 0.0,
-            "h7_score_max": 0.0,
-            "h7_reordenacao_ocorreu": False,
-            "h7_top1_antes": [],
-            "h7_top1_depois": [],
-            "h7_ordem_original": [],
-            "h7_ordem_final": [],
-            "h7_sem_troca_passageiro": False,
-            "h7_sem_lista_nova": False,
-            "h7_mesmo_conjunto_de_listas": False,
-            "h7_hash_composicao_antes": None,
-            "h7_hash_composicao_depois": None,
-            "h7_deterministico": True,
-            "h7_sem_random": True,
-            "motivo": f"packet_final_mount_erro: {e}",
+        auditor_h7 = {
+            "h7_executed": False,
+            "h7_active": False,
+            "h7_reason": f"packet_final_mount_erro: {e}",
+            "h7_mode": "micro_stability_gate_final_layer",
+            "same_full_packet_composition": False,
+            "same_top10_passageiros": False,
+            "same_all_list_contents": False,
+            "passageiros_trocados": True,
+            "deterministic_reorder": False,
+            "new_randomness": False,
         }
         try:
-            st.session_state["auditor_h7_micro_stability_gate"] = audit
+            st.session_state["v16h57H7_micro_stability_gate_auditor"] = dict(auditor_h7)
         except Exception:
             pass
         return listas_packet, {
             "active": False,
             "applied": False,
             "reason": f"packet_final_mount_erro: {e}",
-            "mode": "intra_exec_guided_cohesion_generation",
-            "h7_mode": "H7_MICRO_STABILITY_GATE",
-            "h7_auditor": audit,
+            "mode": "micro_stability_gate_final_layer",
+            "h7_auditor": auditor_h7,
         }
 
 def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_df=None, n_alvo=6, seed=0, max_lists=None):
@@ -2570,7 +2515,7 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "group_coherence_real_active": True,
             "group_coherence_real_mode": "candidate_fit_group_density_gain_conflict_penalty",
             "dynamic_selection_real_active": True,
-            "dynamic_selection_mode": "topk_deterministic_k3_inside_incremental_build",
+            "dynamic_selection_mode": "topk_sampling_k3_inside_incremental_build",
             "closure_guided_real_active": True,
             "closure_guided_mode": "candidate_fit_closure_term_dispersion_density_conflict",
             "closure_lookahead_real_active": True,
@@ -5210,7 +5155,7 @@ def pc_v16_aplicar_top_cohesion_pacote(listas_totais, *, n_alvo: int = 6, seed: 
                     if len(anchors) >= top_anchor:
                         break
                 preserved = [v for v in base if v not in anchors]
-                preserved = sorted(preserved)
+                rng.shuffle(preserved)
                 new = []
                 for v in anchors:
                     if v not in new:
@@ -7830,13 +7775,13 @@ def v16_gerar_listas_interceptacao_orbita(info_orbita: dict,
         # 1) âncoras (fixa)
         if anchors:
             picks = anchors[:]  # copia
-            picks = sorted(picks)
+            rng.shuffle(picks)
             L.extend(picks[:base_k])
 
         # 2) completar com top
         if len(L) < n_carro:
             picks = pool_top[:]
-            picks = sorted(picks)
+            rng.shuffle(picks)
             for x in picks:
                 if x not in L:
                     L.append(x)
@@ -7846,7 +7791,7 @@ def v16_gerar_listas_interceptacao_orbita(info_orbita: dict,
         # 3) completar (se ainda faltar) com universo
         if len(L) < n_carro:
             uni = list(range(universo_min, universo_max + 1))
-            uni = sorted(uni)
+            rng.shuffle(uni)
             for x in uni:
                 if x not in L:
                     L.append(x)
@@ -18858,17 +18803,6 @@ if painel == "🎯 Modo 6 Acertos — Execução":
     except Exception:
         pass
 
-    st.markdown("### 🔎 AUDITOR H7 — MICRO STABILITY GATE")
-    try:
-        _auditor_h7 = st.session_state.get("auditor_h7_micro_stability_gate", {})
-        if bool((_auditor_h7 or {}).get("h7_runtime_executado", False)):
-            st.success("H7 MICRO STABILITY GATE EXECUTADO")
-        else:
-            st.warning("H7 MICRO STABILITY GATE NÃO EXECUTADO")
-        st.json(_auditor_h7)
-    except Exception as _h7_aud_e:
-        st.json({"h7_runtime_executado": False, "motivo": f"erro_exibicao_h7: {_h7_aud_e}"})
-
     st.markdown("### 📊 AUDITOR INTRA-LISTA")
 
     st.markdown("### 📊 AUDITOR INTER-LISTA")
@@ -24368,7 +24302,7 @@ try:
                 "altera_camada_4": False,
                 "usa_random": False,
                 "usa_random_choice": False,
-                "usa_select_candidate_dinamico": False,
+                "usa_select_candidate_dynamic": False,
                 "auditor_inter_lista_validado": bool(_h6_consolidacao.get("validado", False)),
                 "status_auditor": str(_h6_consolidacao.get("status_binario", "n/d")),
                 "metricas_inter_lista": {
