@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H7A_MICRO_STABILITY_GATE_AUDITOR_RUNTIME_OK"
-BUILD_REAL_FILE = "app_v16h57H7A_MICRO_STABILITY_GATE_AUDITOR_RUNTIME_OK.py"
+BUILD_TAG = "v16h57H8_MICRO_COEXISTENCE_TERM_AUDITOR_OK"
+BUILD_REAL_FILE = "app_v16h57H8_MICRO_COEXISTENCE_TERM_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H7A_MICRO_STABILITY_GATE_AUDITOR_RUNTIME_OK"
+WATERMARK = "BUILD: v16h57H8_MICRO_COEXISTENCE_TERM_AUDITOR_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H7A_MICRO_STABILITY_GATE_AUDITOR_RUNTIME_OK")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8_MICRO_COEXISTENCE_TERM_AUDITOR_OK")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -895,6 +895,33 @@ def pc_v16_full_set_global_selection_layer(listas, co_matrix=None, target_profil
             "listas_antes_hash": hash(str(listas or [])),
             "listas_depois_hash": hash(str(listas or [])),
         }
+
+
+
+# ============================================================
+# V16h57H8 — MICRO COEXISTENCE TERM
+# Ajuste micro-local de coexistência estrutural.
+# Não altera Camada 4, SAFE ou arquitetura-base.
+# ============================================================
+def pc_v16_h8_micro_coexistence_term(group_vals):
+    try:
+        vals = sorted(dict.fromkeys(int(x) for x in list(group_vals or [])))
+        if len(vals) < 2:
+            return 0.0
+
+        gaps = [vals[i+1] - vals[i] for i in range(len(vals)-1)]
+        gap_var = float(np.var(gaps)) if gaps else 0.0
+        spread = float(max(vals) - min(vals)) if vals else 0.0
+
+        compactness = max(0.0, 1.0 - (spread / 60.0))
+        stability = max(0.0, 1.0 - min(gap_var / 25.0, 1.0))
+
+        return float(
+            compactness * 0.12 +
+            stability * 0.18
+        )
+    except Exception:
+        return 0.0
 
 
 # ============================================================
@@ -1439,6 +1466,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                         closure_viability_term = _avg_path * 0.26 + _good_ratio * 0.18 + _best_path * 0.10 - (1.0 - _good_ratio) * 0.18
 
                 historical_closure_evidence_term = historical_evidence_term(candidate, current)
+                h8_micro_coexistence_term = pc_v16_h8_micro_coexistence_term(group_after)
 
                 return float(
                     pair_sum * 0.018
@@ -1452,6 +1480,7 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                     + real_target_profile_term
                     + closure_viability_term
                     + historical_closure_evidence_term
+                    + h8_micro_coexistence_term
                     - zero_penalty * 0.11
                     - spread_penalty * 0.038
                 )
