@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H7_MICRO_STABILITY_GATE_OK"
-BUILD_REAL_FILE = "app_v16h57H7_MICRO_STABILITY_GATE_OK.py"
+BUILD_TAG = "v16h57H7A_MICRO_STABILITY_GATE_AUDITOR_RUNTIME_OK"
+BUILD_REAL_FILE = "app_v16h57H7A_MICRO_STABILITY_GATE_AUDITOR_RUNTIME_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H7_MICRO_STABILITY_GATE_OK"
+WATERMARK = "BUILD: v16h57H7A_MICRO_STABILITY_GATE_AUDITOR_RUNTIME_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H7_MICRO_STABILITY_GATE_OK")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H7A_MICRO_STABILITY_GATE_AUDITOR_RUNTIME_OK")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1858,6 +1858,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         if not pkt:
             auditor_h7 = {
                 "h7_executed": False,
+                "h7_runtime_executado": False,
                 "h7_active": False,
                 "h7_reason": "pacote_vazio",
                 "h7_mode": "micro_stability_gate_final_layer",
@@ -1866,10 +1867,16 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
                 "same_all_list_contents": True,
                 "passageiros_trocados": False,
                 "deterministic_reorder": False,
+                "h7_deterministic_reorder": False,
+                "h7_same_full_packet_composition": True,
+                "h7_passageiros_trocados": False,
+                "listas_alteradas": 0,
+                "score_delta_final_layer": 0.0,
                 "new_randomness": False,
             }
             try:
-                st.session_state["v16h57H7_micro_stability_gate_auditor"] = auditor_h7
+                st.session_state["auditor_h7_micro_stability_gate"] = dict(auditor_h7)
+                st.session_state["v16h57H7_micro_stability_gate_auditor"] = dict(auditor_h7)
             except Exception:
                 pass
             return listas_packet, {
@@ -1997,17 +2004,21 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
 
         auditor_h7 = {
             "h7_executed": True,
+            "h7_runtime_executado": True,
             "h7_active": True,
             "h7_reason": "ok" if applied else "sem_reordenacao_final_necessaria",
             "h7_mode": "micro_stability_gate_final_layer",
             "h7_scope": "pc_v16_packet_final_mount_deep_only",
             "final_layer_only": True,
             "deterministic_reorder": bool(reordered),
+            "h7_deterministic_reorder": bool(reordered),
             "applied": bool(applied),
             "same_full_packet_composition": bool(same_full_packet_composition),
+            "h7_same_full_packet_composition": bool(same_full_packet_composition),
             "same_top10_passageiros": bool(same_top10_passageiros),
             "same_all_list_contents": bool(same_full_packet_composition),
             "passageiros_trocados": bool(not same_full_packet_composition),
+            "h7_passageiros_trocados": bool(not same_full_packet_composition),
             "new_randomness": False,
             "top_k": int(top_k),
             "n_packet_before": int(len(base_packet)),
@@ -2027,6 +2038,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "full_overlap_before": float(full_before_metrics.get("sobreposicao_media", 0.0) or 0.0),
             "full_overlap_after": float(full_after_metrics.get("sobreposicao_media", 0.0) or 0.0),
             "listas_alteradas_posicionalmente": int(len(changed_indices)),
+            "listas_alteradas": int(len(changed_indices)),
             "changed_indices": list(changed_indices),
             "promoted_from_tail": list(promoted_from_tail),
             "score_base_packet": float(score_base_packet),
@@ -2039,6 +2051,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
         }
 
         try:
+            st.session_state["auditor_h7_micro_stability_gate"] = dict(auditor_h7)
             st.session_state["v16h57H7_micro_stability_gate_auditor"] = dict(auditor_h7)
         except Exception:
             pass
@@ -2072,6 +2085,7 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
     except Exception as e:
         auditor_h7 = {
             "h7_executed": False,
+            "h7_runtime_executado": False,
             "h7_active": False,
             "h7_reason": f"packet_final_mount_erro: {e}",
             "h7_mode": "micro_stability_gate_final_layer",
@@ -2080,9 +2094,15 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "same_all_list_contents": False,
             "passageiros_trocados": True,
             "deterministic_reorder": False,
+            "h7_deterministic_reorder": False,
+            "h7_same_full_packet_composition": False,
+            "h7_passageiros_trocados": True,
+            "listas_alteradas": 0,
+            "score_delta_final_layer": 0.0,
             "new_randomness": False,
         }
         try:
+            st.session_state["auditor_h7_micro_stability_gate"] = dict(auditor_h7)
             st.session_state["v16h57H7_micro_stability_gate_auditor"] = dict(auditor_h7)
         except Exception:
             pass
@@ -24344,6 +24364,47 @@ try:
                 "altera_ranking": False,
                 "altera_safe": False,
                 "altera_camada_4": False,
+            })
+
+        st.markdown("#### 🧭 AUDITOR H7A — MICRO STABILITY GATE (FINAL LAYER)")
+        try:
+            _auditor_h7 = st.session_state.get(
+                "auditor_h7_micro_stability_gate",
+                st.session_state.get("v16h57H7_micro_stability_gate_auditor", {})
+            )
+            if not isinstance(_auditor_h7, dict):
+                _auditor_h7 = {}
+
+            _h7_runtime_executado = bool(_auditor_h7.get("h7_runtime_executado", _auditor_h7.get("h7_executed", False)))
+            _h7_same_full_packet_composition = bool(_auditor_h7.get("h7_same_full_packet_composition", _auditor_h7.get("same_full_packet_composition", False)))
+            _h7_passageiros_trocados = bool(_auditor_h7.get("h7_passageiros_trocados", _auditor_h7.get("passageiros_trocados", True)))
+            _h7_deterministic_reorder = bool(_auditor_h7.get("h7_deterministic_reorder", _auditor_h7.get("deterministic_reorder", False)))
+            _listas_alteradas = int(_auditor_h7.get("listas_alteradas", _auditor_h7.get("listas_alteradas_posicionalmente", 0)) or 0)
+            _score_delta_final_layer = float(_auditor_h7.get("score_delta_final_layer", 0.0) or 0.0)
+
+            _auditor_h7_visible = dict(_auditor_h7)
+            _auditor_h7_visible.update({
+                "h7_runtime_executado": bool(_h7_runtime_executado),
+                "h7_same_full_packet_composition": bool(_h7_same_full_packet_composition),
+                "h7_passageiros_trocados": bool(_h7_passageiros_trocados),
+                "h7_deterministic_reorder": bool(_h7_deterministic_reorder),
+                "listas_alteradas": int(_listas_alteradas),
+                "score_delta_final_layer": float(_score_delta_final_layer),
+                "auditor_key_primary": "auditor_h7_micro_stability_gate",
+                "auditor_key_fallback": "v16h57H7_micro_stability_gate_auditor",
+                "auditor_runtime_exposto": bool(len(_auditor_h7) > 0),
+            })
+
+            if bool(_h7_runtime_executado):
+                st.success("H7A runtime executado: TRUE")
+            else:
+                st.error("H7A runtime executado: FALSE")
+            st.json(_auditor_h7_visible)
+        except Exception as _e_h7_panel:
+            st.error("AUDITOR H7A NÃO EXPOSTO")
+            st.json({
+                "h7_runtime_executado": False,
+                "motivo": f"erro_exposicao_auditor_h7: {_e_h7_panel}",
             })
 
         st.markdown("#### 🧪 AUDITORIA DO CT (CONVERSION PRESSURE)")
