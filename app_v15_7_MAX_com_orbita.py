@@ -626,11 +626,11 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8B_MICRO_COEXISTENCE_AUDITOR_VISIBLE_OK"
-BUILD_REAL_FILE = "app_v16h57H8B_MICRO_COEXISTENCE_AUDITOR_VISIBLE_OK.py"
+BUILD_TAG = "v16h57H8C_MICRO_COEXISTENCE_PANEL_HOOK_OK"
+BUILD_REAL_FILE = "app_v16h57H8C_MICRO_COEXISTENCE_PANEL_HOOK_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8B_MICRO_COEXISTENCE_AUDITOR_VISIBLE_OK"
+WATERMARK = "BUILD: v16h57H8C_MICRO_COEXISTENCE_PANEL_HOOK_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
 st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8_MICRO_COEXISTENCE_TERM_AUDITOR_OK")
