@@ -627,7 +627,7 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # ============================================================
 
 BUILD_TAG = "v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK"
-BUILD_REAL_FILE = "app_v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK.py"
+BUILD_REAL_FILE = "app_v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK_FIXED.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "BUILD: v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK"
