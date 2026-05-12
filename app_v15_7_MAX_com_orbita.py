@@ -633,7 +633,7 @@ BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "BUILD: v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8E_MICRO_COEXISTENCE_CANDIDATE_FIT_AUDITOR_OK")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
