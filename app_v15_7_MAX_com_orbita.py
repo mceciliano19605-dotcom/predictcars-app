@@ -626,11 +626,11 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8E_MICRO_COEXISTENCE_CANDIDATE_FIT_AUDITOR_OK"
-BUILD_REAL_FILE = "app_v16h57H8E_MICRO_COEXISTENCE_CANDIDATE_FIT_AUDITOR_OK.py"
+BUILD_TAG = "v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK"
+BUILD_REAL_FILE = "app_v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8E_MICRO_COEXISTENCE_CANDIDATE_FIT_AUDITOR_OK"
+WATERMARK = "BUILD: v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
 st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8E_MICRO_COEXISTENCE_CANDIDATE_FIT_AUDITOR_OK")
@@ -897,6 +897,42 @@ def pc_v16_full_set_global_selection_layer(listas, co_matrix=None, target_profil
         }
 
 
+
+
+
+# ============================================================
+# V16h57H8F — MICRO COEXISTENCE FINE TUNING
+# ============================================================
+def pc_v16_h8f_selective_micro_term(group_nums, raw_term):
+    try:
+        nums = [int(x) for x in list(group_nums or [])]
+        uniq = len(set(nums))
+        repeated = max(0, len(nums) - uniq)
+        spread = (max(nums) - min(nums)) if nums else 0
+
+        selective_factor = 1.0
+
+        if repeated > 0:
+            selective_factor *= 0.55
+
+        if spread < 12:
+            selective_factor *= 1.08
+        elif spread > 40:
+            selective_factor *= 0.88
+
+        tuned = float(raw_term) * float(selective_factor)
+
+        return {
+            "raw_term": float(raw_term),
+            "selective_factor": float(selective_factor),
+            "tuned_term": float(tuned),
+        }
+    except Exception:
+        return {
+            "raw_term": float(raw_term or 0.0),
+            "selective_factor": 1.0,
+            "tuned_term": float(raw_term or 0.0),
+        }
 
 
 # ============================================================
@@ -1608,7 +1644,14 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
             # H8E — auditor próprio do microtermo coexistencial no ponto vivo do candidate_fit.
             try:
                 _h8e_group = list(current) + [int(candidate)]
-                _h8e_micro_term = pc_v16_h8_micro_coexistence_term(_h8e_group)
+                _h8e_micro_term_raw = pc_v16_h8_micro_coexistence_term(_h8e_group)
+
+                _h8f_tuning = pc_v16_h8f_selective_micro_term(
+                    _h8e_group,
+                    _h8e_micro_term_raw
+                )
+
+                _h8e_micro_term = float(_h8f_tuning.get("tuned_term", 0.0))
                 score_final = float(score_final) + float(_h8e_micro_term)
                 pc_v16_h8e_record_candidate_fit_auditor(
                     candidate,
@@ -24507,7 +24550,7 @@ try:
             })
 
         try:
-            st.markdown("#### 🧭 AUDITOR H8E — MICRO COEXISTÊNCIA CANDIDATE_FIT")
+            st.markdown("#### 🧭 AUDITOR H8F — MICRO COEXISTÊNCIA FINE TUNING")
 
             _auditor_h8e = st.session_state.get(
                 "auditor_h8_micro_coexistence",
@@ -24518,7 +24561,7 @@ try:
                 _auditor_h8e_view = dict(_auditor_h8e)
                 _auditor_h8e_view.pop("_deltas_runtime", None)
                 _auditor_h8e_view.pop("_affected_runtime", None)
-                st.success("H8E auditor candidate_fit encontrado em SESSION_STATE")
+                st.success("H8F auditor fine tuning encontrado em SESSION_STATE")
                 st.json(_auditor_h8e_view)
             else:
                 st.warning("AUDITOR H8E NÃO ENCONTRADO EM SESSION_STATE")
