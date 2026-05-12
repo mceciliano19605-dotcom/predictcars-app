@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK"
-BUILD_REAL_FILE = "app_v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK_FIXED.py"
+BUILD_TAG = "v16h57H8G_FUNCTIONAL_ROLE_COEXISTENCE_OK"
+BUILD_REAL_FILE = "app_v16h57H8G_FUNCTIONAL_ROLE_COEXISTENCE_OK_FIXED.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK"
+WATERMARK = "BUILD: v16h57H8G_FUNCTIONAL_ROLE_COEXISTENCE_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8F_MICRO_COEXISTENCE_FINE_TUNING_OK")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8G_FUNCTIONAL_ROLE_COEXISTENCE_OK")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -898,6 +898,180 @@ def pc_v16_full_set_global_selection_layer(listas, co_matrix=None, target_profil
 
 
 
+
+
+
+# ============================================================
+# V16h57H8G — FUNCTIONAL ROLE COEXISTENCE
+# Papel funcional do passageiro dentro do candidate_fit.
+# ============================================================
+def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
+    try:
+        curr = [int(x) for x in list(current or [])]
+        cand = int(candidate)
+        nums = sorted(dict.fromkeys(curr + [cand]))
+
+        if not nums:
+            return {"functional_role_term": 0.0, "role_discrimination": 0.0, "role_factor": 1.0, "role_kind": "empty"}
+
+        gaps = [nums[i+1] - nums[i] for i in range(len(nums)-1)] if len(nums) >= 2 else []
+        gap_var = float(np.var(gaps)) if gaps else 0.0
+        gap_balance = max(0.0, 1.0 - min(gap_var / 30.0, 1.0))
+
+        spread_before = (max(curr) - min(curr)) if curr else 0.0
+        spread_after = (max(nums) - min(nums)) if nums else 0.0
+        expansion = max(0.0, float(spread_after - spread_before))
+
+        if expansion == 0:
+            expansion_factor = 0.88
+        elif expansion <= 8:
+            expansion_factor = 1.08
+        elif expansion <= 18:
+            expansion_factor = 1.00
+        else:
+            expansion_factor = 0.90
+
+        if curr:
+            mn, mx = min(curr), max(curr)
+            bridge_factor = 1.0 if (mn <= cand <= mx) else 0.92
+        else:
+            bridge_factor = 1.0
+
+        near_count = sum(1 for x in curr if abs(cand - int(x)) <= 2)
+        if near_count >= 2:
+            redundancy_factor = 0.82
+        elif near_count == 1:
+            redundancy_factor = 0.94
+        else:
+            redundancy_factor = 1.0
+
+        role_factor = float(expansion_factor * bridge_factor * redundancy_factor * (0.92 + 0.16 * gap_balance))
+        role_factor = max(0.62, min(1.22, role_factor))
+
+        functional_role_term = float(base_micro_term or 0.0) * role_factor
+        role_discrimination = abs(float(functional_role_term) - float(base_micro_term or 0.0))
+
+        role_kind = "neutral"
+        if role_factor > 1.04:
+            role_kind = "functional_boost"
+        elif role_factor < 0.96:
+            role_kind = "functional_penalty"
+
+        return {
+            "functional_role_term": float(functional_role_term),
+            "role_discrimination": float(role_discrimination),
+            "role_factor": float(role_factor),
+            "role_kind": role_kind,
+            "gap_balance": float(gap_balance),
+            "expansion_factor": float(expansion_factor),
+            "bridge_factor": float(bridge_factor),
+            "redundancy_factor": float(redundancy_factor),
+            "near_count": int(near_count),
+        }
+    except Exception:
+        return {
+            "functional_role_term": float(base_micro_term or 0.0),
+            "role_discrimination": 0.0,
+            "role_factor": 1.0,
+            "role_kind": "fallback",
+        }
+
+
+def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, score_after, role_info):
+    try:
+        cand = int(candidate)
+        delta = float(score_after) - float(score_before)
+        disc = float((role_info or {}).get("role_discrimination", abs(delta)) or 0.0)
+
+        prev = st.session_state.get("auditor_h8g_functional_role")
+        if not isinstance(prev, dict):
+            prev = {}
+
+        call_count = int(prev.get("candidate_fit_call_count", 0) or 0) + 1
+
+        deltas = prev.get("_functional_role_deltas_runtime")
+        if not isinstance(deltas, list):
+            deltas = []
+        deltas.append(float(delta))
+        deltas = deltas[-500:]
+
+        affected = prev.get("_functional_role_affected_runtime")
+        if not isinstance(affected, list):
+            affected = []
+        if abs(delta) > 1e-12 and cand not in affected:
+            affected.append(cand)
+
+        ranking_changes = int(prev.get("functional_role_ranking_changes", 0) or 0)
+        if abs(delta) > 1e-12:
+            ranking_changes += 1
+
+        abs_deltas = [abs(float(x)) for x in deltas]
+        delta_medio = float(sum(abs_deltas) / max(1, len(abs_deltas)))
+        delta_max = float(max(abs_deltas)) if abs_deltas else 0.0
+
+        disc_vals = prev.get("_role_discrimination_runtime")
+        if not isinstance(disc_vals, list):
+            disc_vals = []
+        disc_vals.append(float(disc))
+        disc_vals = disc_vals[-500:]
+        role_discrimination_index = float(sum(disc_vals) / max(1, len(disc_vals)))
+
+        samples = prev.get("coexistence_role_samples")
+        if not isinstance(samples, list):
+            samples = []
+        if len(samples) < 30:
+            ri = dict(role_info or {})
+            samples.append({
+                "candidate": int(cand),
+                "current": [int(x) for x in list(current or [])],
+                "score_before": round(float(score_before), 8),
+                "score_after": round(float(score_after), 8),
+                "functional_role_delta": round(float(delta), 10),
+                "role_factor": round(float(ri.get("role_factor", 1.0)), 8),
+                "role_kind": str(ri.get("role_kind", "")),
+                "role_discrimination": round(float(disc), 10),
+            })
+
+        auditor = {
+            "functional_role_executed": True,
+            "candidate_fit_hook_real": True,
+            "candidate_fit_call_count": int(call_count),
+            "functional_role_score_delta_medio": float(delta_medio),
+            "functional_role_score_delta_max": float(delta_max),
+            "functional_role_candidates_affected": int(len(affected)),
+            "functional_role_candidates_affected_list": sorted([int(x) for x in affected]),
+            "functional_role_ranking_changes": int(ranking_changes),
+            "role_discrimination_index": float(role_discrimination_index),
+            "coexistence_role_samples": samples,
+            "impacto_pre_final_mount": bool(len(affected) > 0 or delta_medio > 0),
+            "_functional_role_deltas_runtime": deltas,
+            "_functional_role_affected_runtime": affected,
+            "_role_discrimination_runtime": disc_vals,
+        }
+
+        st.session_state["auditor_h8g_functional_role"] = dict(auditor)
+        st.session_state["v16h57H8G_functional_role_auditor"] = dict(auditor)
+        return auditor
+    except Exception as _e:
+        try:
+            auditor = {
+                "functional_role_executed": False,
+                "candidate_fit_hook_real": False,
+                "candidate_fit_call_count": 0,
+                "functional_role_score_delta_medio": 0.0,
+                "functional_role_score_delta_max": 0.0,
+                "functional_role_candidates_affected": 0,
+                "functional_role_ranking_changes": 0,
+                "role_discrimination_index": 0.0,
+                "coexistence_role_samples": [],
+                "impacto_pre_final_mount": False,
+                "erro": str(_e),
+            }
+            st.session_state["auditor_h8g_functional_role"] = dict(auditor)
+            st.session_state["v16h57H8G_functional_role_auditor"] = dict(auditor)
+        except Exception:
+            pass
+        return {}
 
 
 # ============================================================
@@ -1652,7 +1826,27 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
                 )
 
                 _h8e_micro_term = float(_h8f_tuning.get("tuned_term", 0.0))
+
+                score_final_before_h8g = float(score_final)
+
+                _h8g_role_info = pc_v16_h8g_functional_role_term(
+                    current,
+                    candidate,
+                    _h8e_micro_term
+                )
+                _h8e_micro_term = float(_h8g_role_info.get("functional_role_term", _h8e_micro_term))
                 score_final = float(score_final) + float(_h8e_micro_term)
+
+                try:
+                    pc_v16_h8g_record_functional_role_auditor(
+                        candidate,
+                        current,
+                        score_final_before_h8g,
+                        score_final,
+                        _h8g_role_info,
+                    )
+                except Exception:
+                    pass
                 pc_v16_h8e_record_candidate_fit_auditor(
                     candidate,
                     current,
@@ -24548,6 +24742,28 @@ try:
                 "altera_safe": False,
                 "altera_camada_4": False,
             })
+
+        try:
+            st.markdown("#### 🧭 AUDITOR H8G — FUNCTIONAL ROLE COEXISTENCE")
+
+            _auditor_h8g = st.session_state.get(
+                "auditor_h8g_functional_role",
+                st.session_state.get("v16h57H8G_functional_role_auditor", {})
+            )
+
+            if _auditor_h8g:
+                _auditor_h8g_view = dict(_auditor_h8g)
+                _auditor_h8g_view.pop("_functional_role_deltas_runtime", None)
+                _auditor_h8g_view.pop("_functional_role_affected_runtime", None)
+                _auditor_h8g_view.pop("_role_discrimination_runtime", None)
+                st.success("H8G auditor functional role encontrado em SESSION_STATE")
+                st.json(_auditor_h8g_view)
+            else:
+                st.warning("AUDITOR H8G NÃO ENCONTRADO EM SESSION_STATE")
+
+        except Exception as _h8g_panel_err:
+            st.error(f"H8G panel error: {_h8g_panel_err}")
+
 
         try:
             st.markdown("#### 🧭 AUDITOR H8F — MICRO COEXISTÊNCIA FINE TUNING")
