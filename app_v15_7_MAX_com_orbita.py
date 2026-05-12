@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8G_FUNCTIONAL_ROLE_COEXISTENCE_OK"
-BUILD_REAL_FILE = "app_v16h57H8G_FUNCTIONAL_ROLE_COEXISTENCE_OK_FIXED.py"
+BUILD_TAG = "v16h57H8H_FUNCTIONAL_ROLE_DISCRIMINATION_STRONG_OK"
+BUILD_REAL_FILE = "app_v16h57H8H_FUNCTIONAL_ROLE_DISCRIMINATION_STRONG_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8G_FUNCTIONAL_ROLE_COEXISTENCE_OK"
+WATERMARK = "BUILD: v16h57H8H_FUNCTIONAL_ROLE_DISCRIMINATION_STRONG_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8G_FUNCTIONAL_ROLE_COEXISTENCE_OK")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8H_FUNCTIONAL_ROLE_DISCRIMINATION_STRONG_OK")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -906,6 +906,10 @@ def pc_v16_full_set_global_selection_layer(listas, co_matrix=None, target_profil
 # Papel funcional do passageiro dentro do candidate_fit.
 # ============================================================
 def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
+    """
+    H8H — FUNCTIONAL ROLE DISCRIMINATION STRONG.
+    Mesma hipótese do H8G, com contraste funcional maior.
+    """
     try:
         curr = [int(x) for x in list(current or [])]
         cand = int(candidate)
@@ -916,46 +920,52 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
 
         gaps = [nums[i+1] - nums[i] for i in range(len(nums)-1)] if len(nums) >= 2 else []
         gap_var = float(np.var(gaps)) if gaps else 0.0
-        gap_balance = max(0.0, 1.0 - min(gap_var / 30.0, 1.0))
+        gap_balance = max(0.0, 1.0 - min(gap_var / 24.0, 1.0))
 
         spread_before = (max(curr) - min(curr)) if curr else 0.0
         spread_after = (max(nums) - min(nums)) if nums else 0.0
         expansion = max(0.0, float(spread_after - spread_before))
 
         if expansion == 0:
-            expansion_factor = 0.88
-        elif expansion <= 8:
-            expansion_factor = 1.08
-        elif expansion <= 18:
-            expansion_factor = 1.00
+            expansion_factor = 0.78
+        elif expansion <= 6:
+            expansion_factor = 1.16
+        elif expansion <= 14:
+            expansion_factor = 1.04
+        elif expansion <= 24:
+            expansion_factor = 0.96
         else:
-            expansion_factor = 0.90
+            expansion_factor = 0.84
 
         if curr:
             mn, mx = min(curr), max(curr)
-            bridge_factor = 1.0 if (mn <= cand <= mx) else 0.92
+            bridge_factor = 1.08 if (mn <= cand <= mx) else 0.86
         else:
             bridge_factor = 1.0
 
         near_count = sum(1 for x in curr if abs(cand - int(x)) <= 2)
-        if near_count >= 2:
-            redundancy_factor = 0.82
+        if near_count >= 3:
+            redundancy_factor = 0.62
+        elif near_count == 2:
+            redundancy_factor = 0.72
         elif near_count == 1:
-            redundancy_factor = 0.94
+            redundancy_factor = 0.88
         else:
-            redundancy_factor = 1.0
+            redundancy_factor = 1.04
 
-        role_factor = float(expansion_factor * bridge_factor * redundancy_factor * (0.92 + 0.16 * gap_balance))
-        role_factor = max(0.62, min(1.22, role_factor))
+        balance_factor = 0.86 + 0.28 * float(gap_balance)
+        role_factor = float(expansion_factor * bridge_factor * redundancy_factor * balance_factor)
+        role_factor = max(0.48, min(1.38, role_factor))
 
         functional_role_term = float(base_micro_term or 0.0) * role_factor
         role_discrimination = abs(float(functional_role_term) - float(base_micro_term or 0.0))
 
-        role_kind = "neutral"
-        if role_factor > 1.04:
+        if role_factor >= 1.08:
             role_kind = "functional_boost"
-        elif role_factor < 0.96:
+        elif role_factor <= 0.92:
             role_kind = "functional_penalty"
+        else:
+            role_kind = "neutral"
 
         return {
             "functional_role_term": float(functional_role_term),
@@ -966,7 +976,9 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "expansion_factor": float(expansion_factor),
             "bridge_factor": float(bridge_factor),
             "redundancy_factor": float(redundancy_factor),
+            "balance_factor": float(balance_factor),
             "near_count": int(near_count),
+            "h8h_strong_discrimination": True,
         }
     except Exception:
         return {
@@ -974,6 +986,7 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "role_discrimination": 0.0,
             "role_factor": 1.0,
             "role_kind": "fallback",
+            "h8h_strong_discrimination": False,
         }
 
 
@@ -1032,6 +1045,21 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
                 "role_discrimination": round(float(disc), 10),
             })
 
+        boost_count = 0
+        penalty_count = 0
+        neutral_count = 0
+        try:
+            for _s in samples:
+                _rk = str(_s.get("role_kind", "neutral"))
+                if _rk == "functional_boost":
+                    boost_count += 1
+                elif _rk == "functional_penalty":
+                    penalty_count += 1
+                else:
+                    neutral_count += 1
+        except Exception:
+            pass
+
         auditor = {
             "functional_role_executed": True,
             "candidate_fit_hook_real": True,
@@ -1042,6 +1070,9 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             "functional_role_candidates_affected_list": sorted([int(x) for x in affected]),
             "functional_role_ranking_changes": int(ranking_changes),
             "role_discrimination_index": float(role_discrimination_index),
+            "functional_boost_count": int(boost_count),
+            "functional_penalty_count": int(penalty_count),
+            "neutral_count": int(neutral_count),
             "coexistence_role_samples": samples,
             "impacto_pre_final_mount": bool(len(affected) > 0 or delta_medio > 0),
             "_functional_role_deltas_runtime": deltas,
@@ -24744,7 +24775,7 @@ try:
             })
 
         try:
-            st.markdown("#### 🧭 AUDITOR H8G — FUNCTIONAL ROLE COEXISTENCE")
+            st.markdown("#### 🧭 AUDITOR H8H — FUNCTIONAL ROLE DISCRIMINATION STRONG")
 
             _auditor_h8g = st.session_state.get(
                 "auditor_h8g_functional_role",
@@ -24756,10 +24787,10 @@ try:
                 _auditor_h8g_view.pop("_functional_role_deltas_runtime", None)
                 _auditor_h8g_view.pop("_functional_role_affected_runtime", None)
                 _auditor_h8g_view.pop("_role_discrimination_runtime", None)
-                st.success("H8G auditor functional role encontrado em SESSION_STATE")
+                st.success("H8H auditor functional role discrimination encontrado em SESSION_STATE")
                 st.json(_auditor_h8g_view)
             else:
-                st.warning("AUDITOR H8G NÃO ENCONTRADO EM SESSION_STATE")
+                st.warning("AUDITOR H8H NÃO ENCONTRADO EM SESSION_STATE")
 
         except Exception as _h8g_panel_err:
             st.error(f"H8G panel error: {_h8g_panel_err}")
