@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8D_VISUAL_PATH_TRACER_OK"
-BUILD_REAL_FILE = "app_v16h57H8D_VISUAL_PATH_TRACER_OK.py"
+BUILD_TAG = "v16h57H8E_MICRO_COEXISTENCE_CANDIDATE_FIT_AUDITOR_OK"
+BUILD_REAL_FILE = "app_v16h57H8E_MICRO_COEXISTENCE_CANDIDATE_FIT_AUDITOR_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8D_VISUAL_PATH_TRACER_OK"
+WATERMARK = "BUILD: v16h57H8E_MICRO_COEXISTENCE_CANDIDATE_FIT_AUDITOR_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8_MICRO_COEXISTENCE_TERM_AUDITOR_OK")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8E_MICRO_COEXISTENCE_CANDIDATE_FIT_AUDITOR_OK")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -896,6 +896,101 @@ def pc_v16_full_set_global_selection_layer(listas, co_matrix=None, target_profil
             "listas_depois_hash": hash(str(listas or [])),
         }
 
+
+
+
+# ============================================================
+# V16h57H8E — MICRO COEXISTENCE CANDIDATE_FIT AUDITOR
+# Grava auditor próprio no ponto vivo do candidate_fit.
+# Não altera SAFE, final_mount, H7A, Camada 4 ou volume.
+# ============================================================
+def pc_v16_h8e_record_candidate_fit_auditor(candidate, current, sb, score_final, micro_term, listas_hash=None):
+    try:
+        delta = float(micro_term or 0.0)
+        candidate_i = int(candidate)
+
+        prev = st.session_state.get("auditor_h8_micro_coexistence")
+        if not isinstance(prev, dict):
+            prev = {}
+
+        call_count = int(prev.get("candidate_fit_call_count", 0) or 0) + 1
+
+        deltas = prev.get("_deltas_runtime")
+        if not isinstance(deltas, list):
+            deltas = []
+        deltas.append(float(delta))
+        deltas = deltas[-500:]
+
+        affected = prev.get("_affected_runtime")
+        if not isinstance(affected, list):
+            affected = []
+        if abs(delta) > 1e-12 and candidate_i not in affected:
+            affected.append(candidate_i)
+
+        ranking_changes = int(prev.get("micro_coexistence_ranking_changes", 0) or 0)
+        local_pairing_changes = int(prev.get("local_pairing_changes", 0) or 0)
+        if abs(delta) > 1e-12:
+            ranking_changes += 1
+            local_pairing_changes += 1
+
+        abs_deltas = [abs(float(x)) for x in deltas]
+        delta_medio = float(sum(abs_deltas) / max(1, len(abs_deltas)))
+        delta_max = float(max(abs_deltas)) if abs_deltas else 0.0
+
+        samples = prev.get("samples")
+        if not isinstance(samples, list):
+            samples = []
+        if len(samples) < 30:
+            samples.append({
+                "candidate": int(candidate_i),
+                "current": [int(x) for x in list(current or [])],
+                "score_base": round(float(sb), 8),
+                "score_final": round(float(score_final), 8),
+                "micro_coexistence_term": round(float(delta), 10),
+            })
+
+        auditor_h8 = {
+            "micro_coexistence_executed": True,
+            "candidate_fit_hook_real": True,
+            "candidate_fit_call_count": int(call_count),
+            "micro_coexistence_score_delta_medio": float(delta_medio),
+            "micro_coexistence_score_delta_max": float(delta_max),
+            "micro_coexistence_candidates_affected": int(len(affected)),
+            "micro_coexistence_candidates_affected_list": sorted([int(x) for x in affected]),
+            "micro_coexistence_ranking_changes": int(ranking_changes),
+            "coexistence_delta": float(delta_medio),
+            "local_pairing_changes": int(local_pairing_changes),
+            "impacto_pre_final_mount": bool(len(affected) > 0 or delta_medio > 0),
+            "listas_pre_final_mount_hash": listas_hash,
+            "samples": samples,
+            "_deltas_runtime": deltas,
+            "_affected_runtime": affected,
+        }
+
+        st.session_state["auditor_h8_micro_coexistence"] = dict(auditor_h8)
+        st.session_state["v16h57H8_micro_coexistence_auditor"] = dict(auditor_h8)
+        return auditor_h8
+    except Exception as _e:
+        try:
+            auditor_err = {
+                "micro_coexistence_executed": False,
+                "candidate_fit_hook_real": False,
+                "candidate_fit_call_count": 0,
+                "micro_coexistence_score_delta_medio": 0.0,
+                "micro_coexistence_score_delta_max": 0.0,
+                "micro_coexistence_candidates_affected": 0,
+                "micro_coexistence_ranking_changes": 0,
+                "coexistence_delta": 0.0,
+                "local_pairing_changes": 0,
+                "impacto_pre_final_mount": False,
+                "listas_pre_final_mount_hash": None,
+                "erro": str(_e),
+            }
+            st.session_state["auditor_h8_micro_coexistence"] = dict(auditor_err)
+            st.session_state["v16h57H8_micro_coexistence_auditor"] = dict(auditor_err)
+        except Exception:
+            pass
+        return {}
 
 
 # ============================================================
@@ -1509,6 +1604,22 @@ def pc_v16_generate_lists_cooccurrence(ranking, co_matrix, n=6, k_lists=12, temp
             h1_clipped = max(-500.0, min(500.0, h1))
 
             score_final = sb + (0.08 * h1_clipped)
+
+            # H8E — auditor próprio do microtermo coexistencial no ponto vivo do candidate_fit.
+            try:
+                _h8e_group = list(current) + [int(candidate)]
+                _h8e_micro_term = pc_v16_h8_micro_coexistence_term(_h8e_group)
+                score_final = float(score_final) + float(_h8e_micro_term)
+                pc_v16_h8e_record_candidate_fit_auditor(
+                    candidate,
+                    current,
+                    sb,
+                    score_final,
+                    _h8e_micro_term,
+                    listas_hash=None,
+                )
+            except Exception:
+                pass
 
             if audit_collector is not None and sb > -1e8 and score_final > -1e8:
                 delta_dbg = float(score_final - sb)
@@ -24394,6 +24505,27 @@ try:
                 "altera_safe": False,
                 "altera_camada_4": False,
             })
+
+        try:
+            st.markdown("#### 🧭 AUDITOR H8E — MICRO COEXISTÊNCIA CANDIDATE_FIT")
+
+            _auditor_h8e = st.session_state.get(
+                "auditor_h8_micro_coexistence",
+                st.session_state.get("v16h57H8_micro_coexistence_auditor", {})
+            )
+
+            if _auditor_h8e:
+                _auditor_h8e_view = dict(_auditor_h8e)
+                _auditor_h8e_view.pop("_deltas_runtime", None)
+                _auditor_h8e_view.pop("_affected_runtime", None)
+                st.success("H8E auditor candidate_fit encontrado em SESSION_STATE")
+                st.json(_auditor_h8e_view)
+            else:
+                st.warning("AUDITOR H8E NÃO ENCONTRADO EM SESSION_STATE")
+
+        except Exception as _h8e_panel_err:
+            st.error(f"H8E panel error: {_h8e_panel_err}")
+
 
         st.markdown("#### 🧭 AUDITOR H7A — MICRO STABILITY GATE (FINAL LAYER)")
         try:
