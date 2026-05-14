@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8J_FUNCTIONAL_BALANCE_MIDPOINT_OK"
-BUILD_REAL_FILE = "app_v16h57H8J_FUNCTIONAL_BALANCE_MIDPOINT_OK.py"
+BUILD_TAG = "v16h57H8K_NEGATIVE_FUNCTIONAL_COEXISTENCE_OK"
+BUILD_REAL_FILE = "app_v16h57H8K_NEGATIVE_FUNCTIONAL_COEXISTENCE_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8J_FUNCTIONAL_BALANCE_MIDPOINT_OK"
+WATERMARK = "BUILD: v16h57H8K_NEGATIVE_FUNCTIONAL_COEXISTENCE_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8J_FUNCTIONAL_BALANCE_MIDPOINT_OK")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8K_NEGATIVE_FUNCTIONAL_COEXISTENCE_OK")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -907,9 +907,9 @@ def pc_v16_full_set_global_selection_layer(listas, co_matrix=None, target_profil
 # ============================================================
 def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
     """
-    H8J — FUNCTIONAL BALANCE MIDPOINT.
-    Ponto médio calibrado entre H8H (penalty forte)
-    e H8I (boost excessivo).
+    H8K — NEGATIVE FUNCTIONAL COEXISTENCE.
+    Mantém o midpoint funcional do H8J, mas adiciona penalty
+    coexistencial negativo contextual real: quem NÃO deve coexistir.
     """
     try:
         curr = [int(x) for x in list(current or [])]
@@ -922,7 +922,9 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
                 "role_discrimination": 0.0,
                 "role_factor": 1.0,
                 "role_kind": "empty",
-                "h8j_midpoint_balance": True,
+                "negative_coexistence": False,
+                "negative_reason": "empty",
+                "h8k_negative_functional_coexistence": True,
             }
 
         gaps = [nums[i+1] - nums[i] for i in range(len(nums)-1)] if len(nums) >= 2 else []
@@ -933,7 +935,7 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
         spread_after = (max(nums) - min(nums)) if nums else 0.0
         expansion = max(0.0, float(spread_after - spread_before))
 
-        # Midpoint calibrated expansion
+        # H8J midpoint preservado
         if expansion == 0:
             expansion_factor = 0.81
         elif expansion <= 6:
@@ -945,7 +947,6 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
         else:
             expansion_factor = 0.86
 
-        # Midpoint bridge behavior
         if curr:
             mn, mx = min(curr), max(curr)
             bridge_factor = 1.075 if (mn <= cand <= mx) else 0.88
@@ -954,7 +955,7 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
 
         near_count = sum(1 for x in curr if abs(cand - int(x)) <= 2)
 
-        # Midpoint redundancy penalty
+        # H8J midpoint redundancy baseline
         if near_count >= 3:
             redundancy_factor = 0.66
         elif near_count == 2:
@@ -963,6 +964,29 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             redundancy_factor = 0.90
         else:
             redundancy_factor = 1.06
+
+        negative_coexistence = False
+        negative_reason = "none"
+
+        # H8K — penalty contextual real:
+        # 1) redundância local explícita
+        if near_count >= 2:
+            negative_coexistence = True
+            negative_reason = "redundancia_local"
+            redundancy_factor *= 0.84
+
+        # 2) candidato fora da ponte e com baixa expansão útil
+        if curr:
+            if not (min(curr) <= cand <= max(curr)) and expansion <= 3:
+                negative_coexistence = True
+                negative_reason = "fora_da_ponte_sem_expansao"
+                redundancy_factor *= 0.82
+
+        # 3) grupo com lacunas ruins: coexistência parece possível, mas é funcionalmente fraca
+        if gap_balance < 0.42 and len(curr) >= 2:
+            negative_coexistence = True
+            negative_reason = "lacunas_funcionais_ruins"
+            redundancy_factor *= 0.88
 
         balance_factor = 0.87 + 0.27 * float(gap_balance)
 
@@ -973,20 +997,19 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             balance_factor
         )
 
-        role_factor = max(0.53, min(1.36, role_factor))
+        # Mantém boost moderado e permite penalty real sem colapso global
+        role_factor = max(0.44, min(1.36, role_factor))
 
         functional_role_term = float(base_micro_term or 0.0) * role_factor
-
         role_discrimination = abs(
             float(functional_role_term) -
             float(base_micro_term or 0.0)
         )
 
-        # Midpoint thresholds
-        if role_factor >= 1.07:
-            role_kind = "functional_boost"
-        elif role_factor <= 0.91:
+        if bool(negative_coexistence) or role_factor <= 0.91:
             role_kind = "functional_penalty"
+        elif role_factor >= 1.07:
+            role_kind = "functional_boost"
         else:
             role_kind = "neutral"
 
@@ -1001,7 +1024,9 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "redundancy_factor": float(redundancy_factor),
             "balance_factor": float(balance_factor),
             "near_count": int(near_count),
-            "h8j_midpoint_balance": True,
+            "negative_coexistence": bool(negative_coexistence),
+            "negative_reason": str(negative_reason),
+            "h8k_negative_functional_coexistence": True,
         }
 
     except Exception:
@@ -1010,7 +1035,9 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "role_discrimination": 0.0,
             "role_factor": 1.0,
             "role_kind": "fallback",
-            "h8j_midpoint_balance": False,
+            "negative_coexistence": False,
+            "negative_reason": "fallback",
+            "h8k_negative_functional_coexistence": False,
         }
 
 
@@ -1067,6 +1094,8 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
                 "role_factor": round(float(ri.get("role_factor", 1.0)), 8),
                 "role_kind": str(ri.get("role_kind", "")),
                 "role_discrimination": round(float(disc), 10),
+                "negative_coexistence": bool(ri.get("negative_coexistence", False)),
+                "negative_reason": str(ri.get("negative_reason", "")),
             })
 
         boost_count = 0
@@ -1089,6 +1118,19 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
         except Exception:
             functional_balance_ratio = 0.0
 
+        negative_coexistence_count = 0
+        negative_coexistence_samples = []
+        try:
+            for _s in samples:
+                _rk = str(_s.get("role_kind", "neutral"))
+                _neg = bool(_s.get("negative_coexistence", False))
+                if _neg or _rk == "functional_penalty":
+                    negative_coexistence_count += 1
+                    if len(negative_coexistence_samples) < 15:
+                        negative_coexistence_samples.append(dict(_s))
+        except Exception:
+            pass
+
         auditor = {
             "functional_role_executed": True,
             "candidate_fit_hook_real": True,
@@ -1102,6 +1144,8 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             "functional_boost_count": int(boost_count),
             "functional_penalty_count": int(penalty_count),
             "neutral_count": int(neutral_count),
+            "negative_coexistence_count": int(negative_coexistence_count),
+            "negative_coexistence_samples": negative_coexistence_samples,
             "functional_balance_ratio": float(functional_balance_ratio),
             "coexistence_role_samples": samples,
             "impacto_pre_final_mount": bool(len(affected) > 0 or delta_medio > 0),
@@ -24805,7 +24849,7 @@ try:
             })
 
         try:
-            st.markdown("#### 🧭 AUDITOR H8J — FUNCTIONAL BALANCE MIDPOINT")
+            st.markdown("#### 🧭 AUDITOR H8K — NEGATIVE FUNCTIONAL COEXISTENCE")
 
             _auditor_h8g = st.session_state.get(
                 "auditor_h8g_functional_role",
@@ -24817,10 +24861,10 @@ try:
                 _auditor_h8g_view.pop("_functional_role_deltas_runtime", None)
                 _auditor_h8g_view.pop("_functional_role_affected_runtime", None)
                 _auditor_h8g_view.pop("_role_discrimination_runtime", None)
-                st.success("H8J auditor functional midpoint encontrado em SESSION_STATE")
+                st.success("H8K auditor negative coexistence encontrado em SESSION_STATE")
                 st.json(_auditor_h8g_view)
             else:
-                st.warning("AUDITOR H8J NÃO ENCONTRADO EM SESSION_STATE")
+                st.warning("AUDITOR H8K NÃO ENCONTRADO EM SESSION_STATE")
 
         except Exception as _h8g_panel_err:
             st.error(f"H8G panel error: {_h8g_panel_err}")
