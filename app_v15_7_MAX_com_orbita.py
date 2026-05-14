@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8I_FUNCTIONAL_BALANCE_CORRECTION_OK"
-BUILD_REAL_FILE = "app_v16h57H8I_FUNCTIONAL_BALANCE_CORRECTION_OK.py"
+BUILD_TAG = "v16h57H8J_FUNCTIONAL_BALANCE_MIDPOINT_OK"
+BUILD_REAL_FILE = "app_v16h57H8J_FUNCTIONAL_BALANCE_MIDPOINT_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8I_FUNCTIONAL_BALANCE_CORRECTION_OK"
+WATERMARK = "BUILD: v16h57H8J_FUNCTIONAL_BALANCE_MIDPOINT_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8I_FUNCTIONAL_BALANCE_CORRECTION_OK")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8J_FUNCTIONAL_BALANCE_MIDPOINT_OK")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -907,8 +907,9 @@ def pc_v16_full_set_global_selection_layer(listas, co_matrix=None, target_profil
 # ============================================================
 def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
     """
-    H8I — FUNCTIONAL BALANCE CORRECTION.
-    Mantém discriminação funcional, reduz excesso de penalty e valoriza boost útil.
+    H8J — FUNCTIONAL BALANCE MIDPOINT.
+    Ponto médio calibrado entre H8H (penalty forte)
+    e H8I (boost excessivo).
     """
     try:
         curr = [int(x) for x in list(current or [])]
@@ -916,53 +917,75 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
         nums = sorted(dict.fromkeys(curr + [cand]))
 
         if not nums:
-            return {"functional_role_term": 0.0, "role_discrimination": 0.0, "role_factor": 1.0, "role_kind": "empty", "h8i_balance_correction": True}
+            return {
+                "functional_role_term": 0.0,
+                "role_discrimination": 0.0,
+                "role_factor": 1.0,
+                "role_kind": "empty",
+                "h8j_midpoint_balance": True,
+            }
 
         gaps = [nums[i+1] - nums[i] for i in range(len(nums)-1)] if len(nums) >= 2 else []
         gap_var = float(np.var(gaps)) if gaps else 0.0
-        gap_balance = max(0.0, 1.0 - min(gap_var / 26.0, 1.0))
+        gap_balance = max(0.0, 1.0 - min(gap_var / 25.0, 1.0))
 
         spread_before = (max(curr) - min(curr)) if curr else 0.0
         spread_after = (max(nums) - min(nums)) if nums else 0.0
         expansion = max(0.0, float(spread_after - spread_before))
 
+        # Midpoint calibrated expansion
         if expansion == 0:
-            expansion_factor = 0.84
+            expansion_factor = 0.81
         elif expansion <= 6:
-            expansion_factor = 1.18
+            expansion_factor = 1.17
         elif expansion <= 14:
-            expansion_factor = 1.08
+            expansion_factor = 1.06
         elif expansion <= 24:
-            expansion_factor = 0.99
+            expansion_factor = 0.975
         else:
-            expansion_factor = 0.88
+            expansion_factor = 0.86
 
+        # Midpoint bridge behavior
         if curr:
             mn, mx = min(curr), max(curr)
-            bridge_factor = 1.07 if (mn <= cand <= mx) else 0.90
+            bridge_factor = 1.075 if (mn <= cand <= mx) else 0.88
         else:
             bridge_factor = 1.0
 
         near_count = sum(1 for x in curr if abs(cand - int(x)) <= 2)
-        if near_count >= 3:
-            redundancy_factor = 0.70
-        elif near_count == 2:
-            redundancy_factor = 0.80
-        elif near_count == 1:
-            redundancy_factor = 0.92
-        else:
-            redundancy_factor = 1.08
 
-        balance_factor = 0.88 + 0.26 * float(gap_balance)
-        role_factor = float(expansion_factor * bridge_factor * redundancy_factor * balance_factor)
-        role_factor = max(0.58, min(1.34, role_factor))
+        # Midpoint redundancy penalty
+        if near_count >= 3:
+            redundancy_factor = 0.66
+        elif near_count == 2:
+            redundancy_factor = 0.76
+        elif near_count == 1:
+            redundancy_factor = 0.90
+        else:
+            redundancy_factor = 1.06
+
+        balance_factor = 0.87 + 0.27 * float(gap_balance)
+
+        role_factor = float(
+            expansion_factor *
+            bridge_factor *
+            redundancy_factor *
+            balance_factor
+        )
+
+        role_factor = max(0.53, min(1.36, role_factor))
 
         functional_role_term = float(base_micro_term or 0.0) * role_factor
-        role_discrimination = abs(float(functional_role_term) - float(base_micro_term or 0.0))
 
-        if role_factor >= 1.06:
+        role_discrimination = abs(
+            float(functional_role_term) -
+            float(base_micro_term or 0.0)
+        )
+
+        # Midpoint thresholds
+        if role_factor >= 1.07:
             role_kind = "functional_boost"
-        elif role_factor <= 0.90:
+        elif role_factor <= 0.91:
             role_kind = "functional_penalty"
         else:
             role_kind = "neutral"
@@ -978,15 +1001,16 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "redundancy_factor": float(redundancy_factor),
             "balance_factor": float(balance_factor),
             "near_count": int(near_count),
-            "h8i_balance_correction": True,
+            "h8j_midpoint_balance": True,
         }
+
     except Exception:
         return {
             "functional_role_term": float(base_micro_term or 0.0),
             "role_discrimination": 0.0,
             "role_factor": 1.0,
             "role_kind": "fallback",
-            "h8i_balance_correction": False,
+            "h8j_midpoint_balance": False,
         }
 
 
@@ -24781,7 +24805,7 @@ try:
             })
 
         try:
-            st.markdown("#### 🧭 AUDITOR H8I — FUNCTIONAL BALANCE CORRECTION")
+            st.markdown("#### 🧭 AUDITOR H8J — FUNCTIONAL BALANCE MIDPOINT")
 
             _auditor_h8g = st.session_state.get(
                 "auditor_h8g_functional_role",
@@ -24793,10 +24817,10 @@ try:
                 _auditor_h8g_view.pop("_functional_role_deltas_runtime", None)
                 _auditor_h8g_view.pop("_functional_role_affected_runtime", None)
                 _auditor_h8g_view.pop("_role_discrimination_runtime", None)
-                st.success("H8I auditor functional balance encontrado em SESSION_STATE")
+                st.success("H8J auditor functional midpoint encontrado em SESSION_STATE")
                 st.json(_auditor_h8g_view)
             else:
-                st.warning("AUDITOR H8I NÃO ENCONTRADO EM SESSION_STATE")
+                st.warning("AUDITOR H8J NÃO ENCONTRADO EM SESSION_STATE")
 
         except Exception as _h8g_panel_err:
             st.error(f"H8G panel error: {_h8g_panel_err}")
