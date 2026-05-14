@@ -626,11 +626,11 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8K_NEGATIVE_FUNCTIONAL_COEXISTENCE_OK"
-BUILD_REAL_FILE = "app_v16h57H8K_NEGATIVE_FUNCTIONAL_COEXISTENCE_OK_FINAL.py"
+BUILD_TAG = "v16h57H8L_NEGATIVE_COEXISTENCE_COVERAGE_OK"
+BUILD_REAL_FILE = "app_v16h57H8L_NEGATIVE_COEXISTENCE_COVERAGE_OK.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8K_NEGATIVE_FUNCTIONAL_COEXISTENCE_OK"
+WATERMARK = "BUILD: v16h57H8L_NEGATIVE_COEXISTENCE_COVERAGE_OK"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
 st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8K_NEGATIVE_FUNCTIONAL_COEXISTENCE_OK")
@@ -24849,7 +24849,7 @@ try:
             })
 
         try:
-            st.markdown("#### 🧭 AUDITOR H8K — NEGATIVE FUNCTIONAL COEXISTENCE")
+            st.markdown("#### 🧭 AUDITOR H8L — NEGATIVE COEXISTENCE COVERAGE")
 
             _auditor_h8g = st.session_state.get(
                 "auditor_h8g_functional_role",
