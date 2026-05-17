@@ -626,11 +626,11 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_B_NEGATIVE_PRECISION_REBALANCE"
-BUILD_REAL_FILE = "app_v16h57H8M_B_NEGATIVE_PRECISION_REBALANCE.py"
+BUILD_TAG = "v16h57H8M_C_NEGATIVE_TRIGGER_REBALANCE"
+BUILD_REAL_FILE = "app_v16h57H8M_C_NEGATIVE_TRIGGER_REBALANCE.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_B_NEGATIVE_PRECISION_REBALANCE"
+WATERMARK = "BUILD: v16h57H8M_C_NEGATIVE_TRIGGER_REBALANCE"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
 st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_B_NEGATIVE_PRECISION_REBALANCE")
@@ -907,24 +907,12 @@ def pc_v16_full_set_global_selection_layer(listas, co_matrix=None, target_profil
 # ============================================================
 def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
     """
-    H8M-B — NEGATIVE PRECISION REBALANCE.
+    H8M-C — NEGATIVE TRIGGER REBALANCE.
     """
     try:
         curr = [int(x) for x in list(current or [])]
         cand = int(candidate)
-
         nums = sorted(dict.fromkeys(curr + [cand]))
-
-        if not nums:
-            return {
-                "functional_role_term": 0.0,
-                "role_discrimination": 0.0,
-                "role_factor": 1.0,
-                "role_kind": "empty",
-                "negative_coexistence": False,
-                "negative_reason": "empty",
-                "h8mb_negative_precision_rebalance": True,
-            }
 
         gaps = [nums[i+1] - nums[i] for i in range(len(nums)-1)] if len(nums) >= 2 else []
         gap_var = float(np.var(gaps)) if gaps else 0.0
@@ -934,16 +922,7 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
         spread_after = (max(nums) - min(nums)) if nums else 0.0
         expansion = max(0.0, float(spread_after - spread_before))
 
-        if expansion == 0:
-            expansion_factor = 0.84
-        elif expansion <= 4:
-            expansion_factor = 1.10
-        elif expansion <= 10:
-            expansion_factor = 1.06
-        elif expansion <= 24:
-            expansion_factor = 0.98
-        else:
-            expansion_factor = 0.90
+        expansion_factor = 1.06 if expansion <= 10 else 0.92
 
         if curr:
             mn, mx = min(curr), max(curr)
@@ -980,39 +959,38 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
 
         bad_gap_contextual = (
             near_count >= 2
-            and gap_balance < 0.38
+            and gap_balance < 0.52
             and expansion <= 6
         )
 
-        coexistence_density = (
+        if (
             near_count >= 2
-            and gap_balance < 0.48
-            and expansion <= 10
-        )
-
-        if repeated_micro_cluster and coexistence_density:
-            redundancy_factor *= 0.82
+            and (
+                repeated_micro_cluster
+                or edge_collapse_contextual
+                or bad_gap_contextual
+            )
+        ):
+            redundancy_factor *= 0.88
             negative_coexistence = True
-            negative_reason = "micro_cluster_contextual"
-
-        elif edge_collapse_contextual and coexistence_density:
-            redundancy_factor *= 0.84
-            negative_coexistence = True
-            negative_reason = "edge_collapse_contextual"
-
-        elif bad_gap_contextual and coexistence_density:
-            redundancy_factor *= 0.86
-            negative_coexistence = True
-            negative_reason = "bad_gap_contextual"
+            negative_reason = "contextual_negative_trigger"
 
         elif (
             near_count >= 3
-            and gap_balance < 0.44
-            and expansion <= 8
+            and gap_balance < 0.58
         ):
-            redundancy_factor *= 0.80
+            redundancy_factor *= 0.86
             negative_coexistence = True
             negative_reason = "dense_redundancy_contextual"
+
+        elif (
+            near_count >= 2
+            and gap_balance < 0.62
+            and expansion <= 10
+        ):
+            redundancy_factor *= 0.90
+            negative_coexistence = True
+            negative_reason = "moderate_contextual_density"
 
         balance_factor = 0.90 + 0.20 * float(gap_balance)
 
@@ -1044,15 +1022,9 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "role_discrimination": float(role_discrimination),
             "role_factor": float(role_factor),
             "role_kind": role_kind,
-            "gap_balance": float(gap_balance),
-            "expansion_factor": float(expansion_factor),
-            "bridge_factor": float(bridge_factor),
-            "redundancy_factor": float(redundancy_factor),
-            "balance_factor": float(balance_factor),
-            "near_count": int(near_count),
             "negative_coexistence": bool(negative_coexistence),
             "negative_reason": str(negative_reason),
-            "h8mb_negative_precision_rebalance": True,
+            "h8mc_negative_trigger_rebalance": True,
         }
 
     except Exception:
@@ -1063,7 +1035,7 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "role_kind": "fallback",
             "negative_coexistence": False,
             "negative_reason": "fallback",
-            "h8mb_negative_precision_rebalance": False,
+            "h8mc_negative_trigger_rebalance": False,
         }
 
 
@@ -24875,7 +24847,7 @@ try:
             })
 
         try:
-            st.markdown("#### 🧭 AUDITOR H8M-B — NEGATIVE PRECISION REBALANCE")
+            st.markdown("#### 🧭 AUDITOR H8M-C — NEGATIVE TRIGGER REBALANCE")
 
             _auditor_h8g = st.session_state.get(
                 "auditor_h8g_functional_role",
@@ -24890,7 +24862,7 @@ try:
                 st.success("H8M auditor negative precision encontrado em SESSION_STATE")
                 st.json(_auditor_h8g_view)
             else:
-                st.warning("AUDITOR H8M-B NÃO ENCONTRADO EM SESSION_STATE")
+                st.warning("AUDITOR H8M-C NÃO ENCONTRADO EM SESSION_STATE")
 
         except Exception as _h8g_panel_err:
             st.error(f"H8G panel error: {_h8g_panel_err}")
