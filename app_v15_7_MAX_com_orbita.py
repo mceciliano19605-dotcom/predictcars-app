@@ -626,11 +626,11 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_C_NEGATIVE_TRIGGER_REBALANCE"
-BUILD_REAL_FILE = "app_v16h57H8M_C_NEGATIVE_TRIGGER_REBALANCE.py"
+BUILD_TAG = "v16h57H8M_D_AUDITOR_RUNTIME_COUNTS"
+BUILD_REAL_FILE = "app_v16h57H8M_D_AUDITOR_RUNTIME_COUNTS.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_C_NEGATIVE_TRIGGER_REBALANCE"
+WATERMARK = "BUILD: v16h57H8M_D_AUDITOR_RUNTIME_COUNTS"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
 st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_C_NEGATIVE_TRIGGER_REBALANCE")
@@ -1055,11 +1055,12 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
         if not isinstance(deltas, list):
             deltas = []
         deltas.append(float(delta))
-        deltas = deltas[-500:]
+        deltas = deltas[-5000:]
 
         affected = prev.get("_functional_role_affected_runtime")
         if not isinstance(affected, list):
             affected = []
+
         if abs(delta) > 1e-12 and cand not in affected:
             affected.append(cand)
 
@@ -1075,14 +1076,31 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
         if not isinstance(disc_vals, list):
             disc_vals = []
         disc_vals.append(float(disc))
-        disc_vals = disc_vals[-500:]
+        disc_vals = disc_vals[-5000:]
+
         role_discrimination_index = float(sum(disc_vals) / max(1, len(disc_vals)))
 
         samples = prev.get("coexistence_role_samples")
         if not isinstance(samples, list):
             samples = []
+
+        ri = dict(role_info or {})
+
+        runtime_roles = prev.get("_runtime_role_kinds")
+        if not isinstance(runtime_roles, list):
+            runtime_roles = []
+
+        runtime_negative = prev.get("_runtime_negative_flags")
+        if not isinstance(runtime_negative, list):
+            runtime_negative = []
+
+        runtime_roles.append(str(ri.get("role_kind", "neutral")))
+        runtime_negative.append(bool(ri.get("negative_coexistence", False)))
+
+        runtime_roles = runtime_roles[-5000:]
+        runtime_negative = runtime_negative[-5000:]
+
         if len(samples) < 30:
-            ri = dict(role_info or {})
             samples.append({
                 "candidate": int(cand),
                 "current": [int(x) for x in list(current or [])],
@@ -1096,38 +1114,30 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
                 "negative_reason": str(ri.get("negative_reason", "")),
             })
 
-        boost_count = 0
-        penalty_count = 0
-        neutral_count = 0
-        try:
-            for _s in samples:
-                _rk = str(_s.get("role_kind", "neutral"))
-                if _rk == "functional_boost":
-                    boost_count += 1
-                elif _rk == "functional_penalty":
-                    penalty_count += 1
-                else:
-                    neutral_count += 1
-        except Exception:
-            pass
+        boost_count = sum(1 for rk in runtime_roles if rk == "functional_boost")
+        penalty_count = sum(1 for rk in runtime_roles if rk == "functional_penalty")
+        neutral_count = sum(
+            1 for rk in runtime_roles
+            if rk not in ("functional_boost", "functional_penalty")
+        )
+
+        negative_coexistence_count = sum(
+            1 for flag in runtime_negative if bool(flag)
+        )
+
+        negative_coexistence_samples = []
+        for _s in samples:
+            if bool(_s.get("negative_coexistence", False)):
+                if len(negative_coexistence_samples) < 15:
+                    negative_coexistence_samples.append(dict(_s))
 
         try:
-            functional_balance_ratio = float(boost_count + neutral_count) / max(1.0, float(penalty_count))
+            functional_balance_ratio = float(boost_count + neutral_count) / max(
+                1.0,
+                float(penalty_count)
+            )
         except Exception:
             functional_balance_ratio = 0.0
-
-        negative_coexistence_count = 0
-        negative_coexistence_samples = []
-        try:
-            for _s in samples:
-                _rk = str(_s.get("role_kind", "neutral"))
-                _neg = bool(_s.get("negative_coexistence", False))
-                if _neg or _rk == "functional_penalty":
-                    negative_coexistence_count += 1
-                    if len(negative_coexistence_samples) < 15:
-                        negative_coexistence_samples.append(dict(_s))
-        except Exception:
-            pass
 
         auditor = {
             "functional_role_executed": True,
@@ -1150,11 +1160,15 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             "_functional_role_deltas_runtime": deltas,
             "_functional_role_affected_runtime": affected,
             "_role_discrimination_runtime": disc_vals,
+            "_runtime_role_kinds": runtime_roles,
+            "_runtime_negative_flags": runtime_negative,
         }
 
         st.session_state["auditor_h8g_functional_role"] = dict(auditor)
         st.session_state["v16h57H8G_functional_role_auditor"] = dict(auditor)
+
         return auditor
+
     except Exception as _e:
         try:
             auditor = {
@@ -1170,10 +1184,13 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
                 "impacto_pre_final_mount": False,
                 "erro": str(_e),
             }
+
             st.session_state["auditor_h8g_functional_role"] = dict(auditor)
             st.session_state["v16h57H8G_functional_role_auditor"] = dict(auditor)
+
         except Exception:
             pass
+
         return {}
 
 
