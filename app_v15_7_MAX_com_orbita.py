@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_NEGATIVE_PRECISION_FILTER"
-BUILD_REAL_FILE = "app_v16h57H8M_NEGATIVE_PRECISION_FILTER_FULL_REAL.py"
+BUILD_TAG = "v16h57H8M_B_NEGATIVE_PRECISION_REBALANCE"
+BUILD_REAL_FILE = "app_v16h57H8M_B_NEGATIVE_PRECISION_REBALANCE.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_NEGATIVE_PRECISION_FILTER"
+WATERMARK = "BUILD: v16h57H8M_B_NEGATIVE_PRECISION_REBALANCE"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_NEGATIVE_PRECISION_FILTER")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_B_NEGATIVE_PRECISION_REBALANCE")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -907,9 +907,7 @@ def pc_v16_full_set_global_selection_layer(listas, co_matrix=None, target_profil
 # ============================================================
 def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
     """
-    H8M — NEGATIVE PRECISION FILTER.
-    Filtra penalties negativos fracos/geometrizados/genéricos.
-    Mantém apenas penalties coexistenciais estruturalmente fortes.
+    H8M-B — NEGATIVE PRECISION REBALANCE.
     """
     try:
         curr = [int(x) for x in list(current or [])]
@@ -925,7 +923,7 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
                 "role_kind": "empty",
                 "negative_coexistence": False,
                 "negative_reason": "empty",
-                "h8m_negative_precision_filter": True,
+                "h8mb_negative_precision_rebalance": True,
             }
 
         gaps = [nums[i+1] - nums[i] for i in range(len(nums)-1)] if len(nums) >= 2 else []
@@ -936,87 +934,87 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
         spread_after = (max(nums) - min(nums)) if nums else 0.0
         expansion = max(0.0, float(spread_after - spread_before))
 
-        # H8M reduz força global e preserva modulação seletiva.
         if expansion == 0:
-            expansion_factor = 0.82
+            expansion_factor = 0.84
         elif expansion <= 4:
-            expansion_factor = 1.14
+            expansion_factor = 1.10
         elif expansion <= 10:
-            expansion_factor = 1.08
+            expansion_factor = 1.06
         elif expansion <= 24:
-            expansion_factor = 0.97
+            expansion_factor = 0.98
         else:
-            expansion_factor = 0.88
+            expansion_factor = 0.90
 
         if curr:
             mn, mx = min(curr), max(curr)
-            bridge_factor = 1.08 if (mn <= cand <= mx) else 0.90
+            bridge_factor = 1.06 if (mn <= cand <= mx) else 0.92
         else:
             bridge_factor = 1.0
 
         near_count = sum(1 for x in curr if abs(cand - int(x)) <= 2)
 
-        redundancy_factor = 1.02
+        redundancy_factor = 1.01
         negative_coexistence = False
         negative_reason = "none"
 
-        # H8M: penalty só quando há evidência coexistencial forte/contextual.
-        if near_count >= 3:
-            redundancy_factor *= 0.56
+        ordered = sorted(curr)
+        local_gaps = [
+            ordered[i+1] - ordered[i]
+            for i in range(len(ordered)-1)
+        ] if len(ordered) >= 2 else []
+
+        repeated_micro_cluster = (
+            bool(local_gaps)
+            and min(local_gaps) <= 1
+            and near_count >= 2
+            and gap_balance < 0.52
+        )
+
+        edge_collapse_contextual = (
+            bool(local_gaps)
+            and max(local_gaps) >= 12
+            and abs(cand - ordered[-1]) <= 1
+            and near_count >= 2
+            and gap_balance < 0.58
+        )
+
+        bad_gap_contextual = (
+            near_count >= 2
+            and gap_balance < 0.38
+            and expansion <= 6
+        )
+
+        coexistence_density = (
+            near_count >= 2
+            and gap_balance < 0.48
+            and expansion <= 10
+        )
+
+        if repeated_micro_cluster and coexistence_density:
+            redundancy_factor *= 0.82
             negative_coexistence = True
-            negative_reason = "cluster_redundancy_hard"
+            negative_reason = "micro_cluster_contextual"
 
-        elif near_count == 2 and gap_balance < 0.55:
-            redundancy_factor *= 0.68
+        elif edge_collapse_contextual and coexistence_density:
+            redundancy_factor *= 0.84
             negative_coexistence = True
-            negative_reason = "double_redundancy_contextual"
+            negative_reason = "edge_collapse_contextual"
 
-        elif near_count == 1:
-            redundancy_factor *= 0.92
+        elif bad_gap_contextual and coexistence_density:
+            redundancy_factor *= 0.86
+            negative_coexistence = True
+            negative_reason = "bad_gap_contextual"
 
-        if len(curr) >= 2:
-            ordered = sorted(curr)
-            local_gaps = [
-                ordered[i+1] - ordered[i]
-                for i in range(len(ordered)-1)
-            ]
+        elif (
+            near_count >= 3
+            and gap_balance < 0.44
+            and expansion <= 8
+        ):
+            redundancy_factor *= 0.80
+            negative_coexistence = True
+            negative_reason = "dense_redundancy_contextual"
 
-            if local_gaps:
-                repeated_micro_cluster = (
-                    min(local_gaps) <= 1
-                    and near_count >= 2
-                    and gap_balance < 0.50
-                )
-
-                edge_collapse_contextual = (
-                    max(local_gaps) >= 12
-                    and abs(cand - ordered[-1]) <= 1
-                    and near_count >= 2
-                    and gap_balance < 0.58
-                )
-
-                bad_gap_contextual = (
-                    gap_balance < 0.40
-                    and near_count >= 2
-                    and expansion <= 6
-                )
-
-                if repeated_micro_cluster:
-                    redundancy_factor *= 0.72
-                    negative_coexistence = True
-                    negative_reason = "micro_cluster_pressure"
-
-                elif edge_collapse_contextual:
-                    redundancy_factor *= 0.76
-                    negative_coexistence = True
-                    negative_reason = "edge_gap_collapse_contextual"
-
-                elif bad_gap_contextual:
-                    redundancy_factor *= 0.78
-                    negative_coexistence = True
-                    negative_reason = "bad_gap_contextual"
-
-        balance_factor = 0.88 + 0.24 * float(gap_balance)
+        balance_factor = 0.90 + 0.20 * float(gap_balance)
 
         role_factor = float(
             expansion_factor *
@@ -1025,7 +1023,7 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             balance_factor
         )
 
-        role_factor = max(0.45, min(1.28, role_factor))
+        role_factor = max(0.52, min(1.24, role_factor))
 
         functional_role_term = float(base_micro_term or 0.0) * role_factor
 
@@ -1036,7 +1034,7 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
 
         if negative_coexistence:
             role_kind = "functional_penalty"
-        elif role_factor >= 1.05:
+        elif role_factor >= 1.04:
             role_kind = "functional_boost"
         else:
             role_kind = "neutral"
@@ -1054,7 +1052,7 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "near_count": int(near_count),
             "negative_coexistence": bool(negative_coexistence),
             "negative_reason": str(negative_reason),
-            "h8m_negative_precision_filter": True,
+            "h8mb_negative_precision_rebalance": True,
         }
 
     except Exception:
@@ -1065,7 +1063,7 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "role_kind": "fallback",
             "negative_coexistence": False,
             "negative_reason": "fallback",
-            "h8m_negative_precision_filter": False,
+            "h8mb_negative_precision_rebalance": False,
         }
 
 
@@ -24877,7 +24875,7 @@ try:
             })
 
         try:
-            st.markdown("#### 🧭 AUDITOR H8M — NEGATIVE PRECISION FILTER")
+            st.markdown("#### 🧭 AUDITOR H8M-B — NEGATIVE PRECISION REBALANCE")
 
             _auditor_h8g = st.session_state.get(
                 "auditor_h8g_functional_role",
@@ -24892,7 +24890,7 @@ try:
                 st.success("H8M auditor negative precision encontrado em SESSION_STATE")
                 st.json(_auditor_h8g_view)
             else:
-                st.warning("AUDITOR H8M NÃO ENCONTRADO EM SESSION_STATE")
+                st.warning("AUDITOR H8M-B NÃO ENCONTRADO EM SESSION_STATE")
 
         except Exception as _h8g_panel_err:
             st.error(f"H8G panel error: {_h8g_panel_err}")
