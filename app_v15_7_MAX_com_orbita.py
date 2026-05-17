@@ -633,7 +633,7 @@ BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 WATERMARK = "BUILD: v16h57H8M_C_NEGATIVE_TRIGGER_REBALANCE"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_B_NEGATIVE_PRECISION_REBALANCE")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_C_NEGATIVE_TRIGGER_REBALANCE")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
