@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_F_NEGATIVE_TRIGGER_DIAGNOSTICS"
-BUILD_REAL_FILE = "app_v16h57H8M_F_NEGATIVE_TRIGGER_DIAGNOSTICS.py"
+BUILD_TAG = "v16h57H8M_G_ALIGNED_NEGATIVE_COUNTS"
+BUILD_REAL_FILE = "app_v16h57H8M_G_ALIGNED_NEGATIVE_COUNTS.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_F_NEGATIVE_TRIGGER_DIAGNOSTICS"
+WATERMARK = "BUILD: v16h57H8M_G_ALIGNED_NEGATIVE_COUNTS"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_F_NEGATIVE_TRIGGER_DIAGNOSTICS")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_G_ALIGNED_NEGATIVE_COUNTS")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1113,26 +1113,22 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
         ri = dict(role_info or {})
         role_kind = str(ri.get("role_kind", "neutral"))
         is_negative = bool(ri.get("negative_coexistence", False)) or role_kind == "functional_penalty"
+        negative_subtrigger = str(ri.get("negative_subtrigger", "none"))
 
         runtime_roles = prev.get("_runtime_role_kinds")
         if not isinstance(runtime_roles, list):
             runtime_roles = []
-        runtime_negative = prev.get("_runtime_negative_flags")
-        if not isinstance(runtime_negative, list):
-            runtime_negative = []
+
+        runtime_negative_events = prev.get("_runtime_negative_events")
+        if not isinstance(runtime_negative_events, list):
+            runtime_negative_events = []
+
         runtime_negative_samples = prev.get("_runtime_negative_samples")
         if not isinstance(runtime_negative_samples, list):
             runtime_negative_samples = []
-        runtime_subtriggers = prev.get("_runtime_negative_subtriggers")
-        if not isinstance(runtime_subtriggers, list):
-            runtime_subtriggers = []
 
         runtime_roles.append(role_kind)
-        runtime_negative.append(bool(is_negative))
         runtime_roles = runtime_roles[-5000:]
-        runtime_negative = runtime_negative[-5000:]
-
-        negative_subtrigger = str(ri.get("negative_subtrigger", "none"))
 
         sample_item = {
             "candidate": int(cand),
@@ -1159,24 +1155,42 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             samples.append(dict(sample_item))
 
         if bool(is_negative):
+            event = {
+                "negative": True,
+                "negative_subtrigger": negative_subtrigger,
+            }
+            runtime_negative_events.append(event)
+            runtime_negative_events = runtime_negative_events[-5000:]
+
             runtime_negative_samples.append(dict(sample_item))
             runtime_negative_samples = runtime_negative_samples[-30:]
-            runtime_subtriggers.append(negative_subtrigger)
-            runtime_subtriggers = runtime_subtriggers[-5000:]
 
         boost_count = sum(1 for rk in runtime_roles if rk == "functional_boost")
         penalty_count = sum(1 for rk in runtime_roles if rk == "functional_penalty")
-        neutral_count = sum(1 for rk in runtime_roles if rk not in ("functional_boost", "functional_penalty"))
-        negative_coexistence_count = sum(1 for flag in runtime_negative if bool(flag))
-        negative_coexistence_samples = list(runtime_negative_samples)
+        neutral_count = sum(
+            1 for rk in runtime_roles
+            if rk not in ("functional_boost", "functional_penalty")
+        )
+
+        # H8M-G: negative_coexistence_count e negative_subtrigger_counts
+        # nascem da MESMA série: _runtime_negative_events.
+        negative_coexistence_count = int(len(runtime_negative_events))
 
         negative_subtrigger_counts = {}
-        for stg in runtime_subtriggers:
-            key = str(stg or "none")
+        for ev in runtime_negative_events:
+            key = str((ev or {}).get("negative_subtrigger", "none") or "none")
             negative_subtrigger_counts[key] = int(negative_subtrigger_counts.get(key, 0) or 0) + 1
 
+        negative_subtrigger_count_total = int(sum(int(v) for v in negative_subtrigger_counts.values()))
+        negative_counts_aligned = bool(negative_subtrigger_count_total == negative_coexistence_count)
+
+        negative_coexistence_samples = list(runtime_negative_samples)
+
         try:
-            functional_balance_ratio = float(boost_count + neutral_count) / max(1.0, float(penalty_count))
+            functional_balance_ratio = float(boost_count + neutral_count) / max(
+                1.0,
+                float(penalty_count)
+            )
         except Exception:
             functional_balance_ratio = 0.0
 
@@ -1196,6 +1210,8 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             "negative_coexistence_count": int(negative_coexistence_count),
             "negative_coexistence_samples": negative_coexistence_samples,
             "negative_subtrigger_counts": negative_subtrigger_counts,
+            "negative_subtrigger_count_total": int(negative_subtrigger_count_total),
+            "negative_counts_aligned": bool(negative_counts_aligned),
             "functional_balance_ratio": float(functional_balance_ratio),
             "coexistence_role_samples": samples,
             "impacto_pre_final_mount": bool(len(affected) > 0 or delta_medio > 0),
@@ -1203,9 +1219,8 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             "_functional_role_affected_runtime": affected,
             "_role_discrimination_runtime": disc_vals,
             "_runtime_role_kinds": runtime_roles,
-            "_runtime_negative_flags": runtime_negative,
+            "_runtime_negative_events": runtime_negative_events,
             "_runtime_negative_samples": runtime_negative_samples,
-            "_runtime_negative_subtriggers": runtime_subtriggers,
         }
 
         st.session_state["auditor_h8g_functional_role"] = dict(auditor)
@@ -1226,8 +1241,10 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
                 "coexistence_role_samples": [],
                 "negative_coexistence_samples": [],
                 "negative_subtrigger_counts": {},
+                "negative_subtrigger_count_total": 0,
+                "negative_counts_aligned": False,
+                "_runtime_negative_events": [],
                 "_runtime_negative_samples": [],
-                "_runtime_negative_subtriggers": [],
                 "impacto_pre_final_mount": False,
                 "erro": str(_e),
             }
