@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_I_BAD_GAP_MICRO_INTERVENTION"
-BUILD_REAL_FILE = "app_v16h57H8M_I_BAD_GAP_MICRO_INTERVENTION.py"
+BUILD_TAG = "v16h57H8M_J_BAD_GAP_GRAVITY_INDEX"
+BUILD_REAL_FILE = "app_v16h57H8M_J_BAD_GAP_GRAVITY_INDEX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_I_BAD_GAP_MICRO_INTERVENTION"
+WATERMARK = "BUILD: v16h57H8M_J_BAD_GAP_GRAVITY_INDEX"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_I_BAD_GAP_MICRO_INTERVENTION")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_J_BAD_GAP_GRAVITY_INDEX")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1011,11 +1011,55 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
         h8mi_bad_gap_micro_adjustment_factor = 1.0
         h8mi_bad_gap_micro_adjustment_delta = 0.0
 
+        h8mj_bad_gap_gravity_active = False
+        h8mj_bad_gap_gravity_index = 0.0
+        h8mj_bad_gap_gravity_level = "none"
+        h8mj_bad_gap_gravity_factor = 1.0
+
+        # H8M-J — índice determinístico de gravidade coexistencial.
+        # Atua exclusivamente quando o subgatilho final é bad_gap_contextual.
+        # Usa apenas near_count, gap_balance, expansion e local_gaps.
         if negative_subtrigger == "bad_gap_contextual":
+            h8mj_bad_gap_gravity_active = True
+
+            if local_gaps:
+                gap_amp = float(max(local_gaps) - min(local_gaps))
+                max_gap = float(max(local_gaps))
+                min_gap = float(min(local_gaps))
+            else:
+                gap_amp = 0.0
+                max_gap = 0.0
+                min_gap = 0.0
+
+            near_component = min(1.0, max(0.0, float(near_count - 1) / 3.0))
+            imbalance_component = min(1.0, max(0.0, 1.0 - float(gap_balance)))
+            expansion_component = min(1.0, max(0.0, (6.0 - float(expansion)) / 6.0))
+            gap_amp_component = min(1.0, max(0.0, gap_amp / 20.0))
+            small_gap_component = 1.0 if min_gap <= 2.0 and max_gap >= 10.0 else 0.0
+
+            h8mj_bad_gap_gravity_index = float(
+                0.28 * near_component
+                + 0.28 * imbalance_component
+                + 0.18 * expansion_component
+                + 0.18 * gap_amp_component
+                + 0.08 * small_gap_component
+            )
+            h8mj_bad_gap_gravity_index = max(0.0, min(1.0, h8mj_bad_gap_gravity_index))
+
+            if h8mj_bad_gap_gravity_index >= 0.72:
+                h8mj_bad_gap_gravity_level = "strong"
+                h8mj_bad_gap_gravity_factor = 0.975
+            elif h8mj_bad_gap_gravity_index >= 0.52:
+                h8mj_bad_gap_gravity_level = "medium"
+                h8mj_bad_gap_gravity_factor = 0.985
+            else:
+                h8mj_bad_gap_gravity_level = "light"
+                h8mj_bad_gap_gravity_factor = 0.990
+
             h8mi_bad_gap_micro_adjustment_active = True
-            h8mi_bad_gap_micro_adjustment_factor = 0.985
-            h8mi_bad_gap_micro_adjustment_delta = 1.0 - h8mi_bad_gap_micro_adjustment_factor
-            redundancy_factor *= h8mi_bad_gap_micro_adjustment_factor
+            h8mi_bad_gap_micro_adjustment_factor = float(h8mj_bad_gap_gravity_factor)
+            h8mi_bad_gap_micro_adjustment_delta = 1.0 - float(h8mj_bad_gap_gravity_factor)
+            redundancy_factor *= float(h8mj_bad_gap_gravity_factor)
 
         balance_factor = 0.90 + 0.20 * float(gap_balance)
 
@@ -1061,6 +1105,11 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "h8mi_bad_gap_micro_adjustment_factor": float(h8mi_bad_gap_micro_adjustment_factor),
             "h8mi_bad_gap_micro_adjustment_delta": float(h8mi_bad_gap_micro_adjustment_delta),
             "h8mi_bad_gap_micro_intervention": True,
+            "h8mj_bad_gap_gravity_active": bool(h8mj_bad_gap_gravity_active),
+            "h8mj_bad_gap_gravity_index": float(h8mj_bad_gap_gravity_index),
+            "h8mj_bad_gap_gravity_level": str(h8mj_bad_gap_gravity_level),
+            "h8mj_bad_gap_gravity_factor": float(h8mj_bad_gap_gravity_factor),
+            "h8mj_bad_gap_gravity_intervention": True,
             "h8mf_negative_trigger_diagnostics": True,
         }
 
@@ -1084,6 +1133,11 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "h8mi_bad_gap_micro_adjustment_factor": 1.0,
             "h8mi_bad_gap_micro_adjustment_delta": 0.0,
             "h8mi_bad_gap_micro_intervention": False,
+            "h8mj_bad_gap_gravity_active": False,
+            "h8mj_bad_gap_gravity_index": 0.0,
+            "h8mj_bad_gap_gravity_level": "fallback",
+            "h8mj_bad_gap_gravity_factor": 1.0,
+            "h8mj_bad_gap_gravity_intervention": False,
             "h8mf_negative_trigger_diagnostics": False,
         }
 
@@ -1140,6 +1194,10 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             ri.get("h8mi_bad_gap_micro_adjustment_active", False)
         )
 
+        h8mj_bad_gap_gravity_active = bool(
+            ri.get("h8mj_bad_gap_gravity_active", False)
+        )
+
         runtime_roles = prev.get("_runtime_role_kinds")
         if not isinstance(runtime_roles, list):
             runtime_roles = []
@@ -1155,6 +1213,10 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
         runtime_bad_gap_micro_adjustments = prev.get("_runtime_bad_gap_micro_adjustments")
         if not isinstance(runtime_bad_gap_micro_adjustments, list):
             runtime_bad_gap_micro_adjustments = []
+
+        runtime_bad_gap_gravity_samples = prev.get("_runtime_bad_gap_gravity_samples")
+        if not isinstance(runtime_bad_gap_gravity_samples, list):
+            runtime_bad_gap_gravity_samples = []
 
         runtime_roles.append(role_kind)
         runtime_roles = runtime_roles[-5000:]
@@ -1181,6 +1243,10 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             "h8mi_bad_gap_micro_adjustment_active": bool(h8mi_bad_gap_micro_adjustment_active),
             "h8mi_bad_gap_micro_adjustment_factor": round(float(ri.get("h8mi_bad_gap_micro_adjustment_factor", 1.0) or 1.0), 10),
             "h8mi_bad_gap_micro_adjustment_delta": round(float(ri.get("h8mi_bad_gap_micro_adjustment_delta", 0.0) or 0.0), 10),
+            "h8mj_bad_gap_gravity_active": bool(h8mj_bad_gap_gravity_active),
+            "h8mj_bad_gap_gravity_index": round(float(ri.get("h8mj_bad_gap_gravity_index", 0.0) or 0.0), 10),
+            "h8mj_bad_gap_gravity_level": str(ri.get("h8mj_bad_gap_gravity_level", "none")),
+            "h8mj_bad_gap_gravity_factor": round(float(ri.get("h8mj_bad_gap_gravity_factor", 1.0) or 1.0), 10),
         }
 
         if len(samples) < 30:
@@ -1200,6 +1266,11 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
                 "functional_penalty": bool(penalty_flag),
                 "negative_coexistence": bool(negative_flag),
                 "negative_subtrigger": negative_subtrigger,
+                "h8mi_bad_gap_micro_adjustment_active": bool(h8mi_bad_gap_micro_adjustment_active),
+                "h8mj_bad_gap_gravity_active": bool(h8mj_bad_gap_gravity_active),
+                "h8mj_bad_gap_gravity_index": round(float(ri.get("h8mj_bad_gap_gravity_index", 0.0) or 0.0), 10),
+                "h8mj_bad_gap_gravity_level": str(ri.get("h8mj_bad_gap_gravity_level", "none")),
+                "h8mj_bad_gap_gravity_factor": round(float(ri.get("h8mj_bad_gap_gravity_factor", 1.0) or 1.0), 10),
             })
             runtime_negative_units = runtime_negative_units[-5000:]
 
@@ -1218,6 +1289,24 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
                 "bad_gap_only": bool(negative_subtrigger == "bad_gap_contextual"),
             })
             runtime_bad_gap_micro_adjustments = runtime_bad_gap_micro_adjustments[-30:]
+
+        if h8mj_bad_gap_gravity_active:
+            runtime_bad_gap_gravity_samples.append({
+                "candidate": int(cand),
+                "negative_subtrigger": negative_subtrigger,
+                "score_before": round(float(score_before), 8),
+                "score_after": round(float(score_after), 8),
+                "functional_role_delta": round(float(delta), 10),
+                "h8mj_bad_gap_gravity_index": round(float(ri.get("h8mj_bad_gap_gravity_index", 0.0) or 0.0), 10),
+                "h8mj_bad_gap_gravity_level": str(ri.get("h8mj_bad_gap_gravity_level", "none")),
+                "h8mj_bad_gap_gravity_factor": round(float(ri.get("h8mj_bad_gap_gravity_factor", 1.0) or 1.0), 10),
+                "near_count": int(ri.get("near_count", 0) or 0),
+                "gap_balance": round(float(ri.get("gap_balance", 0.0) or 0.0), 10),
+                "expansion": round(float(ri.get("expansion", 0.0) or 0.0), 10),
+                "local_gaps": list(ri.get("local_gaps", []) or []),
+                "bad_gap_only": bool(negative_subtrigger == "bad_gap_contextual"),
+            })
+            runtime_bad_gap_gravity_samples = runtime_bad_gap_gravity_samples[-30:]
 
         boost_count = sum(1 for rk in runtime_roles if rk == "functional_boost")
         neutral_count = sum(
@@ -1250,6 +1339,17 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             for x in runtime_bad_gap_micro_adjustments
         ) if runtime_bad_gap_micro_adjustments else True
 
+        h8mj_bad_gap_gravity_count = int(len(runtime_bad_gap_gravity_samples))
+        h8mj_bad_gap_only = all(
+            bool((x or {}).get("bad_gap_only", False))
+            for x in runtime_bad_gap_gravity_samples
+        ) if runtime_bad_gap_gravity_samples else True
+
+        h8mj_bad_gap_gravity_levels = {}
+        for _g in runtime_bad_gap_gravity_samples:
+            _lvl = str((_g or {}).get("h8mj_bad_gap_gravity_level", "none"))
+            h8mj_bad_gap_gravity_levels[_lvl] = int(h8mj_bad_gap_gravity_levels.get(_lvl, 0) or 0) + 1
+
         try:
             functional_balance_ratio = float(boost_count + neutral_count) / max(1.0, float(functional_penalty_count))
         except Exception:
@@ -1280,6 +1380,12 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             "h8mi_bad_gap_micro_adjustment_only": bool(bad_gap_micro_adjustment_only),
             "h8mi_bad_gap_micro_adjustment_samples": list(runtime_bad_gap_micro_adjustments),
             "h8mi_bad_gap_micro_adjustment_rule": "applies only when negative_subtrigger == bad_gap_contextual",
+            "h8mj_bad_gap_gravity_active": bool(h8mj_bad_gap_gravity_count > 0),
+            "h8mj_bad_gap_gravity_count": int(h8mj_bad_gap_gravity_count),
+            "h8mj_bad_gap_gravity_samples": list(runtime_bad_gap_gravity_samples),
+            "h8mj_bad_gap_gravity_levels": h8mj_bad_gap_gravity_levels,
+            "h8mj_bad_gap_only": bool(h8mj_bad_gap_only),
+            "h8mj_bad_gap_gravity_rule": "deterministic gravity factor applies only when negative_subtrigger == bad_gap_contextual",
             "functional_balance_ratio": float(functional_balance_ratio),
             "coexistence_role_samples": samples,
             "impacto_pre_final_mount": bool(len(affected) > 0 or delta_medio > 0),
@@ -1290,6 +1396,7 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             "_runtime_negative_units": runtime_negative_units,
             "_runtime_negative_samples": runtime_negative_samples,
             "_runtime_bad_gap_micro_adjustments": runtime_bad_gap_micro_adjustments,
+            "_runtime_bad_gap_gravity_samples": runtime_bad_gap_gravity_samples,
         }
 
         st.session_state["auditor_h8g_functional_role"] = dict(auditor)
@@ -1318,11 +1425,17 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
                 "h8mi_bad_gap_micro_adjustment_count": 0,
                 "h8mi_bad_gap_micro_adjustment_only": False,
                 "h8mi_bad_gap_micro_adjustment_samples": [],
+                "h8mj_bad_gap_gravity_active": False,
+                "h8mj_bad_gap_gravity_count": 0,
+                "h8mj_bad_gap_gravity_samples": [],
+                "h8mj_bad_gap_gravity_levels": {},
+                "h8mj_bad_gap_only": False,
                 "coexistence_role_samples": [],
                 "negative_coexistence_samples": [],
                 "_runtime_negative_units": [],
                 "_runtime_negative_samples": [],
                 "_runtime_bad_gap_micro_adjustments": [],
+                "_runtime_bad_gap_gravity_samples": [],
                 "impacto_pre_final_mount": False,
                 "erro": str(_e),
             }
