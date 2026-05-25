@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_K_STRONG_BAD_GAP_SEPARATED"
-BUILD_REAL_FILE = "app_v16h57H8M_K_STRONG_BAD_GAP_SEPARATED.py"
+BUILD_TAG = "v16h57H8M_L_PERSISTENCE_AUDITOR"
+BUILD_REAL_FILE = "app_v16h57H8M_L_PERSISTENCE_AUDITOR.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_K_STRONG_BAD_GAP_SEPARATED"
+WATERMARK = "BUILD: v16h57H8M_L_PERSISTENCE_AUDITOR"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_K_STRONG_BAD_GAP_SEPARATED")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_L_PERSISTENCE_AUDITOR")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1362,6 +1362,170 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             })
             runtime_strong_bad_gap_samples = runtime_strong_bad_gap_samples[-30:]
 
+
+        # ============================================================
+        # H8M-L — PERSISTENT NEGATIVE STRUCTURE OBSERVATIONAL LAYER
+        # Camada exclusivamente observacional: não altera score, role_factor,
+        # ranking, scored[0], generator, SAFE, C4, sanidade ou final_mount.
+        # ============================================================
+        h8ml_signature_events = prev.get("_h8ml_signature_events")
+        if not isinstance(h8ml_signature_events, list):
+            h8ml_signature_events = []
+
+        def _h8ml_gap_bucket(local_gaps_value):
+            try:
+                gaps_int = [int(x) for x in list(local_gaps_value or [])]
+                if not gaps_int:
+                    return "gaps_none"
+                mn_gap = min(gaps_int)
+                mx_gap = max(gaps_int)
+                amp_gap = mx_gap - mn_gap
+                has_tiny = bool(mn_gap <= 2)
+                has_long = bool(mx_gap >= 10)
+                if has_tiny and has_long:
+                    return "mixed_gap"
+                if has_long and amp_gap >= 8:
+                    return "edge_gap"
+                if mx_gap <= 4:
+                    return "compact_gap"
+                if amp_gap <= 4:
+                    return "balanced_gap"
+                return "varied_gap"
+            except Exception:
+                return "gaps_error"
+
+        def _h8ml_near_bucket(near_count_value):
+            try:
+                n = int(near_count_value or 0)
+                if n >= 3:
+                    return "near_3plus"
+                if n >= 2:
+                    return "near_2plus"
+                if n == 1:
+                    return "near_1"
+                return "near_0"
+            except Exception:
+                return "near_error"
+
+        def _h8ml_balance_bucket(gap_balance_value):
+            try:
+                b = float(gap_balance_value or 0.0)
+                if b < 0.52:
+                    return "balance_low"
+                if b < 0.62:
+                    return "balance_mid"
+                return "balance_high"
+            except Exception:
+                return "balance_error"
+
+        def _h8ml_expansion_bucket(expansion_value):
+            try:
+                e = float(expansion_value or 0.0)
+                if e <= 6:
+                    return "expansion_low"
+                if e <= 10:
+                    return "expansion_mid"
+                return "expansion_high"
+            except Exception:
+                return "expansion_error"
+
+        h8ml_current_signature = "none"
+        h8ml_current_signature_event = None
+
+        if is_negative_runtime_unit:
+            _h8ml_gravity_level = str(ri.get("h8mj_bad_gap_gravity_level", "none") or "none")
+            _h8ml_gaps_bucket = _h8ml_gap_bucket(ri.get("local_gaps", []) or [])
+            _h8ml_near_bucket_value = _h8ml_near_bucket(ri.get("near_count", 0) or 0)
+            _h8ml_balance_bucket_value = _h8ml_balance_bucket(ri.get("gap_balance", 0.0) or 0.0)
+            _h8ml_expansion_bucket_value = _h8ml_expansion_bucket(ri.get("expansion", 0.0) or 0.0)
+
+            h8ml_current_signature = "|".join([
+                str(negative_subtrigger),
+                str(_h8ml_gravity_level),
+                str(_h8ml_gaps_bucket),
+                str(_h8ml_near_bucket_value),
+                str(_h8ml_balance_bucket_value),
+                str(_h8ml_expansion_bucket_value),
+            ])
+
+            _h8ml_current_context = tuple(int(x) for x in list(current or []))
+            h8ml_current_signature_event = {
+                "signature": str(h8ml_current_signature),
+                "candidate": int(cand),
+                "current": [int(x) for x in list(current or [])],
+                "current_context_key": str(_h8ml_current_context),
+                "negative_subtrigger": str(negative_subtrigger),
+                "gravity_level": str(_h8ml_gravity_level),
+                "gaps_bucket": str(_h8ml_gaps_bucket),
+                "near_bucket": str(_h8ml_near_bucket_value),
+                "balance_bucket": str(_h8ml_balance_bucket_value),
+                "expansion_bucket": str(_h8ml_expansion_bucket_value),
+                "local_gaps": list(ri.get("local_gaps", []) or []),
+                "near_count": int(ri.get("near_count", 0) or 0),
+                "gap_balance": round(float(ri.get("gap_balance", 0.0) or 0.0), 10),
+                "expansion": round(float(ri.get("expansion", 0.0) or 0.0), 10),
+                "role_delta": round(float(delta), 10),
+                "score_before": round(float(score_before), 8),
+                "score_after": round(float(score_after), 8),
+                "strong_bad_gap_active": bool(h8mk_strong_bad_gap_active),
+                "competitive_survival_proxy": bool(abs(float(delta)) > 1e-12 and len(list(current or [])) >= 3),
+                "h8ml_observational_only": True,
+            }
+            h8ml_signature_events.append(dict(h8ml_current_signature_event))
+            h8ml_signature_events = h8ml_signature_events[-5000:]
+
+        h8ml_signature_occurrence_counts = {}
+        h8ml_signature_contexts = {}
+        h8ml_competitive_survival_counts = {}
+
+        for _evt in h8ml_signature_events:
+            if not isinstance(_evt, dict):
+                continue
+            _sig = str(_evt.get("signature", "none") or "none")
+            if _sig == "none":
+                continue
+            h8ml_signature_occurrence_counts[_sig] = int(h8ml_signature_occurrence_counts.get(_sig, 0) or 0) + 1
+
+            _ctx = str(_evt.get("current_context_key", "") or "")
+            if _sig not in h8ml_signature_contexts:
+                h8ml_signature_contexts[_sig] = set()
+            if _ctx:
+                h8ml_signature_contexts[_sig].add(_ctx)
+
+            if bool(_evt.get("competitive_survival_proxy", False)):
+                h8ml_competitive_survival_counts[_sig] = int(h8ml_competitive_survival_counts.get(_sig, 0) or 0) + 1
+
+        h8ml_unique_negative_signatures = int(len(h8ml_signature_occurrence_counts))
+        h8ml_recurrent_negative_signatures = {
+            str(k): int(v)
+            for k, v in h8ml_signature_occurrence_counts.items()
+            if int(v) > 1
+        }
+        h8ml_recurrent_negative_signature_count = int(len(h8ml_recurrent_negative_signatures))
+
+        h8ml_multiple_context_signatures = {
+            str(k): int(len(v))
+            for k, v in h8ml_signature_contexts.items()
+            if isinstance(v, set) and len(v) > 1
+        }
+
+        h8ml_competitive_survival_signatures = {
+            str(k): int(v)
+            for k, v in h8ml_competitive_survival_counts.items()
+            if int(v) > 0 and str(k) in h8ml_recurrent_negative_signatures
+        }
+
+        h8ml_persistent_negative_structure_samples = []
+        _h8ml_recurrent_keys = set(h8ml_recurrent_negative_signatures.keys())
+        for _evt in reversed(h8ml_signature_events):
+            if not isinstance(_evt, dict):
+                continue
+            if str(_evt.get("signature", "none") or "none") in _h8ml_recurrent_keys:
+                h8ml_persistent_negative_structure_samples.append(dict(_evt))
+            if len(h8ml_persistent_negative_structure_samples) >= 30:
+                break
+        h8ml_persistent_negative_structure_samples = list(reversed(h8ml_persistent_negative_structure_samples))
+
         boost_count = sum(1 for rk in runtime_roles if rk == "functional_boost")
         neutral_count = sum(
             1 for rk in runtime_roles
@@ -1451,6 +1615,26 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             "h8mk_strong_bad_gap_samples": list(runtime_strong_bad_gap_samples),
             "h8mk_strong_bad_gap_only": bool(h8mk_strong_bad_gap_only),
             "h8mk_strong_bad_gap_rule": "separated treatment applies only when negative_subtrigger == bad_gap_contextual AND gravity_level == strong",
+            "h8ml_persistence_auditor_active": bool(len(h8ml_signature_events) > 0),
+            "h8ml_signature_only_observational": True,
+            "h8ml_current_negative_signature": str(h8ml_current_signature),
+            "h8ml_negative_signature_count": int(len(h8ml_signature_events)),
+            "h8ml_unique_negative_signatures": int(h8ml_unique_negative_signatures),
+            "h8ml_recurrent_negative_signature_count": int(h8ml_recurrent_negative_signature_count),
+            "h8ml_recurrent_negative_signatures": dict(h8ml_recurrent_negative_signatures),
+            "h8ml_signature_occurrence_counts": dict(h8ml_signature_occurrence_counts),
+            "h8ml_multiple_context_signature_count": int(len(h8ml_multiple_context_signatures)),
+            "h8ml_multiple_context_signatures": dict(h8ml_multiple_context_signatures),
+            "h8ml_competitive_survival_count": int(sum(int(v) for v in h8ml_competitive_survival_signatures.values())),
+            "h8ml_competitive_survival_signatures": dict(h8ml_competitive_survival_signatures),
+            "h8ml_persistent_negative_structure_active": bool(h8ml_recurrent_negative_signature_count > 0),
+            "h8ml_persistent_negative_structure_samples": list(h8ml_persistent_negative_structure_samples),
+            "h8ml_signature_rule": "negative_subtrigger|gravity_level|gaps_bucket|near_bucket|balance_bucket|expansion_bucket",
+            "h8ml_competitive_survival_definition": "observational proxy inside candidate_fit: recurrent signature with affected runtime delta and current_size >= 3; not final Top10 causality",
+            "h8ml_no_score_intervention": True,
+            "h8ml_no_role_factor_intervention": True,
+            "h8ml_no_ranking_intervention": True,
+            "_h8ml_signature_events": h8ml_signature_events,
             "functional_balance_ratio": float(functional_balance_ratio),
             "coexistence_role_samples": samples,
             "impacto_pre_final_mount": bool(len(affected) > 0 or delta_medio > 0),
@@ -1500,6 +1684,24 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
                 "h8mk_strong_bad_gap_count": 0,
                 "h8mk_strong_bad_gap_samples": [],
                 "h8mk_strong_bad_gap_only": False,
+                "h8ml_persistence_auditor_active": False,
+                "h8ml_signature_only_observational": True,
+                "h8ml_current_negative_signature": "fallback",
+                "h8ml_negative_signature_count": 0,
+                "h8ml_unique_negative_signatures": 0,
+                "h8ml_recurrent_negative_signature_count": 0,
+                "h8ml_recurrent_negative_signatures": {},
+                "h8ml_signature_occurrence_counts": {},
+                "h8ml_multiple_context_signature_count": 0,
+                "h8ml_multiple_context_signatures": {},
+                "h8ml_competitive_survival_count": 0,
+                "h8ml_competitive_survival_signatures": {},
+                "h8ml_persistent_negative_structure_active": False,
+                "h8ml_persistent_negative_structure_samples": [],
+                "h8ml_no_score_intervention": True,
+                "h8ml_no_role_factor_intervention": True,
+                "h8ml_no_ranking_intervention": True,
+                "_h8ml_signature_events": [],
                 "coexistence_role_samples": [],
                 "negative_coexistence_samples": [],
                 "_runtime_negative_units": [],
