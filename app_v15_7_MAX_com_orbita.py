@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_L_PERSISTENCE_AUDITOR"
-BUILD_REAL_FILE = "app_v16h57H8M_L_PERSISTENCE_AUDITOR.py"
+BUILD_TAG = "v16h57H8M_M_PERSISTENCE_MICRO_MODULATION"
+BUILD_REAL_FILE = "app_v16h57H8M_M_PERSISTENCE_MICRO_MODULATION.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_L_PERSISTENCE_AUDITOR"
+WATERMARK = "BUILD: v16h57H8M_M_PERSISTENCE_MICRO_MODULATION"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_L_PERSISTENCE_AUDITOR")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_M_PERSISTENCE_MICRO_MODULATION")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -1076,6 +1076,127 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             h8mi_bad_gap_micro_adjustment_delta = 1.0 - float(h8mj_bad_gap_gravity_factor)
             redundancy_factor *= float(h8mj_bad_gap_gravity_factor)
 
+        # ============================================================
+        # H8M-M — PERSISTENT NEGATIVE COEXISTENCE MICRO MODULATION
+        # Primeira microintervenção funcional controlada sobre
+        # assinaturas persistentes observadas pelo H8M-L.
+        # Atua somente no candidate_fit, sem seleção dinâmica, sem random,
+        # sem alterar scored[0], generator, SAFE, C4, sanidade ou final_mount.
+        # ============================================================
+        h8mm_persistence_micro_modulation_active = False
+        h8mm_persistence_signature = "none"
+        h8mm_persistence_previous_count = 0
+        h8mm_persistence_new_count = 0
+        h8mm_persistence_modulation_factor = 1.0
+        h8mm_persistence_modulation_delta = 0.0
+        h8mm_persistence_modulation_reason = "none"
+
+        def _h8mm_gap_bucket(local_gaps_value):
+            try:
+                gaps_int = [int(x) for x in list(local_gaps_value or [])]
+                if not gaps_int:
+                    return "gaps_none"
+                mn_gap = min(gaps_int)
+                mx_gap = max(gaps_int)
+                amp_gap = mx_gap - mn_gap
+                has_tiny = bool(mn_gap <= 2)
+                has_long = bool(mx_gap >= 10)
+                if has_tiny and has_long:
+                    return "mixed_gap"
+                if has_long and amp_gap >= 8:
+                    return "edge_gap"
+                if mx_gap <= 4:
+                    return "compact_gap"
+                if amp_gap <= 4:
+                    return "balanced_gap"
+                return "varied_gap"
+            except Exception:
+                return "gaps_error"
+
+        def _h8mm_near_bucket(near_count_value):
+            try:
+                n = int(near_count_value or 0)
+                if n >= 3:
+                    return "near_3plus"
+                if n >= 2:
+                    return "near_2plus"
+                if n == 1:
+                    return "near_1"
+                return "near_0"
+            except Exception:
+                return "near_error"
+
+        def _h8mm_balance_bucket(gap_balance_value):
+            try:
+                gb = float(gap_balance_value or 0.0)
+                if gb < 0.52:
+                    return "balance_low"
+                if gb < 0.70:
+                    return "balance_mid"
+                return "balance_high"
+            except Exception:
+                return "balance_error"
+
+        def _h8mm_expansion_bucket(expansion_value):
+            try:
+                ex = float(expansion_value or 0.0)
+                if ex <= 6.0:
+                    return "expansion_low"
+                if ex <= 10.0:
+                    return "expansion_mid"
+                return "expansion_high"
+            except Exception:
+                return "expansion_error"
+
+        if negative_coexistence and negative_subtrigger in (
+            "bad_gap_contextual",
+            "edge_collapse_contextual",
+            "repeated_micro_cluster",
+        ):
+            try:
+                h8mm_persistence_signature = "|".join([
+                    str(negative_subtrigger),
+                    str(h8mj_bad_gap_gravity_level),
+                    str(_h8mm_gap_bucket(local_gaps)),
+                    str(_h8mm_near_bucket(near_count)),
+                    str(_h8mm_balance_bucket(gap_balance)),
+                    str(_h8mm_expansion_bucket(expansion)),
+                ])
+
+                _h8mm_key = "h8mm_persistence_signature_counts"
+                _h8mm_counts = st.session_state.get(_h8mm_key)
+                if not isinstance(_h8mm_counts, dict):
+                    _h8mm_counts = {}
+
+                h8mm_persistence_previous_count = int(_h8mm_counts.get(h8mm_persistence_signature, 0) or 0)
+                h8mm_persistence_new_count = int(h8mm_persistence_previous_count + 1)
+                _h8mm_counts[h8mm_persistence_signature] = int(h8mm_persistence_new_count)
+                st.session_state[_h8mm_key] = _h8mm_counts
+
+                # Recorrência só modula a partir da segunda ocorrência observada.
+                # O fator é micro, proporcional e nunca bloqueador.
+                if h8mm_persistence_previous_count >= 1:
+                    if negative_subtrigger == "bad_gap_contextual" and h8mj_bad_gap_gravity_level == "strong":
+                        h8mm_persistence_modulation_factor = 0.992 if h8mm_persistence_previous_count < 3 else 0.988
+                    elif negative_subtrigger == "bad_gap_contextual":
+                        h8mm_persistence_modulation_factor = 0.994 if h8mm_persistence_previous_count < 3 else 0.991
+                    elif negative_subtrigger == "edge_collapse_contextual":
+                        h8mm_persistence_modulation_factor = 0.995 if h8mm_persistence_previous_count < 3 else 0.992
+                    elif negative_subtrigger == "repeated_micro_cluster":
+                        h8mm_persistence_modulation_factor = 0.995 if h8mm_persistence_previous_count < 3 else 0.992
+                    else:
+                        h8mm_persistence_modulation_factor = 1.0
+
+                    h8mm_persistence_modulation_factor = max(0.984, min(1.0, float(h8mm_persistence_modulation_factor)))
+
+                    if h8mm_persistence_modulation_factor < 1.0:
+                        h8mm_persistence_micro_modulation_active = True
+                        h8mm_persistence_modulation_delta = 1.0 - float(h8mm_persistence_modulation_factor)
+                        h8mm_persistence_modulation_reason = "persistent_negative_signature_micro_modulation"
+                        redundancy_factor *= float(h8mm_persistence_modulation_factor)
+            except Exception as _h8mm_err:
+                h8mm_persistence_modulation_reason = f"h8mm_modulation_error: {_h8mm_err}"
+
         balance_factor = 0.90 + 0.20 * float(gap_balance)
 
         role_factor = float(
@@ -1129,6 +1250,14 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "h8mk_strong_bad_gap_factor": float(h8mk_strong_bad_gap_factor),
             "h8mk_strong_bad_gap_delta": float(h8mk_strong_bad_gap_delta),
             "h8mk_strong_bad_gap_reason": str(h8mk_strong_bad_gap_reason),
+            "h8mm_persistence_micro_modulation_active": bool(h8mm_persistence_micro_modulation_active),
+            "h8mm_persistence_signature": str(h8mm_persistence_signature),
+            "h8mm_persistence_previous_count": int(h8mm_persistence_previous_count),
+            "h8mm_persistence_new_count": int(h8mm_persistence_new_count),
+            "h8mm_persistence_modulation_factor": float(h8mm_persistence_modulation_factor),
+            "h8mm_persistence_modulation_delta": float(h8mm_persistence_modulation_delta),
+            "h8mm_persistence_modulation_reason": str(h8mm_persistence_modulation_reason),
+            "h8mm_persistence_micro_intervention": True,
             "h8mf_negative_trigger_diagnostics": True,
         }
 
@@ -1161,6 +1290,14 @@ def pc_v16_h8g_functional_role_term(current, candidate, base_micro_term):
             "h8mk_strong_bad_gap_factor": 1.0,
             "h8mk_strong_bad_gap_delta": 0.0,
             "h8mk_strong_bad_gap_reason": "fallback",
+            "h8mm_persistence_micro_modulation_active": False,
+            "h8mm_persistence_signature": "fallback",
+            "h8mm_persistence_previous_count": 0,
+            "h8mm_persistence_new_count": 0,
+            "h8mm_persistence_modulation_factor": 1.0,
+            "h8mm_persistence_modulation_delta": 0.0,
+            "h8mm_persistence_modulation_reason": "fallback",
+            "h8mm_persistence_micro_intervention": False,
             "h8mf_negative_trigger_diagnostics": False,
         }
 
@@ -1225,6 +1362,10 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             ri.get("h8mk_strong_bad_gap_active", False)
         )
 
+        h8mm_persistence_micro_modulation_active = bool(
+            ri.get("h8mm_persistence_micro_modulation_active", False)
+        )
+
         runtime_roles = prev.get("_runtime_role_kinds")
         if not isinstance(runtime_roles, list):
             runtime_roles = []
@@ -1248,6 +1389,10 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
         runtime_strong_bad_gap_samples = prev.get("_runtime_strong_bad_gap_samples")
         if not isinstance(runtime_strong_bad_gap_samples, list):
             runtime_strong_bad_gap_samples = []
+
+        runtime_h8mm_persistence_micro_modulations = prev.get("_runtime_h8mm_persistence_micro_modulations")
+        if not isinstance(runtime_h8mm_persistence_micro_modulations, list):
+            runtime_h8mm_persistence_micro_modulations = []
 
         runtime_roles.append(role_kind)
         runtime_roles = runtime_roles[-5000:]
@@ -1282,6 +1427,13 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             "h8mk_strong_bad_gap_factor": round(float(ri.get("h8mk_strong_bad_gap_factor", 1.0) or 1.0), 10),
             "h8mk_strong_bad_gap_delta": round(float(ri.get("h8mk_strong_bad_gap_delta", 0.0) or 0.0), 10),
             "h8mk_strong_bad_gap_reason": str(ri.get("h8mk_strong_bad_gap_reason", "none")),
+            "h8mm_persistence_micro_modulation_active": bool(h8mm_persistence_micro_modulation_active),
+            "h8mm_persistence_signature": str(ri.get("h8mm_persistence_signature", "none")),
+            "h8mm_persistence_previous_count": int(ri.get("h8mm_persistence_previous_count", 0) or 0),
+            "h8mm_persistence_new_count": int(ri.get("h8mm_persistence_new_count", 0) or 0),
+            "h8mm_persistence_modulation_factor": round(float(ri.get("h8mm_persistence_modulation_factor", 1.0) or 1.0), 10),
+            "h8mm_persistence_modulation_delta": round(float(ri.get("h8mm_persistence_modulation_delta", 0.0) or 0.0), 10),
+            "h8mm_persistence_modulation_reason": str(ri.get("h8mm_persistence_modulation_reason", "none")),
         }
 
         if len(samples) < 30:
@@ -1361,6 +1513,29 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
                 ),
             })
             runtime_strong_bad_gap_samples = runtime_strong_bad_gap_samples[-30:]
+
+        if h8mm_persistence_micro_modulation_active:
+            runtime_h8mm_persistence_micro_modulations.append({
+                "candidate": int(cand),
+                "negative_subtrigger": negative_subtrigger,
+                "signature": str(ri.get("h8mm_persistence_signature", "none")),
+                "previous_count": int(ri.get("h8mm_persistence_previous_count", 0) or 0),
+                "new_count": int(ri.get("h8mm_persistence_new_count", 0) or 0),
+                "modulation_factor": round(float(ri.get("h8mm_persistence_modulation_factor", 1.0) or 1.0), 10),
+                "modulation_delta": round(float(ri.get("h8mm_persistence_modulation_delta", 0.0) or 0.0), 10),
+                "reason": str(ri.get("h8mm_persistence_modulation_reason", "none")),
+                "score_before": round(float(score_before), 8),
+                "score_after": round(float(score_after), 8),
+                "functional_role_delta": round(float(delta), 10),
+                "role_factor": round(float(ri.get("role_factor", 1.0)), 8),
+                "gravity_level": str(ri.get("h8mj_bad_gap_gravity_level", "none")),
+                "local_gaps": list(ri.get("local_gaps", []) or []),
+                "near_count": int(ri.get("near_count", 0) or 0),
+                "gap_balance": round(float(ri.get("gap_balance", 0.0) or 0.0), 10),
+                "expansion": round(float(ri.get("expansion", 0.0) or 0.0), 10),
+                "non_blocking_micro_modulation": True,
+            })
+            runtime_h8mm_persistence_micro_modulations = runtime_h8mm_persistence_micro_modulations[-30:]
 
 
         # ============================================================
@@ -1574,6 +1749,17 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             for x in runtime_strong_bad_gap_samples
         ) if runtime_strong_bad_gap_samples else True
 
+        h8mm_persistence_micro_modulation_count = int(len(runtime_h8mm_persistence_micro_modulations))
+        h8mm_signature_modulation_counts = {}
+        h8mm_subtrigger_modulation_counts = {}
+        for _m in runtime_h8mm_persistence_micro_modulations:
+            if not isinstance(_m, dict):
+                continue
+            _sig = str(_m.get("signature", "none") or "none")
+            _sub = str(_m.get("negative_subtrigger", "none") or "none")
+            h8mm_signature_modulation_counts[_sig] = int(h8mm_signature_modulation_counts.get(_sig, 0) or 0) + 1
+            h8mm_subtrigger_modulation_counts[_sub] = int(h8mm_subtrigger_modulation_counts.get(_sub, 0) or 0) + 1
+
         try:
             functional_balance_ratio = float(boost_count + neutral_count) / max(1.0, float(functional_penalty_count))
         except Exception:
@@ -1615,6 +1801,16 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             "h8mk_strong_bad_gap_samples": list(runtime_strong_bad_gap_samples),
             "h8mk_strong_bad_gap_only": bool(h8mk_strong_bad_gap_only),
             "h8mk_strong_bad_gap_rule": "separated treatment applies only when negative_subtrigger == bad_gap_contextual AND gravity_level == strong",
+            "h8mm_persistence_micro_modulation_active": bool(h8mm_persistence_micro_modulation_count > 0),
+            "h8mm_persistence_micro_modulation_count": int(h8mm_persistence_micro_modulation_count),
+            "h8mm_persistence_micro_modulation_samples": list(runtime_h8mm_persistence_micro_modulations),
+            "h8mm_signature_modulation_counts": dict(h8mm_signature_modulation_counts),
+            "h8mm_subtrigger_modulation_counts": dict(h8mm_subtrigger_modulation_counts),
+            "h8mm_persistence_micro_modulation_rule": "non-blocking proportional micro-modulation only for recurrent negative coexistential signatures inside candidate_fit",
+            "h8mm_preserves_scored0": True,
+            "h8mm_no_random": True,
+            "h8mm_no_dynamic_selection": True,
+            "h8mm_no_architecture_change": True,
             "h8ml_persistence_auditor_active": bool(len(h8ml_signature_events) > 0),
             "h8ml_signature_only_observational": True,
             "h8ml_current_negative_signature": str(h8ml_current_signature),
@@ -1644,6 +1840,7 @@ def pc_v16_h8g_record_functional_role_auditor(candidate, current, score_before, 
             "_runtime_role_kinds": runtime_roles,
             "_runtime_negative_units": runtime_negative_units,
             "_runtime_negative_samples": runtime_negative_samples,
+            "_runtime_h8mm_persistence_micro_modulations": runtime_h8mm_persistence_micro_modulations,
             "_runtime_bad_gap_micro_adjustments": runtime_bad_gap_micro_adjustments,
             "_runtime_bad_gap_gravity_samples": runtime_bad_gap_gravity_samples,
             "_runtime_strong_bad_gap_samples": runtime_strong_bad_gap_samples,
@@ -25345,7 +25542,7 @@ try:
                 "altera_camada_4": False,
                 "usa_random": False,
                 "usa_random_choice": False,
-                "usa_select_candidate_dynamic": False,
+                "usa_dynamic_candidate_selection": False,
                 "auditor_inter_lista_validado": bool(_h6_consolidacao.get("validado", False)),
                 "status_auditor": str(_h6_consolidacao.get("status_binario", "n/d")),
                 "metricas_inter_lista": {
