@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_N_AUDITABLE_OPERATIONAL_DIAGNOSTIC"
-BUILD_REAL_FILE = "app_v16h57H8M_N_AUDITABLE_OPERATIONAL_DIAGNOSTIC.py"
+BUILD_TAG = "v16h57H8M_N_AUDITOR_RUNTIME_EXPOSURE_FIX"
+BUILD_REAL_FILE = "app_v16h57H8M_N_AUDITOR_RUNTIME_EXPOSURE_FIX.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_N_AUDITABLE_OPERATIONAL_DIAGNOSTIC"
+WATERMARK = "BUILD: v16h57H8M_N_AUDITOR_RUNTIME_EXPOSURE_FIX"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_AUDITABLE_OPERATIONAL_DIAGNOSTIC")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_AUDITOR_RUNTIME_EXPOSURE_FIX")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -4385,8 +4385,28 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "h8mn_controlled_reorg_active": bool(h8mn_reorg_audit.get("active", False)) if isinstance(h8mn_reorg_audit, dict) else False,
             "h8mn_controlled_reorg_applied": bool(h8mn_reorg_audit.get("applied", False)) if isinstance(h8mn_reorg_audit, dict) else False,
             "h8mn_controlled_reorg_audit": h8mn_reorg_audit,
+            "h8mn_operational_diagnostic_active": bool(h8mn_reorg_audit.get("active", False)) if isinstance(h8mn_reorg_audit, dict) else False,
             "h8mn_microdeslocamentos_aplicados": int(h8mn_reorg_audit.get("microdeslocamentos_aplicados", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
+            "h8mn_listas_avaliadas_qtd": int(h8mn_reorg_audit.get("listas_avaliadas_qtd", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
             "h8mn_listas_elegiveis_qtd": int(h8mn_reorg_audit.get("listas_elegiveis_qtd", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
+            "h8mn_listas_quase_elegiveis_qtd": int(h8mn_reorg_audit.get("listas_quase_elegiveis_qtd", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
+            "h8mn_listas_rejeitadas_qtd": int(h8mn_reorg_audit.get("listas_rejeitadas_qtd", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
+            "h8mn_trava_dominante": str(h8mn_reorg_audit.get("trava_dominante", "none")) if isinstance(h8mn_reorg_audit, dict) else "none",
+            "h8mn_motivos_rejeicao": h8mn_reorg_audit.get("motivos_rejeicao_counts", {}) if isinstance(h8mn_reorg_audit, dict) else {},
+            "h8mn_tentativas_microdeslocamento": int(h8mn_reorg_audit.get("tentativas_microdeslocamento_qtd", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
+            "h8mn_tentativas_falhas": int(h8mn_reorg_audit.get("tentativas_falhas_qtd", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
+            "h8mn_candidatos_considerados": int(h8mn_reorg_audit.get("candidatos_troca_considerados_qtd", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
+            "h8mn_candidatos_rejeitados": int(h8mn_reorg_audit.get("candidatos_troca_rejeitados_qtd", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
+            "h8mn_motivos_rejeicao_candidatos": h8mn_reorg_audit.get("criterios_bloqueio_counts", {}) if isinstance(h8mn_reorg_audit, dict) else {},
+            "h8mn_exemplos_listas_elegiveis": h8mn_reorg_audit.get("exemplos_listas_elegiveis", []) if isinstance(h8mn_reorg_audit, dict) else [],
+            "h8mn_exemplos_listas_quase_elegiveis": h8mn_reorg_audit.get("exemplos_listas_quase_elegiveis", []) if isinstance(h8mn_reorg_audit, dict) else [],
+            "h8mn_exemplos_listas_rejeitadas": h8mn_reorg_audit.get("exemplos_listas_rejeitadas", []) if isinstance(h8mn_reorg_audit, dict) else [],
+            "h8mn_hash_antes": h8mn_reorg_audit.get("hash_antes") if isinstance(h8mn_reorg_audit, dict) else None,
+            "h8mn_hash_depois": h8mn_reorg_audit.get("hash_depois") if isinstance(h8mn_reorg_audit, dict) else None,
+            "h8mn_passageiros_unicos_antes": int(h8mn_reorg_audit.get("passageiros_unicos_antes", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
+            "h8mn_passageiros_unicos_depois": int(h8mn_reorg_audit.get("passageiros_unicos_depois", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
+            "h8mn_overlap_antes": float(h8mn_reorg_audit.get("sobreposicao_media_antes", 0.0) or 0.0) if isinstance(h8mn_reorg_audit, dict) else 0.0,
+            "h8mn_overlap_depois": float(h8mn_reorg_audit.get("sobreposicao_media_depois", 0.0) or 0.0) if isinstance(h8mn_reorg_audit, dict) else 0.0,
             "full_set_global_selection_active": bool(full_set_global_audit.get("active", False)) if isinstance(full_set_global_audit, dict) else False,
             "full_set_global_selection_applied": bool(full_set_global_audit.get("applied", False)) if isinstance(full_set_global_audit, dict) else False,
             "full_set_global_selection_audit": full_set_global_audit,
@@ -26223,6 +26243,72 @@ try:
 
         except Exception as _h8g_panel_err:
             st.error(f"H8G panel error: {_h8g_panel_err}")
+
+        # ============================================================
+        # H8M-N — EXPOSIÇÃO RUNTIME OBRIGATÓRIA DO AUDITOR OPERACIONAL
+        # Build: v16h57H8M_N_AUDITOR_RUNTIME_EXPOSURE_FIX
+        # Apenas telemetria/painel: não altera SAFE, C4, sanidade, final_mount ou scored[0].
+        # ============================================================
+        try:
+            st.markdown("#### 🧭 AUDITOR H8M-N — OPERATIONAL DIAGNOSTIC / RUNTIME EXPOSURE")
+            _h8mn_diag = (
+                st.session_state.get("auditor_h8mn_operational_diagnostic")
+                or st.session_state.get("v16h57H8MN_auditable_diagnostic")
+                or st.session_state.get("auditor_h8mn_controlled_coexistence_reorg")
+                or {}
+            )
+            if not isinstance(_h8mn_diag, dict):
+                _h8mn_diag = {}
+
+            _h8mn_resumo = {
+                "h8mn_operational_diagnostic_active": bool(_h8mn_diag.get("active", False)),
+                "h8mn_controlled_reorg_active": bool(_h8mn_diag.get("h8mn_controlled_reorg_active", _h8mn_diag.get("active", False))),
+                "h8mn_controlled_reorg_applied": bool(_h8mn_diag.get("h8mn_controlled_reorg_applied", _h8mn_diag.get("applied", False))),
+                "h8mn_listas_avaliadas_qtd": int(_h8mn_diag.get("listas_avaliadas_qtd", 0) or 0),
+                "h8mn_listas_elegiveis_qtd": int(_h8mn_diag.get("listas_elegiveis_qtd", 0) or 0),
+                "h8mn_listas_quase_elegiveis_qtd": int(_h8mn_diag.get("listas_quase_elegiveis_qtd", 0) or 0),
+                "h8mn_listas_rejeitadas_qtd": int(_h8mn_diag.get("listas_rejeitadas_qtd", 0) or 0),
+                "h8mn_trava_dominante": str(_h8mn_diag.get("trava_dominante", "none")),
+                "h8mn_motivos_rejeicao": _h8mn_diag.get("motivos_rejeicao_counts", {}),
+                "h8mn_tentativas_microdeslocamento": int(_h8mn_diag.get("tentativas_microdeslocamento_qtd", 0) or 0),
+                "h8mn_tentativas_falhas": int(_h8mn_diag.get("tentativas_falhas_qtd", 0) or 0),
+                "h8mn_microdeslocamentos_aplicados": int(_h8mn_diag.get("microdeslocamentos_aplicados", 0) or 0),
+                "h8mn_candidatos_considerados": int(_h8mn_diag.get("candidatos_troca_considerados_qtd", 0) or 0),
+                "h8mn_candidatos_rejeitados": int(_h8mn_diag.get("candidatos_troca_rejeitados_qtd", 0) or 0),
+                "h8mn_motivos_rejeicao_candidatos": _h8mn_diag.get("criterios_bloqueio_counts", {}),
+                "h8mn_exemplos_listas_elegiveis": _h8mn_diag.get("exemplos_listas_elegiveis", []),
+                "h8mn_exemplos_listas_quase_elegiveis": _h8mn_diag.get("exemplos_listas_quase_elegiveis", []),
+                "h8mn_exemplos_listas_rejeitadas": _h8mn_diag.get("exemplos_listas_rejeitadas", []),
+                "h8mn_hash_antes": _h8mn_diag.get("hash_antes"),
+                "h8mn_hash_depois": _h8mn_diag.get("hash_depois"),
+                "h8mn_passageiros_unicos_antes": int(_h8mn_diag.get("passageiros_unicos_antes", 0) or 0),
+                "h8mn_passageiros_unicos_depois": int(_h8mn_diag.get("passageiros_unicos_depois", 0) or 0),
+                "h8mn_overlap_antes": float(_h8mn_diag.get("sobreposicao_media_antes", 0.0) or 0.0),
+                "h8mn_overlap_depois": float(_h8mn_diag.get("sobreposicao_media_depois", 0.0) or 0.0),
+                "h8mn_diagnostico_operacional": str(_h8mn_diag.get("diagnostico_operacional", "n/d")),
+                "h8mn_reason": str(_h8mn_diag.get("reason", "n/d")),
+                "preserva_safe_c4_sanidade_final_mount": bool(_h8mn_diag.get("preserva_safe_c4_sanidade_final_mount", True)),
+                "preserva_scored0": bool(_h8mn_diag.get("preserva_scored0", True)),
+                "usa_random": bool(_h8mn_diag.get("usa_random", False)),
+                "usa_random_choice": bool(_h8mn_diag.get("usa_random_choice", False)),
+                "usa_select_candidate_dynamic": bool(_h8mn_diag.get("usa_select_candidate_dynamic", False)),
+            }
+
+            if _h8mn_diag:
+                st.success("AUDITOR H8M-N OPERATIONAL DIAGNOSTIC encontrado e exposto no painel.")
+                st.markdown("##### Resumo obrigatório H8M-N")
+                st.json(_h8mn_resumo)
+                st.markdown("##### auditor_h8mn_operational_diagnostic completo")
+                st.json(_h8mn_diag)
+                try:
+                    st.session_state["auditor_h8mn_operational_diagnostic_runtime_view"] = dict(_h8mn_resumo)
+                except Exception:
+                    pass
+            else:
+                st.error("AUDITOR H8M-N OPERATIONAL DIAGNOSTIC NÃO ENCONTRADO EM SESSION_STATE")
+                st.json(_h8mn_resumo)
+        except Exception as _h8mn_panel_err:
+            st.error(f"H8M-N operational diagnostic panel error: {_h8mn_panel_err}")
 
 
         try:
