@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_M_PERSISTENCE_MICRO_MODULATION"
-BUILD_REAL_FILE = "app_v16h57H8M_M_PERSISTENCE_MICRO_MODULATION.py"
+BUILD_TAG = "v16h57H8M_N_CONTROLLED_COEXISTENCE_REORG"
+BUILD_REAL_FILE = "app_v16h57H8M_N_CONTROLLED_COEXISTENCE_REORG.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_M_PERSISTENCE_MICRO_MODULATION"
+WATERMARK = "BUILD: v16h57H8M_N_CONTROLLED_COEXISTENCE_REORG"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_M_PERSISTENCE_MICRO_MODULATION")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_CONTROLLED_COEXISTENCE_REORG")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -3334,6 +3334,286 @@ def pc_v16_packet_final_mount_deep(listas_packet, ranking_vals=None, cp_scores=N
             "h7_auditor": auditor_h7,
         }
 
+
+# ============================================================
+# H8M-N — CONTROLLED COEXISTENCE REORGANIZATION
+# Reorganização coexistencial controlada antes do fechamento do pacote.
+# - Atua no pacote já gerado pelo candidate_fit/scored[0]
+# - Não altera scored[0], SAFE, Camada 4, sanidade_final_listas ou final_mount
+# - Não usa random, random.choice nem seleção dinâmica
+# ============================================================
+def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alvo=6, max_adjust=2):
+    try:
+        base = []
+        for lst in (listas or []):
+            try:
+                li = sorted(dict.fromkeys(int(x) for x in list(lst)[:int(n_alvo)]))
+                if len(li) == int(n_alvo):
+                    base.append(li)
+            except Exception:
+                pass
+
+        before_audit = pc_packet_audit_dict(base, "H8MN_BEFORE")
+        if not base:
+            audit = {
+                "active": True,
+                "applied": False,
+                "reason": "pacote_vazio",
+                "listas_elegiveis_qtd": 0,
+                "microdeslocamentos_aplicados": 0,
+                "hash_antes": None,
+                "hash_depois": None,
+                "passageiros_unicos_antes": 0,
+                "passageiros_unicos_depois": 0,
+                "sobreposicao_media_antes": 0.0,
+                "sobreposicao_media_depois": 0.0,
+                "exemplos_alterados": [],
+                "preserva_safe_c4_sanidade_final_mount": True,
+                "preserva_scored0": True,
+                "usa_random": False,
+                "usa_random_choice": False,
+                "usa_select_candidate_dynamic": False,
+            }
+            try:
+                st.session_state["auditor_h8mn_controlled_coexistence_reorg"] = audit
+            except Exception:
+                pass
+            return listas, audit
+
+        from collections import Counter
+        flat = [int(x) for lst in base for x in lst]
+        freq = Counter(flat)
+        central = [int(v) for v, _ in sorted(freq.items(), key=lambda kv: (-int(kv[1]), int(kv[0])))[:max(2, min(4, int(n_alvo) - 2))]]
+        central_set = set(central)
+
+        ranking = []
+        for v in (ranking_vals or []):
+            try:
+                vi = int(v)
+                if vi not in ranking:
+                    ranking.append(vi)
+            except Exception:
+                pass
+        if not ranking:
+            ranking = [int(v) for v, _ in sorted(freq.items(), key=lambda kv: (-int(kv[1]), int(kv[0])))]
+
+        universe_pool = []
+        for v in ranking:
+            try:
+                vi = int(v)
+                if vi not in universe_pool:
+                    universe_pool.append(vi)
+            except Exception:
+                pass
+        for v in sorted(set(flat)):
+            if int(v) not in universe_pool:
+                universe_pool.append(int(v))
+
+        def _shape(vals):
+            vals = sorted(dict.fromkeys(int(x) for x in vals))
+            if len(vals) < 2:
+                return {
+                    "gaps": [], "gap_balance": 1.0, "gap_amp": 0.0,
+                    "min_gap": 0.0, "max_gap": 0.0, "badness": 0.0,
+                    "signature": "shape_insuficiente",
+                }
+            gaps = [int(vals[i + 1] - vals[i]) for i in range(len(vals) - 1)]
+            try:
+                gap_var = float(np.var(gaps)) if gaps else 0.0
+            except Exception:
+                gap_var = 0.0
+            gap_balance = max(0.0, 1.0 - min(gap_var / 25.0, 1.0))
+            min_gap = float(min(gaps)) if gaps else 0.0
+            max_gap = float(max(gaps)) if gaps else 0.0
+            gap_amp = float(max_gap - min_gap)
+            small_gaps = sum(1 for g in gaps if int(g) <= 2)
+            long_gaps = sum(1 for g in gaps if int(g) >= 12)
+            edge_gap = bool(long_gaps >= 1 and small_gaps >= 1)
+            balance_low = bool(gap_balance < 0.42)
+            expansion_low = bool((max(vals) - min(vals)) <= 42)
+            cluster_pressure = bool(small_gaps >= 1)
+            badness = 0.0
+            badness += 1.20 if edge_gap else 0.0
+            badness += 0.85 if balance_low else 0.0
+            badness += 0.35 if cluster_pressure else 0.0
+            badness += min(0.75, gap_amp / 30.0)
+            badness += 0.15 if expansion_low else 0.0
+            if edge_gap:
+                gap_bucket = "edge_gap"
+            elif gap_amp >= 10:
+                gap_bucket = "mixed_gap"
+            elif max_gap <= 8:
+                gap_bucket = "compact_gap"
+            else:
+                gap_bucket = "distributed_gap"
+            signature = "|".join([
+                str(gap_bucket),
+                "balance_low" if balance_low else "balance_ok",
+                "cluster_pressure" if cluster_pressure else "cluster_soft",
+                "expansion_low" if expansion_low else "expansion_ok",
+            ])
+            return {
+                "gaps": gaps,
+                "gap_balance": float(gap_balance),
+                "gap_amp": float(gap_amp),
+                "min_gap": float(min_gap),
+                "max_gap": float(max_gap),
+                "small_gaps": int(small_gaps),
+                "long_gaps": int(long_gaps),
+                "edge_gap": bool(edge_gap),
+                "balance_low": bool(balance_low),
+                "cluster_pressure": bool(cluster_pressure),
+                "badness": float(badness),
+                "signature": str(signature),
+            }
+
+        shapes = [_shape(lst) for lst in base]
+        signature_counts = Counter(str(sh.get("signature", "none")) for sh in shapes)
+        eligible = []
+        for idx, (lst, sh) in enumerate(zip(base, shapes)):
+            sig = str(sh.get("signature", "none"))
+            recurrent = int(signature_counts.get(sig, 0) or 0) >= 2
+            if recurrent and float(sh.get("badness", 0.0) or 0.0) >= 1.65:
+                eligible.append({
+                    "idx": int(idx),
+                    "lista": list(lst),
+                    "badness": float(sh.get("badness", 0.0) or 0.0),
+                    "signature": sig,
+                    "shape": sh,
+                })
+        eligible = sorted(eligible, key=lambda x: (-float(x.get("badness", 0.0)), -int(signature_counts.get(str(x.get("signature", "none")), 0)), int(x.get("idx", 0))))
+
+        out = [list(x) for x in base]
+        examples = []
+        applied = 0
+        max_adjust = int(max(0, min(int(max_adjust or 0), 2, len(out))))
+
+        def _packet_overlap_ok(candidate_packet):
+            try:
+                met = pc_packet_audit_dict(candidate_packet, "H8MN_CANDIDATE")
+                u_before = int(before_audit.get("passageiros_unicos", 0) or 0)
+                u_after = int(met.get("passageiros_unicos", 0) or 0)
+                o_before = float(before_audit.get("sobreposicao_media", 0.0) or 0.0)
+                o_after = float(met.get("sobreposicao_media", 0.0) or 0.0)
+                # Envelope respirável: não reduzir universo útil de forma material e não hipercomprimir.
+                if u_after < max(1, u_before - 2):
+                    return False
+                if o_after > o_before + 0.35:
+                    return False
+                if o_after < max(0.0, o_before - 0.45):
+                    return False
+                return True
+            except Exception:
+                return False
+
+        for item in eligible:
+            if applied >= max_adjust:
+                break
+            idx = int(item.get("idx", 0))
+            old = list(out[idx])
+            old_shape = _shape(old)
+            replace_candidates = [v for v in old if int(v) not in central_set]
+            # Evita mexer nas âncoras centrais; prioriza bordas e valores de baixa frequência.
+            replace_candidates = sorted(replace_candidates, key=lambda v: (int(freq.get(int(v), 0)), -abs(int(v) - int(sum(old) / max(1, len(old)))), int(v)))
+            best = None
+            for old_v in replace_candidates:
+                for new_v in universe_pool:
+                    new_v = int(new_v)
+                    if new_v in old:
+                        continue
+                    trial = [int(x) for x in old]
+                    try:
+                        pos = trial.index(int(old_v))
+                    except Exception:
+                        continue
+                    trial[pos] = int(new_v)
+                    trial = sorted(dict.fromkeys(trial))
+                    if len(trial) != int(n_alvo):
+                        continue
+                    # Preserva pelo menos as âncoras centrais que já existiam na lista.
+                    old_central_present = set(int(x) for x in old).intersection(central_set)
+                    if not old_central_present.issubset(set(trial)):
+                        continue
+                    new_shape = _shape(trial)
+                    delta_badness = float(old_shape.get("badness", 0.0) or 0.0) - float(new_shape.get("badness", 0.0) or 0.0)
+                    if delta_badness <= 0.20:
+                        continue
+                    candidate_packet = [list(x) for x in out]
+                    candidate_packet[idx] = list(trial)
+                    if not _packet_overlap_ok(candidate_packet):
+                        continue
+                    score = (float(delta_badness), -abs(new_v - int(old_v)), -int(freq.get(new_v, 0)), -idx, -new_v)
+                    if best is None or score > best[0]:
+                        best = (score, int(old_v), int(new_v), list(trial), new_shape, float(delta_badness))
+            if best is not None:
+                _, old_v, new_v, new_list, new_shape, delta_badness = best
+                out[idx] = list(new_list)
+                applied += 1
+                examples.append({
+                    "lista_idx": int(idx),
+                    "antes": [int(x) for x in old],
+                    "depois": [int(x) for x in new_list],
+                    "saiu": int(old_v),
+                    "entrou": int(new_v),
+                    "signature_antes": str(old_shape.get("signature", "none")),
+                    "signature_depois": str(new_shape.get("signature", "none")),
+                    "badness_antes": round(float(old_shape.get("badness", 0.0) or 0.0), 6),
+                    "badness_depois": round(float(new_shape.get("badness", 0.0) or 0.0), 6),
+                    "delta_badness": round(float(delta_badness), 6),
+                    "motivo": "controlled_coexistence_reorganization_pre_sanidade",
+                })
+
+        after_audit = pc_packet_audit_dict(out, "H8MN_AFTER")
+        audit = {
+            "active": True,
+            "applied": bool(applied > 0 and out != base),
+            "reason": "controlled_reorg_aplicada" if applied > 0 and out != base else "sem_microdeslocamento_elegivel_seguro",
+            "mode": "H8M-N_CONTROLLED_COEXISTENCE_REORGANIZATION_PRE_SANIDADE",
+            "listas_elegiveis_qtd": int(len(eligible)),
+            "microdeslocamentos_aplicados": int(applied),
+            "hash_antes": hash(str(base)),
+            "hash_depois": hash(str(out)),
+            "passageiros_unicos_antes": int(before_audit.get("passageiros_unicos", 0) or 0),
+            "passageiros_unicos_depois": int(after_audit.get("passageiros_unicos", 0) or 0),
+            "sobreposicao_media_antes": float(before_audit.get("sobreposicao_media", 0.0) or 0.0),
+            "sobreposicao_media_depois": float(after_audit.get("sobreposicao_media", 0.0) or 0.0),
+            "exemplos_alterados": examples[:6],
+            "assinaturas_recorrentes": {str(k): int(v) for k, v in signature_counts.items() if int(v) >= 2},
+            "central_preservado": [int(x) for x in central],
+            "preserva_safe_c4_sanidade_final_mount": True,
+            "preserva_scored0": True,
+            "usa_random": False,
+            "usa_random_choice": False,
+            "usa_select_candidate_dynamic": False,
+            "nao_altera_sanidade_final_listas": True,
+            "nao_altera_final_mount": True,
+        }
+        try:
+            st.session_state["auditor_h8mn_controlled_coexistence_reorg"] = dict(audit)
+        except Exception:
+            pass
+        return out, audit
+    except Exception as e:
+        audit = {
+            "active": True,
+            "applied": False,
+            "reason": f"h8mn_reorg_erro: {e}",
+            "mode": "H8M-N_CONTROLLED_COEXISTENCE_REORGANIZATION_PRE_SANIDADE",
+            "listas_elegiveis_qtd": 0,
+            "microdeslocamentos_aplicados": 0,
+            "exemplos_alterados": [],
+            "preserva_safe_c4_sanidade_final_mount": True,
+            "preserva_scored0": True,
+            "usa_random": False,
+            "usa_random_choice": False,
+            "usa_select_candidate_dynamic": False,
+        }
+        try:
+            st.session_state["auditor_h8mn_controlled_coexistence_reorg"] = dict(audit)
+        except Exception:
+            pass
+        return listas, audit
+
 def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_df=None, n_alvo=6, seed=0, max_lists=None):
     try:
 
@@ -3680,6 +3960,44 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
                 "mode": "full_set_global_selection_pre_sanidade",
             }
 
+        # ============================================================
+        # H8M-N — CONTROLLED COEXISTENCE REORGANIZATION
+        # Atua depois da geração inicial/scored[0] e antes do final_mount/sanidade externa.
+        # Não altera scored[0]; apenas microdesloca consolidação negativa recorrente no pacote.
+        # ============================================================
+        h8mn_reorg_audit = {
+            "active": False,
+            "applied": False,
+            "reason": "nao_executado",
+            "mode": "H8M-N_CONTROLLED_COEXISTENCE_REORGANIZATION_PRE_SANIDADE",
+        }
+        try:
+            out, h8mn_reorg_audit = pc_v16_h8mn_controlled_coexistence_reorg(
+                out,
+                ranking_vals=ranking2,
+                n_alvo=int(n_alvo),
+                max_adjust=2,
+            )
+        except Exception as _h8mn_e:
+            h8mn_reorg_audit = {
+                "active": True,
+                "applied": False,
+                "reason": f"h8mn_reorg_erro: {_h8mn_e}",
+                "mode": "H8M-N_CONTROLLED_COEXISTENCE_REORGANIZATION_PRE_SANIDADE",
+                "listas_elegiveis_qtd": 0,
+                "microdeslocamentos_aplicados": 0,
+                "exemplos_alterados": [],
+                "preserva_safe_c4_sanidade_final_mount": True,
+                "preserva_scored0": True,
+                "usa_random": False,
+                "usa_random_choice": False,
+                "usa_select_candidate_dynamic": False,
+            }
+        try:
+            pc_trace_store("pc_trace_after_h8mn_reorg", out, "1.7) PRE SANIDADE H8M-N CONTROLLED REORG")
+        except Exception:
+            pass
+
         # v16h57HO6ZOJ — SNAPSHOT CAUSAL LIMPO ANTES DO FINAL_MOUNT
         # A validação da hipótese estado -> score -> ranking -> lista deve usar
         # exclusivamente estes objetos pré-final_mount. O final_mount permanece
@@ -3770,6 +4088,11 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "closure_viability_decision_active": True,
             "closure_viability_mode": "candidate_fit_diverse_completed_group_paths",
             "closure_viability_paths_per_candidate": 8,
+            "h8mn_controlled_reorg_active": bool(h8mn_reorg_audit.get("active", False)) if isinstance(h8mn_reorg_audit, dict) else False,
+            "h8mn_controlled_reorg_applied": bool(h8mn_reorg_audit.get("applied", False)) if isinstance(h8mn_reorg_audit, dict) else False,
+            "h8mn_controlled_reorg_audit": h8mn_reorg_audit,
+            "h8mn_microdeslocamentos_aplicados": int(h8mn_reorg_audit.get("microdeslocamentos_aplicados", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
+            "h8mn_listas_elegiveis_qtd": int(h8mn_reorg_audit.get("listas_elegiveis_qtd", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
             "full_set_global_selection_active": bool(full_set_global_audit.get("active", False)) if isinstance(full_set_global_audit, dict) else False,
             "full_set_global_selection_applied": bool(full_set_global_audit.get("applied", False)) if isinstance(full_set_global_audit, dict) else False,
             "full_set_global_selection_audit": full_set_global_audit,
