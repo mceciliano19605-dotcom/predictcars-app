@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_N_AUDITOR_RUNTIME_EXPOSURE_FIX"
-BUILD_REAL_FILE = "app_v16h57H8M_N_AUDITOR_RUNTIME_EXPOSURE_FIX.py"
+BUILD_TAG = "v16h57H8M_N_NEAR_ELIGIBLE_DIAGNOSTICS"
+BUILD_REAL_FILE = "app_v16h57H8M_N_NEAR_ELIGIBLE_DIAGNOSTICS.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_N_AUDITOR_RUNTIME_EXPOSURE_FIX"
+WATERMARK = "BUILD: v16h57H8M_N_NEAR_ELIGIBLE_DIAGNOSTICS"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_AUDITOR_RUNTIME_EXPOSURE_FIX")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_NEAR_ELIGIBLE_DIAGNOSTICS")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -3484,6 +3484,65 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
         except Exception as e:
             return False, f"erro_validacao_envelope:{e}", {}
 
+    def _h8mn_badness_components(shape):
+        try:
+            edge_gap_component = 1.20 if bool(shape.get("edge_gap", False)) else 0.0
+            balance_low_component = 0.85 if bool(shape.get("balance_low", False)) else 0.0
+            cluster_pressure_component = 0.35 if bool(shape.get("cluster_pressure", False)) else 0.0
+            gap_amp_component = min(0.75, float(shape.get("gap_amp", 0.0) or 0.0) / 30.0)
+            expansion_low_component = 0.15 if bool(shape.get("expansion_low", False)) else 0.0
+            comps = {
+                "edge_gap_component": round(edge_gap_component, 6),
+                "balance_low_component": round(balance_low_component, 6),
+                "cluster_pressure_component": round(cluster_pressure_component, 6),
+                "gap_amp_component": round(float(gap_amp_component), 6),
+                "expansion_low_component": round(expansion_low_component, 6),
+            }
+            comps["badness_total_recalculado"] = round(sum(float(v) for v in comps.values()), 6)
+            return comps
+        except Exception:
+            return {"erro_componentes_badness": True, "badness_total_recalculado": 0.0}
+
+    def _h8mn_component_dominant(components):
+        try:
+            pares = [(str(k), float(v or 0.0)) for k, v in components.items() if str(k).endswith("_component")]
+            if not pares:
+                return "none"
+            return sorted(pares, key=lambda kv: (-kv[1], kv[0]))[0][0]
+        except Exception:
+            return "none"
+
+    def _h8mn_component_insufficient(shape, components, dist_threshold):
+        try:
+            ausentes = []
+            if not bool(shape.get("edge_gap", False)):
+                ausentes.append("edge_gap_component_ausente")
+            if not bool(shape.get("balance_low", False)):
+                ausentes.append("balance_low_component_ausente")
+            if not bool(shape.get("cluster_pressure", False)):
+                ausentes.append("cluster_pressure_component_ausente")
+            if not bool(shape.get("expansion_low", False)):
+                ausentes.append("expansion_low_component_ausente")
+            if float(components.get("gap_amp_component", 0.0) or 0.0) < 0.75:
+                ausentes.append("gap_amp_component_submaximo")
+            if ausentes:
+                return ausentes[0]
+            if float(dist_threshold or 0.0) > 0:
+                return "badness_total_abaixo_do_threshold"
+            return "none"
+        except Exception:
+            return "indeterminado"
+
+    def _h8mn_internal_overlap(lista):
+        try:
+            vals = [int(x) for x in lista]
+            if len(vals) <= 1:
+                return 0.0
+            gaps = [abs(vals[i+1] - vals[i]) for i in range(len(vals)-1)]
+            return round(float(sum(1 for g in gaps if g <= 2)) / float(max(1, len(gaps))), 6)
+        except Exception:
+            return 0.0
+
     try:
         base = []
         raw_rejected = []
@@ -3584,6 +3643,98 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
             if vi not in universe_pool:
                 universe_pool.append(vi)
 
+        def _h8mn_candidate_space_diagnostic(idx, old, old_shape):
+            diag = {
+                "idx": int(idx),
+                "candidatos_considerados_qtd": 0,
+                "candidatos_rejeitados_qtd": 0,
+                "candidatos_potencialmente_viaveis_qtd": 0,
+                "havia_candidato_microdeslocamento_possivel": False,
+                "melhor_candidato": None,
+                "motivos_rejeicao_candidatos": {},
+                "exemplos_candidatos_rejeitados": [],
+            }
+            try:
+                old = [int(x) for x in old]
+                local_blocks = Counter()
+                old_badness = float(old_shape.get("badness", 0.0) or 0.0)
+                replace_candidates = [int(v) for v in old if int(v) not in central_set]
+                if not replace_candidates:
+                    local_blocks["sem_passageiro_substituivel_nao_central"] += 1
+                    diag["motivos_rejeicao_candidatos"] = dict(local_blocks)
+                    diag["motivo_sem_candidato_possivel"] = "sem_passageiro_substituivel_nao_central"
+                    return diag
+                replace_candidates = sorted(
+                    replace_candidates,
+                    key=lambda v: (int(freq.get(int(v), 0)), -abs(int(v) - int(sum(old) / max(1, len(old)))), int(v))
+                )
+                best = None
+                for old_v in replace_candidates:
+                    for new_v in universe_pool:
+                        new_v = int(new_v)
+                        diag["candidatos_considerados_qtd"] += 1
+                        motivo_rej = None
+                        if new_v in old:
+                            motivo_rej = "novo_ja_existia_na_lista"
+                        else:
+                            trial = [int(x) for x in old]
+                            try:
+                                pos = trial.index(int(old_v))
+                            except Exception:
+                                motivo_rej = "old_v_nao_encontrado"
+                                pos = None
+                            if motivo_rej is None:
+                                trial[pos] = int(new_v)
+                                trial = sorted(dict.fromkeys(trial))
+                                if len(trial) != int(n_alvo):
+                                    motivo_rej = "trial_tamanho_invalido"
+                                elif any(int(v) in central_set and int(v) not in old for v in trial):
+                                    motivo_rej = "introduz_ancora_central"
+                                else:
+                                    trial_shape = _shape(trial)
+                                    new_badness = float(trial_shape.get("badness", 0.0) or 0.0)
+                                    improvement = float(old_badness - new_badness)
+                                    if improvement <= 0.10:
+                                        motivo_rej = "melhora_badness_insuficiente"
+                                    else:
+                                        candidate_packet = [list(x) for x in base]
+                                        candidate_packet[int(idx)] = list(trial)
+                                        env_ok, env_reason, env_met = _packet_overlap_ok(candidate_packet, before_audit)
+                                        if not env_ok:
+                                            motivo_rej = str(env_reason)
+                                        else:
+                                            cand = {
+                                                "old_v": int(old_v),
+                                                "new_v": int(new_v),
+                                                "lista_depois": list(trial),
+                                                "badness_antes": round(old_badness, 6),
+                                                "badness_depois": round(new_badness, 6),
+                                                "melhora_badness": round(improvement, 6),
+                                                "signature_depois": str(trial_shape.get("signature", "")),
+                                                "envelope_check": str(env_reason),
+                                            }
+                                            diag["candidatos_potencialmente_viaveis_qtd"] += 1
+                                            if best is None or float(cand["melhora_badness"]) > float(best.get("melhora_badness", 0.0)):
+                                                best = cand
+                        if motivo_rej is not None:
+                            diag["candidatos_rejeitados_qtd"] += 1
+                            local_blocks[str(motivo_rej)] += 1
+                            if len(diag["exemplos_candidatos_rejeitados"]) < 6:
+                                diag["exemplos_candidatos_rejeitados"].append({
+                                    "old_v": int(old_v),
+                                    "new_v": int(new_v),
+                                    "motivo": str(motivo_rej),
+                                })
+                diag["havia_candidato_microdeslocamento_possivel"] = bool(best is not None)
+                diag["melhor_candidato"] = best
+                diag["motivos_rejeicao_candidatos"] = dict(local_blocks)
+                if best is None:
+                    diag["motivo_sem_candidato_possivel"] = _dominant(local_blocks)
+                return diag
+            except Exception as e:
+                diag["erro_diagnostico_candidatos"] = str(e)
+                return diag
+
         shapes = [_shape(lst) for lst in base]
         signature_counts = Counter(str(sh.get("signature", "none")) for sh in shapes)
         rejection_counts = Counter()
@@ -3606,12 +3757,37 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
                 "badness_quase": bool(badness >= BADNESS_QUASI),
                 "tem_substituivel_nao_central": bool(any(int(v) not in central_set for v in lst)),
             }
+            badness_components = _h8mn_badness_components(sh)
+            distancia_threshold = max(0.0, float(BADNESS_ELIGIBLE) - float(badness))
+            componente_dominante = _h8mn_component_dominant(badness_components)
+            componente_insuficiente = _h8mn_component_insufficient(sh, badness_components, distancia_threshold)
+            near_count = int(sh.get("small_gaps", 0) or 0)
+            expansion = 0
+            try:
+                expansion = int(max(lst) - min(lst))
+            except Exception:
+                expansion = 0
             item = {
                 "idx": int(idx),
                 "lista": list(lst),
                 "signature": sig,
+                "assinatura_coexistencial_predominante": sig,
                 "signature_count": int(recurrence),
                 "badness": round(float(badness), 6),
+                "badness_total": round(float(badness), 6),
+                "badness_threshold_elegibilidade": round(float(BADNESS_ELIGIBLE), 6),
+                "distancia_ate_threshold": round(float(distancia_threshold), 6),
+                "componentes_badness": badness_components,
+                "componente_dominante": str(componente_dominante),
+                "componente_insuficiente": str(componente_insuficiente),
+                "bad_gap_contextual": bool(sh.get("edge_gap", False) or sh.get("cluster_pressure", False)),
+                "edge_collapse_contextual": bool(sh.get("edge_gap", False)),
+                "repeated_micro_cluster": bool(sh.get("cluster_pressure", False) and recurrence >= RECURRENCE_MIN),
+                "near_count": int(near_count),
+                "gap_balance": round(float(sh.get("gap_balance", 0.0) or 0.0), 6),
+                "expansion": int(expansion),
+                "local_gaps": list(sh.get("gaps", [])),
+                "overlap_interno": _h8mn_internal_overlap(lst),
                 "shape": sh,
                 "checks": checks,
             }
@@ -3622,6 +3798,19 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
                 if not checks["tem_substituivel_nao_central"]:
                     motivo = "quase_elegivel_sem_substituivel_nao_central"
                 item["motivo"] = motivo
+                item["motivo_exato_quase_elegibilidade"] = (
+                    "recorrente_e_badness_quase_mas_nao_cruzou_threshold"
+                    if checks.get("tem_substituivel_nao_central", False)
+                    else "recorrente_e_badness_quase_mas_sem_substituivel_nao_central"
+                )
+                item["criterios_faltantes_para_elegivel"] = {
+                    "faltou_badness": bool(not checks.get("badness_elegivel", False)),
+                    "distancia_ate_threshold": item.get("distancia_ate_threshold", None),
+                    "faltou_substituivel_nao_central": bool(not checks.get("tem_substituivel_nao_central", False)),
+                    "faltou_recorrencia": bool(not checks.get("recorrente", False)),
+                    "componente_insuficiente": item.get("componente_insuficiente", "none"),
+                }
+                item["diagnostico_candidatos_microdeslocamento"] = _h8mn_candidate_space_diagnostic(idx, lst, sh)
                 quasi.append(item)
                 rejection_counts[motivo] += 1
             else:
@@ -3640,6 +3829,23 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
         eligible = sorted(eligible, key=lambda x: (-float(x.get("badness", 0.0)), -int(x.get("signature_count", 0)), int(x.get("idx", 0))))
         quasi = sorted(quasi, key=lambda x: (-float(x.get("badness", 0.0)), -int(x.get("signature_count", 0)), int(x.get("idx", 0))))
 
+        quasi_component_counter = Counter(str(x.get("componente_dominante", "none")) for x in quasi)
+        quasi_insufficient_counter = Counter(str(x.get("componente_insuficiente", "none")) for x in quasi)
+        quasi_axis_submeasured = _dominant(quasi_insufficient_counter)
+        try:
+            distancias_quasi = [float(x.get("distancia_ate_threshold", 0.0) or 0.0) for x in quasi]
+            distancia_media_quasi = sum(distancias_quasi) / max(1, len(distancias_quasi))
+        except Exception:
+            distancia_media_quasi = 0.0
+        if not quasi:
+            diagnostico_fronteira = "sem_quase_elegiveis_para_diagnostico"
+        elif quasi_axis_submeasured in ("badness_total_abaixo_do_threshold", "gap_amp_component_submaximo"):
+            diagnostico_fronteira = "possivel_threshold_rigido_ou_gap_amp_submedido"
+        elif str(quasi_axis_submeasured).endswith("_ausente"):
+            diagnostico_fronteira = "possivel_metrica_incompleta_por_componente_ausente"
+        else:
+            diagnostico_fronteira = "fronteira_quase_elegivel_requer_leitura_componentizada"
+
         audit.update({
             "listas_elegiveis_qtd": int(len(eligible)),
             "listas_quase_elegiveis_qtd": int(len(quasi)),
@@ -3648,6 +3854,17 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
             "exemplos_listas_quase_elegiveis": quasi[:6],
             "exemplos_listas_rejeitadas": rejected[:8],
             "motivos_rejeicao_counts": dict(rejection_counts),
+            "h8mn_near_eligible_anatomical_diagnostic_active": True,
+            "h8mn_quase_elegiveis_total": int(len(quasi)),
+            "h8mn_quase_elegiveis_detalhes": quasi[:6],
+            "h8mn_quase_elegiveis_componentes_recorrentes": dict(quasi_component_counter),
+            "h8mn_quase_elegiveis_componentes_insuficientes": dict(quasi_insufficient_counter),
+            "h8mn_quase_elegiveis_componente_mais_recorrente": _dominant(quasi_component_counter),
+            "h8mn_eixo_coexistencial_aparentemente_submedido": str(quasi_axis_submeasured),
+            "h8mn_distancia_media_quase_elegivel_ate_threshold": round(float(distancia_media_quasi), 6),
+            "h8mn_threshold_elegibilidade_badness": round(float(BADNESS_ELIGIBLE), 6),
+            "h8mn_threshold_quase_elegivel_badness": round(float(BADNESS_QUASI), 6),
+            "h8mn_diagnostico_threshold_ou_metrica": str(diagnostico_fronteira),
         })
 
         out = [list(x) for x in base]
@@ -4407,6 +4624,11 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "h8mn_passageiros_unicos_depois": int(h8mn_reorg_audit.get("passageiros_unicos_depois", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
             "h8mn_overlap_antes": float(h8mn_reorg_audit.get("sobreposicao_media_antes", 0.0) or 0.0) if isinstance(h8mn_reorg_audit, dict) else 0.0,
             "h8mn_overlap_depois": float(h8mn_reorg_audit.get("sobreposicao_media_depois", 0.0) or 0.0) if isinstance(h8mn_reorg_audit, dict) else 0.0,
+            "h8mn_near_eligible_anatomical_diagnostic_active": bool(h8mn_reorg_audit.get("h8mn_near_eligible_anatomical_diagnostic_active", False)) if isinstance(h8mn_reorg_audit, dict) else False,
+            "h8mn_quase_elegiveis_total": int(h8mn_reorg_audit.get("h8mn_quase_elegiveis_total", 0) or 0) if isinstance(h8mn_reorg_audit, dict) else 0,
+            "h8mn_quase_elegiveis_componente_mais_recorrente": str(h8mn_reorg_audit.get("h8mn_quase_elegiveis_componente_mais_recorrente", "none")) if isinstance(h8mn_reorg_audit, dict) else "none",
+            "h8mn_eixo_coexistencial_aparentemente_submedido": str(h8mn_reorg_audit.get("h8mn_eixo_coexistencial_aparentemente_submedido", "none")) if isinstance(h8mn_reorg_audit, dict) else "none",
+            "h8mn_diagnostico_threshold_ou_metrica": str(h8mn_reorg_audit.get("h8mn_diagnostico_threshold_ou_metrica", "n/d")) if isinstance(h8mn_reorg_audit, dict) else "n/d",
             "full_set_global_selection_active": bool(full_set_global_audit.get("active", False)) if isinstance(full_set_global_audit, dict) else False,
             "full_set_global_selection_applied": bool(full_set_global_audit.get("applied", False)) if isinstance(full_set_global_audit, dict) else False,
             "full_set_global_selection_audit": full_set_global_audit,
@@ -26246,7 +26468,7 @@ try:
 
         # ============================================================
         # H8M-N — EXPOSIÇÃO RUNTIME OBRIGATÓRIA DO AUDITOR OPERACIONAL
-        # Build: v16h57H8M_N_AUDITOR_RUNTIME_EXPOSURE_FIX
+        # Build: v16h57H8M_N_NEAR_ELIGIBLE_DIAGNOSTICS
         # Apenas telemetria/painel: não altera SAFE, C4, sanidade, final_mount ou scored[0].
         # ============================================================
         try:
@@ -26285,6 +26507,16 @@ try:
                 "h8mn_passageiros_unicos_depois": int(_h8mn_diag.get("passageiros_unicos_depois", 0) or 0),
                 "h8mn_overlap_antes": float(_h8mn_diag.get("sobreposicao_media_antes", 0.0) or 0.0),
                 "h8mn_overlap_depois": float(_h8mn_diag.get("sobreposicao_media_depois", 0.0) or 0.0),
+                "h8mn_near_eligible_anatomical_diagnostic_active": bool(_h8mn_diag.get("h8mn_near_eligible_anatomical_diagnostic_active", False)),
+                "h8mn_quase_elegiveis_total": int(_h8mn_diag.get("h8mn_quase_elegiveis_total", 0) or 0),
+                "h8mn_quase_elegiveis_componente_mais_recorrente": str(_h8mn_diag.get("h8mn_quase_elegiveis_componente_mais_recorrente", "none")),
+                "h8mn_eixo_coexistencial_aparentemente_submedido": str(_h8mn_diag.get("h8mn_eixo_coexistencial_aparentemente_submedido", "none")),
+                "h8mn_distancia_media_quase_elegivel_ate_threshold": float(_h8mn_diag.get("h8mn_distancia_media_quase_elegivel_ate_threshold", 0.0) or 0.0),
+                "h8mn_threshold_elegibilidade_badness": float(_h8mn_diag.get("h8mn_threshold_elegibilidade_badness", 0.0) or 0.0),
+                "h8mn_threshold_quase_elegivel_badness": float(_h8mn_diag.get("h8mn_threshold_quase_elegivel_badness", 0.0) or 0.0),
+                "h8mn_diagnostico_threshold_ou_metrica": str(_h8mn_diag.get("h8mn_diagnostico_threshold_ou_metrica", "n/d")),
+                "h8mn_quase_elegiveis_componentes_recorrentes": _h8mn_diag.get("h8mn_quase_elegiveis_componentes_recorrentes", {}),
+                "h8mn_quase_elegiveis_componentes_insuficientes": _h8mn_diag.get("h8mn_quase_elegiveis_componentes_insuficientes", {}),
                 "h8mn_diagnostico_operacional": str(_h8mn_diag.get("diagnostico_operacional", "n/d")),
                 "h8mn_reason": str(_h8mn_diag.get("reason", "n/d")),
                 "preserva_safe_c4_sanidade_final_mount": bool(_h8mn_diag.get("preserva_safe_c4_sanidade_final_mount", True)),
