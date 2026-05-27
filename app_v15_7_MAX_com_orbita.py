@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_N_NEAR_ELIGIBLE_DIAGNOSTICS"
-BUILD_REAL_FILE = "app_v16h57H8M_N_NEAR_ELIGIBLE_DIAGNOSTICS.py"
+BUILD_TAG = "v16h57H8M_N_EDGE_GAP_COMPONENT_DIAGNOSTICS"
+BUILD_REAL_FILE = "app_v16h57H8M_N_EDGE_GAP_COMPONENT_DIAGNOSTICS.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_N_NEAR_ELIGIBLE_DIAGNOSTICS"
+WATERMARK = "BUILD: v16h57H8M_N_EDGE_GAP_COMPONENT_DIAGNOSTICS"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_NEAR_ELIGIBLE_DIAGNOSTICS")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_EDGE_GAP_COMPONENT_DIAGNOSTICS")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -3452,6 +3452,101 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
             "signature": str(signature),
         }
 
+    def _h8mn_edge_gap_component_diagnostic(vals, shape):
+        """
+        H8M-N — EDGE GAP COMPONENT DIAGNOSTICS.
+        Somente leitura: não altera elegibilidade, geração, candidate_fit,
+        scored[0], SAFE, Camada 4, sanidade_final_listas ou final_mount.
+        """
+        try:
+            lista = sorted(dict.fromkeys(int(x) for x in vals))
+            gaps = [int(g) for g in list(shape.get("gaps", []))]
+            if not gaps and len(lista) >= 2:
+                gaps = [int(lista[i + 1] - lista[i]) for i in range(len(lista) - 1)]
+            max_gap = float(max(gaps)) if gaps else 0.0
+            min_gap = float(min(gaps)) if gaps else 0.0
+            gap_amplitude = float(max_gap - min_gap)
+            small_gaps = int(sum(1 for g in gaps if int(g) <= 2))
+            long_gaps = int(sum(1 for g in gaps if int(g) >= 12))
+            edge_gap_threshold = 1.0
+            strict = bool(shape.get("edge_gap", False))
+            edge_indices = [0, max(0, len(gaps) - 1)] if gaps else []
+            edge_gaps = [float(gaps[i]) for i in sorted(set(edge_indices)) if 0 <= i < len(gaps)]
+            internal_gaps = [float(gaps[i]) for i in range(len(gaps)) if i not in set(edge_indices)]
+            edge_max = max(edge_gaps) if edge_gaps else 0.0
+            internal_mean = (sum(internal_gaps) / max(1, len(internal_gaps))) if internal_gaps else 0.0
+            asym = max(0.0, edge_max - internal_mean)
+            edge_position = "none"
+            if gaps:
+                if float(gaps[0]) == max_gap:
+                    edge_position = "left_edge_max_gap"
+                elif float(gaps[-1]) == max_gap:
+                    edge_position = "right_edge_max_gap"
+                elif float(gaps[0]) == min_gap:
+                    edge_position = "left_edge_min_gap"
+                elif float(gaps[-1]) == min_gap:
+                    edge_position = "right_edge_min_gap"
+                else:
+                    edge_position = "internal_gap_dominant"
+            raw = 0.0
+            raw += 0.45 if long_gaps >= 1 else 0.0
+            raw += 0.35 if small_gaps >= 1 else 0.0
+            raw += min(0.35, gap_amplitude / 45.0)
+            raw += 0.20 if edge_position in ("left_edge_max_gap", "right_edge_max_gap", "left_edge_min_gap", "right_edge_min_gap") else 0.0
+            raw += min(0.20, asym / 25.0) if asym > 0 else 0.0
+            raw = round(float(raw), 6)
+            dist = round(max(0.0, float(edge_gap_threshold) - float(raw)), 6)
+            partial = round(min(1.0, float(raw) / max(0.000001, float(edge_gap_threshold))), 6)
+            relaxed = bool((long_gaps >= 1 or small_gaps >= 1) and (gap_amplitude >= 9 or asym >= 3 or edge_position != "internal_gap_dominant"))
+            edge_collapse_candidate = bool(relaxed and not strict)
+            if strict:
+                fail = "strict_edge_gap_detectado"
+            elif long_gaps < 1 and small_gaps < 1:
+                fail = "sem_long_gap_e_sem_small_gap_para_edge_gap_estrito"
+            elif long_gaps < 1:
+                fail = "sem_long_gap_para_edge_gap_estrito"
+            elif small_gaps < 1:
+                fail = "sem_small_gap_para_edge_gap_estrito"
+            else:
+                fail = "criterio_estrito_nao_satisfeito_por_contexto_geometrico"
+            if strict:
+                diagnosis = "edge_gap_presente_no_detector_estrito"
+            elif relaxed:
+                diagnosis = "edge_gap_parcial_detector_estrito_possivelmente_estreito"
+            else:
+                diagnosis = "edge_gap_realmente_ausente_nesta_lista"
+            return {
+                "edge_gap_raw": raw,
+                "edge_gap_threshold": round(float(edge_gap_threshold), 6),
+                "edge_gap_distance_to_threshold": dist,
+                "edge_gap_partial_score": partial,
+                "edge_gap_asymmetry": round(float(asym), 6),
+                "max_gap": round(float(max_gap), 6),
+                "min_gap": round(float(min_gap), 6),
+                "gap_amplitude": round(float(gap_amplitude), 6),
+                "gap_sequence": list(gaps),
+                "edge_position": str(edge_position),
+                "edge_collapse_candidate": bool(edge_collapse_candidate),
+                "edge_gap_detected_strict": bool(strict),
+                "edge_gap_detected_relaxed_observational": bool(relaxed),
+                "edge_gap_strict_fail_reason": str(fail),
+                "edge_gap_partial_exists": bool(relaxed and not strict),
+                "edge_gap_absence_or_narrow_detector_diagnosis": str(diagnosis),
+                "long_gaps_count": int(long_gaps),
+                "small_gaps_count": int(small_gaps),
+            }
+        except Exception as e:
+            return {
+                "edge_gap_diagnostic_error": str(e),
+                "edge_gap_raw": 0.0,
+                "edge_gap_threshold": 1.0,
+                "edge_gap_distance_to_threshold": 1.0,
+                "edge_gap_partial_score": 0.0,
+                "edge_gap_detected_strict": bool(shape.get("edge_gap", False)) if isinstance(shape, dict) else False,
+                "edge_gap_detected_relaxed_observational": False,
+                "edge_gap_absence_or_narrow_detector_diagnosis": "erro_no_diagnostico_edge_gap",
+            }
+
     def _packet_metrics(packet, label="H8MN_PACKET"):
         try:
             return pc_packet_audit_dict(packet, label)
@@ -3761,6 +3856,7 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
             distancia_threshold = max(0.0, float(BADNESS_ELIGIBLE) - float(badness))
             componente_dominante = _h8mn_component_dominant(badness_components)
             componente_insuficiente = _h8mn_component_insufficient(sh, badness_components, distancia_threshold)
+            edge_gap_diag = _h8mn_edge_gap_component_diagnostic(lst, sh)
             near_count = int(sh.get("small_gaps", 0) or 0)
             expansion = 0
             try:
@@ -3778,6 +3874,23 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
                 "badness_threshold_elegibilidade": round(float(BADNESS_ELIGIBLE), 6),
                 "distancia_ate_threshold": round(float(distancia_threshold), 6),
                 "componentes_badness": badness_components,
+                "edge_gap_component_diagnostic": edge_gap_diag,
+                "edge_gap_raw": edge_gap_diag.get("edge_gap_raw"),
+                "edge_gap_threshold": edge_gap_diag.get("edge_gap_threshold"),
+                "edge_gap_distance_to_threshold": edge_gap_diag.get("edge_gap_distance_to_threshold"),
+                "edge_gap_partial_score": edge_gap_diag.get("edge_gap_partial_score"),
+                "edge_gap_asymmetry": edge_gap_diag.get("edge_gap_asymmetry"),
+                "max_gap": edge_gap_diag.get("max_gap"),
+                "min_gap": edge_gap_diag.get("min_gap"),
+                "gap_amplitude": edge_gap_diag.get("gap_amplitude"),
+                "gap_sequence": edge_gap_diag.get("gap_sequence"),
+                "edge_position": edge_gap_diag.get("edge_position"),
+                "edge_collapse_candidate": edge_gap_diag.get("edge_collapse_candidate"),
+                "edge_gap_detected_strict": edge_gap_diag.get("edge_gap_detected_strict"),
+                "edge_gap_detected_relaxed_observational": edge_gap_diag.get("edge_gap_detected_relaxed_observational"),
+                "edge_gap_strict_fail_reason": edge_gap_diag.get("edge_gap_strict_fail_reason"),
+                "edge_gap_partial_exists": edge_gap_diag.get("edge_gap_partial_exists"),
+                "edge_gap_absence_or_narrow_detector_diagnosis": edge_gap_diag.get("edge_gap_absence_or_narrow_detector_diagnosis"),
                 "componente_dominante": str(componente_dominante),
                 "componente_insuficiente": str(componente_insuficiente),
                 "bad_gap_contextual": bool(sh.get("edge_gap", False) or sh.get("cluster_pressure", False)),
@@ -3831,12 +3944,26 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
 
         quasi_component_counter = Counter(str(x.get("componente_dominante", "none")) for x in quasi)
         quasi_insufficient_counter = Counter(str(x.get("componente_insuficiente", "none")) for x in quasi)
+        quasi_edge_strict_counter = Counter(str(x.get("edge_gap_detected_strict", False)) for x in quasi)
+        quasi_edge_relaxed_counter = Counter(str(x.get("edge_gap_detected_relaxed_observational", False)) for x in quasi)
+        quasi_edge_diagnosis_counter = Counter(str(x.get("edge_gap_absence_or_narrow_detector_diagnosis", "none")) for x in quasi)
+        quasi_edge_fail_counter = Counter(str(x.get("edge_gap_strict_fail_reason", "none")) for x in quasi)
         quasi_axis_submeasured = _dominant(quasi_insufficient_counter)
         try:
             distancias_quasi = [float(x.get("distancia_ate_threshold", 0.0) or 0.0) for x in quasi]
             distancia_media_quasi = sum(distancias_quasi) / max(1, len(distancias_quasi))
         except Exception:
             distancia_media_quasi = 0.0
+        try:
+            edge_partial_scores = [float(x.get("edge_gap_partial_score", 0.0) or 0.0) for x in quasi]
+            edge_gap_partial_score_medio_quase = sum(edge_partial_scores) / max(1, len(edge_partial_scores))
+        except Exception:
+            edge_gap_partial_score_medio_quase = 0.0
+        try:
+            edge_distances = [float(x.get("edge_gap_distance_to_threshold", 0.0) or 0.0) for x in quasi]
+            edge_gap_distance_media_quase = sum(edge_distances) / max(1, len(edge_distances))
+        except Exception:
+            edge_gap_distance_media_quase = 0.0
         if not quasi:
             diagnostico_fronteira = "sem_quase_elegiveis_para_diagnostico"
         elif quasi_axis_submeasured in ("badness_total_abaixo_do_threshold", "gap_amp_component_submaximo"):
@@ -3865,6 +3992,19 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
             "h8mn_threshold_elegibilidade_badness": round(float(BADNESS_ELIGIBLE), 6),
             "h8mn_threshold_quase_elegivel_badness": round(float(BADNESS_QUASI), 6),
             "h8mn_diagnostico_threshold_ou_metrica": str(diagnostico_fronteira),
+            "h8mn_edge_gap_component_diagnostic_active": True,
+            "h8mn_edge_gap_diagnostics_mode": "somente_leitura_sem_alterar_elegibilidade",
+            "h8mn_edge_gap_detected_strict_counts_quase": dict(quasi_edge_strict_counter),
+            "h8mn_edge_gap_detected_relaxed_counts_quase": dict(quasi_edge_relaxed_counter),
+            "h8mn_edge_gap_diagnosis_counts_quase": dict(quasi_edge_diagnosis_counter),
+            "h8mn_edge_gap_strict_fail_reason_counts_quase": dict(quasi_edge_fail_counter),
+            "h8mn_edge_gap_partial_score_medio_quase": round(float(edge_gap_partial_score_medio_quase), 6),
+            "h8mn_edge_gap_distance_media_quase": round(float(edge_gap_distance_media_quase), 6),
+            "h8mn_edge_gap_interpretacao_quase_elegiveis": (
+                "edge_gap_parcial_detectado_detector_estrito_possivelmente_estreito"
+                if str(_dominant(quasi_edge_diagnosis_counter)) == "edge_gap_parcial_detector_estrito_possivelmente_estreito"
+                else str(_dominant(quasi_edge_diagnosis_counter))
+            ),
         })
 
         out = [list(x) for x in base]
@@ -4629,6 +4769,14 @@ def pc_v16_new_packet_generator(listas_totais, *, ranking_vals=None, historico_d
             "h8mn_quase_elegiveis_componente_mais_recorrente": str(h8mn_reorg_audit.get("h8mn_quase_elegiveis_componente_mais_recorrente", "none")) if isinstance(h8mn_reorg_audit, dict) else "none",
             "h8mn_eixo_coexistencial_aparentemente_submedido": str(h8mn_reorg_audit.get("h8mn_eixo_coexistencial_aparentemente_submedido", "none")) if isinstance(h8mn_reorg_audit, dict) else "none",
             "h8mn_diagnostico_threshold_ou_metrica": str(h8mn_reorg_audit.get("h8mn_diagnostico_threshold_ou_metrica", "n/d")) if isinstance(h8mn_reorg_audit, dict) else "n/d",
+            "h8mn_edge_gap_component_diagnostic_active": bool(h8mn_reorg_audit.get("h8mn_edge_gap_component_diagnostic_active", False)) if isinstance(h8mn_reorg_audit, dict) else False,
+            "h8mn_edge_gap_detected_strict_counts_quase": h8mn_reorg_audit.get("h8mn_edge_gap_detected_strict_counts_quase", {}) if isinstance(h8mn_reorg_audit, dict) else {},
+            "h8mn_edge_gap_detected_relaxed_counts_quase": h8mn_reorg_audit.get("h8mn_edge_gap_detected_relaxed_counts_quase", {}) if isinstance(h8mn_reorg_audit, dict) else {},
+            "h8mn_edge_gap_diagnosis_counts_quase": h8mn_reorg_audit.get("h8mn_edge_gap_diagnosis_counts_quase", {}) if isinstance(h8mn_reorg_audit, dict) else {},
+            "h8mn_edge_gap_strict_fail_reason_counts_quase": h8mn_reorg_audit.get("h8mn_edge_gap_strict_fail_reason_counts_quase", {}) if isinstance(h8mn_reorg_audit, dict) else {},
+            "h8mn_edge_gap_partial_score_medio_quase": float(h8mn_reorg_audit.get("h8mn_edge_gap_partial_score_medio_quase", 0.0) or 0.0) if isinstance(h8mn_reorg_audit, dict) else 0.0,
+            "h8mn_edge_gap_distance_media_quase": float(h8mn_reorg_audit.get("h8mn_edge_gap_distance_media_quase", 0.0) or 0.0) if isinstance(h8mn_reorg_audit, dict) else 0.0,
+            "h8mn_edge_gap_interpretacao_quase_elegiveis": str(h8mn_reorg_audit.get("h8mn_edge_gap_interpretacao_quase_elegiveis", "n/d")) if isinstance(h8mn_reorg_audit, dict) else "n/d",
             "full_set_global_selection_active": bool(full_set_global_audit.get("active", False)) if isinstance(full_set_global_audit, dict) else False,
             "full_set_global_selection_applied": bool(full_set_global_audit.get("applied", False)) if isinstance(full_set_global_audit, dict) else False,
             "full_set_global_selection_audit": full_set_global_audit,
@@ -26468,7 +26616,7 @@ try:
 
         # ============================================================
         # H8M-N — EXPOSIÇÃO RUNTIME OBRIGATÓRIA DO AUDITOR OPERACIONAL
-        # Build: v16h57H8M_N_NEAR_ELIGIBLE_DIAGNOSTICS
+        # Build: v16h57H8M_N_EDGE_GAP_COMPONENT_DIAGNOSTICS
         # Apenas telemetria/painel: não altera SAFE, C4, sanidade, final_mount ou scored[0].
         # ============================================================
         try:
@@ -26515,6 +26663,14 @@ try:
                 "h8mn_threshold_elegibilidade_badness": float(_h8mn_diag.get("h8mn_threshold_elegibilidade_badness", 0.0) or 0.0),
                 "h8mn_threshold_quase_elegivel_badness": float(_h8mn_diag.get("h8mn_threshold_quase_elegivel_badness", 0.0) or 0.0),
                 "h8mn_diagnostico_threshold_ou_metrica": str(_h8mn_diag.get("h8mn_diagnostico_threshold_ou_metrica", "n/d")),
+                "h8mn_edge_gap_component_diagnostic_active": bool(_h8mn_diag.get("h8mn_edge_gap_component_diagnostic_active", False)),
+                "h8mn_edge_gap_detected_strict_counts_quase": _h8mn_diag.get("h8mn_edge_gap_detected_strict_counts_quase", {}),
+                "h8mn_edge_gap_detected_relaxed_counts_quase": _h8mn_diag.get("h8mn_edge_gap_detected_relaxed_counts_quase", {}),
+                "h8mn_edge_gap_diagnosis_counts_quase": _h8mn_diag.get("h8mn_edge_gap_diagnosis_counts_quase", {}),
+                "h8mn_edge_gap_strict_fail_reason_counts_quase": _h8mn_diag.get("h8mn_edge_gap_strict_fail_reason_counts_quase", {}),
+                "h8mn_edge_gap_partial_score_medio_quase": float(_h8mn_diag.get("h8mn_edge_gap_partial_score_medio_quase", 0.0) or 0.0),
+                "h8mn_edge_gap_distance_media_quase": float(_h8mn_diag.get("h8mn_edge_gap_distance_media_quase", 0.0) or 0.0),
+                "h8mn_edge_gap_interpretacao_quase_elegiveis": str(_h8mn_diag.get("h8mn_edge_gap_interpretacao_quase_elegiveis", "n/d")),
                 "h8mn_quase_elegiveis_componentes_recorrentes": _h8mn_diag.get("h8mn_quase_elegiveis_componentes_recorrentes", {}),
                 "h8mn_quase_elegiveis_componentes_insuficientes": _h8mn_diag.get("h8mn_quase_elegiveis_componentes_insuficientes", {}),
                 "h8mn_diagnostico_operacional": str(_h8mn_diag.get("diagnostico_operacional", "n/d")),
