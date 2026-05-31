@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_N_AB_ELIGIBILITY_DEFICIT_DIAGNOSTICS"
-BUILD_REAL_FILE = "app_v16h57H8M_N_AB_ELIGIBILITY_DEFICIT_DIAGNOSTICS.py"
+BUILD_TAG = "v16h57H8M_N_FRONTIER_APPROACH_TRANSITION_DIAGNOSTICS"
+BUILD_REAL_FILE = "app_v16h57H8M_N_FRONTIER_APPROACH_TRANSITION_DIAGNOSTICS.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_N_AB_ELIGIBILITY_DEFICIT_DIAGNOSTICS"
+WATERMARK = "BUILD: v16h57H8M_N_FRONTIER_APPROACH_TRANSITION_DIAGNOSTICS"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_AB_ELIGIBILITY_DEFICIT_DIAGNOSTICS")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_FRONTIER_APPROACH_TRANSITION_DIAGNOSTICS")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -4342,6 +4342,215 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
                     "h8mn_ab_deficit_error": str(_h8mn_ab_err),
                     "h8mn_ab_deficit_altera_pacote": False,
                     "h8mn_ab_deficit_decisao_automatica": False,
+                })
+
+
+            # H8M-N — FRONTIER APPROACH TRANSITION DIAGNOSTICS
+            # Somente leitura: observa aproximações raras em direção à fronteira observada.
+            # Não cria detector, classificador, score, ranking ou decisão automática.
+            try:
+                def _h8mn_tokenize_transition_region(it):
+                    tokens = []
+                    try:
+                        if not isinstance(it, dict):
+                            return tokens
+                        sh = it.get("shape", {}) if isinstance(it.get("shape", {}), dict) else {}
+                        eg = it.get("edge_gap_component_diagnostic", {}) if isinstance(it.get("edge_gap_component_diagnostic", {}), dict) else {}
+                        sig = str(it.get("signature", sh.get("signature", "")) or "")
+                        for part in sig.split("|"):
+                            part = str(part).strip()
+                            if part:
+                                tokens.append("sig:" + part)
+                        if bool(sh.get("edge_gap", False)) or bool(eg.get("edge_gap_detected_strict", False)):
+                            tokens.append("edge_gap_strict_observed")
+                        if bool(eg.get("edge_gap_detected_relaxed_observational", False)):
+                            tokens.append("edge_gap_relaxed_observed")
+                        if bool(eg.get("edge_gap_partial_exists", False)):
+                            tokens.append("edge_gap_partial_observed")
+                        if float(eg.get("edge_gap_partial_score", 0.0) or 0.0) >= 0.80:
+                            tokens.append("edge_gap_partial_high")
+                        if float(eg.get("edge_gap_asymmetry", 0.0) or 0.0) >= 5.0:
+                            tokens.append("edge_asymmetry_high")
+                        if float(eg.get("gap_amplitude", sh.get("gap_amp", 0.0)) or 0.0) >= 10.0:
+                            tokens.append("gap_amplitude_high")
+                        if int(eg.get("long_gaps_count", sh.get("long_gaps", 0)) or 0) >= 1:
+                            tokens.append("long_gap_present")
+                        if int(eg.get("small_gaps_count", sh.get("small_gaps", 0)) or 0) >= 1:
+                            tokens.append("small_gap_present")
+                        if bool(sh.get("balance_low", False)) or float((it.get("componentes_badness", {}) or {}).get("balance_low_component", 0.0) or 0.0) > 0:
+                            tokens.append("balance_low_observed")
+                        if bool(sh.get("cluster_pressure", False)) or float((it.get("componentes_badness", {}) or {}).get("cluster_pressure_component", 0.0) or 0.0) > 0:
+                            tokens.append("cluster_pressure_observed")
+                        if bool(sh.get("expansion_low", False)):
+                            tokens.append("expansion_low_observed")
+                        else:
+                            tokens.append("expansion_ok_observed")
+                        if bool(it.get("checks", {}).get("badness_elegivel", False)):
+                            tokens.append("badness_elegivel_observed")
+                        if bool(it.get("checks", {}).get("badness_quase", False)):
+                            tokens.append("badness_quase_observed")
+                    except Exception:
+                        pass
+                    return sorted(set(tokens))
+
+                def _h8mn_combo_counts(items):
+                    c = Counter()
+                    token_counter = Counter()
+                    for it in items or []:
+                        toks = _h8mn_tokenize_transition_region(it)
+                        for t in toks:
+                            token_counter[t] += 1
+                        # Coocorrências de pares e trios apenas para observação humana.
+                        for i in range(len(toks)):
+                            for j in range(i + 1, len(toks)):
+                                c[" + ".join([toks[i], toks[j]])] += 1
+                        for i in range(len(toks)):
+                            for j in range(i + 1, len(toks)):
+                                for k in range(j + 1, len(toks)):
+                                    c[" + ".join([toks[i], toks[j], toks[k]])] += 1
+                    return c, token_counter
+
+                def _h8mn_top_counter(counter_obj, limit=12):
+                    try:
+                        return [{"pattern": str(k), "count": int(v)} for k, v in sorted(counter_obj.items(), key=lambda kv: (-int(kv[1]), str(kv[0])))[:int(limit)]]
+                    except Exception:
+                        return []
+
+                def _h8mn_transition_case_summary(items, reference_tokens=None, limit=8):
+                    reference_tokens = set(reference_tokens or [])
+                    rows = []
+                    for it in items or []:
+                        try:
+                            toks = set(_h8mn_tokenize_transition_region(it))
+                            shared = sorted(toks.intersection(reference_tokens))
+                            not_ref = sorted([t for t in toks if t not in reference_tokens])
+                            rows.append({
+                                "idx": int(it.get("idx", -1)),
+                                "lista": list(it.get("lista", [])),
+                                "signature": str(it.get("signature", "")),
+                                "motivo": str(it.get("motivo", "")),
+                                "badness_total": round(float(it.get("badness_total", it.get("badness", 0.0)) or 0.0), 6),
+                                "shared_reference_cooccurrence_tokens": shared[:12],
+                                "non_reference_tokens_observed": not_ref[:12],
+                                "observational_only": True,
+                            })
+                        except Exception:
+                            pass
+                    return rows[:int(limit)]
+
+                all_regions = []
+                try:
+                    all_regions = list(group_a or []) + list(group_b or []) + list(group_c or [])
+                except Exception:
+                    all_regions = []
+
+                frontier_reference_region = []
+                for it in all_regions:
+                    try:
+                        checks = it.get("checks", {}) if isinstance(it.get("checks", {}), dict) else {}
+                        eg = it.get("edge_gap_component_diagnostic", {}) if isinstance(it.get("edge_gap_component_diagnostic", {}), dict) else {}
+                        if bool(eg.get("edge_gap_detected_strict", False)) or bool(checks.get("badness_elegivel", False)):
+                            frontier_reference_region.append(it)
+                    except Exception:
+                        pass
+                if not frontier_reference_region:
+                    frontier_reference_region = list(group_a or [])
+
+                ref_combo_counts, ref_token_counts = _h8mn_combo_counts(frontier_reference_region)
+                bg_combo_counts, bg_token_counts = _h8mn_combo_counts(group_b or [])
+                cg_combo_counts, cg_token_counts = _h8mn_combo_counts(group_c or [])
+                all_combo_counts, all_token_counts = _h8mn_combo_counts(all_regions or [])
+
+                reference_tokens = set([k for k, v in ref_token_counts.items() if int(v) >= 1])
+                recurring_reference_tokens = set([k for k, v in ref_token_counts.items() if int(v) >= 2])
+                if not recurring_reference_tokens:
+                    recurring_reference_tokens = set(reference_tokens)
+
+                approach_candidates = []
+                group_b_ids = set(id(x) for x in (group_b or []))
+                for it in list(group_b or []) + list(group_c or []):
+                    try:
+                        toks = set(_h8mn_tokenize_transition_region(it))
+                        shared = sorted(toks.intersection(reference_tokens))
+                        shared_rec = sorted(toks.intersection(recurring_reference_tokens))
+                        freq_context = sorted([t for t in toks if int(all_token_counts.get(t, 0)) >= 3])
+                        category = "aproximacao_comum"
+                        if len(shared_rec) >= 3 and len(shared) >= 4:
+                            category = "aproximacao_rara"
+                        if len(shared_rec) >= 4 and bool(set(["edge_gap_strict_observed", "badness_elegivel_observed", "expansion_ok_observed"]).intersection(toks)):
+                            category = "aproximacao_excepcional"
+                        approach_candidates.append({
+                            "idx": int(it.get("idx", -1)),
+                            "grupo_origem": "B" if id(it) in group_b_ids else "C",
+                            "lista": list(it.get("lista", [])),
+                            "signature": str(it.get("signature", "")),
+                            "approach_frequency_category_descriptive_only": category,
+                            "shared_reference_tokens": shared[:12],
+                            "shared_recurring_reference_tokens": shared_rec[:12],
+                            "frequent_context_tokens_not_sufficient_alone": freq_context[:12],
+                            "observational_note": "categoria_descritiva_por_coocorrencia; nao_e_score_detector_classificador_ou_ranking",
+                        })
+                    except Exception:
+                        pass
+
+                common_approaches = [x for x in approach_candidates if x.get("approach_frequency_category_descriptive_only") == "aproximacao_comum"]
+                rare_approaches = [x for x in approach_candidates if x.get("approach_frequency_category_descriptive_only") == "aproximacao_rara"]
+                exceptional_approaches = [x for x in approach_candidates if x.get("approach_frequency_category_descriptive_only") == "aproximacao_excepcional"]
+
+                emerging = []
+                disappearing = []
+                for pat, cnt in ref_combo_counts.items():
+                    if int(cnt) >= 1 and int(bg_combo_counts.get(pat, 0)) == 0:
+                        disappearing.append({"pattern": str(pat), "reference_count": int(cnt), "B_count": 0})
+                for pat, cnt in bg_combo_counts.items():
+                    if int(cnt) >= 1 and int(ref_combo_counts.get(pat, 0)) == 0:
+                        emerging.append({"pattern": str(pat), "B_count": int(cnt), "reference_count": 0})
+
+                audit.update({
+                    "h8mn_frontier_approach_transition_diagnostics_active": True,
+                    "h8mn_frontier_approach_mode": "somente_leitura_aproximacoes_observadas_da_fronteira",
+                    "h8mn_frontier_approach_altera_funcional": False,
+                    "h8mn_frontier_approach_altera_score": False,
+                    "h8mn_frontier_approach_cria_classificador": False,
+                    "h8mn_frontier_approach_cria_detector": False,
+                    "h8mn_frontier_approach_cria_ranking": False,
+                    "h8mn_frontier_approach_altera_safe": False,
+                    "h8mn_frontier_approach_altera_camada_4": False,
+                    "h8mn_frontier_approach_altera_final_mount": False,
+                    "h8mn_frontier_approach_preserva_scored0": True,
+                    "h8mn_frontier_reference_definition": "regiao_observada_nao_exemplar_unico; coocorrencias_estruturais_recorrentes_como_contexto",
+                    "h8mn_frontier_reference_region_n": int(len(frontier_reference_region)),
+                    "h8mn_frontier_reference_singleton_warning": bool(len(frontier_reference_region) <= 1),
+                    "h8mn_frontier_reference_samples": _h8mn_transition_case_summary(frontier_reference_region, reference_tokens, limit=6),
+                    "h8mn_frontier_reference_cooccurrence_patterns": _h8mn_top_counter(ref_combo_counts, limit=18),
+                    "h8mn_observed_cooccurrence_patterns_all_groups": _h8mn_top_counter(all_combo_counts, limit=18),
+                    "h8mn_frontier_approach_candidates": approach_candidates[:20],
+                    "h8mn_common_approaches": common_approaches[:12],
+                    "h8mn_rare_approaches": rare_approaches[:12],
+                    "h8mn_exceptional_approaches": exceptional_approaches[:12],
+                    "h8mn_observed_preconditions": _h8mn_top_counter(ref_token_counts, limit=18),
+                    "h8mn_observed_disappearing_patterns": disappearing[:18],
+                    "h8mn_observed_emerging_patterns": emerging[:18],
+                    "h8mn_frontier_approach_transition_summary": {
+                        "pergunta": "o_que_parece_acontecer_antes_das_aproximacoes_observadas_da_fronteira",
+                        "interpretacao_humana_obrigatoria": True,
+                        "aproximacao_nao_e_score_ranking_elegibilidade_classificador_ou_detector": True,
+                        "componentes_frequentes_sao_contexto_nao_evidencia_suficiente": True,
+                        "eventos_isolados_nao_definem_referencia": True,
+                        "referencia_observacional_pode_ser_limitada_por_amostra": bool(len(frontier_reference_region) <= 1),
+                        "common_count": int(len(common_approaches)),
+                        "rare_count": int(len(rare_approaches)),
+                        "exceptional_count": int(len(exceptional_approaches)),
+                    },
+                })
+            except Exception as _h8mn_frontier_transition_err:
+                audit.update({
+                    "h8mn_frontier_approach_transition_diagnostics_active": False,
+                    "h8mn_frontier_approach_transition_error": str(_h8mn_frontier_transition_err),
+                    "h8mn_frontier_approach_altera_funcional": False,
+                    "h8mn_frontier_approach_cria_classificador": False,
+                    "h8mn_frontier_approach_cria_detector": False,
+                    "h8mn_frontier_approach_cria_ranking": False,
                 })
         except Exception as _h8mn_forensics_err:
             audit.update({
@@ -26959,7 +27168,7 @@ try:
 
         # ============================================================
         # H8M-N — EXPOSIÇÃO RUNTIME OBRIGATÓRIA DO AUDITOR OPERACIONAL
-        # Build: v16h57H8M_N_AB_ELIGIBILITY_DEFICIT_DIAGNOSTICS
+        # Build: v16h57H8M_N_FRONTIER_APPROACH_TRANSITION_DIAGNOSTICS
         # Apenas telemetria/painel: não altera SAFE, C4, sanidade, final_mount ou scored[0].
         # ============================================================
         try:
