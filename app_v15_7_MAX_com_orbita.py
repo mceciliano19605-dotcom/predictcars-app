@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_N_EDGE_GAP_COMPONENT_DIAGNOSTICS"
-BUILD_REAL_FILE = "app_v16h57H8M_N_EDGE_GAP_COMPONENT_DIAGNOSTICS.py"
+BUILD_TAG = "v16h57H8M_N_STRICT_RELAXED_ANATOMICAL_DISTANCE"
+BUILD_REAL_FILE = "app_v16h57H8M_N_STRICT_RELAXED_ANATOMICAL_DISTANCE.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_N_EDGE_GAP_COMPONENT_DIAGNOSTICS"
+WATERMARK = "BUILD: v16h57H8M_N_STRICT_RELAXED_ANATOMICAL_DISTANCE"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_EDGE_GAP_COMPONENT_DIAGNOSTICS")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_STRICT_RELAXED_ANATOMICAL_DISTANCE")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -4007,6 +4007,195 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
             ),
         })
 
+        # ============================================================
+        # H8M-N — STRICT VS RELAXED ANATOMICAL DISTANCE
+        # Build observacional: compara Grupo A/B/C sem alterar regra,
+        # threshold, elegibilidade, geração, candidate_fit, scored[0],
+        # SAFE, Camada 4, sanidade_final_listas ou final_mount.
+        # As distâncias são contexto interpretativo humano, NÃO decisão.
+        # ============================================================
+        try:
+            def _h8mn_forensics_group(item):
+                try:
+                    eg = item.get("edge_gap_component_diagnostic", {}) if isinstance(item, dict) else {}
+                    strict = bool(item.get("edge_gap_detected_strict", eg.get("edge_gap_detected_strict", False)))
+                    relaxed = bool(item.get("edge_gap_detected_relaxed_observational", eg.get("edge_gap_detected_relaxed_observational", False)))
+                    partial = bool(item.get("edge_gap_partial_exists", eg.get("edge_gap_partial_exists", False)))
+                    collapse = bool(item.get("edge_collapse_candidate", eg.get("edge_collapse_candidate", False)))
+                    if strict:
+                        return "A_strict_true"
+                    if relaxed and (partial or collapse):
+                        return "B_relaxed_true_strict_false"
+                    return "C_relaxed_false_strict_false"
+                except Exception:
+                    return "C_relaxed_false_strict_false"
+
+            def _h8mn_float(v, default=0.0):
+                try:
+                    return float(v)
+                except Exception:
+                    return float(default)
+
+            def _h8mn_vector(item):
+                try:
+                    comps = item.get("componentes_badness", {}) if isinstance(item, dict) else {}
+                    eg = item.get("edge_gap_component_diagnostic", {}) if isinstance(item, dict) else {}
+                    return [
+                        _h8mn_float(item.get("edge_gap_raw", eg.get("edge_gap_raw", 0.0))),
+                        _h8mn_float(item.get("edge_gap_asymmetry", eg.get("edge_gap_asymmetry", 0.0))) / 25.0,
+                        _h8mn_float(item.get("gap_amplitude", eg.get("gap_amplitude", 0.0))) / 30.0,
+                        _h8mn_float(item.get("max_gap", eg.get("max_gap", 0.0))) / 60.0,
+                        _h8mn_float(item.get("min_gap", eg.get("min_gap", 0.0))) / 10.0,
+                        _h8mn_float(eg.get("long_gaps_count", 0.0)) / 5.0,
+                        _h8mn_float(eg.get("small_gaps_count", 0.0)) / 5.0,
+                        _h8mn_float(comps.get("edge_gap_component", 0.0)) / 1.20,
+                        _h8mn_float(comps.get("balance_low_component", 0.0)) / 0.85,
+                        _h8mn_float(comps.get("cluster_pressure_component", 0.0)) / 0.35,
+                        _h8mn_float(comps.get("gap_amp_component", 0.0)) / 0.75,
+                        _h8mn_float(comps.get("expansion_low_component", 0.0)) / 0.15,
+                        _h8mn_float(item.get("overlap_interno", 0.0)),
+                        _h8mn_float(item.get("badness_total", item.get("badness", 0.0))) / max(0.000001, float(BADNESS_ELIGIBLE)),
+                    ]
+                except Exception:
+                    return [0.0] * 14
+
+            def _h8mn_centroid(items):
+                try:
+                    vecs = [_h8mn_vector(x) for x in items]
+                    if not vecs:
+                        return []
+                    n = len(vecs)
+                    m = len(vecs[0])
+                    return [round(float(sum(v[i] for v in vecs) / max(1, n)), 6) for i in range(m)]
+                except Exception:
+                    return []
+
+            def _h8mn_distance(v1, v2):
+                try:
+                    if not v1 or not v2:
+                        return None
+                    m = min(len(v1), len(v2))
+                    if m <= 0:
+                        return None
+                    return round(float(sum((float(v1[i]) - float(v2[i])) ** 2 for i in range(m)) ** 0.5), 6)
+                except Exception:
+                    return None
+
+            def _h8mn_signature_distance(a, b):
+                try:
+                    return 0.0 if str(a or "") == str(b or "") else 1.0
+                except Exception:
+                    return 1.0
+
+            def _h8mn_cases_summary(items, centroid=None, limit=5):
+                try:
+                    out_cases = []
+                    centroid = centroid if isinstance(centroid, list) else _h8mn_centroid(items)
+                    ranked = []
+                    for it in items:
+                        d = _h8mn_distance(_h8mn_vector(it), centroid)
+                        ranked.append((999999.0 if d is None else float(d), int(it.get("idx", 0) or 0), it))
+                    for _, _, it in sorted(ranked, key=lambda x: (x[0], x[1]))[:int(limit)]:
+                        eg = it.get("edge_gap_component_diagnostic", {}) if isinstance(it, dict) else {}
+                        out_cases.append({
+                            "idx": int(it.get("idx", -1) or -1),
+                            "lista": list(it.get("lista", []) or []),
+                            "grupo": str(_h8mn_forensics_group(it)),
+                            "representativo_observacional_nao_decisorio": True,
+                            "distancia_ao_centroide_do_grupo": _h8mn_distance(_h8mn_vector(it), centroid),
+                            "signature": str(it.get("signature", "")),
+                            "badness_total": it.get("badness_total", it.get("badness", 0.0)),
+                            "edge_gap_raw": it.get("edge_gap_raw", eg.get("edge_gap_raw")),
+                            "edge_gap_asymmetry": it.get("edge_gap_asymmetry", eg.get("edge_gap_asymmetry")),
+                            "gap_amplitude": it.get("gap_amplitude", eg.get("gap_amplitude")),
+                            "gap_sequence": it.get("gap_sequence", eg.get("gap_sequence")),
+                            "edge_gap_detected_strict": bool(it.get("edge_gap_detected_strict", eg.get("edge_gap_detected_strict", False))),
+                            "edge_gap_detected_relaxed_observational": bool(it.get("edge_gap_detected_relaxed_observational", eg.get("edge_gap_detected_relaxed_observational", False))),
+                            "edge_gap_partial_exists": bool(it.get("edge_gap_partial_exists", eg.get("edge_gap_partial_exists", False))),
+                            "edge_collapse_candidate": bool(it.get("edge_collapse_candidate", eg.get("edge_collapse_candidate", False))),
+                            "strict_fail_reason": str(it.get("edge_gap_strict_fail_reason", eg.get("edge_gap_strict_fail_reason", ""))),
+                            "componentes_badness": dict(it.get("componentes_badness", {}) or {}),
+                        })
+                    return out_cases
+                except Exception as _e:
+                    return [{"erro_exemplares_representativos": str(_e)}]
+
+            all_items_forensics = []
+            for _item in list(eligible or []) + list(quasi or []) + list(rejected or []):
+                if isinstance(_item, dict) and _item.get("lista"):
+                    all_items_forensics.append(_item)
+
+            group_a = [x for x in all_items_forensics if _h8mn_forensics_group(x) == "A_strict_true"]
+            group_b = [x for x in all_items_forensics if _h8mn_forensics_group(x) == "B_relaxed_true_strict_false"]
+            group_c = [x for x in all_items_forensics if _h8mn_forensics_group(x) == "C_relaxed_false_strict_false"]
+
+            centroid_a = _h8mn_centroid(group_a)
+            centroid_b = _h8mn_centroid(group_b)
+            centroid_c = _h8mn_centroid(group_c)
+            distance_b_to_a = _h8mn_distance(centroid_b, centroid_a)
+            distance_b_to_c = _h8mn_distance(centroid_b, centroid_c)
+
+            if distance_b_to_a is None or distance_b_to_c is None:
+                proximidade_relativa = "amostra_insuficiente_para_distancia_relativa"
+            elif float(distance_b_to_a) < float(distance_b_to_c):
+                proximidade_relativa = "grupo_B_mais_proximo_do_grupo_A_strict_true"
+            elif float(distance_b_to_c) < float(distance_b_to_a):
+                proximidade_relativa = "grupo_B_mais_proximo_do_grupo_C_relaxed_false_strict_false"
+            else:
+                proximidade_relativa = "grupo_B_equidistante_observacionalmente"
+
+            total_observacional = int(len(all_items_forensics))
+            def _coverage(qtd):
+                try:
+                    return round(float(qtd) / max(1.0, float(total_observacional)), 6)
+                except Exception:
+                    return 0.0
+
+            audit.update({
+                "h8mn_strict_relaxed_anatomical_distance_active": True,
+                "h8mn_strict_relaxed_forensics_mode": "somente_leitura_distancias_nao_decisorias",
+                "h8mn_strict_relaxed_altera_elegibilidade": False,
+                "h8mn_strict_relaxed_altera_threshold": False,
+                "h8mn_strict_relaxed_altera_pacote": False,
+                "h8mn_strict_relaxed_decisao_automatica": False,
+                "h8mn_strict_relaxed_observacao": "distancias_informam_interpretacao_humana_nao_criam_elegibilidade_implicita",
+                "h8mn_grupo_A_nome": "strict=true",
+                "h8mn_grupo_B_nome": "relaxed=true/strict=false/partial_or_collapse=true",
+                "h8mn_grupo_C_nome": "relaxed=false/strict=false",
+                "h8mn_grupo_A_tamanho_total": int(len(group_a)),
+                "h8mn_grupo_B_tamanho_total": int(len(group_b)),
+                "h8mn_grupo_C_tamanho_total": int(len(group_c)),
+                "h8mn_grupo_A_quantidade_efetiva_analisada": int(len(group_a)),
+                "h8mn_grupo_B_quantidade_efetiva_analisada": int(len(group_b)),
+                "h8mn_grupo_C_quantidade_efetiva_analisada": int(len(group_c)),
+                "h8mn_total_casos_forensics_analisados": int(total_observacional),
+                "h8mn_cobertura_observacional_grupo_A": _coverage(len(group_a)),
+                "h8mn_cobertura_observacional_grupo_B": _coverage(len(group_b)),
+                "h8mn_cobertura_observacional_grupo_C": _coverage(len(group_c)),
+                "h8mn_cobertura_observacional_total": 1.0 if total_observacional > 0 else 0.0,
+                "h8mn_centroid_grupo_A": centroid_a,
+                "h8mn_centroid_grupo_B": centroid_b,
+                "h8mn_centroid_grupo_C": centroid_c,
+                "h8mn_distancia_anatomica_B_para_A": distance_b_to_a,
+                "h8mn_distancia_anatomica_B_para_C": distance_b_to_c,
+                "h8mn_proximidade_relativa_grupo_B": str(proximidade_relativa),
+                "h8mn_confianca_observacional_comparacao": (
+                    "baixa_amostra_insuficiente" if min(len(group_a), len(group_b), len(group_c)) < 2
+                    else "moderada_amostra_minima_presente"
+                ),
+                "h8mn_limite_interpretativo": "nao_estatistico_nao_decisorio_sem_intervencao",
+                "h8mn_exemplares_representativos_grupo_A": _h8mn_cases_summary(group_a, centroid_a, limit=5),
+                "h8mn_exemplares_representativos_grupo_B": _h8mn_cases_summary(group_b, centroid_b, limit=5),
+                "h8mn_exemplares_representativos_grupo_C": _h8mn_cases_summary(group_c, centroid_c, limit=5),
+            })
+        except Exception as _h8mn_forensics_err:
+            audit.update({
+                "h8mn_strict_relaxed_anatomical_distance_active": False,
+                "h8mn_strict_relaxed_forensics_error": str(_h8mn_forensics_err),
+                "h8mn_strict_relaxed_altera_pacote": False,
+                "h8mn_strict_relaxed_decisao_automatica": False,
+            })
+
         out = [list(x) for x in base]
         applied = 0
         attempts = 0
@@ -4020,10 +4209,14 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
         examples_failed = []
         max_adjust = int(max(0, min(int(max_adjust or 0), 2, len(out))))
 
+        # H8M-N STRICT/RELAXED: este build é estritamente observacional.
+        # Mesmo que existam listas elegíveis, não aplica microdeslocamento, não reorganiza
+        # e não altera o pacote. As listas elegíveis ficam apenas como Grupo A/telemetria.
+        block_counts["strict_relaxed_observational_mode_no_microdisplacement"] += 1
         if not eligible:
             block_counts["sem_listas_elegiveis"] += 1
 
-        for item in eligible:
+        for item in []:
             if applied >= max_adjust:
                 break
             idx = int(item.get("idx", 0))
@@ -4158,14 +4351,9 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
         after_audit = _packet_metrics(out, "H8MN_AFTER")
         block_counts.update(Counter({k: int(v) for k, v in rejection_counts.items()}))
         dominant_block = _dominant(block_counts)
-        if applied > 0 and out != base:
-            reason = "controlled_reorg_aplicada"
-        elif not eligible:
-            reason = "sem_lista_elegivel_para_reorganizacao"
-        elif considered_total == 0:
-            reason = "listas_elegiveis_sem_candidatos_consideraveis"
-        else:
-            reason = "tentou_mas_todas_as_trocas_foram_bloqueadas"
+        # Build observacional: nunca interpreta ausência de aplicação como falha funcional.
+        # Não há microdeslocamento por desenho; as distâncias anatômicas são apenas leitura.
+        reason = "strict_relaxed_anatomical_distance_somente_leitura_sem_reorganizacao"
 
         audit.update({
             "applied": bool(applied > 0 and out != base),
@@ -4205,7 +4393,7 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
             st.session_state["v16h57H8MN_auditable_diagnostic"] = dict(audit)
         except Exception:
             pass
-        return out, audit
+        return base, audit
 
     except Exception as e:
         try:
@@ -26616,7 +26804,7 @@ try:
 
         # ============================================================
         # H8M-N — EXPOSIÇÃO RUNTIME OBRIGATÓRIA DO AUDITOR OPERACIONAL
-        # Build: v16h57H8M_N_EDGE_GAP_COMPONENT_DIAGNOSTICS
+        # Build: v16h57H8M_N_STRICT_RELAXED_ANATOMICAL_DISTANCE
         # Apenas telemetria/painel: não altera SAFE, C4, sanidade, final_mount ou scored[0].
         # ============================================================
         try:
@@ -26679,7 +26867,7 @@ try:
                 "preserva_scored0": bool(_h8mn_diag.get("preserva_scored0", True)),
                 "usa_random": bool(_h8mn_diag.get("usa_random", False)),
                 "usa_random_choice": bool(_h8mn_diag.get("usa_random_choice", False)),
-                "usa_select_candidate_dynamic": bool(_h8mn_diag.get("usa_select_candidate_dynamic", False)),
+                "usa_dynamic_candidate_selection": bool(_h8mn_diag.get("usa_dynamic_candidate_selection", False)),
             }
 
             if _h8mn_diag:
