@@ -626,14 +626,14 @@ def pc_v16_generator_opening_control(listas_totais, *, ranking_vals=None, n_alvo
 # PredictCars V15.7 MAX — BUILD AUDITÁVEL v16h57HO6ZOH_REAL_STRONG_STATE_MODULATION_DELTA_AUDITOR
 # ============================================================
 
-BUILD_TAG = "v16h57H8M_N_STRICT_RELAXED_ANATOMICAL_DISTANCE"
-BUILD_REAL_FILE = "app_v16h57H8M_N_STRICT_RELAXED_ANATOMICAL_DISTANCE.py"
+BUILD_TAG = "v16h57H8M_N_AB_ELIGIBILITY_DEFICIT_DIAGNOSTICS"
+BUILD_REAL_FILE = "app_v16h57H8M_N_AB_ELIGIBILITY_DEFICIT_DIAGNOSTICS.py"
 BUILD_CANONICAL_FILE = "app_v15_7_MAX_com_orbita.py"
 BUILD_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-WATERMARK = "BUILD: v16h57H8M_N_STRICT_RELAXED_ANATOMICAL_DISTANCE"
+WATERMARK = "BUILD: v16h57H8M_N_AB_ELIGIBILITY_DEFICIT_DIAGNOSTICS"
 
 # ⚠️ st.set_page_config precisa ser a PRIMEIRA chamada Streamlit
-st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_STRICT_RELAXED_ANATOMICAL_DISTANCE")
+st.set_page_config(page_title="PredictCars V15.7 MAX — v16h57H8M_N_AB_ELIGIBILITY_DEFICIT_DIAGNOSTICS")
 
 # ================= BANNER AUDITÁVEL (GIGANTE) =================
 st.markdown(
@@ -4188,6 +4188,161 @@ def pc_v16_h8mn_controlled_coexistence_reorg(listas, *, ranking_vals=None, n_alv
                 "h8mn_exemplares_representativos_grupo_B": _h8mn_cases_summary(group_b, centroid_b, limit=5),
                 "h8mn_exemplares_representativos_grupo_C": _h8mn_cases_summary(group_c, centroid_c, limit=5),
             })
+
+            # H8M-N — A/B ELIGIBILITY DEFICIT DIAGNOSTICS
+            # Build observacional: usa A como fronteira observada desta amostra para
+            # medir déficits anatômicos de B. Não altera threshold, classificador,
+            # elegibilidade, geração, candidate_fit, ranking, scored[0], SAFE,
+            # Camada 4, sanidade_final_listas ou final_mount.
+            try:
+                def _h8mn_mean(items, getter):
+                    vals = []
+                    for it in items or []:
+                        try:
+                            vals.append(float(getter(it)))
+                        except Exception:
+                            pass
+                    return round(sum(vals) / max(1, len(vals)), 6) if vals else None
+
+                def _h8mn_bool_rate(items, getter):
+                    vals = []
+                    for it in items or []:
+                        try:
+                            vals.append(1.0 if bool(getter(it)) else 0.0)
+                        except Exception:
+                            pass
+                    return round(sum(vals) / max(1, len(vals)), 6) if vals else None
+
+                def _h8mn_get_comp(it, name):
+                    comps = it.get("componentes_badness", {}) if isinstance(it, dict) else {}
+                    return float(comps.get(name, 0.0) or 0.0)
+
+                def _h8mn_get_field(it, name, default=0.0):
+                    if not isinstance(it, dict):
+                        return default
+                    eg = it.get("edge_gap_component_diagnostic", {}) if isinstance(it.get("edge_gap_component_diagnostic", {}), dict) else {}
+                    return it.get(name, eg.get(name, default))
+
+                ab_component_specs = [
+                    ("edge_gap_raw", lambda it: _h8mn_get_field(it, "edge_gap_raw", 0.0), "higher"),
+                    ("edge_gap_partial_score", lambda it: _h8mn_get_field(it, "edge_gap_partial_score", 0.0), "higher"),
+                    ("edge_gap_asymmetry", lambda it: _h8mn_get_field(it, "edge_gap_asymmetry", 0.0), "higher"),
+                    ("gap_amplitude", lambda it: _h8mn_get_field(it, "gap_amplitude", it.get("shape", {}).get("gap_amp", 0.0)), "higher"),
+                    ("long_gaps_count", lambda it: _h8mn_get_field(it, "long_gaps_count", it.get("shape", {}).get("long_gaps", 0.0)), "higher"),
+                    ("small_gaps_count", lambda it: _h8mn_get_field(it, "small_gaps_count", it.get("shape", {}).get("small_gaps", 0.0)), "higher"),
+                    ("balance_low_component", lambda it: _h8mn_get_comp(it, "balance_low_component"), "higher"),
+                    ("cluster_pressure_component", lambda it: _h8mn_get_comp(it, "cluster_pressure_component"), "higher"),
+                    ("gap_amp_component", lambda it: _h8mn_get_comp(it, "gap_amp_component"), "higher"),
+                    ("expansion_low_component", lambda it: _h8mn_get_comp(it, "expansion_low_component"), "higher"),
+                    ("overlap_interno", lambda it: float(it.get("overlap_interno", 0.0) or 0.0), "context"),
+                    ("badness_total", lambda it: float(it.get("badness_total", it.get("badness", 0.0)) or 0.0), "higher"),
+                ]
+
+                ab_table = []
+                ab_missing = []
+                ab_under = []
+                ab_excess = []
+                for name, getter, direction in ab_component_specs:
+                    mean_a = _h8mn_mean(group_a, getter)
+                    mean_b = _h8mn_mean(group_b, getter)
+                    if mean_a is None or mean_b is None:
+                        gap = None
+                        ratio = None
+                    else:
+                        gap = round(float(mean_a) - float(mean_b), 6)
+                        ratio = round(float(mean_b) / max(0.000001, abs(float(mean_a))), 6) if abs(float(mean_a)) > 0 else None
+                    deficit_type = "amostra_insuficiente"
+                    if gap is not None:
+                        if abs(float(mean_a or 0.0)) <= 0.000001 and abs(float(mean_b or 0.0)) <= 0.000001:
+                            deficit_type = "componente_nao_observado_na_fronteira_A_nem_em_B"
+                        elif abs(float(mean_a or 0.0)) > 0.000001 and abs(float(mean_b or 0.0)) <= 0.000001:
+                            deficit_type = "B_nao_apresenta_componente_observado_em_A"
+                            ab_missing.append(name)
+                        elif gap > 0:
+                            deficit_type = "B_apresenta_em_intensidade_inferior_a_fronteira_A"
+                            ab_under.append(name)
+                        elif gap < 0:
+                            deficit_type = "B_apresenta_excesso_relativo_versus_A"
+                            ab_excess.append(name)
+                        else:
+                            deficit_type = "B_equivalente_a_A_neste_componente"
+                    ab_table.append({
+                        "component": name,
+                        "media_A_fronteira_observada_nesta_amostra": mean_a,
+                        "media_B_quase_elegiveis": mean_b,
+                        "ab_component_gap_A_menos_B": gap,
+                        "ab_component_ratio_B_sobre_A": ratio,
+                        "ab_deficit_type_orientado_para_B": deficit_type,
+                        "interpretacao": (
+                            "B ainda nao apresenta componente observado em A" if deficit_type == "B_nao_apresenta_componente_observado_em_A" else
+                            "B apresenta componente em intensidade inferior a A" if deficit_type == "B_apresenta_em_intensidade_inferior_a_fronteira_A" else
+                            "B apresenta excesso relativo que pode explicar afastamento de A" if deficit_type == "B_apresenta_excesso_relativo_versus_A" else
+                            "sem deficit observacional claro neste componente"
+                        ),
+                        "observational_only": True,
+                    })
+
+                ab_rank = sorted(
+                    [x for x in ab_table if isinstance(x.get("ab_component_gap_A_menos_B"), (int, float))],
+                    key=lambda x: abs(float(x.get("ab_component_gap_A_menos_B") or 0.0)),
+                    reverse=True,
+                )
+
+                sig_a_counts = {}
+                sig_b_counts = {}
+                for it in group_a:
+                    sig_a_counts[str(it.get("signature", ""))] = sig_a_counts.get(str(it.get("signature", "")), 0) + 1
+                for it in group_b:
+                    sig_b_counts[str(it.get("signature", ""))] = sig_b_counts.get(str(it.get("signature", "")), 0) + 1
+                sig_a_main = max(sig_a_counts.items(), key=lambda kv: kv[1])[0] if sig_a_counts else "amostra_A_insuficiente"
+                sig_b_main = max(sig_b_counts.items(), key=lambda kv: kv[1])[0] if sig_b_counts else "amostra_B_insuficiente"
+
+                ab_deficit_score = round(
+                    sum(max(0.0, float(x.get("ab_component_gap_A_menos_B") or 0.0)) for x in ab_table if isinstance(x.get("ab_component_gap_A_menos_B"), (int, float))),
+                    6,
+                )
+
+                audit.update({
+                    "h8mn_ab_eligibility_deficit_diagnostics_active": True,
+                    "h8mn_ab_deficit_mode": "somente_leitura_deficit_B_vs_fronteira_A_observada_nesta_amostra",
+                    "h8mn_ab_deficit_altera_elegibilidade": False,
+                    "h8mn_ab_deficit_altera_threshold": False,
+                    "h8mn_ab_deficit_altera_classificador": False,
+                    "h8mn_ab_deficit_altera_pacote": False,
+                    "h8mn_ab_deficit_decisao_automatica": False,
+                    "h8mn_ab_deficit_fronteira_observada_nesta_amostra": True,
+                    "h8mn_ab_deficit_nao_assinatura_definitiva_de_elegibilidade": True,
+                    "h8mn_ab_deficit_grupo_A_fronteira_nome": "strict=true",
+                    "h8mn_ab_deficit_grupo_B_nome": "relaxed=true/strict=false/partial_or_collapse=true",
+                    "h8mn_ab_deficit_n_A": int(len(group_a)),
+                    "h8mn_ab_deficit_n_B": int(len(group_b)),
+                    "h8mn_ab_deficit_component_table": ab_table,
+                    "h8mn_ab_component_rank": ab_rank[:12],
+                    "h8mn_ab_deficit_score_observacional": ab_deficit_score,
+                    "h8mn_ab_missing_components": sorted(set(ab_missing)),
+                    "h8mn_ab_underrepresented_components": sorted(set(ab_under)),
+                    "h8mn_ab_excess_components": sorted(set(ab_excess)),
+                    "h8mn_ab_minimum_observed_eligibility_signature": sig_a_main,
+                    "h8mn_ab_B_predominant_signature": sig_b_main,
+                    "h8mn_ab_assinatura_minima_observada_nesta_amostra_apenas": True,
+                    "h8mn_ab_observational_deficit_summary": {
+                        "linguagem": "deficit_de_B_em_relacao_a_A",
+                        "pergunta": "quais_diferencas_observaveis_separam_B_da_fronteira_A_observada_nesta_amostra",
+                        "resultado_nao_decisorio": True,
+                        "nao_recomenda_relaxamento": True,
+                        "nao_recomenda_intervencao_funcional": True,
+                        "limitacao_principal": "fronteira_A_observada_pode_ser_pequena; nao_tratar_como_assinatura_definitiva",
+                    },
+                    "h8mn_ab_exemplares_A_fronteira_observada": _h8mn_cases_summary(group_a, centroid_a, limit=5),
+                    "h8mn_ab_exemplares_B_quase_elegiveis": _h8mn_cases_summary(group_b, centroid_b, limit=5),
+                })
+            except Exception as _h8mn_ab_err:
+                audit.update({
+                    "h8mn_ab_eligibility_deficit_diagnostics_active": False,
+                    "h8mn_ab_deficit_error": str(_h8mn_ab_err),
+                    "h8mn_ab_deficit_altera_pacote": False,
+                    "h8mn_ab_deficit_decisao_automatica": False,
+                })
         except Exception as _h8mn_forensics_err:
             audit.update({
                 "h8mn_strict_relaxed_anatomical_distance_active": False,
@@ -26804,7 +26959,7 @@ try:
 
         # ============================================================
         # H8M-N — EXPOSIÇÃO RUNTIME OBRIGATÓRIA DO AUDITOR OPERACIONAL
-        # Build: v16h57H8M_N_STRICT_RELAXED_ANATOMICAL_DISTANCE
+        # Build: v16h57H8M_N_AB_ELIGIBILITY_DEFICIT_DIAGNOSTICS
         # Apenas telemetria/painel: não altera SAFE, C4, sanidade, final_mount ou scored[0].
         # ============================================================
         try:
